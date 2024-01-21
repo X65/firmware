@@ -1,0 +1,4 @@
+# https://clangd.llvm.org/config.html
+---
+CompileFlags:
+  Add: [-I/usr/arm-none-eabi/include]

@@ -3,6 +3,8 @@
     "ms-vscode.cpptools-extension-pack",
     "marus25.cortex-debug",
     "dan-c-underwood.arm",
-    "tlgkccampbell.code-ca65"
+    "tlgkccampbell.code-ca65",
+    "llvm-vs-code-extensions.vscode-clangd",
+    "streetsidesoftware.code-spell-checker"
   ]
 }
