@@ -9,7 +9,6 @@
 #include "modes/mode2.h"
 #include "modes/mode3.h"
 #include "modes/mode4.h"
-#include "sys/led.h"
 #include "sys/pix.h"
 #include "sys/ria.h"
 #include "sys/std.h"
@@ -29,7 +28,6 @@ static void init(void)
     term_init();
     serno_init(); // before tusb
     tusb_init();
-    led_init();
     ria_init();
     pix_init();
 }

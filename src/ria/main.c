@@ -20,7 +20,6 @@
 #include "sys/com.h"
 #include "sys/cfg.h"
 #include "sys/cpu.h"
-#include "sys/led.h"
 #include "sys/lfs.h"
 #include "sys/pix.h"
 #include "sys/ria.h"
@@ -59,7 +58,6 @@ static void init(void)
     kbd_init();
     mou_init();
     rom_init();
-    led_init();
     clk_init();
 
     // TinyUSB

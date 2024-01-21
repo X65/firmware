@@ -89,7 +89,6 @@ target_sources(rp6502_ria PRIVATE
     ria/sys/cfg.c
     ria/sys/com.c
     ria/sys/cpu.c
-    ria/sys/led.c
     ria/sys/lfs.c
     ria/sys/mem.c
     ria/sys/pix.c
@@ -130,7 +129,6 @@ target_sources(rp6502_vga PRIVATE
     vga/modes/mode3.c
     vga/modes/mode4.c
     vga/modes/mode4.S
-    vga/sys/led.c
     vga/sys/pix.c
     vga/sys/ria.c
     vga/sys/std.c
