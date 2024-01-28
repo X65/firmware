@@ -4,12 +4,12 @@
  * SPDX-License-Identifier: BSD-3-Clause
  */
 
-#include "pico.h"
-#include "main.h"
 #include "aud/aud.h"
-#include "pico/stdlib.h"
-#include "hardware/pwm.h"
 #include "hardware/clocks.h"
+#include "hardware/pwm.h"
+#include "main.h"
+#include "pico.h"
+#include "pico/stdlib.h"
 #include <math.h>
 #include <string.h>
 

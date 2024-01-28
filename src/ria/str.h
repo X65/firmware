@@ -8,8 +8,8 @@
 #ifndef _STR_H_
 #define _STR_H_
 
-#include <stddef.h>
 #include <stdbool.h>
+#include <stddef.h>
 #include <stdint.h>
 
 /*

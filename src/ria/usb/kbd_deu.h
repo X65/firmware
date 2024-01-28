@@ -12,12 +12,12 @@
 // KEYCODE to Unicode Conversion
 // {without shift, with shift, with altGr}
 
-#define HID_KEYCODE_TO_UNICODE_DE         HID_KEYCODE_TO_UNICODE_DEU_QWERTZ
-#define HID_KEYCODE_TO_UNICODE_DE_QWERTZ  HID_KEYCODE_TO_UNICODE_DEU_QWERTZ
-#define HID_KEYCODE_TO_UNICODE_DEU        HID_KEYCODE_TO_UNICODE_DEU_QWERTZ
+#define HID_KEYCODE_TO_UNICODE_DE        HID_KEYCODE_TO_UNICODE_DEU_QWERTZ
+#define HID_KEYCODE_TO_UNICODE_DE_QWERTZ HID_KEYCODE_TO_UNICODE_DEU_QWERTZ
+#define HID_KEYCODE_TO_UNICODE_DEU       HID_KEYCODE_TO_UNICODE_DEU_QWERTZ
 
 #define HID_KEYCODE_TO_UNICODE_DEU_QWERTZ                  \
-        {0, 0, 0},             /* 0x00 */                  \
+    {0, 0, 0},                 /* 0x00 */                  \
         {0, 0, 0},             /* 0x01 */                  \
         {0, 0, 0},             /* 0x02 */                  \
         {0, 0, 0},             /* 0x03 */                  \
@@ -49,7 +49,7 @@
         {'y', 'Y', 0},         /* 0x1d  GER */             \
         {'1', '!', 0},         /* 0x1e */                  \
         {'2', '"', 0x00B2},    /* 0x1f  GER */             \
-        {'3', 0x00A7, 0x00B3},    /* 0x20  GER  '§' */     \
+        {'3', 0x00A7, 0x00B3}, /* 0x20  GER  '§' */       \
         {'4', '$', 0},         /* 0x21 */                  \
         {'5', '%', 0},         /* 0x22 */                  \
         {'6', '&', 0},         /* 0x23  GER */             \
@@ -62,15 +62,15 @@
         {'\x7f', '\x7f', 0},   /* 0x2a */                  \
         {'\t', '\t', 0},       /* 0x2b */                  \
         {' ', ' ', 0},         /* 0x2c */                  \
-        {0x00DF, '?', 0x005C}, /* 0x2d  GER  'ß' */        \
-        {0x00B4, '`', 0},      /* 0x2e  GER  '´' */        \
-        {0x00FC, 0x00DC, 0},   /* 0x2f  GER  'ü' + 'Ü'*/   \
+        {0x00DF, '?', 0x005C}, /* 0x2d  GER  'ß' */       \
+        {0x00B4, '`', 0},      /* 0x2e  GER  '´' */       \
+        {0x00FC, 0x00DC, 0},   /* 0x2f  GER  'ü' + 'Ü'*/ \
         {'+', '*', '~'},       /* 0x30  GER */             \
         {'#', '#', 0},         /* 0x31  GER */             \
         {'#', '~', 0},         /* 0x32 */                  \
-        {0x00F6, 0x00D6, 0},   /* 0x33  GER  'ö' + 'Ü'*/   \
-        {0x00E4, 0x00C4, 0},   /* 0x34  GER  'ä' + 'Ü'*/   \
-        {'^', 0x00B0, 0},      /* 0x35  GER  '°' */        \
+        {0x00F6, 0x00D6, 0},   /* 0x33  GER  'ö' + 'Ü'*/ \
+        {0x00E4, 0x00C4, 0},   /* 0x34  GER  'ä' + 'Ü'*/ \
+        {'^', 0x00B0, 0},      /* 0x35  GER  '°' */       \
         {',', ';', 0},         /* 0x36  GER */             \
         {'.', ':', 0},         /* 0x37  GER */             \
         {'-', '_', 0},         /* 0x38  GER */             \

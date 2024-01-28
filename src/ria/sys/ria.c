@@ -4,18 +4,18 @@
  * SPDX-License-Identifier: BSD-3-Clause
  */
 
-#include "main.h"
-#include "api/api.h"
-#include "sys/com.h"
-#include "sys/cpu.h"
-#include "sys/pix.h"
 #include "sys/ria.h"
-#include "sys.pio.h"
-#include "pico/stdlib.h"
-#include "pico/multicore.h"
+#include "api/api.h"
 #include "hardware/dma.h"
 #include "hardware/structs/bus_ctrl.h"
 #include "littlefs/lfs_util.h"
+#include "main.h"
+#include "pico/multicore.h"
+#include "pico/stdlib.h"
+#include "sys.pio.h"
+#include "sys/com.h"
+#include "sys/cpu.h"
+#include "sys/pix.h"
 
 #define RIA_WATCHDOG_MS 250
 
@@ -24,7 +24,8 @@ static enum state {
     action_state_read,
     action_state_write,
     action_state_verify,
-} volatile action_state = action_state_idle;
+} volatile action_state
+    = action_state_idle;
 static absolute_time_t action_watchdog_timer;
 static volatile int32_t action_result = -1;
 static int32_t saved_reset_vec = -1;
@@ -63,7 +64,7 @@ void ria_run(void)
     saved_reset_vec = REGSW(0xFFFC);
     REGSW(0xFFFC) = 0xFFF0;
     action_watchdog_timer = delayed_by_us(get_absolute_time(),
-                                          cpu_get_reset_us() +
+                                          cpu_get_reset_us() + //
                                               RIA_WATCHDOG_MS * 1000);
     switch (action_state)
     {
@@ -213,14 +214,14 @@ void ria_write_buf(uint16_t addr)
     main_run();
 }
 
-#define CASE_READ(addr) (addr & 0x1F)
+#define CASE_READ(addr)  (addr & 0x1F)
 #define CASE_WRITE(addr) (0x20 | (addr & 0x1F))
-#define RIA_RW0 REGS(0xFFE4)
-#define RIA_STEP0 *(int8_t *)&REGS(0xFFE5)
-#define RIA_ADDR0 REGSW(0xFFE6)
-#define RIA_RW1 REGS(0xFFE8)
-#define RIA_STEP1 *(int8_t *)&REGS(0xFFE9)
-#define RIA_ADDR1 REGSW(0xFFEA)
+#define RIA_RW0          REGS(0xFFE4)
+#define RIA_STEP0        *(int8_t *)&REGS(0xFFE5)
+#define RIA_ADDR0        REGSW(0xFFE6)
+#define RIA_RW1          REGS(0xFFE8)
+#define RIA_STEP1        *(int8_t *)&REGS(0xFFE9)
+#define RIA_ADDR1        REGSW(0xFFEA)
 static __attribute__((optimize("O1"))) void act_loop(void)
 {
     // In here we bypass the usual SDK calls as needed for performance.
@@ -524,9 +525,9 @@ void ria_init(void)
     }
 
     // Lower CPU0 on crossbar by raising others
-    bus_ctrl_hw->priority |=
-        BUSCTRL_BUS_PRIORITY_DMA_R_BITS |
-        BUSCTRL_BUS_PRIORITY_DMA_W_BITS |
+    bus_ctrl_hw->priority |=              //
+        BUSCTRL_BUS_PRIORITY_DMA_R_BITS | //
+        BUSCTRL_BUS_PRIORITY_DMA_W_BITS | //
         BUSCTRL_BUS_PRIORITY_PROC1_BITS;
 
     // the inits

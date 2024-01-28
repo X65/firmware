@@ -4,9 +4,9 @@
  * SPDX-License-Identifier: BSD-3-Clause
  */
 
-#include "str.h"
-#include "api/oem.h"
 #include "sys/cfg.h"
+#include "api/oem.h"
+#include "str.h"
 #include "sys/cpu.h"
 #include "sys/lfs.h"
 #include "sys/mem.h"

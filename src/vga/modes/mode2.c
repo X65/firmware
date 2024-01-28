@@ -6,10 +6,10 @@
 
 #include "modes/mode2.h"
 #include "modes/modes.h"
-#include "sys/vga.h"
-#include "sys/mem.h"
-#include "term/color.h"
 #include "pico/scanvideo.h"
+#include "sys/mem.h"
+#include "sys/vga.h"
+#include "term/color.h"
 #include <string.h>
 
 typedef struct
@@ -51,7 +51,7 @@ mode2_scanline_to_data(int16_t scanline_id, mode2_config_t *config, size_t cell_
 static volatile const uint16_t *__attribute__((optimize("O1")))
 mode2_get_palette(mode2_config_t *config, int16_t bpp)
 {
-    if (!(config->xram_palette_ptr & 1) &&
+    if (!(config->xram_palette_ptr & 1) && //
         config->xram_palette_ptr <= 0x10000 - sizeof(uint16_t) * (2 ^ bpp))
         return (uint16_t *)&xram[config->xram_palette_ptr];
     if (bpp == 1)
@@ -115,8 +115,8 @@ mode2_render_1bpp(int16_t scanline_id, int16_t width, uint16_t *rgb, uint16_t co
         return false;
     mode2_config_t *config = (void *)&xram[config_ptr];
     int16_t row;
-    volatile const uint8_t *row_data =
-        mode2_scanline_to_data(scanline_id, config, sizeof(uint8_t), tile_size, &row);
+    volatile const uint8_t *row_data
+        = mode2_scanline_to_data(scanline_id, config, sizeof(uint8_t), tile_size, &row);
     if (!row_data)
         return false;
     volatile const uint16_t *palette = mode2_get_palette(config, 1);
@@ -199,8 +199,8 @@ mode2_render_2bpp(int16_t scanline_id, int16_t width, uint16_t *rgb, uint16_t co
         return false;
     mode2_config_t *config = (void *)&xram[config_ptr];
     int16_t row;
-    volatile const uint8_t *row_data =
-        mode2_scanline_to_data(scanline_id, config, sizeof(uint8_t), tile_size, &row);
+    volatile const uint8_t *row_data
+        = mode2_scanline_to_data(scanline_id, config, sizeof(uint8_t), tile_size, &row);
     if (!row_data)
         return false;
     volatile const uint16_t *palette = mode2_get_palette(config, 2);
@@ -271,8 +271,8 @@ mode2_render_4bpp(int16_t scanline_id, int16_t width, uint16_t *rgb, uint16_t co
         return false;
     mode2_config_t *config = (void *)&xram[config_ptr];
     int16_t row;
-    volatile const uint8_t *row_data =
-        mode2_scanline_to_data(scanline_id, config, sizeof(uint8_t), tile_size, &row);
+    volatile const uint8_t *row_data
+        = mode2_scanline_to_data(scanline_id, config, sizeof(uint8_t), tile_size, &row);
     if (!row_data)
         return false;
     volatile const uint16_t *palette = mode2_get_palette(config, 4);
@@ -329,8 +329,8 @@ mode2_render_8bpp(int16_t scanline_id, int16_t width, uint16_t *rgb, uint16_t co
         return false;
     mode2_config_t *config = (void *)&xram[config_ptr];
     int16_t row;
-    volatile const uint8_t *row_data =
-        mode2_scanline_to_data(scanline_id, config, sizeof(uint8_t), tile_size, &row);
+    volatile const uint8_t *row_data
+        = mode2_scanline_to_data(scanline_id, config, sizeof(uint8_t), tile_size, &row);
     if (!row_data)
         return false;
     volatile const uint16_t *palette = mode2_get_palette(config, 8);
@@ -375,7 +375,7 @@ bool mode2_prog(uint16_t *xregs)
     const int16_t scanline_begin = xregs[5];
     const int16_t scanline_end = xregs[6];
 
-    if (config_ptr & 1 ||
+    if (config_ptr & 1 || //
         config_ptr > 0x10000 - sizeof(mode2_config_t))
         return false;
 

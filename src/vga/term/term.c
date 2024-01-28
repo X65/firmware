@@ -4,22 +4,22 @@
  * SPDX-License-Identifier: BSD-3-Clause
  */
 
-#include "modes/modes.h"
-#include "term/color.h"
-#include "term/font.h"
 #include "term/term.h"
-#include "sys/vga.h"
-#include "pico/stdlib.h"
-#include "pico/stdio/driver.h"
+#include "modes/modes.h"
 #include "pico/scanvideo.h"
 #include "pico/scanvideo/composable_scanline.h"
+#include "pico/stdio/driver.h"
+#include "pico/stdlib.h"
+#include "sys/vga.h"
+#include "term/color.h"
+#include "term/font.h"
 #include <stdio.h>
 
-#define TERM_STD_HEIGHT 30
-#define TERM_MAX_HEIGHT 32
+#define TERM_STD_HEIGHT        30
+#define TERM_MAX_HEIGHT        32
 #define TERM_CSI_PARAM_MAX_LEN 16
-#define TERM_FG_COLOR_INDEX 7
-#define TERM_BG_COLOR_INDEX 0
+#define TERM_FG_COLOR_INDEX    7
+#define TERM_BG_COLOR_INDEX    0
 
 typedef enum
 {
@@ -153,7 +153,7 @@ static void term_cursor_set_inv(term_state_t *term, bool inv)
 
 static void sgr_color(term_state_t *term, uint8_t idx, uint16_t *color)
 {
-    if (idx + 2 < term->csi_param_count &&
+    if (idx + 2 < term->csi_param_count && //
         term->csi_param[idx + 1] == 5)
     {
         // e.g. ESC[38;5;255m - Indexed color
@@ -164,31 +164,31 @@ static void sgr_color(term_state_t *term, uint8_t idx, uint16_t *color)
                 *color = color_256[color_idx];
         }
     }
-    else if (idx + 4 < term->csi_param_count &&
-             term->csi_separator[idx] == ';' &&
+    else if (idx + 4 < term->csi_param_count && //
+             term->csi_separator[idx] == ';' && //
              term->csi_param[idx + 1] == 2)
     {
         // e.g. ESC[38;2;255;255;255m - RBG color
         if (color)
-            *color = PICO_SCANVIDEO_ALPHA_MASK |
+            *color = PICO_SCANVIDEO_ALPHA_MASK | //
                      PICO_SCANVIDEO_PIXEL_FROM_RGB8(
                          term->csi_param[idx + 2],
                          term->csi_param[idx + 3],
                          term->csi_param[idx + 4]);
     }
-    else if (idx + 5 < term->csi_param_count &&
-             term->csi_separator[idx] == ':' &&
+    else if (idx + 5 < term->csi_param_count && //
+             term->csi_separator[idx] == ':' && //
              term->csi_param[idx + 1] == 2)
     {
         // e.g. ESC[38:2::255:255:255:::m - RBG color (ITU)
         if (color)
-            *color = PICO_SCANVIDEO_ALPHA_MASK |
+            *color = PICO_SCANVIDEO_ALPHA_MASK | //
                      PICO_SCANVIDEO_PIXEL_FROM_RGB8(
                          term->csi_param[idx + 3],
                          term->csi_param[idx + 4],
                          term->csi_param[idx + 5]);
     }
-    else if (idx + 1 < term->csi_param_count &&
+    else if (idx + 1 < term->csi_param_count && //
              term->csi_param[idx + 1] == 1)
     {
         // e.g. ESC[38;1m - transparent

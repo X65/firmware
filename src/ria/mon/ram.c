@@ -4,8 +4,8 @@
  * SPDX-License-Identifier: BSD-3-Clause
  */
 
-#include "str.h"
 #include "api/api.h"
+#include "str.h"
 #include "sys/com.h"
 #include "sys/pix.h"
 #include "sys/ria.h"
@@ -178,9 +178,9 @@ static void cmd_xram()
 
 void ram_mon_binary(const char *args, size_t len)
 {
-    if (parse_uint32(&args, &len, &rw_addr) &&
-        parse_uint32(&args, &len, &rw_len) &&
-        parse_uint32(&args, &len, &rw_crc) &&
+    if (parse_uint32(&args, &len, &rw_addr) && //
+        parse_uint32(&args, &len, &rw_len) &&  //
+        parse_uint32(&args, &len, &rw_crc) &&  //
         parse_end(args, len))
     {
         if (rw_addr > 0x1FFFF)
@@ -188,8 +188,8 @@ void ram_mon_binary(const char *args, size_t len)
             printf("?invalid address\n");
             return;
         }
-        if (!rw_len || rw_len > MBUF_SIZE ||
-            (rw_addr < 0x10000 && rw_addr + rw_len > 0x10000) ||
+        if (!rw_len || rw_len > MBUF_SIZE ||                     //
+            (rw_addr < 0x10000 && rw_addr + rw_len > 0x10000) || //
             rw_addr + rw_len > 0x20000)
         {
             printf("?invalid length\n");

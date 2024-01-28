@@ -5,17 +5,17 @@
  * SPDX-License-Identifier: BSD-3-Clause
  */
 
-#include "api/api.h"
 #include "api/clk.h"
-#include "sys/cfg.h"
-#include <time.h>
+#include "api/api.h"
+#include "fatfs/ff.h"
 #include "hardware/rtc.h"
 #include "hardware/timer.h"
-#include "fatfs/ff.h"
+#include "sys/cfg.h"
+#include <time.h>
 
 #define CLK_ID_REALTIME 0
-#define CLK_EPOCH_UNIX 1970
-#define CLK_EPOCH_FAT 1980
+#define CLK_EPOCH_UNIX  1970
+#define CLK_EPOCH_FAT   1980
 
 void clk_init(void)
 {
@@ -38,11 +38,11 @@ DWORD get_fattime(void)
     datetime_t rtc_time;
     if (rtc_get_datetime(&rtc_time) && (rtc_time.year >= CLK_EPOCH_FAT))
     {
-        res = (((DWORD)rtc_time.year - CLK_EPOCH_FAT) << 25) |
-              ((DWORD)rtc_time.month << 21) |
-              ((DWORD)rtc_time.day << 16) |
-              (WORD)(rtc_time.hour << 11) |
-              (WORD)(rtc_time.min << 5) |
+        res = (((DWORD)rtc_time.year - CLK_EPOCH_FAT) << 25) | //
+              ((DWORD)rtc_time.month << 21) |                  //
+              ((DWORD)rtc_time.day << 16) |                    //
+              (WORD)(rtc_time.hour << 11) |                    //
+              (WORD)(rtc_time.min << 5) |                      //
               (WORD)(rtc_time.sec >> 1);
     }
     else
@@ -64,7 +64,7 @@ void clk_api_get_res(void)
     {
         uint32_t sec = 1;
         int32_t nsec = 0;
-        if (!api_push_int32(&nsec) ||
+        if (!api_push_int32(&nsec) || //
             !api_push_uint32(&sec))
             return api_return_errno(API_EINVAL);
         api_sync_xstack();
@@ -93,7 +93,7 @@ void clk_api_get_time(void)
         };
         time_t rawtime = mktime(&timeinfo);
         int32_t rawtime_nsec = 0;
-        if (!api_push_int32(&rawtime_nsec) ||
+        if (!api_push_int32(&rawtime_nsec) || //
             !api_push_uint32((uint32_t *)&rawtime))
             return api_return_errno(API_EINVAL);
         api_sync_xstack();
@@ -110,7 +110,7 @@ void clk_api_set_time(void)
     {
         time_t rawtime;
         int32_t rawtime_nsec;
-        if (!api_pop_uint32((uint32_t *)&rawtime) ||
+        if (!api_pop_uint32((uint32_t *)&rawtime) || //
             !api_pop_int32_end(&rawtime_nsec))
             return api_return_errno(API_EINVAL);
         struct tm timeinfo = *gmtime(&rawtime);

@@ -5,19 +5,19 @@
  */
 
 #include "ria.h"
-#include "sys/std.h"
-#include "ria.pio.h"
-#include "pico/stdlib.h"
 #include "hardware/clocks.h"
+#include "pico/stdlib.h"
+#include "ria.pio.h"
+#include "sys/std.h"
 #include <string.h>
 
 // PIX is unidirectional and we're out of pins.
 // The RIA also sends UART data over PIX so we can
 // reconfigure that pin for a return channel.
-#define BACKCHAN_PIN STD_UART_RX
+#define BACKCHAN_PIN      STD_UART_RX
 #define BACKCHAN_BAUDRATE 115200
-#define BACKCHAN_PIO pio1
-#define BACKCHAN_SM 3
+#define BACKCHAN_PIO      pio1
+#define BACKCHAN_SM       3
 
 // Weird version logic because C macros are lame
 static const char version_dev[] = "\rVGA " __DATE__ " " __TIME__;

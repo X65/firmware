@@ -4,8 +4,8 @@
  * SPDX-License-Identifier: BSD-3-Clause
  */
 
-#include "api/api.h"
 #include "api/rng.h"
+#include "api/api.h"
 #include "pico/rand.h"
 
 void rng_api_lrand(void)

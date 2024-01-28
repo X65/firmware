@@ -4,11 +4,11 @@
  * SPDX-License-Identifier: BSD-3-Clause
  */
 
-#include "api/api.h"
 #include "api/oem.h"
+#include "api/api.h"
+#include "fatfs/ff.h"
 #include "sys/cfg.h"
 #include "sys/pix.h"
-#include "fatfs/ff.h"
 
 // Only the code page specified by RP6502_CODE_PAGE is installed to flash.
 // To include all code pages, set RP6502_CODE_PAGE to 0 (CMmakeLists.txt).

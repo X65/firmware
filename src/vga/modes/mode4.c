@@ -10,10 +10,10 @@
 // "Stolen from RISCBoy"
 
 #include "modes/mode4.h"
+#include "hardware/interp.h"
+#include "pico/scanvideo.h"
 #include "sys/mem.h"
 #include "sys/vga.h"
-#include "pico/scanvideo.h"
-#include "hardware/interp.h"
 #include <stdint.h>
 
 typedef struct
@@ -299,14 +299,14 @@ static inline __attribute__((always_inline)) void _setup_interp_affine(interp_hw
 {
     // Calculate the u,v coord of the first sample. Note that we are iterating
     // *backward* along the raster span because this is faster (yes)
-    int32_t x0 =
-        mul_fp1616(atrans[0], (isct.tex_offs_x + isct.size_x) * AF_ONE) +
-        mul_fp1616(atrans[1], isct.tex_offs_y * AF_ONE) +
-        atrans[2];
-    int32_t y0 =
-        mul_fp1616(atrans[3], (isct.tex_offs_x + isct.size_x) * AF_ONE) +
-        mul_fp1616(atrans[4], isct.tex_offs_y * AF_ONE) +
-        atrans[5];
+    int32_t x0
+        = mul_fp1616(atrans[0], (isct.tex_offs_x + isct.size_x) * AF_ONE) + //
+          mul_fp1616(atrans[1], isct.tex_offs_y * AF_ONE) +                 //
+          atrans[2];
+    int32_t y0
+        = mul_fp1616(atrans[3], (isct.tex_offs_x + isct.size_x) * AF_ONE) + //
+          mul_fp1616(atrans[4], isct.tex_offs_y * AF_ONE) +                 //
+          atrans[5];
     interp->accum[0] = x0;
     interp->accum[1] = y0;
     interp->base[0] = -atrans[0]; // -a00, since x decrements by 1 with each coord

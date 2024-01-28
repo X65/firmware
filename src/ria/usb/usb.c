@@ -4,8 +4,8 @@
  * SPDX-License-Identifier: BSD-3-Clause
  */
 
-#include "tusb.h"
 #include "usb/usb.h"
+#include "tusb.h"
 #include <stdarg.h>
 
 #define DEV_DESC_SIZE 80

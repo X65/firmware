@@ -8,6 +8,9 @@
 #define _API_H_
 
 #include "sys/mem.h"
+
+#include <stdbool.h>
+#include <stdint.h>
 #include <string.h>
 
 /* The 18 base errors come directly from CC65. Use them when you can.
@@ -16,38 +19,38 @@
  * See the CC65 SDK method osmaperrno for how this is made portable.
  */
 
-#define API_ENOENT 1    /* No such file or directory */
-#define API_ENOMEM 2    /* Out of memory */
-#define API_EACCES 3    /* Permission denied */
-#define API_ENODEV 4    /* No such device */
-#define API_EMFILE 5    /* Too many open files */
-#define API_EBUSY 6     /* Device or resource busy */
-#define API_EINVAL 7    /* Invalid argument */
-#define API_ENOSPC 8    /* No space left on device */
-#define API_EEXIST 9    /* File exists */
-#define API_EAGAIN 10   /* Try again */
-#define API_EIO 11      /* I/O error */
-#define API_EINTR 12    /* Interrupted system call */
-#define API_ENOSYS 13   /* Function not implemented */
-#define API_ESPIPE 14   /* Illegal seek */
-#define API_ERANGE 15   /* Range error */
-#define API_EBADF 16    /* Bad file number */
-#define API_ENOEXEC 17  /* Exec format error */
-#define API_EUNKNOWN 18 /* Unknown OS specific error */
-#define API_EFATFS(fresult) /* Start of FatFs errors */ \
+#define API_ENOENT          1  /* No such file or directory */
+#define API_ENOMEM          2  /* Out of memory */
+#define API_EACCES          3  /* Permission denied */
+#define API_ENODEV          4  /* No such device */
+#define API_EMFILE          5  /* Too many open files */
+#define API_EBUSY           6  /* Device or resource busy */
+#define API_EINVAL          7  /* Invalid argument */
+#define API_ENOSPC          8  /* No space left on device */
+#define API_EEXIST          9  /* File exists */
+#define API_EAGAIN          10 /* Try again */
+#define API_EIO             11 /* I/O error */
+#define API_EINTR           12 /* Interrupted system call */
+#define API_ENOSYS          13 /* Function not implemented */
+#define API_ESPIPE          14 /* Illegal seek */
+#define API_ERANGE          15 /* Range error */
+#define API_EBADF           16 /* Bad file number */
+#define API_ENOEXEC         17 /* Exec format error */
+#define API_EUNKNOWN        18 /* Unknown OS specific error */
+#define API_EFATFS(fresult)    /* Start of FatFs errors */ \
     (fresult + 32)
 
 /* RIA fastcall registers
  */
 
-#define API_OP REGS(0xFFEF)
-#define API_ERRNO REGSW(0xFFED)
-#define API_STACK REGS(0xFFEC)
-#define API_BUSY (REGS(0xFFF2) & 0x80)
-#define API_A REGS(0xFFF4)
-#define API_X REGS(0xFFF6)
-#define API_SREG REGSW(0xFFF8)
-#define API_AX (API_A | (API_X << 8))
+#define API_OP     REGS(0xFFEF)
+#define API_ERRNO  REGSW(0xFFED)
+#define API_STACK  REGS(0xFFEC)
+#define API_BUSY   (REGS(0xFFF2) & 0x80)
+#define API_A      REGS(0xFFF4)
+#define API_X      REGS(0xFFF6)
+#define API_SREG   REGSW(0xFFF8)
+#define API_AX     (API_A | (API_X << 8))
 #define API_AXSREG (API_AX | (API_SREG << 16))
 
 /* Kernel events
@@ -90,12 +93,30 @@ static inline bool api_pop_n(void *data, size_t n)
 /* Ordinary xstack popping. Use these for all but the final argument.
  */
 
-static inline bool api_pop_uint8(uint8_t *data) { return api_pop_n(data, sizeof(uint8_t)); }
-static inline bool api_pop_uint16(uint16_t *data) { return api_pop_n(data, sizeof(uint16_t)); }
-static inline bool api_pop_uint32(uint32_t *data) { return api_pop_n(data, sizeof(uint32_t)); }
-static inline bool api_pop_int8(int8_t *data) { return api_pop_n(data, sizeof(int8_t)); }
-static inline bool api_pop_int16(int16_t *data) { return api_pop_n(data, sizeof(int16_t)); }
-static inline bool api_pop_int32(int32_t *data) { return api_pop_n(data, sizeof(int32_t)); }
+static inline bool api_pop_uint8(uint8_t *data)
+{
+    return api_pop_n(data, sizeof(uint8_t));
+}
+static inline bool api_pop_uint16(uint16_t *data)
+{
+    return api_pop_n(data, sizeof(uint16_t));
+}
+static inline bool api_pop_uint32(uint32_t *data)
+{
+    return api_pop_n(data, sizeof(uint32_t));
+}
+static inline bool api_pop_int8(int8_t *data)
+{
+    return api_pop_n(data, sizeof(int8_t));
+}
+static inline bool api_pop_int16(int16_t *data)
+{
+    return api_pop_n(data, sizeof(int16_t));
+}
+static inline bool api_pop_int32(int32_t *data)
+{
+    return api_pop_n(data, sizeof(int32_t));
+}
 
 // Safely push n bytes to the xstack. Fails with false if no room.
 static inline bool api_push_n(const void *data, size_t n)
@@ -110,12 +131,30 @@ static inline bool api_push_n(const void *data, size_t n)
 /* Ordinary xstack pushing.
  */
 
-static inline bool api_push_uint8(const uint8_t *data) { return api_push_n(data, sizeof(uint8_t)); }
-static inline bool api_push_uint16(const uint16_t *data) { return api_push_n(data, sizeof(uint16_t)); }
-static inline bool api_push_uint32(const uint32_t *data) { return api_push_n(data, sizeof(uint32_t)); }
-static inline bool api_push_int8(const int8_t *data) { return api_push_n(data, sizeof(int8_t)); }
-static inline bool api_push_int16(const int16_t *data) { return api_push_n(data, sizeof(int16_t)); }
-static inline bool api_push_int32(const int32_t *data) { return api_push_n(data, sizeof(int32_t)); }
+static inline bool api_push_uint8(const uint8_t *data)
+{
+    return api_push_n(data, sizeof(uint8_t));
+}
+static inline bool api_push_uint16(const uint16_t *data)
+{
+    return api_push_n(data, sizeof(uint16_t));
+}
+static inline bool api_push_uint32(const uint32_t *data)
+{
+    return api_push_n(data, sizeof(uint32_t));
+}
+static inline bool api_push_int8(const int8_t *data)
+{
+    return api_push_n(data, sizeof(int8_t));
+}
+static inline bool api_push_int16(const int16_t *data)
+{
+    return api_push_n(data, sizeof(int16_t));
+}
+static inline bool api_push_int32(const int32_t *data)
+{
+    return api_push_n(data, sizeof(int32_t));
+}
 
 // Returning data on XSTACK requires the
 // read/write register to have the latest data.
@@ -145,8 +184,14 @@ static inline bool api_is_xstack_empty(void)
 // FFF7 60      RTS
 // FFF8 FF FF   .SREG $FF $FF
 
-static inline void api_return_blocked() { *(uint32_t *)&regs[0x10] = 0xA9FE80EA; }
-static inline void api_return_released() { *(uint32_t *)&regs[0x10] = 0xA90080EA; }
+static inline void api_return_blocked()
+{
+    *(uint32_t *)&regs[0x10] = 0xA9FE80EA;
+}
+static inline void api_return_released()
+{
+    *(uint32_t *)&regs[0x10] = 0xA90080EA;
+}
 
 static inline void api_set_ax(uint16_t val)
 {

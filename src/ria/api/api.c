@@ -4,8 +4,8 @@
  * SPDX-License-Identifier: BSD-3-Clause
  */
 
-#include "main.h"
 #include "api/api.h"
+#include "main.h"
 #include "sys/cpu.h"
 #include "sys/ria.h"
 
@@ -13,8 +13,8 @@ void api_task(void)
 {
     static uint8_t active_op = 0;
     // Latch called op in case 6502 app misbehaves
-    if (cpu_active() && !ria_active() &&
-        !active_op && API_BUSY &&
+    if (cpu_active() && !ria_active() && //
+        !active_op && API_BUSY &&        //
         API_OP != 0x00 && API_OP != 0xFF)
         active_op = API_OP;
     if (active_op)

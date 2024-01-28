@@ -103,8 +103,8 @@ void tuh_hid_mount_cb(uint8_t dev_addr, uint8_t instance, uint8_t const *desc_re
     struct hid_info dev_hid_info = hid_info[dev_addr][instance];
     if (tuh_hid_interface_protocol(dev_addr, instance) == HID_ITF_PROTOCOL_NONE)
     {
-        dev_hid_info.report_count =
-            tuh_hid_parse_report_descriptor(
+        dev_hid_info.report_count
+            = tuh_hid_parse_report_descriptor(
                 dev_hid_info.report_info,
                 HID_MAX_REPORT, desc_report, desc_len);
     }

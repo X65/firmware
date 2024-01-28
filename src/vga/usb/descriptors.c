@@ -23,8 +23,8 @@
  *
  */
 
-#include "tusb.h"
 #include "serno.h"
+#include "tusb.h"
 
 /* A combination of interfaces must have a unique product id, since PC will save device driver after the first plug.
  * Same VID/PID with different interface e.g MSC (first), then CDC (later) will possibly cause system error on PC.
@@ -33,29 +33,27 @@
  *   [MSB]         HID | MSC | CDC          [LSB]
  */
 #define _PID_MAP(itf, n) ((CFG_TUD_##itf) << (n))
-#define USB_PID (0x4000 | _PID_MAP(CDC, 0) | _PID_MAP(MSC, 1) | _PID_MAP(HID, 2) | \
-                 _PID_MAP(MIDI, 3) | _PID_MAP(VENDOR, 4))
+#define USB_PID          (0x4000 | _PID_MAP(CDC, 0) | _PID_MAP(MSC, 1) | _PID_MAP(HID, 2) | _PID_MAP(MIDI, 3) | _PID_MAP(VENDOR, 4))
 
 //--------------------------------------------------------------------+
 // Device Descriptors
 //--------------------------------------------------------------------+
-tusb_desc_device_t const desc_device =
-    {
-        .bLength = sizeof(tusb_desc_device_t),
-        .bDescriptorType = TUSB_DESC_DEVICE,
-        .bcdUSB = 0x0110,        // // USB Specification version 1.1
-        .bDeviceClass = 0x00,    // Each interface specifies its own
-        .bDeviceSubClass = 0x00, // Each interface specifies its own
-        .bDeviceProtocol = 0x00,
-        .bMaxPacketSize0 = CFG_TUD_ENDPOINT0_SIZE,
+tusb_desc_device_t const desc_device = {
+    .bLength = sizeof(tusb_desc_device_t),
+    .bDescriptorType = TUSB_DESC_DEVICE,
+    .bcdUSB = 0x0110,        // // USB Specification version 1.1
+    .bDeviceClass = 0x00,    // Each interface specifies its own
+    .bDeviceSubClass = 0x00, // Each interface specifies its own
+    .bDeviceProtocol = 0x00,
+    .bMaxPacketSize0 = CFG_TUD_ENDPOINT0_SIZE,
 
-        .idVendor = 0x2E8A,   // Pi
-        .idProduct = USB_PID, // Auto
-        .bcdDevice = 0x0100,  // Version 01.00
-        .iManufacturer = 0x01,
-        .iProduct = 0x02,
-        .iSerialNumber = 0x03,
-        .bNumConfigurations = 0x01};
+    .idVendor = 0x2E8A,   // Pi
+    .idProduct = USB_PID, // Auto
+    .bcdDevice = 0x0100,  // Version 01.00
+    .iManufacturer = 0x01,
+    .iProduct = 0x02,
+    .iSerialNumber = 0x03,
+    .bNumConfigurations = 0x01};
 
 // Invoked when received GET DEVICE DESCRIPTOR
 // Application return pointer to descriptor
@@ -76,10 +74,10 @@ enum
 };
 
 #define CDC_NOTIFICATION_EP_NUM 0x81
-#define CDC_DATA_OUT_EP_NUM 0x02
-#define CDC_DATA_IN_EP_NUM 0x83
-#define PROBE_OUT_EP_NUM 0x04
-#define PROBE_IN_EP_NUM 0x85
+#define CDC_DATA_OUT_EP_NUM     0x02
+#define CDC_DATA_IN_EP_NUM      0x83
+#define PROBE_OUT_EP_NUM        0x04
+#define PROBE_IN_EP_NUM         0x85
 
 #define CONFIG_TOTAL_LEN (TUD_CONFIG_DESC_LEN + TUD_CDC_DESC_LEN)
 
@@ -105,12 +103,11 @@ uint8_t const *tud_descriptor_configuration_cb(uint8_t index)
 //--------------------------------------------------------------------+
 
 // array of pointer to string descriptors
-char const *string_desc_arr[] =
-    {
-        (const char[]){0x09, 0x04}, // 0: is supported language is English (0x0409)
-        "Raspberry Pi",             // 1: Manufacturer
-        "RP6502 Console",           // 2: Product
-        serno,                      // 3: Serial, uses flash unique ID
+char const *string_desc_arr[] = {
+    (const char[]) {0x09, 0x04}, // 0: is supported language is English (0x0409)
+    "Raspberry Pi",              // 1: Manufacturer
+    "RP6502 Console",            // 2: Product
+    serno,                       // 3: Serial, uses flash unique ID
 };
 
 static uint16_t _desc_str[32];

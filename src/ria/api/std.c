@@ -4,20 +4,20 @@
  * SPDX-License-Identifier: BSD-3-Clause
  */
 
-#include "api/api.h"
 #include "api/std.h"
+#include "api/api.h"
+#include "fatfs/ff.h"
 #include "sys/com.h"
 #include "sys/cpu.h"
 #include "sys/pix.h"
-#include "fatfs/ff.h"
 #include <stdio.h>
 
 #define STD_FIL_MAX 16
 FIL std_fil[STD_FIL_MAX];
-#define STD_FIL_STDIN 0
+#define STD_FIL_STDIN  0
 #define STD_FIL_STDOUT 1
 #define STD_FIL_STDERR 2
-#define STD_FIL_OFFS 3
+#define STD_FIL_OFFS   3
 static_assert(STD_FIL_MAX + STD_FIL_OFFS < 128);
 
 static int32_t std_xram_count = -1;
@@ -48,8 +48,8 @@ void std_task(void)
 {
     // 6502 applications write to std_out_buf which we route
     // through the Pi Pico STDIO driver for CR/LR translation.
-    if ((&STD_OUT_BUF(std_out_head) != &STD_OUT_BUF(std_out_tail)) &&
-        (&COM_TX_BUF(com_tx_head + 1) != &COM_TX_BUF(com_tx_tail)) &&
+    if ((&STD_OUT_BUF(std_out_head) != &STD_OUT_BUF(std_out_tail)) && //
+        (&COM_TX_BUF(com_tx_head + 1) != &COM_TX_BUF(com_tx_tail)) && //
         (&COM_TX_BUF(com_tx_head + 2) != &COM_TX_BUF(com_tx_tail)))
         putchar(STD_OUT_BUF(++std_out_tail));
 }
@@ -123,9 +123,9 @@ void std_api_read_xstack(void)
     else
     {
         int16_t fd = API_A;
-        if (!api_pop_uint16_end(&count) ||
-            (fd && fd < STD_FIL_OFFS) ||
-            fd >= STD_FIL_MAX + STD_FIL_OFFS ||
+        if (!api_pop_uint16_end(&count) ||      //
+            (fd && fd < STD_FIL_OFFS) ||        //
+            fd >= STD_FIL_MAX + STD_FIL_OFFS || //
             count > 0x100)
             return api_return_errno(API_EINVAL);
         buf = &xstack[XSTACK_SIZE - count];
@@ -179,9 +179,9 @@ void std_api_read_xram(void)
     uint8_t *buf;
     uint16_t count;
     int16_t fd = API_A;
-    if (!api_pop_uint16(&count) ||
-        !api_pop_uint16_end(&xram_addr) ||
-        (fd && fd < STD_FIL_OFFS) ||
+    if (!api_pop_uint16(&count) ||         //
+        !api_pop_uint16_end(&xram_addr) || //
+        (fd && fd < STD_FIL_OFFS) ||       //
         fd >= STD_FIL_MAX + STD_FIL_OFFS)
         return api_return_errno(API_EINVAL);
     if (!fd)
@@ -260,7 +260,7 @@ void std_api_write_xram(void)
     int fd = API_A;
     if (fd == STD_FIL_STDIN || fd >= STD_FIL_MAX + STD_FIL_OFFS)
         return api_return_errno(API_EINVAL);
-    if (!api_pop_uint16(&count) ||
+    if (!api_pop_uint16(&count) || //
         !api_pop_uint16_end(&xram_addr))
         return api_return_errno(API_EINVAL);
     buf = &xram[xram_addr];
@@ -288,9 +288,9 @@ void std_api_lseek(void)
     int8_t whence;
     int32_t ofs;
     int fd = API_A;
-    if (fd < STD_FIL_OFFS ||
-        fd >= STD_FIL_MAX + STD_FIL_OFFS ||
-        !api_pop_int8(&whence) ||
+    if (fd < STD_FIL_OFFS ||                //
+        fd >= STD_FIL_MAX + STD_FIL_OFFS || //
+        !api_pop_int8(&whence) ||           //
         !api_pop_int32_end(&ofs))
         return api_return_errno(API_EINVAL);
     FIL *fp = &std_fil[fd - STD_FIL_OFFS];

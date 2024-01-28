@@ -129,7 +129,7 @@ bool diff_report(sony_ds4_report_t const *rpt1, sony_ds4_report_t const *rpt2)
     bool result;
 
     // x, y, z, rz must different than 2 to be counted
-    result = diff_than_2(rpt1->x, rpt2->x) || diff_than_2(rpt1->y, rpt2->y) ||
+    result = diff_than_2(rpt1->x, rpt2->x) || diff_than_2(rpt1->y, rpt2->y) || //
              diff_than_2(rpt1->z, rpt2->z) || diff_than_2(rpt1->rz, rpt2->rz);
 
     // check the reset with mem compare

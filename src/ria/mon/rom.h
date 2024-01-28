@@ -8,8 +8,8 @@
 #ifndef _ROM_H_
 #define _ROM_H_
 
-#include <stddef.h>
 #include <stdbool.h>
+#include <stddef.h>
 
 /* Kernel events
  */

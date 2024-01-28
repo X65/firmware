@@ -7,8 +7,8 @@
 #ifndef _VGA_H_
 #define _VGA_H_
 
-#include <stdint.h>
 #include <stdbool.h>
+#include <stdint.h>
 
 /* Kernel events
  */

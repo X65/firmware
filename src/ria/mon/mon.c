@@ -4,20 +4,20 @@
  * SPDX-License-Identifier: BSD-3-Clause
  */
 
-#include "main.h"
-#include "str.h"
+#include "mon/mon.h"
 #include "api/std.h"
+#include "main.h"
 #include "mon/fil.h"
 #include "mon/hlp.h"
-#include "mon/mon.h"
 #include "mon/ram.h"
 #include "mon/rom.h"
 #include "mon/set.h"
+#include "pico/stdlib.h"
+#include "str.h"
 #include "sys/com.h"
 #include "sys/mem.h"
 #include "sys/sys.h"
 #include "sys/vga.h"
-#include "pico/stdlib.h"
 #include <stdio.h>
 
 static bool needs_newline = true;
@@ -135,11 +135,11 @@ static void mon_enter(bool timeout, const char *buf, size_t length)
 // Anything that suspends the monitor.
 static bool mon_suspended(void)
 {
-    return main_active() ||
-           ram_active() ||
-           rom_active() ||
-           vga_active() ||
-           fil_active() ||
+    return main_active() || //
+           ram_active() ||  //
+           rom_active() ||  //
+           vga_active() ||  //
+           fil_active() ||  //
            std_active();
 }
 

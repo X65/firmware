@@ -7,8 +7,8 @@
 #ifndef _MODE3_H_
 #define _MODE3_H_
 
-#include <stdint.h>
 #include <stdbool.h>
+#include <stdint.h>
 
 bool mode3_prog(uint16_t *xregs);
 

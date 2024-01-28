@@ -8,9 +8,9 @@
 
 bool char_is_hex(char ch)
 {
-    return ((ch >= '0') && (ch <= '9')) ||
-           ((ch >= 'A') && (ch <= 'F')) ||
-           ((ch >= 'a') && (ch <= 'f'));
+    return ((ch >= '0') && (ch <= '9')) || //
+           ((ch >= 'A') && (ch <= 'F')) || //
+           ((ch >= 'a') && (ch <= 'f'));   //
 }
 
 int char_to_int(char ch)
@@ -61,7 +61,7 @@ bool parse_uint32(const char **args, size_t *len, uint32_t *result)
         base = 16;
         prefix = 1;
     }
-    else if (i + 1 < *len && (*args)[i] == '0' &&
+    else if (i + 1 < *len && (*args)[i] == '0' && //
              ((*args)[i + 1] == 'x' || (*args)[i + 1] == 'X'))
     {
         base = 16;
@@ -112,7 +112,7 @@ bool parse_rom_name(const char **args, size_t *len, char *name)
             break;
         if (ch >= 'a' && ch <= 'z')
             ch -= 32;
-        if ((ch >= 'A' && ch <= 'Z') ||
+        if ((ch >= 'A' && ch <= 'Z') || //
             (name_len && ch >= '0' && ch <= '9'))
         {
             name[name_len++] = ch;

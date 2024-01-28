@@ -10,9 +10,9 @@
 /* RP6502 Interface Adapter for WDC W65C02S.
  */
 
+#include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
-#include <stdbool.h>
 
 /* Kernel events
  */

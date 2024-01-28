@@ -7,9 +7,9 @@
 #ifndef _COM_H_
 #define _COM_H_
 
+#include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
-#include <stdbool.h>
 
 /* Kernel events
  */

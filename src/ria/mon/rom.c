@@ -4,16 +4,16 @@
  * SPDX-License-Identifier: BSD-3-Clause
  */
 
-#include "main.h"
-#include "str.h"
 #include "api/api.h"
+#include "fatfs/ff.h"
+#include "main.h"
 #include "mon/hlp.h"
 #include "mon/mon.h"
+#include "str.h"
 #include "sys/cfg.h"
 #include "sys/lfs.h"
 #include "sys/pix.h"
 #include "sys/ria.h"
-#include "fatfs/ff.h"
 
 static enum {
     ROM_IDLE,
@@ -146,9 +146,9 @@ static bool rom_next_chunk(void)
         }
     uint32_t rom_crc;
     const char *args = (char *)mbuf;
-    if (parse_uint32(&args, &len, &rom_addr) &&
-        parse_uint32(&args, &len, &rom_len) &&
-        parse_uint32(&args, &len, &rom_crc) &&
+    if (parse_uint32(&args, &len, &rom_addr) && //
+        parse_uint32(&args, &len, &rom_len) &&  //
+        parse_uint32(&args, &len, &rom_crc) &&  //
         parse_end(args, len))
     {
         if (rom_addr > 0x1FFFF)
@@ -156,8 +156,8 @@ static bool rom_next_chunk(void)
             printf("?invalid address\n");
             return false;
         }
-        if (!rom_len || rom_len > MBUF_SIZE ||
-            (rom_addr < 0x10000 && rom_addr + rom_len > 0x10000) ||
+        if (!rom_len || rom_len > MBUF_SIZE ||                      //
+            (rom_addr < 0x10000 && rom_addr + rom_len > 0x10000) || //
             (rom_addr + rom_len > 0x20000))
         {
             printf("?invalid length\n");
@@ -226,8 +226,8 @@ void rom_mon_install(const char *args, size_t len)
         lfs_name_len = 0;
     }
     // Test for system conflicts
-    if (!lfs_name_len ||
-        mon_command_exists(lfs_name, lfs_name_len) ||
+    if (!lfs_name_len ||                              //
+        mon_command_exists(lfs_name, lfs_name_len) || //
         help_text_lookup(lfs_name, lfs_name_len))
     {
         printf("?Invalid ROM name.\n");
@@ -251,9 +251,10 @@ void rom_mon_install(const char *args, size_t len)
         printf("?Unable to rewind file (%d)\n", fresult);
         return;
     }
-    int lfsresult = lfs_file_opencfg(&lfs_volume, &lfs_file, lfs_name,
-                                     LFS_O_WRONLY | LFS_O_CREAT | LFS_O_EXCL,
-                                     &lfs_file_config);
+    int lfsresult
+        = lfs_file_opencfg(&lfs_volume, &lfs_file, lfs_name,
+                           LFS_O_WRONLY | LFS_O_CREAT | LFS_O_EXCL,
+                           &lfs_file_config);
     if (lfsresult < 0)
     {
         if (lfsresult == LFS_ERR_EXIST)
@@ -298,7 +299,7 @@ void rom_mon_install(const char *args, size_t len)
 void rom_mon_remove(const char *args, size_t len)
 {
     char lfs_name[LFS_NAME_MAX + 1];
-    if (parse_rom_name(&args, &len, lfs_name) &&
+    if (parse_rom_name(&args, &len, lfs_name) && //
         parse_end(args, len))
     {
         const char *boot = cfg_get_boot();
@@ -328,7 +329,7 @@ void rom_mon_load(const char *args, size_t len)
 bool rom_load(const char *args, size_t len)
 {
     char lfs_name[LFS_NAME_MAX + 1];
-    if (parse_rom_name(&args, &len, lfs_name) &&
+    if (parse_rom_name(&args, &len, lfs_name) && //
         parse_end(args, len))
     {
         struct lfs_info info;
@@ -361,7 +362,7 @@ void rom_mon_info(const char *args, size_t len)
 bool rom_help(const char *args, size_t len)
 {
     char lfs_name[LFS_NAME_MAX + 1];
-    if (parse_rom_name(&args, &len, lfs_name) &&
+    if (parse_rom_name(&args, &len, lfs_name) && //
         parse_end(args, len))
     {
         struct lfs_info info;

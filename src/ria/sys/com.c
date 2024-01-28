@@ -4,17 +4,17 @@
  * SPDX-License-Identifier: BSD-3-Clause
  */
 
-#include "main.h"
 #include "sys/com.h"
+#include "main.h"
+#include "pico/stdio/driver.h"
+#include "pico/stdlib.h"
 #include "sys/cpu.h"
 #include "sys/pix.h"
 #include "sys/ria.h"
 #include "sys/vga.h"
-#include "pico/stdlib.h"
-#include "pico/stdio/driver.h"
 #include <stdio.h>
 
-#define COM_BUF_SIZE 256
+#define COM_BUF_SIZE          256
 #define COM_CSI_PARAM_MAX_LEN 16
 
 typedef enum

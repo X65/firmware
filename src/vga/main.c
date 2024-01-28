@@ -9,16 +9,16 @@
 #include "modes/mode2.h"
 #include "modes/mode3.h"
 #include "modes/mode4.h"
+#include "pico/stdlib.h"
 #include "sys/pix.h"
 #include "sys/ria.h"
 #include "sys/std.h"
 #include "sys/vga.h"
 #include "term/font.h"
 #include "term/term.h"
+#include "tusb.h"
 #include "usb/cdc.h"
 #include "usb/serno.h"
-#include "pico/stdlib.h"
-#include "tusb.h"
 
 static void init(void)
 {

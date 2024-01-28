@@ -4,12 +4,12 @@
  * SPDX-License-Identifier: BSD-3-Clause
  */
 
+#include "fatfs/ff.h"
+#include "pico/stdlib.h"
 #include "str.h"
 #include "sys/com.h"
 #include "sys/mem.h"
 #include "sys/ria.h"
-#include "pico/stdlib.h"
-#include "fatfs/ff.h"
 #include <stdio.h>
 
 #define TIMEOUT_MS 200
@@ -192,8 +192,8 @@ static void fil_command_dispatch(bool timeout, const char *buf, size_t len)
         return;
     }
 
-    if (parse_uint32(&args, &len, &rx_len) &&
-        parse_uint32(&args, &len, &rx_crc) &&
+    if (parse_uint32(&args, &len, &rx_len) && //
+        parse_uint32(&args, &len, &rx_crc) && //
         parse_end(args, len))
     {
         if (!rx_len || rx_len > MBUF_SIZE)

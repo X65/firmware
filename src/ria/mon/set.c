@@ -23,7 +23,7 @@ static void set_phi2(const char *args, size_t len)
     uint32_t val;
     if (len)
     {
-        if (!parse_uint32(&args, &len, &val) ||
+        if (!parse_uint32(&args, &len, &val) || //
             !parse_end(args, len))
         {
             printf("?invalid argument\n");
@@ -55,7 +55,7 @@ static void set_resb(const char *args, size_t len)
     uint32_t val;
     if (len)
     {
-        if (parse_uint32(&args, &len, &val) &&
+        if (parse_uint32(&args, &len, &val) && //
             parse_end(args, len))
         {
             if (val > 255)
@@ -91,7 +91,7 @@ static void set_boot(const char *args, size_t len)
         {
             cfg_set_boot("");
         }
-        else if (parse_rom_name(&args, &len, lfs_name) &&
+        else if (parse_rom_name(&args, &len, lfs_name) && //
                  parse_end(args, len))
         {
             struct lfs_info info;
@@ -122,7 +122,7 @@ static void set_caps(const char *args, size_t len)
     uint32_t val;
     if (len)
     {
-        if (parse_uint32(&args, &len, &val) &&
+        if (parse_uint32(&args, &len, &val) && //
             parse_end(args, len))
         {
             cfg_set_caps(val);
@@ -150,8 +150,8 @@ static void set_code_page(const char *args, size_t len)
     uint32_t val;
     if (len)
     {
-        if (!parse_uint32(&args, &len, &val) ||
-            !parse_end(args, len) ||
+        if (!parse_uint32(&args, &len, &val) || //
+            !parse_end(args, len) ||            //
             !cfg_set_codepage(val))
         {
             printf("?invalid argument\n");
@@ -172,7 +172,7 @@ static void set_vga(const char *args, size_t len)
     uint32_t val;
     if (len)
     {
-        if (parse_uint32(&args, &len, &val) &&
+        if (parse_uint32(&args, &len, &val) && //
             parse_end(args, len))
         {
             cfg_set_vga(val);
@@ -228,7 +228,7 @@ void set_mon_set(const char *args, size_t len)
     size_t args_start = i;
     for (i = 0; i < SETTERS_COUNT; i++)
     {
-        if (attr_len == SETTERS[i].attr_len &&
+        if (attr_len == SETTERS[i].attr_len && //
             !strnicmp(args, SETTERS[i].attr, attr_len))
         {
             SETTERS[i].func(&args[args_start], len - args_start);

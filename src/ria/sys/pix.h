@@ -7,10 +7,10 @@
 #ifndef _PIX_H_
 #define _PIX_H_
 
-#include "main.h"
 #include "hardware/pio.h"
-#include <stdint.h>
+#include "main.h"
 #include <stdbool.h>
+#include <stdint.h>
 
 /* Kernel events
  */
@@ -30,8 +30,8 @@ void pix_nak(void);
 // RIA device 0 is virtual, not on the physical PIX bus.
 
 #define PIX_DEVICE_XRAM 0
-#define PIX_DEVICE_RIA 0
-#define PIX_DEVICE_VGA 1
+#define PIX_DEVICE_RIA  0
+#define PIX_DEVICE_VGA  1
 #define PIX_DEVICE_IDLE 7
 
 // Bit 28 always 1, bits [31:29] for device id, etc.

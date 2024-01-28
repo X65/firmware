@@ -8,8 +8,8 @@
 #ifndef _FIL_H_
 #define _FIL_H_
 
-#include <stddef.h>
 #include <stdbool.h>
+#include <stddef.h>
 
 /* Kernel events
  */

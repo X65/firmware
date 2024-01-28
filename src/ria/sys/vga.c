@@ -4,25 +4,25 @@
  * SPDX-License-Identifier: BSD-3-Clause
  */
 
+#include "sys/vga.h"
+#include "hardware/clocks.h"
 #include "main.h"
+#include "pico/stdlib.h"
 #include "str.h"
 #include "sys/cfg.h"
 #include "sys/com.h"
 #include "sys/mem.h"
 #include "sys/pix.h"
 #include "sys/ria.h"
-#include "sys/vga.h"
 #include "vga.pio.h"
-#include "pico/stdlib.h"
-#include "hardware/clocks.h"
 #include <stdio.h>
 
 // How long to wait for ACK to backchannel enable request
-#define VGA_BACKCHANNEL_ACK_MS 10
+#define VGA_BACKCHANNEL_ACK_MS  10
 // How long to wait for version string
 #define VGA_VERSION_WATCHDOG_MS 2
 // Abandon backchannel after two missed vsync messages (~2/60sec)
-#define VGA_VSYNC_WATCHDOG_MS 35
+#define VGA_VSYNC_WATCHDOG_MS   35
 
 static enum {
     VGA_REQUEST_TEST, // Starting state
@@ -181,7 +181,7 @@ void vga_task(void)
         }
     }
 
-    if (vga_state == VGA_VERSIONING &&
+    if (vga_state == VGA_VERSIONING && //
         absolute_time_diff_us(get_absolute_time(), vga_version_watchdog) < 0)
     {
         vga_vsync_watchdog = delayed_by_ms(get_absolute_time(), VGA_VSYNC_WATCHDOG_MS);
@@ -189,7 +189,7 @@ void vga_task(void)
         vga_print_status();
     }
 
-    if ((vga_state == VGA_CONNECTED || vga_state == VGA_NO_VERSION) &&
+    if ((vga_state == VGA_CONNECTED || vga_state == VGA_NO_VERSION) && //
         absolute_time_diff_us(get_absolute_time(), vga_vsync_watchdog) < 0)
     {
         gpio_set_function(VGA_BACKCHANNEL_PIN, GPIO_FUNC_UART);
@@ -237,15 +237,15 @@ bool vga_set_vga(uint32_t display_type)
 
 bool vga_active(void)
 {
-    return vga_state == VGA_REQUEST_TEST ||
-           vga_state == VGA_TESTING ||
+    return vga_state == VGA_REQUEST_TEST || //
+           vga_state == VGA_TESTING ||      //
            vga_state == VGA_VERSIONING;
 }
 
 bool vga_backchannel(void)
 {
-    return vga_state == VGA_VERSIONING ||
-           vga_state == VGA_CONNECTED ||
+    return vga_state == VGA_VERSIONING || //
+           vga_state == VGA_CONNECTED ||  //
            vga_state == VGA_NO_VERSION;
 }
 

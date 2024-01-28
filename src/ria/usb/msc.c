@@ -4,11 +4,11 @@
  * SPDX-License-Identifier: BSD-3-Clause
  */
 
+#include "fatfs/diskio.h"
+#include "fatfs/ff.h"
 #include "main.h"
 #include "tusb.h"
 #include "usb/usb.h"
-#include "fatfs/ff.h"
-#include "fatfs/diskio.h"
 #include <math.h>
 
 // We are an 8-bit computer, confirm fatfs is too

@@ -5,7 +5,6 @@
  */
 
 #include "main.h"
-#include "tusb.h"
 #include "api/api.h"
 #include "api/clk.h"
 #include "api/oem.h"
@@ -17,14 +16,15 @@
 #include "mon/mon.h"
 #include "mon/ram.h"
 #include "mon/rom.h"
-#include "sys/com.h"
 #include "sys/cfg.h"
+#include "sys/com.h"
 #include "sys/cpu.h"
 #include "sys/lfs.h"
 #include "sys/pix.h"
 #include "sys/ria.h"
 #include "sys/sys.h"
 #include "sys/vga.h"
+#include "tusb.h"
 #include "usb/kbd.h"
 #include "usb/mou.h"
 

@@ -4,9 +4,9 @@
  * SPDX-License-Identifier: BSD-3-Clause
  */
 
-#include "tusb.h"
-#include "sys/std.h"
 #include "usb/cdc.h"
+#include "sys/std.h"
+#include "tusb.h"
 
 static absolute_time_t break_timer;
 static absolute_time_t faux_break_timer;

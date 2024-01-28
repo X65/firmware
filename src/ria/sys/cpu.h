@@ -7,8 +7,8 @@
 #ifndef _CPU_H_
 #define _CPU_H_
 
-#include <stdint.h>
 #include <stdbool.h>
+#include <stdint.h>
 
 // 1-byte message queue to the RIA action loop.
 extern volatile int cpu_rx_char;

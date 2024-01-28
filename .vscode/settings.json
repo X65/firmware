@@ -21,4 +21,5 @@
     "src/pico-sdk": true,
     "src/tinyusb": true,
   },
+  "editor.formatOnSave": true
 }

@@ -4,12 +4,12 @@
  * SPDX-License-Identifier: BSD-3-Clause
  */
 
-#include "main.h"
+#include "sys/cpu.h"
 #include "api/api.h"
+#include "main.h"
+#include "pico/stdlib.h"
 #include "sys/cfg.h"
 #include "sys/com.h"
-#include "sys/cpu.h"
-#include "pico/stdlib.h"
 
 static bool cpu_run_requested;
 static absolute_time_t cpu_resb_timer;

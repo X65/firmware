@@ -4,22 +4,22 @@
  * SPDX-License-Identifier: BSD-3-Clause
  */
 
-#include "main.h"
 #include "sys/pix.h"
+#include "hardware/dma.h"
+#include "hardware/structs/bus_ctrl.h"
+#include "main.h"
+#include "pix.pio.h"
+#include "sys/mem.h"
 #include "sys/ria.h"
 #include "sys/std.h"
 #include "sys/vga.h"
-#include "pix.pio.h"
-#include "sys/mem.h"
 #include "term/font.h"
-#include "hardware/dma.h"
-#include "hardware/structs/bus_ctrl.h"
 #include <string.h>
 
-#define VGA_PIX_PIO pio1
+#define VGA_PIX_PIO     pio1
 #define VGA_PIX_REGS_SM 1
 #define VGA_PIX_XRAM_SM 2
-#define VGA_PHI2_PIN 11
+#define VGA_PHI2_PIN    11
 
 #define PIX_CH0_XREGS_MAX 8
 static uint16_t xregs[PIX_CH0_XREGS_MAX];
@@ -77,8 +77,8 @@ void pix_init(void)
     static volatile uint32_t dma_addr;
 
     // Raise DMA above CPU on crossbar
-    bus_ctrl_hw->priority |=
-        BUSCTRL_BUS_PRIORITY_DMA_R_BITS |
+    bus_ctrl_hw->priority |=              //
+        BUSCTRL_BUS_PRIORITY_DMA_R_BITS | //
         BUSCTRL_BUS_PRIORITY_DMA_W_BITS;
 
     dma_addr = (uint32_t)xram;

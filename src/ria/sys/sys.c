@@ -4,12 +4,12 @@
  * SPDX-License-Identifier: BSD-3-Clause
  */
 
-#include "main.h"
 #include "sys/sys.h"
+#include "hardware/watchdog.h"
+#include "main.h"
+#include "pico/stdlib.h"
 #include "sys/vga.h"
 #include "usb/usb.h"
-#include "pico/stdlib.h"
-#include "hardware/watchdog.h"
 #include <stdio.h>
 #include <string.h>
 

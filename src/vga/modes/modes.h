@@ -9,8 +9,8 @@
 
 // Common utils for all modes
 
-#include <stdint.h>
 #include <stdbool.h>
+#include <stdint.h>
 
 static inline __attribute__((always_inline)) void __attribute__((optimize("O1")))
 modes_render_1bpp(uint16_t *buf, uint8_t bits, uint16_t bg, uint16_t fg)

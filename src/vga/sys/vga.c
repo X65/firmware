@@ -4,17 +4,17 @@
  * SPDX-License-Identifier: BSD-3-Clause
  */
 
-#include "main.h"
-#include "sys/ria.h"
 #include "sys/vga.h"
-#include "sys/mem.h"
-#include "term/term.h"
-#include "pico/stdlib.h"
+#include "hardware/clocks.h"
+#include "hardware/dma.h"
+#include "main.h"
 #include "pico/multicore.h"
 #include "pico/scanvideo.h"
 #include "pico/scanvideo/composable_scanline.h"
-#include "hardware/dma.h"
-#include "hardware/clocks.h"
+#include "pico/stdlib.h"
+#include "sys/mem.h"
+#include "sys/ria.h"
+#include "term/term.h"
 #include <string.h>
 
 #define VGA_VSYNC_BUSY_WAIT_HACK_US 750
@@ -325,8 +325,8 @@ vga_render_loop(void)
             for (int16_t i = 0; i < height; i++)
             {
                 // core 0 (other)
-                scanvideo_scanline_buffer_t *const scanline_buffer0 =
-                    scanvideo_begin_scanline_generation(true);
+                scanvideo_scanline_buffer_t *const scanline_buffer0
+                    = scanvideo_begin_scanline_generation(true);
                 if (scanvideo_scanline_number(scanline_buffer0->scanline_id) == 0)
                 {
                     ria_vsync();
@@ -339,8 +339,8 @@ vga_render_loop(void)
                 if (scanvideo_scanline_number(scanline_buffer0->scanline_id) == 1)
                     continue;
                 // core 1 (this)
-                scanvideo_scanline_buffer_t *const scanline_buffer1 =
-                    scanvideo_begin_scanline_generation(true);
+                scanvideo_scanline_buffer_t *const scanline_buffer1
+                    = scanvideo_begin_scanline_generation(true);
                 if (scanvideo_scanline_number(scanline_buffer1->scanline_id) == 0)
                 {
                     ria_vsync();
@@ -539,9 +539,9 @@ bool vga_prog_fill(int16_t plane, int16_t scanline_begin, int16_t scanline_end,
     if (!scanline_end)
         scanline_end = vga_canvas_height();
     const int16_t scanline_count = scanline_end - scanline_begin;
-    if (!fill_fn ||
-        plane < 0 || plane >= PICO_SCANVIDEO_PLANE_COUNT ||
-        scanline_begin < 0 || scanline_end > vga_canvas_height() ||
+    if (!fill_fn ||                                                 //
+        plane < 0 || plane >= PICO_SCANVIDEO_PLANE_COUNT ||         //
+        scanline_begin < 0 || scanline_end > vga_canvas_height() || //
         scanline_count < 1)
         return false;
     // Note there is no synchronization. Render functions
@@ -586,9 +586,9 @@ bool vga_prog_sprite(int16_t plane, int16_t scanline_begin, int16_t scanline_end
     if (!scanline_end)
         scanline_end = vga_canvas_height();
     const int16_t scanline_count = scanline_end - scanline_begin;
-    if (!sprite_fn ||
-        plane < 0 || plane >= PICO_SCANVIDEO_PLANE_COUNT ||
-        scanline_begin < 0 || scanline_end > vga_canvas_height() ||
+    if (!sprite_fn ||                                               //
+        plane < 0 || plane >= PICO_SCANVIDEO_PLANE_COUNT ||         //
+        scanline_begin < 0 || scanline_end > vga_canvas_height() || //
         scanline_count < 1)
         return false;
     for (int16_t i = scanline_begin; i < scanline_end; i++)

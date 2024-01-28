@@ -24,7 +24,7 @@ static int lfs_prog(const struct lfs_config *c, lfs_block_t block,
 static int lfs_erase(const struct lfs_config *c, lfs_block_t block);
 static int lfs_sync(const struct lfs_config *c);
 
-#define LFS_DISK_SIZE (LFS_DISK_BLOCKS * FLASH_SECTOR_SIZE)
+#define LFS_DISK_SIZE      (LFS_DISK_BLOCKS * FLASH_SECTOR_SIZE)
 #define LFS_LOOKAHEAD_SIZE LFS_DISK_BLOCKS / 8
 
 lfs_t lfs_volume;
@@ -53,9 +53,9 @@ static int lfs_read(const struct lfs_config *c, lfs_block_t block,
 {
     (void)(c);
     memcpy(buffer,
-           (void *)XIP_NOCACHE_NOALLOC_BASE +
-               (PICO_FLASH_SIZE_BYTES - LFS_DISK_SIZE) +
-               (block * FLASH_SECTOR_SIZE) +
+           (void *)XIP_NOCACHE_NOALLOC_BASE +            //
+               (PICO_FLASH_SIZE_BYTES - LFS_DISK_SIZE) + //
+               (block * FLASH_SECTOR_SIZE) +             //
                off,
            size);
     return LFS_ERR_OK;
@@ -65,8 +65,8 @@ static int lfs_prog(const struct lfs_config *c, lfs_block_t block,
                     lfs_off_t off, const void *buffer, lfs_size_t size)
 {
     (void)(c);
-    uint32_t flash_offs = (PICO_FLASH_SIZE_BYTES - LFS_DISK_SIZE) +
-                          (block * FLASH_SECTOR_SIZE) +
+    uint32_t flash_offs = (PICO_FLASH_SIZE_BYTES - LFS_DISK_SIZE) + //
+                          (block * FLASH_SECTOR_SIZE) +             //
                           off;
     flash_range_program(flash_offs, buffer, size);
     return LFS_ERR_OK;
@@ -75,7 +75,7 @@ static int lfs_prog(const struct lfs_config *c, lfs_block_t block,
 static int lfs_erase(const struct lfs_config *c, lfs_block_t block)
 {
     (void)(c);
-    uint32_t flash_offs = (PICO_FLASH_SIZE_BYTES - LFS_DISK_SIZE) +
+    uint32_t flash_offs = (PICO_FLASH_SIZE_BYTES - LFS_DISK_SIZE) + //
                           (block * FLASH_SECTOR_SIZE);
     flash_range_erase(flash_offs, FLASH_SECTOR_SIZE);
     return LFS_ERR_OK;
@@ -130,7 +130,8 @@ int lfs_printf(lfs_t *lfs, lfs_file_t *file, const char *format, ...)
     struct lfs_printf_ctx ctx = {
         .lfs = lfs,
         .file = file,
-        .result = 0};
+        .result = 0,
+    };
     // vfctprintf is Marco Paland's "Tiny printf" from the Pi Pico SDK
     int result = vfctprintf(lfs_printf_cb, &ctx, format, va);
     if (ctx.result < 0)

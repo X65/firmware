@@ -4,15 +4,15 @@
  * SPDX-License-Identifier: BSD-3-Clause
  */
 
-#include "pico/stdlib.h"
+#include "aud/psg.h"
 #include "aud.h"
 #include "aud/aud.h"
-#include "aud/psg.h"
-#include "sys/mem.h"
 #include "hardware/pwm.h"
+#include "pico/stdlib.h"
+#include "sys/mem.h"
 #include <math.h>
 
-#define PSG_RATE 24000
+#define PSG_RATE     24000
 #define PSG_CHANNELS 8
 
 enum psg_adsr_state
@@ -278,7 +278,7 @@ static void psg_task(void)
 
 bool psg_xreg(uint16_t word)
 {
-    if (word & 0x0001 ||
+    if (word & 0x0001 || //
         word > 0x10000 - PSG_CHANNELS * sizeof(struct psg_channel))
     {
         psg_xaddr = 0xFFFF;

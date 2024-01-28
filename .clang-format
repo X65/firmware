@@ -1,0 +1,12 @@
+# https://clang.llvm.org/docs/ClangFormatStyleOptions.html
+---
+BasedOnStyle: WebKit
+IndentWidth: 4
+BreakBeforeBraces: Allman
+AlignConsecutiveMacros: AcrossComments
+AlignOperands: Align
+AlignTrailingComments: true
+PointerAlignment: Right
+Cpp11BracedListStyle: true
+AlignAfterOpenBracket: Align
+AllowShortFunctionsOnASingleLine: false
