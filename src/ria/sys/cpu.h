@@ -8,6 +8,7 @@
 #define _CPU_H_
 
 #include <stdbool.h>
+#include <stddef.h>
 #include <stdint.h>
 
 // 1-byte message queue to the RIA action loop.
