@@ -52,6 +52,7 @@ static void init(void)
 
     // Misc kernel modules, add yours here
     oem_init();
+    mem_init();
     kbd_init();
     mou_init();
     rom_init();
@@ -71,6 +72,7 @@ void main_task(void)
 {
     tuh_task();
     cpu_task();
+    mem_task();
     ria_task();
     kbd_task();
     vga_task();

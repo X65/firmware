@@ -39,4 +39,12 @@ asm(".equ regs, 0x20040000");
 extern uint8_t mbuf[];
 extern size_t mbuf_len;
 
+/* Kernel events
+ */
+
+void mem_init(void);
+void mem_task(void);
+void mem_print_status(void);
+void mem_select_bank(int8_t bank);
+
 #endif /* _MEM_H_ */

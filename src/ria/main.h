@@ -43,17 +43,22 @@ bool main_api(uint8_t operation);
 /* All pin assignments
  */
 
-#define CPU_RESB_PIN 26
-#define CPU_IRQB_PIN 22
+#define CPU_RESB_PIN 20
 #define CPU_PHI2_PIN 21
+#define CPU_IRQB_PIN 22
 
 #define PIX_PIN_BASE 0 /* PIX0-PIX3 */
 
 #define RIA_PIN_BASE 6
-#define RIA_CS_PIN (RIA_PIN_BASE + 0)
-#define RIA_RWB_PIN (RIA_PIN_BASE + 1)
-#define RIA_DATA_PIN_BASE (RIA_PIN_BASE + 2)  /* D0-D7 */
-#define RIA_ADDR_PIN_BASE (RIA_PIN_BASE + 10) /* A0-A4 */
+#define RIA_CS_PIN \
+    (RIA_PIN_BASE + 0) // FIXME: not needed - we have the full address bus access, do not need external decoder
+#define RIA_RWB_PIN       (RIA_PIN_BASE + 1)
+#define RIA_DATA_PIN_BASE (RIA_PIN_BASE + 2)              /* D0-D7 */
+#define RIA_ADDR_PIN_BASE (RIA_PIN_BASE + 10) /* A0-A4 */ // FIXME: We do not connect address bus directly
+#define RIA_OE_PIN_BASE   (RIA_PIN_BASE + 10)
+#define RIA_OE_AL_PIN     (RIA_OE_PIN_BASE + 0)
+#define RIA_OE_AH_PIN     (RIA_OE_PIN_BASE + 1)
+#define RIA_OE_AD_PIN     (RIA_OE_PIN_BASE + 2)
 
 /* All resource assignments
  */
@@ -72,6 +77,17 @@ bool main_api(uint8_t operation);
 #define RIA_READ_SM   1
 #define RIA_ACT_PIO   pio1
 #define RIA_ACT_SM    0
+
+#define MEM_SPI          spi1
+#define MEM_SPI_BAUDRATE (104 * 1000 * 1000)
+#define MEM_SPI_RX_PIN   24
+#define MEM_SPI_SCK_PIN  26
+#define MEM_SPI_TX_PIN   27
+#define MEM_SPI_BANKS    4
+#define MEM_SPI_CS0_PIN  25
+#define MEM_SPI_CS1_PIN  28
+#define MEM_SPI_CS2_PIN  29
+#define MEM_SPI_CS3_PIN  30
 
 #define VGA_BACKCHANNEL_PIN      COM_UART_TX_PIN
 #define VGA_BACKCHANNEL_BAUDRATE 115200

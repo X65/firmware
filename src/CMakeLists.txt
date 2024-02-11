@@ -58,6 +58,7 @@ target_link_libraries(rp6502_ria PRIVATE
     hardware_pwm
     hardware_flash
     hardware_rtc
+    hardware_spi
     tinyusb_ria
 )
 
