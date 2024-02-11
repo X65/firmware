@@ -10,8 +10,6 @@
 #include "api/oem.h"
 #include "api/rng.h"
 #include "api/std.h"
-#include "aud/aud.h"
-#include "aud/psg.h"
 #include "mon/fil.h"
 #include "mon/mon.h"
 #include "mon/ram.h"
@@ -54,7 +52,6 @@ static void init(void)
 
     // Misc kernel modules, add yours here
     oem_init();
-    aud_init();
     kbd_init();
     mou_init();
     rom_init();
@@ -75,7 +72,6 @@ void main_task(void)
     tuh_task();
     cpu_task();
     ria_task();
-    aud_task();
     kbd_task();
     vga_task();
     std_task();
@@ -111,7 +107,6 @@ static void stop(void)
     std_stop();
     kbd_stop();
     mou_stop();
-    aud_stop();
 }
 
 // Event for CTRL-ALT-DEL and UART breaks.
@@ -136,7 +131,6 @@ void main_reclock(uint32_t sys_clk_khz, uint16_t clkdiv_int, uint8_t clkdiv_frac
     vga_reclock(sys_clk_khz);
     ria_reclock(clkdiv_int, clkdiv_frac);
     pix_reclock(clkdiv_int, clkdiv_frac);
-    aud_reclock(sys_clk_khz);
 }
 
 // PIX XREG writes to the RIA device will notify here.
@@ -149,8 +143,8 @@ bool main_pix(uint8_t ch, uint8_t addr, uint16_t word)
         return kbd_xreg(word);
     case 0x001:
         return mou_xreg(word);
-    case 0x100:
-        return psg_xreg(word);
+    // case 0x100:
+    //     return psg_xreg(word); // FIXME: audio support
     default:
         return false;
     }

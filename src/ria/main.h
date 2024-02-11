@@ -43,9 +43,6 @@ bool main_api(uint8_t operation);
 /* All pin assignments
  */
 
-#define AUD_L_PIN 28
-#define AUD_R_PIN 27
-
 #define CPU_RESB_PIN 26
 #define CPU_IRQB_PIN 22
 #define CPU_PHI2_PIN 21
@@ -60,8 +57,6 @@ bool main_api(uint8_t operation);
 
 /* All resource assignments
  */
-
-#define AUD_PWM_IRQ_PIN 14 /* No IO */
 
 #define COM_UART           uart1
 #define COM_UART_BAUD_RATE 115200
