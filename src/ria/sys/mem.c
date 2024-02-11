@@ -79,11 +79,11 @@ static const uint8_t READ_ID = 0x9f;
 
 static void mem_read_id(uint8_t ID[8])
 {
-    // Read ID command
-    spi_write_blocking(MEM_SPI, &READ_ID, 1);
-    // next 24 bit address, unused by command
-    const uint8_t ADDRESS[3] = {0};
-    spi_write_blocking(MEM_SPI, ADDRESS, 3);
+    const uint8_t COMMAND[4] = {
+        READ_ID
+        // next 24 bit address, unused by command
+    };
+    spi_write_blocking(MEM_SPI, COMMAND, 4);
 
     spi_read_blocking(MEM_SPI, 0, ID, 8);
 }
