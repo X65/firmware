@@ -42,6 +42,6 @@ void mou_report(hid_mouse_report_t const *report)
     mou_xram_data.y += report->y;
     mou_xram_data.wheel += report->wheel;
     mou_xram_data.pan += report->pan;
-    if (mou_xram != 0xFFFF)
-        memcpy(&xram[mou_xram], &mou_xram_data, sizeof(mou_xram_data));
+    // FIXME: if (mou_xram != 0xFFFF)
+    //     memcpy(&xram[mou_xram], &mou_xram_data, sizeof(mou_xram_data));
 }

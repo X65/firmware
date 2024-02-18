@@ -9,7 +9,6 @@
 #include "main.h"
 #include "pico/stdlib.h"
 #include "sys/mem.h"
-#include "sys/vga.h"
 #include "usb/usb.h"
 #include <stdio.h>
 #include <string.h>
@@ -43,7 +42,7 @@ void sys_mon_status(const char *args, size_t len)
     (void)(len);
     sys_print_status();
     mem_print_status();
-    vga_print_status();
+    // vga_print_status();
     usb_print_status();
 }
 

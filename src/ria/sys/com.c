@@ -9,9 +9,6 @@
 #include "pico/stdio/driver.h"
 #include "pico/stdlib.h"
 #include "sys/cpu.h"
-#include "sys/pix.h"
-#include "sys/ria.h"
-#include "sys/vga.h"
 #include <stdio.h>
 
 #define COM_BUF_SIZE          256
@@ -55,8 +52,6 @@ static void com_tx_task(void)
         {
             char ch = COM_TX_BUF(++com_tx_tail);
             uart_putc_raw(COM_UART, ch);
-            if (vga_backchannel())
-                pix_send_blocking(PIX_DEVICE_VGA, 0xF, 0x03, ch);
         }
     }
 }
@@ -424,7 +419,7 @@ void com_task(void)
 
     // Allow UART RX FIFO to fill during RIA actions.
     // At all other times the FIFO must be emptied to detect breaks.
-    if (!ria_active())
+    if (!false /*ria_active()*/)
     {
         if (com_callback && com_timeout_ms && absolute_time_diff_us(get_absolute_time(), com_timer) < 0)
         {
@@ -452,8 +447,8 @@ void com_task(void)
                 }
                 else if (cpu_active())
                     cpu_com_rx(ch);
-                if (ria_active()) // why?
-                    break;
+                // if (ria_active()) // why?
+                //     break;
                 ch = getchar_timeout_us(0);
             }
         }

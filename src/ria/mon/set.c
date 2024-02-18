@@ -9,35 +9,6 @@
 #include "sys/cpu.h"
 #include "sys/lfs.h"
 
-static void set_print_phi2(void)
-{
-    uint32_t phi2_khz = cfg_get_phi2_khz();
-    printf("PHI2: %ld kHz", phi2_khz);
-    if (phi2_khz < RP6502_MIN_PHI2 || phi2_khz > RP6502_MAX_PHI2)
-        printf(" (!!!)");
-    printf("\n");
-}
-
-static void set_phi2(const char *args, size_t len)
-{
-    uint32_t val;
-    if (len)
-    {
-        if (!parse_uint32(&args, &len, &val) || //
-            !parse_end(args, len))
-        {
-            printf("?invalid argument\n");
-            return;
-        }
-        if (!cfg_set_phi2_khz(val))
-        {
-            printf("?invalid speed\n");
-            return;
-        }
-    }
-    set_print_phi2();
-}
-
 static void set_print_resb(void)
 {
     uint8_t reset_ms = cfg_get_reset_ms();
@@ -161,31 +132,6 @@ static void set_code_page(const char *args, size_t len)
     set_print_code_page();
 }
 
-static void set_print_vga(void)
-{
-    const char *const vga_labels[] = {"640x480", "640x480 and 1280x720", "1280x1024"};
-    printf("VGA : %s\n", vga_labels[cfg_get_vga()]);
-}
-
-static void set_vga(const char *args, size_t len)
-{
-    uint32_t val;
-    if (len)
-    {
-        if (parse_uint32(&args, &len, &val) && //
-            parse_end(args, len))
-        {
-            cfg_set_vga(val);
-        }
-        else
-        {
-            printf("?invalid argument\n");
-            return;
-        }
-    }
-    set_print_vga();
-}
-
 typedef void (*set_function)(const char *, size_t);
 static struct
 {
@@ -194,22 +140,18 @@ static struct
     set_function func;
 } const SETTERS[] = {
     {4, "caps", set_caps},
-    {4, "phi2", set_phi2},
     {4, "resb", set_resb},
     {4, "boot", set_boot},
     {2, "cp", set_code_page},
-    {3, "vga", set_vga},
 };
 static const size_t SETTERS_COUNT = sizeof SETTERS / sizeof *SETTERS;
 
 static void set_print_all(void)
 {
-    set_print_phi2();
     set_print_resb();
     set_print_caps();
     set_print_boot();
     set_print_code_page();
-    set_print_vga();
 }
 
 void set_mon_set(const char *args, size_t len)

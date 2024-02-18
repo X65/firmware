@@ -55,45 +55,34 @@ target_link_libraries(rp6502_ria PRIVATE
     pico_rand
     hardware_pio
     hardware_dma
-    hardware_pwm
     hardware_flash
     hardware_rtc
-    hardware_spi
     tinyusb_ria
 )
 
 pico_generate_pio_header(rp6502_ria
-    ${CMAKE_CURRENT_LIST_DIR}/ria/sys/sys.pio
+    ${CMAKE_CURRENT_LIST_DIR}/ria/sys/mem.pio
 )
 
-pico_generate_pio_header(rp6502_ria
-    ${CMAKE_CURRENT_LIST_DIR}/ria/sys/vga.pio
-)
+# pico_generate_pio_header(rp6502_ria
+#     ${CMAKE_CURRENT_LIST_DIR}/ria/sys/vga.pio
+# )
 
 target_sources(rp6502_ria PRIVATE
     ria/main.c
     ria/str.c
-    ria/api/api.c
     ria/api/clk.c
-    ria/api/oem.c
-    ria/api/rng.c
-    ria/api/std.c
     ria/mon/fil.c
     ria/mon/hlp.c
     ria/mon/mon.c
-    ria/mon/ram.c
     ria/mon/rom.c
     ria/mon/set.c
-    ria/mon/vip.c
     ria/sys/cfg.c
     ria/sys/com.c
     ria/sys/cpu.c
     ria/sys/lfs.c
     ria/sys/mem.c
-    ria/sys/pix.c
-    ria/sys/ria.c
     ria/sys/sys.c
-    ria/sys/vga.c
     ria/usb/hid_ps4.c
     ria/usb/hid.c
     ria/usb/kbd.c

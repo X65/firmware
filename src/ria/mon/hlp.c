@@ -6,7 +6,6 @@
 
 #include "mon/hlp.h"
 #include "mon/rom.h"
-#include "mon/vip.h"
 #include "str.h"
 #include "sys/lfs.h"
 
@@ -398,8 +397,6 @@ void hlp_mon_help(const char *args, size_t len)
     if (text)
     {
         puts(text);
-        if (text == hlp_text_about)
-            vip_print();
     }
     else
     {

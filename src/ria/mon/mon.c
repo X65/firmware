@@ -5,11 +5,9 @@
  */
 
 #include "mon/mon.h"
-#include "api/std.h"
 #include "main.h"
 #include "mon/fil.h"
 #include "mon/hlp.h"
-#include "mon/ram.h"
 #include "mon/rom.h"
 #include "mon/set.h"
 #include "pico/stdlib.h"
@@ -17,7 +15,6 @@
 #include "sys/com.h"
 #include "sys/mem.h"
 #include "sys/sys.h"
-#include "sys/vga.h"
 #include <stdio.h>
 
 static bool needs_newline = true;
@@ -48,7 +45,7 @@ static struct
     {5, "reset", sys_mon_reset},
     {6, "upload", fil_mon_upload},
     {6, "unlink", fil_mon_unlink},
-    {6, "binary", ram_mon_binary},
+    // FIXME: {6, "binary", ram_mon_binary},
 };
 static const size_t COMMANDS_COUNT = sizeof COMMANDS / sizeof *COMMANDS;
 
@@ -84,11 +81,11 @@ static mon_function mon_command_lookup(const char **buf, uint8_t buflen)
     if (cmd_len == 2 && !strnicmp(cmd, "cd", cmd_len))
         is_not_addr = true;
     // address command
-    if (is_maybe_addr && !is_not_addr)
-    {
-        *buf = cmd;
-        return ram_mon_address;
-    }
+    // FIXME: if (is_maybe_addr && !is_not_addr)
+    // {
+    //     *buf = cmd;
+    //     return ram_mon_address;
+    // }
     // 0:-9: is chdrive
     if (cmd_len == 2 && cmd[1] == ':' && cmd[0] >= '0' && cmd[0] <= '9')
     {
@@ -136,11 +133,11 @@ static void mon_enter(bool timeout, const char *buf, size_t length)
 static bool mon_suspended(void)
 {
     return main_active() || //
-           ram_active() ||  //
+                            //    FIXME: ram_active() ||  //
            rom_active() ||  //
-           vga_active() ||  //
-           fil_active() ||  //
-           std_active();
+           fil_active()     //||  //
+                            //    std_active()
+        ;
 }
 
 void mon_task(void)

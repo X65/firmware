@@ -4,7 +4,6 @@
  * SPDX-License-Identifier: BSD-3-Clause
  */
 
-#include "api/api.h"
 #include "fatfs/ff.h"
 #include "main.h"
 #include "mon/hlp.h"
@@ -12,8 +11,7 @@
 #include "str.h"
 #include "sys/cfg.h"
 #include "sys/lfs.h"
-#include "sys/pix.h"
-#include "sys/ria.h"
+#include "sys/mem.h"
 
 static enum {
     ROM_IDLE,
@@ -96,7 +94,7 @@ static bool rom_eof(void)
         return !!lfs_eof(&lfs_file);
 }
 
-static bool rom_read(uint32_t len, uint32_t crc)
+static bool rom_read(uint32_t len, uint32_t /*crc*/)
 {
     if (is_reading_fat)
     {
@@ -122,11 +120,11 @@ static bool rom_read(uint32_t len, uint32_t crc)
         printf("?Unable to read binary data\n");
         return false;
     }
-    if (ria_buf_crc32() != crc)
-    {
-        printf("?CRC failed\n");
-        return false;
-    }
+    // FIXME: if (ria_buf_crc32() != crc)
+    // {
+    //     printf("?CRC failed\n");
+    //     return false;
+    // }
     return true;
 }
 
@@ -196,7 +194,7 @@ static void rom_loading(void)
         else
         {
             rom_state = ROM_RIA_WRITING;
-            ria_write_buf(rom_addr);
+            // FIXME: ria_write_buf(rom_addr);
         }
     }
 }
@@ -384,25 +382,14 @@ bool rom_help(const char *args, size_t len)
 
 static bool rom_action_is_finished(void)
 {
-    if (ria_active())
-        return false;
-    if (ria_print_error_message())
-    {
-        rom_state = ROM_IDLE;
-        return false;
-    }
+    // FIXME: if (ria_active())
+    //     return false;
+    // if (ria_print_error_message())
+    // {
+    //     rom_state = ROM_IDLE;
+    //     return false;
+    // }
     return true;
-}
-
-static bool rom_xram_writing(void)
-{
-    while (rom_len && pix_ready())
-    {
-        uint32_t addr = rom_addr + --rom_len - 0x10000;
-        xram[addr] = mbuf[rom_len];
-        PIX_SEND_XRAM(addr, xram[addr]);
-    }
-    return !!rom_len;
 }
 
 void rom_init(void)
@@ -423,15 +410,15 @@ void rom_task(void)
         rom_loading();
         break;
     case ROM_XRAM_WRITING:
-        if (!rom_xram_writing())
-            rom_state = ROM_LOADING;
+        // FIXME: if (!rom_xram_writing())
+        //     rom_state = ROM_LOADING;
         break;
     case ROM_RIA_WRITING:
-        if (rom_action_is_finished())
-        {
-            rom_state = ROM_RIA_VERIFYING;
-            ria_verify_buf(rom_addr);
-        }
+        // FIXME: if (rom_action_is_finished())
+        // {
+        //     rom_state = ROM_RIA_VERIFYING;
+        //     ria_verify_buf(rom_addr);
+        // }
         break;
     case ROM_RIA_VERIFYING:
         if (rom_action_is_finished())

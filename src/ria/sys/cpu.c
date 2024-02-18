@@ -5,11 +5,11 @@
  */
 
 #include "sys/cpu.h"
-#include "api/api.h"
 #include "main.h"
 #include "pico/stdlib.h"
 #include "sys/cfg.h"
 #include "sys/com.h"
+#include "sys/mem.h"
 
 static bool cpu_run_requested;
 static absolute_time_t cpu_resb_timer;
@@ -118,67 +118,12 @@ bool cpu_active(void)
     return cpu_run_requested;
 }
 
-void cpu_api_phi2(void)
-{
-    return api_return_ax(cfg_get_phi2_khz());
-}
-
 uint32_t cpu_get_reset_us(void)
 {
     uint32_t reset_ms = cfg_get_reset_ms();
-    uint32_t phi2_khz = cfg_get_phi2_khz();
     if (!reset_ms)
-        return (2000000 / phi2_khz + 999) / 1000;
-    if (phi2_khz == 1 && reset_ms == 1)
         return 2000;
     return reset_ms * 1000;
-}
-
-static void cpu_compute_phi2_clocks(uint32_t freq_khz,
-                                    uint32_t *sys_clk_khz,
-                                    uint16_t *clkdiv_int,
-                                    uint8_t *clkdiv_frac)
-{
-    *sys_clk_khz = freq_khz * 30;
-    if (*sys_clk_khz < 120 * 1000)
-    {
-        *sys_clk_khz = 120 * 1000;
-        float clkdiv = 120000.f / 30.f / freq_khz;
-        *clkdiv_int = clkdiv;
-        *clkdiv_frac = (clkdiv - *clkdiv_int) * (1u << 8u);
-    }
-    else
-    {
-        *clkdiv_int = 1;
-        *clkdiv_frac = 0;
-        uint vco, postdiv1, postdiv2;
-        while (!check_sys_clock_khz(*sys_clk_khz, &vco, &postdiv1, &postdiv2))
-            *sys_clk_khz += 1;
-    }
-}
-
-uint32_t cpu_validate_phi2_khz(uint32_t freq_khz)
-{
-    if (!freq_khz)
-        freq_khz = 4000;
-    uint32_t sys_clk_khz;
-    uint16_t clkdiv_int;
-    uint8_t clkdiv_frac;
-    cpu_compute_phi2_clocks(freq_khz, &sys_clk_khz, &clkdiv_int, &clkdiv_frac);
-    return sys_clk_khz / 30.f / (clkdiv_int + clkdiv_frac / 256.f);
-}
-
-bool cpu_set_phi2_khz(uint32_t phi2_khz)
-{
-    uint32_t sys_clk_khz;
-    uint16_t clkdiv_int;
-    uint8_t clkdiv_frac;
-    cpu_compute_phi2_clocks(phi2_khz, &sys_clk_khz, &clkdiv_int, &clkdiv_frac);
-    com_flush();
-    bool ok = set_sys_clock_khz(sys_clk_khz, false);
-    if (ok)
-        main_reclock(sys_clk_khz, clkdiv_int, clkdiv_frac);
-    return ok;
 }
 
 void cpu_com_rx(uint8_t ch)
@@ -253,15 +198,4 @@ size_t cpu_stdin_read(uint8_t *buf, size_t count)
         cpu_readline_needs_nl = false;
     }
     return i;
-}
-
-void cpu_api_stdin_opt(void)
-{
-    uint8_t str_length = API_A;
-    uint32_t ctrl_bits;
-    if (!api_pop_uint32_end(&ctrl_bits))
-        return api_return_errno(API_EINVAL);
-    cpu_str_length = str_length;
-    cpu_ctrl_bits = ctrl_bits;
-    return api_return_ax(0);
 }

@@ -5,23 +5,16 @@
  */
 
 #include "main.h"
-#include "api/api.h"
 #include "api/clk.h"
-#include "api/oem.h"
-#include "api/rng.h"
-#include "api/std.h"
 #include "mon/fil.h"
 #include "mon/mon.h"
-#include "mon/ram.h"
 #include "mon/rom.h"
 #include "sys/cfg.h"
 #include "sys/com.h"
 #include "sys/cpu.h"
 #include "sys/lfs.h"
-#include "sys/pix.h"
-#include "sys/ria.h"
+#include "sys/mem.h"
 #include "sys/sys.h"
-#include "sys/vga.h"
 #include "tusb.h"
 #include "usb/kbd.h"
 #include "usb/mou.h"
@@ -38,9 +31,9 @@ static void init(void)
 {
     // STDIO not available until after these inits
     cpu_init();
-    ria_init();
-    pix_init();
-    vga_init();
+    // ria_init();
+    // pix_init();
+    // vga_init();
     com_init();
 
     // Print startup message
@@ -51,11 +44,11 @@ static void init(void)
     cfg_init();
 
     // Misc kernel modules, add yours here
-    oem_init();
+    // oem_init();
     mem_init();
     kbd_init();
     mou_init();
-    rom_init();
+    // rom_init();
     clk_init();
 
     // TinyUSB
@@ -73,29 +66,29 @@ void main_task(void)
     tuh_task();
     cpu_task();
     mem_task();
-    ria_task();
+    // ria_task();
     kbd_task();
-    vga_task();
-    std_task();
+    // vga_task();
+    // std_task();
 }
 
 // Tasks that call FatFs should be here instead of main_task().
 static void task(void)
 {
-    api_task();
+    // api_task();
     com_task();
     mon_task();
-    ram_task();
-    fil_task();
-    rom_task();
+    // ram_task();
+    // fil_task();
+    // rom_task();
 }
 
 // Event to start running the 6502.
 static void run(void)
 {
-    vga_run();
-    api_run();
-    ria_run(); // Must be immediately before cpu
+    // vga_run();
+    // api_run();
+    // ria_run(); // Must be immediately before cpu
     cpu_run(); // Must be last
 }
 
@@ -103,10 +96,10 @@ static void run(void)
 static void stop(void)
 {
     cpu_stop(); // Must be first
-    vga_stop(); // Must be before ria
-    ria_stop();
-    pix_stop();
-    std_stop();
+    // vga_stop(); // Must be before ria
+    // ria_stop();
+    // pix_stop();
+    // std_stop();
     kbd_stop();
     mou_stop();
 }
@@ -115,24 +108,24 @@ static void stop(void)
 static void reset(void)
 {
     com_reset();
-    fil_reset();
+    // fil_reset();
     mon_reset();
-    ram_reset();
-    rom_reset();
-    vga_reset();
+    // ram_reset();
+    // rom_reset();
+    // vga_reset();
 }
 
 // Triggered once after init then after every PHI2 clock change.
 // Divider is used when PHI2 less than 4 MHz to
 // maintain a minimum system clock of 120 MHz.
 // From 4 to 8 MHz increases system clock to 240 MHz.
-void main_reclock(uint32_t sys_clk_khz, uint16_t clkdiv_int, uint8_t clkdiv_frac)
+void main_reclock()
 {
     com_reclock();
     cpu_reclock();
-    vga_reclock(sys_clk_khz);
-    ria_reclock(clkdiv_int, clkdiv_frac);
-    pix_reclock(clkdiv_int, clkdiv_frac);
+    // vga_reclock(sys_clk_khz);
+    // ria_reclock(clkdiv_int, clkdiv_frac);
+    // pix_reclock(clkdiv_int, clkdiv_frac);
 }
 
 // PIX XREG writes to the RIA device will notify here.
@@ -159,60 +152,60 @@ bool main_api(uint8_t operation)
 {
     switch (operation)
     {
-    case 0x01:
-        pix_api_xreg();
-        break;
-    case 0x02:
-        cpu_api_phi2();
-        break;
-    case 0x03:
-        oem_api_codepage();
-        break;
-    case 0x04:
-        rng_api_lrand();
-        break;
-    case 0x05:
-        cpu_api_stdin_opt();
-        break;
-    case 0x0F:
-        clk_api_clock();
-        break;
-    case 0x10:
-        clk_api_get_res();
-        break;
-    case 0x11:
-        clk_api_get_time();
-        break;
-    case 0x12:
-        clk_api_set_time();
-        break;
-    case 0x14:
-        std_api_open();
-        break;
-    case 0x15:
-        std_api_close();
-        break;
-    case 0x16:
-        std_api_read_xstack();
-        break;
-    case 0x17:
-        std_api_read_xram();
-        break;
-    case 0x18:
-        std_api_write_xstack();
-        break;
-    case 0x19:
-        std_api_write_xram();
-        break;
-    case 0x1A:
-        std_api_lseek();
-        break;
-    case 0x1B:
-        std_api_unlink();
-        break;
-    case 0x1C:
-        std_api_rename();
-        break;
+    // case 0x01:
+    //     pix_api_xreg();
+    //     break;
+    // case 0x02:
+    //     cpu_api_phi2();
+    //     break;
+    // case 0x03:
+    //     oem_api_codepage();
+    //     break;
+    // case 0x04:
+    //     rng_api_lrand();
+    //     break;
+    // case 0x05:
+    //     cpu_api_stdin_opt();
+    //     break;
+    // case 0x0F:
+    //     clk_api_clock();
+    //     break;
+    // case 0x10:
+    //     clk_api_get_res();
+    //     break;
+    // case 0x11:
+    //     clk_api_get_time();
+    //     break;
+    // case 0x12:
+    //     clk_api_set_time();
+    //     break;
+    // case 0x14:
+    //     std_api_open();
+    //     break;
+    // case 0x15:
+    //     std_api_close();
+    //     break;
+    // case 0x16:
+    //     std_api_read_xstack();
+    //     break;
+    // case 0x17:
+    //     std_api_read_xram();
+    //     break;
+    // case 0x18:
+    //     std_api_write_xstack();
+    //     break;
+    // case 0x19:
+    //     std_api_write_xram();
+    //     break;
+    // case 0x1A:
+    //     std_api_lseek();
+    //     break;
+    // case 0x1B:
+    //     std_api_unlink();
+    //     break;
+    // case 0x1C:
+    //     std_api_rename();
+    //     break;
     default:
         return false;
     }
@@ -258,9 +251,6 @@ bool main_active(void)
 int main(void)
 {
     init();
-
-    // Trigger main_reclock()
-    cpu_set_phi2_khz(cfg_get_phi2_khz());
 
     while (true)
     {

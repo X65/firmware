@@ -5,7 +5,6 @@
  */
 
 #include "usb/kbd.h"
-#include "api/api.h"
 #include "fatfs/ff.h"
 #include "main.h"
 #include "pico/stdio/driver.h"
@@ -321,8 +320,8 @@ static void kbd_prev_report_to_xram()
         // CAPSLOCK
         if (kdb_hid_leds & KEYBOARD_LED_CAPSLOCK)
             kbd_xram_keys[0] |= 8;
-        // Send it to xram
-        memcpy(&xram[kbd_xram], kbd_xram_keys, sizeof(kbd_xram_keys));
+        // // Send it to xram
+        // FIXME: memcpy(&xram[kbd_xram], kbd_xram_keys, sizeof(kbd_xram_keys));
     }
 }
 
