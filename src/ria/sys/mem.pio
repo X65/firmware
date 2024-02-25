@@ -1,0 +1,108 @@
+; SRAM memory emulation
+
+;      |                                |
+;      |          +-- BUFF0 <-- A0-A7   |
+;      |          |     ||              |
+;      |D0-D7 <---+-- BUFF1 <-- A8-A15  |
+;      |          |     ||              |
+;      |          +-> BUFF2 <-> BA0-BA7 |
+;  RIA |              | ||              | CPU
+;      | DIR ---------+ ||              |
+;      |                ||              |
+;      |DE0-1 ------->74139   NOR       |
+;      |                       +--- VDA |
+;      | VAB <----------------o+--- VPA |
+;      |                                |
+;      | RWB <--------------------- RWB |
+;      |                                |
+;
+; DIR - LOW: CPU->RIA (Read)
+;      HIGH: RIA->CPU (Write)
+;       Affects only BUFF2, BUFF0-1 are hardwired CPU->RIA
+; BE0:       00: BUFF0, 01: BUFF1
+; BE1:       10: BUFF2, 11: N/A  (VIA?)
+
+; The idea is to use BUFF0-2 to "scan" address and data bus using a shared
+; 8-bit Pico bus. This technique uses only 10 GPIO pins, instead of 24.
+; Credits to: https://neo6502.com
+
+; After RESET start with Φ2 HIGH
+;
+;   1. Drive Φ2 LOW
+;   2. Wait tDHR (10ns), so CPU can Read BA0-BA7
+;   3. Wait tADS (40ns)
+;   4. Set DIR to Read
+;   5. Set D0-D7 to IN
+;   6. Read A0-A7
+;      - Enable BUFF0 (LE:00)
+;      - Read D0-D7
+;      - Push to FIFO
+;   7. Read A8-A15
+;      - Enable BUFF1 (LE:01)
+;      - Read D0-D7
+;      - Push to FIFO
+;   8. Read BA0-BA7
+;      - Enable BUFF2 (LE:10)
+;      - Read D0-D7
+;      - Push to FIFO
+;   9. Read RWB, VAB
+;      - Push to FIFO
+;  10. Drive Φ2 HIGH
+; 11a. If RWB is LOW (Write)
+;    12. Wait for RWB is LOW - this signals valid Write data on BA0-BA7
+;    13. Read BA0-BA7
+;        - Enable BUFF2 (LE:10)
+;        - Set DIR to Read
+;        - Read D0-D7
+;        - Push to FIFO
+;    14. Trigger PIO IRQ, so CPU can handle decoded address and data
+;    15. Wait for incoming FIFO data (dummy), to signal end of RAM write
+; 11b. If RWB is HIGH (Read)
+;    12. Trigger PIO IRQ, so CPU can handle decoded address
+;    13. Wait for incoming FIFO data
+;    14. Write BA0-BA7
+;        - Enable BUFF2 (LE:10)
+;        - Set DIR to Write
+;        - Set D0-D7 to OUT
+;        - Set D0-D7 data
+;
+; Note: VAB signal HIGH means that CPU is doing internal stuff and does not
+; provide valid address on bus. This can be used to short-circuit the loop
+; and proceed to next Φ2 immediately, without reading/writing memory.
+; TBD: it can be done in PIO program or in CPU interrupt routine
+;
+
+; One Pico clock cycle @208Mhz is ~4,81ns
+
+.program mem_bus
+
+.side_set 4
+; 1: PHI2
+; 2: BE0
+; 3: BE1
+; 4: DIR (BUFF2)
+
+    nop                 side 0b0000 [1] ; clock LOW, BUFF0, Read, wait ~4,8ns
+.wrap_target
+    mov osr, null       side 0b0000 [1] ; 00000000 to OSR
+    out pindirs, 8      side 0b0000 [1] ; D0-D7 in
+    nop                 side 0b0000 [1] ; nop to get total 8 cycles of delay (~38,5ns)
+
+    ; read without delay, to trigger memory read/write as fast as possible
+    in  pins, 8         side 0b0010     ; read A0-A7, switch to BUFF1
+    in  pins, 8         side 0b0100     ; read A8-A15, switch to BUFF2
+    in  pins, 10        side 0b0101     ; read BA0-BA7,RWB,VAB, set clock HIGH
+
+    ;; FIXME: assume CPU is reading (RWB is HIGH)
+    irq set 0           side 0b0101     ; request processing by Pico CPU code
+    mov osr, ~null      side 0b0101     ; 11111111 to OSR, and wait ~10ns for bus release
+    out pindirs, 8      side 0b1101     ; D0-D7 out, clock still HIGH, BUFF2 Write
+    pull                side 0b1101     ; pull reply to OSR
+    set x, 5            side 0b1101 [1] ; loop to get total 14 cycles of delay (~67ns)
+wait1:
+    jmp x-- wait1       side 0b1101
+    out pins, 8         side 0b1101 [1] ; wait ~10ns
+    nop                 side 0b1100 [1] ; clock LOW
+.wrap
+
+.program mem_qpi
