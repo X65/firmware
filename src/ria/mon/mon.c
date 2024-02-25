@@ -81,11 +81,11 @@ static mon_function mon_command_lookup(const char **buf, uint8_t buflen)
     if (cmd_len == 2 && !strnicmp(cmd, "cd", cmd_len))
         is_not_addr = true;
     // address command
-    // FIXME: if (is_maybe_addr && !is_not_addr)
-    // {
-    //     *buf = cmd;
-    //     return ram_mon_address;
-    // }
+    if (is_maybe_addr && !is_not_addr)
+    {
+        *buf = cmd;
+        return 0; // FIXME: ram_mon_address;
+    }
     // 0:-9: is chdrive
     if (cmd_len == 2 && cmd[1] == ':' && cmd[0] >= '0' && cmd[0] <= '9')
     {

@@ -12,6 +12,7 @@
 #include "sys/cfg.h"
 #include "sys/lfs.h"
 #include "sys/mem.h"
+#include "sys/ria.h"
 
 static enum {
     ROM_IDLE,
@@ -94,7 +95,7 @@ static bool rom_eof(void)
         return !!lfs_eof(&lfs_file);
 }
 
-static bool rom_read(uint32_t len, uint32_t /*crc*/)
+static bool rom_read(uint32_t len, uint32_t crc)
 {
     if (is_reading_fat)
     {
@@ -120,11 +121,11 @@ static bool rom_read(uint32_t len, uint32_t /*crc*/)
         printf("?Unable to read binary data\n");
         return false;
     }
-    // FIXME: if (ria_buf_crc32() != crc)
-    // {
-    //     printf("?CRC failed\n");
-    //     return false;
-    // }
+    if (ria_buf_crc32() != crc)
+    {
+        printf("?CRC failed\n");
+        return false;
+    }
     return true;
 }
 

@@ -14,6 +14,7 @@
 #include "sys/cpu.h"
 #include "sys/lfs.h"
 #include "sys/mem.h"
+#include "sys/ria.h"
 #include "sys/sys.h"
 #include "tusb.h"
 #include "usb/kbd.h"
@@ -31,7 +32,7 @@ static void init(void)
 {
     // STDIO not available until after these inits
     cpu_init();
-    // ria_init();
+    ria_init();
     // pix_init();
     // vga_init();
     com_init();
@@ -66,7 +67,7 @@ void main_task(void)
     tuh_task();
     cpu_task();
     mem_task();
-    // ria_task();
+    ria_task();
     kbd_task();
     // vga_task();
     // std_task();
@@ -88,7 +89,7 @@ static void run(void)
 {
     // vga_run();
     // api_run();
-    // ria_run(); // Must be immediately before cpu
+    ria_run(); // Must be immediately before cpu
     cpu_run(); // Must be last
 }
 
@@ -97,7 +98,7 @@ static void stop(void)
 {
     cpu_stop(); // Must be first
     // vga_stop(); // Must be before ria
-    // ria_stop();
+    ria_stop();
     // pix_stop();
     // std_stop();
     kbd_stop();

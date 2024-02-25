@@ -9,6 +9,7 @@
 #include "str.h"
 #include "sys/com.h"
 #include "sys/mem.h"
+#include "sys/ria.h"
 #include <stdio.h>
 
 #define TIMEOUT_MS 200
@@ -141,11 +142,11 @@ static void fil_com_rx_mbuf(bool timeout, const char *buf, size_t length)
         result = FR_INT_ERR;
         printf("?timeout\n");
     }
-    // FIXME: else if (ria_buf_crc32() != rx_crc)
-    // {
-    //     result = FR_INT_ERR;
-    //     puts("?CRC does not match");
-    // }
+    else if (ria_buf_crc32() != rx_crc)
+    {
+        result = FR_INT_ERR;
+        puts("?CRC does not match");
+    }
     // This will leave the file unchanged until
     // the first chunk is received successfully.
     if (result == FR_OK && f_tell(&fil_fat) == 0)
