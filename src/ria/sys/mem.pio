@@ -99,10 +99,39 @@
     out pindirs, 8      side 0b1101     ; D0-D7 out, clock still HIGH, BUFF2 Write
     pull                side 0b1101     ; pull reply to OSR
     set x, 5            side 0b1101 [1] ; loop to get total 14 cycles of delay (~67ns)
-wait1:
-    jmp x-- wait1       side 0b1101
+loop:
+    jmp x-- loop        side 0b1101
     out pins, 8         side 0b1101 [1] ; wait ~10ns
     nop                 side 0b1100 [1] ; clock LOW
 .wrap
 
+
+; This programs talk to 4x ISSI IS66 32Mb SerialRAM using SPI/QPI protocol
+;
+;  IN/OUT: SIO0-3
+;     SET: CE0-1
+; SIDESET: CLK
+
+.program mem_spi
+.side_set 1
+    out pins, 1     side 0  ; Stall here on empty (sideset proceeds even if
+    in  pins, 1     side 1  ; instruction stalls, so we stall with SCK low)
+
 .program mem_qpi
+.side_set 1
+    mov osr, ~null      side 0
+    out pindirs, 4      side 0
+    pull                side 0
+    out pins, 4         side 0
+    nop                 side 1
+    out pins, 4         side 0
+    nop                 side 1
+loop:
+    nop                 side 0
+    jmp x-- loop        side 1
+    mov osr, null       side 0
+    out pindirs, 4      side 1
+    nop                 side 0 ;[1]
+.wrap_target
+    in pins, 4          side 1
+    nop                 side 0

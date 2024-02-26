@@ -57,15 +57,15 @@ void main_task(void);
 #define MEM_DATA_DIR_PIN  (MEM_BUS_PIN_BASE + 13) /* BUFFER2 DIR */
 #define MEM_BUS_PINS_USED 14
 
-#define MEM_QPI_PIN_BASE  20
-#define MEM_QPI_CLK_PIN   (MEM_QPI_PIN_BASE + 0)
-#define MEM_QPI_SIO0_PIN  (MEM_QPI_PIN_BASE + 1)
-#define MEM_QPI_SIO1_PIN  (MEM_QPI_PIN_BASE + 2)
-#define MEM_QPI_SIO2_PIN  (MEM_QPI_PIN_BASE + 3)
-#define MEM_QPI_SIO3_PIN  (MEM_QPI_PIN_BASE + 4)
-#define MEM_QPI_CE0_PIN   (MEM_QPI_PIN_BASE + 5) /* MEM0 ENABLE */
-#define MEM_QPI_CE1_PIN   (MEM_QPI_PIN_BASE + 6) /* MEM1 ENABLE */
-#define MEM_QPI_PINS_USED 7
+#define MEM_RAM_PIN_BASE  20
+#define MEM_RAM_CLK_PIN   (MEM_RAM_PIN_BASE + 0)
+#define MEM_RAM_SIO0_PIN  (MEM_RAM_PIN_BASE + 1)
+#define MEM_RAM_SIO1_PIN  (MEM_RAM_PIN_BASE + 2)
+#define MEM_RAM_SIO2_PIN  (MEM_RAM_PIN_BASE + 3)
+#define MEM_RAM_SIO3_PIN  (MEM_RAM_PIN_BASE + 4)
+#define MEM_RAM_CE0_PIN   (MEM_RAM_PIN_BASE + 5) /* MEM0 ENABLE */
+#define MEM_RAM_CE1_PIN   (MEM_RAM_PIN_BASE + 6) /* MEM1 ENABLE */
+#define MEM_RAM_PINS_USED 7
 
 /* All resource assignments
  */
@@ -75,13 +75,15 @@ void main_task(void);
 #define COM_UART_TX_PIN    4
 #define COM_UART_RX_PIN    5
 
+// CPU bus handling
 #define MEM_BUS_PIO     pio0
 #define MEM_BUS_SM      0
 #define MEM_BUS_PIO_IRQ 0
 #define MEM_BUS_IRQ     PIO0_IRQ_0 // must match MEM_BUS_PIO and MEM_BUS_PIO_IRQ
 
-#define MEM_BANKS   4
-#define MEM_QPI_PIO pio1
-#define MEM_QPI_SM  0
+// RAM access
+#define MEM_RAM_BANKS 4
+#define MEM_RAM_PIO   pio0
+#define MEM_RAM_SM    1
 
 #endif /* _MAIN_H_ */
