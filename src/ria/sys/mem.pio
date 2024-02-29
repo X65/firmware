@@ -34,15 +34,15 @@
 ;   4. Set DIR to Read
 ;   5. Set D0-D7 to IN
 ;   6. Read A0-A7
-;      - Enable BUFF0 (LE:00)
+;      - Enable BUFF0 (BE:00)
 ;      - Read D0-D7
 ;      - Push to FIFO
 ;   7. Read A8-A15
-;      - Enable BUFF1 (LE:01)
+;      - Enable BUFF1 (BE:01)
 ;      - Read D0-D7
 ;      - Push to FIFO
 ;   8. Read BA0-BA7
-;      - Enable BUFF2 (LE:10)
+;      - Enable BUFF2 (BE:10)
 ;      - Read D0-D7
 ;      - Push to FIFO
 ;   9. Read RWB, VAB
@@ -51,7 +51,7 @@
 ; 11a. If RWB is LOW (Write)
 ;    12. Wait for RWB is LOW - this signals valid Write data on BA0-BA7
 ;    13. Read BA0-BA7
-;        - Enable BUFF2 (LE:10)
+;        - Enable BUFF2 (BE:10)
 ;        - Set DIR to Read
 ;        - Read D0-D7
 ;        - Push to FIFO
@@ -61,7 +61,7 @@
 ;    12. Trigger PIO IRQ, so CPU can handle decoded address
 ;    13. Wait for incoming FIFO data
 ;    14. Write BA0-BA7
-;        - Enable BUFF2 (LE:10)
+;        - Enable BUFF2 (BE:10)
 ;        - Set DIR to Write
 ;        - Set D0-D7 to OUT
 ;        - Set D0-D7 data

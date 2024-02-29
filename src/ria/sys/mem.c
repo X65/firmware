@@ -94,7 +94,7 @@ static void mem_ram_pio_init(void)
     // PIO to manage PSRAM memory read/writes
     mem_ram_program_offset = pio_add_program(MEM_RAM_PIO, &mem_spi_program);
     pio_sm_config config = mem_spi_program_get_default_config(mem_ram_program_offset);
-    sm_config_set_clkdiv_int_frac(&config, 80, 0); // FIXME: remove?
+    sm_config_set_clkdiv_int_frac(&config, 25, 0); // FIXME: remove?
     sm_config_set_in_shift(&config, false, true, 8);
     sm_config_set_out_shift(&config, false, true, 8);
     sm_config_set_sideset_pins(&config, MEM_RAM_CLK_PIN);
@@ -205,7 +205,6 @@ static void mem_read_id(int8_t bank, uint8_t ID[8])
     ID[0] = pio_sm_get_blocking(MEM_RAM_PIO, MEM_RAM_SM);
     pio_sm_exec_wait_blocking(MEM_RAM_PIO, MEM_RAM_SM, pio_encode_set(pio_pins, ~bank));
     pio_sm_set_enabled(MEM_RAM_PIO, MEM_RAM_SM, false);
-    // printf("!!! %llx\n", *((uint64_t *)ID));
 }
 
 void mem_print_status(void)
@@ -220,18 +219,19 @@ void mem_print_status(void)
         printf("MEM%d: ", i);
         switch (ID[7])
         {
-        case 0:
+        case 0x00:
         case 0xff:
             printf("Not Found\n");
             break;
         case 0x9d: // ISSI
         {
             uint8_t device_density = (ID[5] & 0b11100000) >> 5;
-            printf("%dMb ISSI%s\n",
+            printf("%2dMb ISSI (%llx)%s\n",
                    device_density == 0b000   ? 8
                    : device_density == 0b001 ? 16
                    : device_density == 0b010 ? 32
                                              : 0,
+                   *((uint64_t *)ID) & 0xffffffffffff,
                    ID[6] != 0x5d ? " Not Passed" : 0);
         }
         break;
