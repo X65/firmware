@@ -383,9 +383,9 @@ bool rom_help(const char *args, size_t len)
 
 static bool rom_action_is_finished(void)
 {
-    // FIXME: if (ria_active())
-    //     return false;
-    // if (ria_print_error_message())
+    if (ria_active())
+        return false;
+    // FIXME: if (ria_print_error_message())
     // {
     //     rom_state = ROM_IDLE;
     //     return false;
