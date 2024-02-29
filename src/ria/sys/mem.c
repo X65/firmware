@@ -17,13 +17,25 @@ size_t mbuf_len;
 
 static uint mem_ram_program_offset;
 
+#define MEM_CPU_ADDRESS_BUS_HISTORY_LENGTH 20
+static uint32_t mem_cpu_address_bus_history[MEM_CPU_ADDRESS_BUS_HISTORY_LENGTH];
+static uint8_t mem_cpu_address_bus_history_index = 0;
+
 static void __attribute__((optimize("O1")))
 mem_bus_pio_irq_handler()
 {
     // read address and flags
-    uint32_t address = pio_sm_get_blocking(MEM_BUS_PIO, MEM_BUS_SM) >> 6;
-    // printf("> %lx %lx\n", address & 0xffffff, address >> 24);
-    (void)address;
+    uint32_t address_bus = pio_sm_get_blocking(MEM_BUS_PIO, MEM_BUS_SM) >> 6;
+    uint32_t mem_cpu_address = address_bus & 0xffffff;
+    uint8_t mem_cpu_lines = address_bus >> 24;
+    (void)mem_cpu_lines;
+    static uint32_t last_mem_cpu_address = 0x1234;
+    if (mem_cpu_address_bus_history_index < MEM_CPU_ADDRESS_BUS_HISTORY_LENGTH && last_mem_cpu_address != mem_cpu_address)
+    {
+        last_mem_cpu_address = mem_cpu_address;
+        mem_cpu_address_bus_history[mem_cpu_address_bus_history_index++] = mem_cpu_address;
+    }
+    // printf("> %lx %x\n", mem_cpu_address, mem_cpu_lines);
 
     // feed NOP to CPU
     pio_sm_put_blocking(MEM_BUS_PIO, MEM_BUS_SM, 0xEA);
@@ -180,6 +192,17 @@ void mem_init(void)
 
 void mem_task(void)
 {
+    if (main_active())
+    {
+        if (mem_cpu_address_bus_history_index == MEM_CPU_ADDRESS_BUS_HISTORY_LENGTH)
+        {
+            mem_cpu_address_bus_history_index++;
+            for (int i = 0; i < MEM_CPU_ADDRESS_BUS_HISTORY_LENGTH; i++)
+            {
+                printf("CPU: 0x%3lX\n", mem_cpu_address_bus_history[i]);
+            }
+        }
+    }
 }
 
 static void mem_read_id(int8_t bank, uint8_t ID[8])

@@ -266,11 +266,13 @@ int main(void)
         }
         if (main_state == starting)
         {
+            printf("starting\n");
             run();
             main_state = running;
         }
         if (main_state == stopping)
         {
+            printf("stopping\n");
             stop();
             main_state = stopped;
         }

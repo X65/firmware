@@ -42,13 +42,14 @@ static const char __in_flash("helptext") hlp_text_set[]
       "SET VGA (0|1|2)     - Query or set display type for VGA output.";
 
 static const char __in_flash("helptext") hlp_text_about[]
-    = "Picocomputer 6502 - Copyright (c) 2023 Rumbledethumps.\n"
-      "     Pi Pico SDKs - Copyright (c) 2020 Raspberry Pi (Trading) Ltd.\n"
-      "      Tiny printf - Copyright (c) 2014-2019 Marco Paland, PALANDesign.\n"
-      "          TinyUSB - Copyright (c) 2018 hathach (tinyusb.org)\n"
-      "            FatFs - Copyright (c) 20xx ChaN.\n"
-      "         littlefs - Copyright (c) 2022 The littlefs authors.\n"
-      "                    Copyright (c) 2017 Arm Limited.";
+    = "Picocomputer 65816 - Copyright (c) 2023 Rumbledethumps.\n"
+      "                   - Copyright (c) 2024 Tomasz Sterna\n"
+      "      Pi Pico SDKs - Copyright (c) 2020 Raspberry Pi (Trading) Ltd.\n"
+      "       Tiny printf - Copyright (c) 2014-2019 Marco Paland, PALANDesign.\n"
+      "           TinyUSB - Copyright (c) 2018 hathach (tinyusb.org)\n"
+      "             FatFs - Copyright (c) 20xx ChaN.\n"
+      "          littlefs - Copyright (c) 2022 The littlefs authors.\n"
+      "                     Copyright (c) 2017 Arm Limited.";
 
 static const char __in_flash("helptext") hlp_text_system[]
     = "The Picocomputer does not use a traditional parallel ROM like a 27C64 or\n"

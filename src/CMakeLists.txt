@@ -164,7 +164,7 @@ target_compile_definitions(rp6502_vga PRIVATE
 
 set_property(TARGET rp6502_ria rp6502_vga
     APPEND PROPERTY COMPILE_DEFINITIONS
-    RP6502_NAME="Picocomputer 6502"
+    RP6502_NAME="Picocomputer 65816"
     RP6502_VERSION=""
     RP6502_CODE_PAGE=850
     RP6502_KEYBOARD=EN_US
