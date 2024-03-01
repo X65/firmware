@@ -1,20 +1,28 @@
-; SRAM memory emulation
+/*
+ * Copyright (c) 2024 Tomasz Sterna
+ *
+ * SPDX-License-Identifier: BSD-3-Clause
+ */
 
-;      |                                |
+; Parallel RAM memory emulation on SPI SerialRAM
+;
+; CPU bus interface:
+;
+; -----+                                +-----
 ;      |          +-- BUFF0 <-- A0-A7   |
 ;      |          |     ||              |
 ;      |D0-D7 <---+-- BUFF1 <-- A8-A15  |
 ;      |          |     ||              |
-;      |          +-> BUFF2 <-> BA0-BA7 |
+; Pico |          +-> BUFF2 <-> BA0-BA7 | 65816
 ;  RIA |              | ||              | CPU
 ;      | DIR ---------+ ||              |
 ;      |                ||              |
-;      |DE0-1 ------->74139   NOR       |
-;      |                       +--- VDA |
+;      |DE0-1 ------->74139             |
+;      |                    NOR+--- VDA |
 ;      | VAB <----------------o+--- VPA |
 ;      |                                |
 ;      | RWB <--------------------- RWB |
-;      |                                |
+; -----+                                +-----
 ;
 ; DIR - LOW: CPU->RIA (Read)
 ;      HIGH: RIA->CPU (Write)
@@ -23,7 +31,7 @@
 ; BE1:       10: BUFF2, 11: N/A  (VIA?)
 
 ; The idea is to use BUFF0-2 to "scan" address and data bus using a shared
-; 8-bit Pico bus. This technique uses only 10 GPIO pins, instead of 24.
+; 8-bit Pico bus. This technique uses only 11 GPIO pins, instead of 24.
 ; Credits to: https://neo6502.com
 
 ; After RESET start with Φ2 HIGH

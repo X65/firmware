@@ -84,7 +84,7 @@ static void task(void)
     // rom_task();
 }
 
-// Event to start running the 6502.
+// Event to start running the CPU.
 static void run(void)
 {
     // vga_run();
@@ -93,7 +93,7 @@ static void run(void)
     cpu_run(); // Must be last
 }
 
-// Event to stop the 6502.
+// Event to stop the CPU.
 static void stop(void)
 {
     cpu_stop(); // Must be first

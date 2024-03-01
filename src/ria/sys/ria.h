@@ -7,7 +7,7 @@
 #ifndef _RIA_H_
 #define _RIA_H_
 
-/* RP6502 Interface Adapter for WDC W65C02S.
+/* RP816 Interface Adapter for WDC W65C816S.
  */
 
 #include <stdbool.h>

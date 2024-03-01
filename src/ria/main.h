@@ -14,22 +14,22 @@
 /* This is the main kernel event loop.
  */
 
-// Request to "start the 6502".
-// It will safely do nothing if the 6502 is already running.
+// Request to "start the CPU".
+// It will safely do nothing if the CPU is already running.
 void main_run(void);
 
-// Request to "stop the 6502".
-// It will safely do nothing if the 6502 is already stopped.
+// Request to "stop the CPU".
+// It will safely do nothing if the CPU is already stopped.
 void main_stop(void);
 
 // Request to "break the system".
 // A break is triggered by CTRL-ALT-DEL and UART breaks.
-// If the 6502 is running, stop events will be called first.
+// If the CPU is running, stop events will be called first.
 // Kernel modules should reset to a state similar to after
 // init() was first run.
 void main_break(void);
 
-// This is true when the 6502 is running or there's a pending
+// This is true when the CPU is running or there's a pending
 // request to start it.
 bool main_active(void);
 

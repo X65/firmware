@@ -24,7 +24,7 @@ static const char __in_flash("helptext") hlp_text_help[]
       "INSTALL file        - Install ROM file on RIA.\n"
       "REMOVE rom          - Remove ROM from RIA.\n"
       "REBOOT              - Cold start. Load and start selected boot ROM.\n"
-      "RESET               - Start 6502 at current reset vector ($FFFC).\n"
+      "RESET               - Start CPU at current reset vector ($FFFC).\n"
       "rom                 - Load and start an installed ROM.\n"
       "UPLOAD file         - Write file. Binary chunks follow.\n"
       "UNLINK file|dir     - Delete file or empty directory.\n"
@@ -34,38 +34,33 @@ static const char __in_flash("helptext") hlp_text_help[]
 static const char __in_flash("helptext") hlp_text_set[]
     = "Settings:\n"
       "HELP SET attr       - Show information about a setting.\n"
-      "SET CAPS (0|1|2)    - Invert or force caps while 6502 is running.\n"
-      "SET PHI2 (kHz)      - Query or set PHI2 speed. This is the 6502 clock.\n"
+      "SET CAPS (0|1|2)    - Invert or force caps while CPU is running.\n"
       "SET RESB (ms)       - Query or set RESB hold time. Set to 0 for auto.\n"
       "SET BOOT (rom|-)    - Select ROM to boot from cold start. \"-\" for none.\n"
-      "SET CP (cp)         - Query or set code page.\n"
-      "SET VGA (0|1|2)     - Query or set display type for VGA output.";
+      "SET CP (cp)         - Query or set code page.";
 
 static const char __in_flash("helptext") hlp_text_about[]
-    = "Picocomputer 65816 - Copyright (c) 2023 Rumbledethumps.\n"
+    = "Picocomputer 65816 - Copyright (c) 2023 Rumbledethumps\n"
       "                   - Copyright (c) 2024 Tomasz Sterna\n"
-      "      Pi Pico SDKs - Copyright (c) 2020 Raspberry Pi (Trading) Ltd.\n"
-      "       Tiny printf - Copyright (c) 2014-2019 Marco Paland, PALANDesign.\n"
+      "      Pi Pico SDKs - Copyright (c) 2020 Raspberry Pi (Trading) Ltd\n"
+      "       Tiny printf - Copyright (c) 2014-2019 Marco Paland, PALANDesign\n"
       "           TinyUSB - Copyright (c) 2018 hathach (tinyusb.org)\n"
-      "             FatFs - Copyright (c) 20xx ChaN.\n"
-      "          littlefs - Copyright (c) 2022 The littlefs authors.\n"
-      "                     Copyright (c) 2017 Arm Limited.";
+      "             FatFs - Copyright (c) 20xx ChaN\n"
+      "          littlefs - Copyright (c) 2022 The littlefs authors\n"
+      "                     Copyright (c) 2017 Arm Limited";
 
 static const char __in_flash("helptext") hlp_text_system[]
     = "The Picocomputer does not use a traditional parallel ROM like a 27C64 or\n"
-      "similar. Instead, this monitor is used to prepare the 6502 RAM with software\n"
-      "that would normally be on a ROM chip. The 6502 is currently in-reset right\n"
-      "now; the RESB line is low. What you are seeing is coming from the Pi Pico RIA.\n"
+      "similar. Instead, this monitor is used to prepare the RAM with software\n"
+      "that would normally be on a ROM chip. The CPU is in-reset right now;\n"
+      "the RESB line is low. What you are seeing is coming from the Pi Pico RIA.\n"
       "You can return to this monitor at any time by pressing CTRL-ALT-DEL or sending\n"
       "a break to the console. Since these signals are handled by the Pi Pico RIA,\n"
-      "they will always stop the 6502. The Pi Pico RIA does not have direct access to\n"
-      "the 6502 RAM. Sourcing dual port RAM is unreliable, so a different approach is\n"
-      "used. To read or write RAM, the 6502 is briefly started and a program is run in\n"
-      "$FFF0-$FFF9. Many of the commands use this technique. The most basic is\n"
-      "accessed by typing a hex address as a command:\n"
+      "they will always stop the CPU. The memory monitor is accessed by typing\n"
+      "a hex address as a command:\n"
       "]0200\n"
       "0200 DA DA DA DA DA DA DA DA DA DA DA DA DA DA DA DA\n"
-      "The 64KB of extended memory (XRAM) is mapped from $10000 to $1FFFF.\n"
+      "The 16MB of memory is accessible from $00000 to $FFFFF.\n"
       "You can also set memory. For example, to set the reset vector:\n"
       "]FFFC 00 02\n"
       "This is useful for some light debugging, but the real power is from the other\n"
@@ -92,7 +87,7 @@ static const char __in_flash("helptext") hlp_text_load[]
       "This is followed by the binary data. The maximum length is 1024 bytes, so\n"
       "repeat as necessary. The CRC-32 is calculated using the same method as zip.\n"
       "If the ROM file contains data for the reset vector $FFFC-$FFFD then the\n"
-      "6502 will be reset (started) immediately after loading.";
+      "CPU will be reset (started) immediately after loading.";
 
 static const char __in_flash("helptext") hlp_text_install[]
     = "INSTALL and REMOVE manage the ROMs installed in the Pi Pico RIA flash memory.\n"
@@ -109,11 +104,11 @@ static const char __in_flash("helptext") hlp_text_reboot[]
       "reset button attached to the Pi Pico or interrupting the power supply.";
 
 static const char __in_flash("helptext") hlp_text_reset[]
-    = "RESET will restart the 6502 by bringing RESB high. This is mainly used for\n"
+    = "RESET will restart the CPU by bringing RESB high. This is mainly used for\n"
       "automated testing by a script on another system connected to the console.\n"
       "For example, a build script can compile a program, upload it directly to\n"
-      "6502 RAM, start it with this RESET, then optionally continue to send and\n"
-      "receive data to ensure proper operation of the program.";
+      "RAM, start it with this RESET, then optionally continue to send and receive\n"
+      "data to ensure proper operation of the program.";
 
 static const char __in_flash("helptext") hlp_text_upload[]
     = "UPLOAD is used to send a file from another system using the console port.\n"
@@ -142,8 +137,8 @@ static const char __in_flash("helptext") hlp_text_unlink[]
       "attempting to use the UPLOAD command from a keyboard. ;)";
 
 static const char __in_flash("helptext") hlp_text_binary[]
-    = "BINARY is the fastest way to get code or data from your build system to the\n"
-      "6502 RAM. Use the command \"BINARY addr len crc\" with a maximum length of 1024\n"
+    = "BINARY is the fastest way to get code or data from your build system to the RAM.\n"
+      "Use the command \"BINARY addr len crc\" with a maximum length of 1024\n"
       "bytes and the CRC-32 calculated with a zip library. Then send the binary.\n"
       "You will return to a \"]\" prompt on success or \"?\" error on failure.";
 
@@ -154,25 +149,16 @@ static const char __in_flash("helptext") hlp_text_status[]
 
 static const char __in_flash("helptext") hlp_text_caps[]
     = "CAPS is intended for software that doesn't recognize lower case, like many\n"
-      "versions of BASIC. This is only in effect while 6502 software is running.\n"
+      "versions of BASIC. This is only in effect while CPU software is running.\n"
       "It will translate both USB keyboards and the serial console. Setting is\n"
       "saved on the RIA flash.\n"
       "  0 = Normal.\n"
       "  1 = Inverted. Uppercase is lowered. Lowercase is uppered.\n"
       "  2 = Forced. Lowercase is uppered. Everything is uppercase always.";
 
-static const char __in_flash("helptext") hlp_text_phi2[]
-    = "PHI2 is the 6502 clock speed in kHz. The valid range is 1-8000 but not all\n"
-      "frequencies are available. In that case, the next highest frequency will\n"
-      "be automatically calculated and selected. Faster than the default speed of\n"
-      "4000 kHz (4 MHz) requires \"Advanced CMOS\" glue logic (74ACxx) as well as\n"
-      "overclocking of the Pi Pico RIA, which is handled automatically. The Pi Pico\n"
-      "RIA will run at 240MHz for 8MHz, which is much lower than the 400+ MHz that\n"
-      "it is capable of. Setting is saved on the RIA flash.";
-
 static const char __in_flash("helptext") hlp_text_resb[]
     = "RESB is the minimum time in milliseconds that the RESB line is held low for\n"
-      "a 6502 reset. This should be left on auto (0) unless you have installed extra\n"
+      "a CPU reset. This should be left on auto (0) unless you have installed extra\n"
       "hardware that needs more than 2 cycles of PHI2 while in reset. The range is\n"
       "0-255ms but beware that large delays will affect loading ROMs. Setting is\n"
       "saved on the RIA flash.";
@@ -197,15 +183,6 @@ static const char __in_flash("helptext") hlp_text_code_page[]
 #else
       "";
 #endif
-
-static const char __in_flash("helptext") hlp_text_vga[]
-    = "SET VGA selects the display type for VGA output. All canvas resolutions are\n"
-      "supported by all display types. Display type is used to maintain square\n"
-      "pixels and minimize letterboxing. Note that 1280x1024 is 5:4 so 4:3 graphics\n"
-      "will be letterboxed slightly but you'll get 2 extra rows on the terminal.\n"
-      "  0 - 640x480\n"
-      "  1 - 640x480 and 1280x720, 16:9 modes will not letterbox\n"
-      "  2 - 1280x1024, all graphics modes will letterbox";
 
 static struct
 {
@@ -254,11 +231,9 @@ static struct
     const char *const text;
 } const SETTINGS[] = {
     {4, "caps", hlp_text_caps},
-    {4, "phi2", hlp_text_phi2},
     {4, "resb", hlp_text_resb},
     {4, "boot", hlp_text_boot},
     {2, "cp", hlp_text_code_page},
-    {3, "vga", hlp_text_vga},
 };
 static const size_t SETTINGS_COUNT = sizeof SETTINGS / sizeof *SETTINGS;
 
