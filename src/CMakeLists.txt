@@ -75,6 +75,7 @@ target_sources(rp6502_ria PRIVATE
     ria/mon/fil.c
     ria/mon/hlp.c
     ria/mon/mon.c
+    ria/mon/ram.c
     ria/mon/rom.c
     ria/mon/set.c
     ria/sys/cfg.c

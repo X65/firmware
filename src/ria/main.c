@@ -8,6 +8,7 @@
 #include "api/clk.h"
 #include "mon/fil.h"
 #include "mon/mon.h"
+#include "mon/ram.h"
 #include "mon/rom.h"
 #include "sys/cfg.h"
 #include "sys/com.h"
@@ -79,7 +80,7 @@ static void task(void)
     // api_task();
     com_task();
     mon_task();
-    // ram_task();
+    ram_task();
     // fil_task();
     // rom_task();
 }
@@ -111,7 +112,7 @@ static void reset(void)
     com_reset();
     // fil_reset();
     mon_reset();
-    // ram_reset();
+    ram_reset();
     // rom_reset();
     // vga_reset();
 }

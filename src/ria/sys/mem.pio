@@ -119,27 +119,34 @@ loop:
 ;  IN/OUT: SIO0-3
 ;     SET: CE0-1
 ; SIDESET: CLK
+;
+; X - how many nybbles to output
+; Y - how many delay cycles before read
 
+; SPI mode program, used solely to switch to QPI mode
 .program mem_spi
 .side_set 1
     out pins, 1     side 0  ; Stall here on empty (sideset proceeds even if
     in  pins, 1     side 1  ; instruction stalls, so we stall with SCK low)
 
+; QPI mode program, used for data transfers
 .program mem_qpi
 .side_set 1
-    mov osr, ~null      side 0
-    out pindirs, 4      side 0
-    pull                side 0
-    out pins, 4         side 0
-    nop                 side 1
-    out pins, 4         side 0
-    nop                 side 1
+    mov osr, ~null      side 0  ; Load ones to OSR
+    out pindirs, 4      side 0  ; Set SIO0-3 to OUT mode (we are going to send command)
+    pull                side 0  ; Pull command (and possibly address)
+
 loop:
-    nop                 side 0
-    jmp x-- loop        side 1
-    mov osr, null       side 0
-    out pindirs, 4      side 1
-    nop                 side 0 ;[1]
+    out pins, 4         side 0  ; Push command (2 nybbles) and maybe address (6 nybbles)
+    jmp x-- loop        side 1  ; X was set to how many
+
+    mov osr, null       side 0  ; Load zeros to OSR
+    out pindirs, 4      side 1  ; Set SIO0-3 to IN mode (we are going to read command reply)
+
+delay:
+    nop                 side 0  ; Memory requires 6 delay cycles after providing command
+    jmp y-- delay       side 1  ; Y was set to how many
+
 .wrap_target
-    in pins, 4          side 1
-    nop                 side 0
+    nop                 side 0  ; Now read as meny bytes as Pico CPU
+    in pins, 4          side 1  ; or DMA requests (2 nybbles for each)

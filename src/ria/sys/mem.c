@@ -106,9 +106,9 @@ static void mem_ram_pio_init(void)
     // PIO to manage PSRAM memory read/writes
     mem_ram_program_offset = pio_add_program(MEM_RAM_PIO, &mem_spi_program);
     pio_sm_config config = mem_spi_program_get_default_config(mem_ram_program_offset);
-    sm_config_set_clkdiv_int_frac(&config, 25, 0); // FIXME: remove?
+    sm_config_set_clkdiv_int_frac(&config, 100, 0); // FIXME: remove?
     sm_config_set_in_shift(&config, false, true, 8);
-    sm_config_set_out_shift(&config, false, true, 8);
+    sm_config_set_out_shift(&config, false, true, 32);
     sm_config_set_sideset_pins(&config, MEM_RAM_CLK_PIN);
     sm_config_set_set_pins(&config, MEM_RAM_CE0_PIN, 2);
     sm_config_set_in_pins(&config, MEM_RAM_SIO0_PIN);
@@ -205,29 +205,35 @@ void mem_task(void)
     }
 }
 
-static void mem_read_id(int8_t bank, uint8_t ID[8])
+static void mem_pio_restart()
 {
     pio_sm_set_enabled(MEM_RAM_PIO, MEM_RAM_SM, false);
     pio_sm_clear_fifos(MEM_RAM_PIO, MEM_RAM_SM);
     pio_sm_restart(MEM_RAM_PIO, MEM_RAM_SM);
     pio_sm_clkdiv_restart(MEM_RAM_PIO, MEM_RAM_SM);
-
-    pio_sm_exec_wait_blocking(MEM_RAM_PIO, MEM_RAM_SM, pio_encode_set(pio_pins, bank));
-    pio_sm_exec_wait_blocking(MEM_RAM_PIO, MEM_RAM_SM, pio_encode_set(pio_x, 6 - 2)); // 6 wait cycles
     pio_sm_exec(MEM_RAM_PIO, MEM_RAM_SM, pio_encode_jmp(mem_ram_program_offset));
+    pio_sm_set_enabled(MEM_RAM_PIO, MEM_RAM_SM, true);
+}
+
+#define MEM_RAM_BUILTIN_WAIT_CYCLES 1 // needed to change pins direction
+
+static void mem_read_id(int8_t bank, uint8_t ID[8])
+{
+    pio_sm_exec_wait_blocking(MEM_RAM_PIO, MEM_RAM_SM, pio_encode_set(pio_pins, bank));
+    // push 2 nibbles (X, 0 indexed thus -1)
+    pio_sm_exec(MEM_RAM_PIO, MEM_RAM_SM, pio_encode_set(pio_x, (2 - 1)));
+    // load 6 wait cycles to Y, (0 indexed thus -1)
+    pio_sm_exec(MEM_RAM_PIO, MEM_RAM_SM, pio_encode_set(pio_y, (6 - 1) - MEM_RAM_BUILTIN_WAIT_CYCLES));
 
     pio_sm_put(MEM_RAM_PIO, MEM_RAM_SM, 0x9F000000); // QPI Read ID 0x35, left aligned
-    pio_sm_set_enabled(MEM_RAM_PIO, MEM_RAM_SM, true);
-    ID[7] = pio_sm_get_blocking(MEM_RAM_PIO, MEM_RAM_SM);
-    ID[6] = pio_sm_get_blocking(MEM_RAM_PIO, MEM_RAM_SM);
-    ID[5] = pio_sm_get_blocking(MEM_RAM_PIO, MEM_RAM_SM);
-    ID[4] = pio_sm_get_blocking(MEM_RAM_PIO, MEM_RAM_SM);
-    ID[3] = pio_sm_get_blocking(MEM_RAM_PIO, MEM_RAM_SM);
-    ID[2] = pio_sm_get_blocking(MEM_RAM_PIO, MEM_RAM_SM);
-    ID[1] = pio_sm_get_blocking(MEM_RAM_PIO, MEM_RAM_SM);
-    ID[0] = pio_sm_get_blocking(MEM_RAM_PIO, MEM_RAM_SM);
-    pio_sm_exec_wait_blocking(MEM_RAM_PIO, MEM_RAM_SM, pio_encode_set(pio_pins, ~bank));
-    pio_sm_set_enabled(MEM_RAM_PIO, MEM_RAM_SM, false);
+    uint8_t i = 7;
+    do
+    {
+        ID[i] = pio_sm_get_blocking(MEM_RAM_PIO, MEM_RAM_SM);
+    } while (i--);
+
+    pio_sm_exec(MEM_RAM_PIO, MEM_RAM_SM, pio_encode_set(pio_pins, ~bank));
+    mem_pio_restart();
 }
 
 void mem_print_status(void)
@@ -262,4 +268,46 @@ void mem_print_status(void)
             printf("Unknown (0x%02x)\n", ID[7]);
         }
     }
+}
+
+void mem_read_buf(uint32_t addr)
+{
+    // FIXME: assert(!cpu_active());
+    uint8_t bank = (addr & 0xFFFFFF) >> 22;
+    pio_sm_exec_wait_blocking(MEM_RAM_PIO, MEM_RAM_SM, pio_encode_set(pio_pins, bank));
+    // push 8 nibbles (X, 0 indexed thus -1)
+    pio_sm_exec(MEM_RAM_PIO, MEM_RAM_SM, pio_encode_set(pio_x, (8 - 1)));
+    // load 6 wait cycles to Y, (0 indexed thus -1)
+    pio_sm_exec(MEM_RAM_PIO, MEM_RAM_SM, pio_encode_set(pio_y, (6 - 1) - MEM_RAM_BUILTIN_WAIT_CYCLES));
+
+    uint32_t command = 0xEB000000 | (addr & 0xFFFFFF); // QPI Fast Read 0xEB
+    // printf("> %lx %d %d 0x%08lx\n", addr, bank, mbuf_len, command);
+    pio_sm_put(MEM_RAM_PIO, MEM_RAM_SM, command);
+
+    for (uint16_t i = 0; i < mbuf_len; i++)
+    {
+        mbuf[i] = pio_sm_get_blocking(MEM_RAM_PIO, MEM_RAM_SM);
+    }
+
+    pio_sm_exec(MEM_RAM_PIO, MEM_RAM_SM, pio_encode_set(pio_pins, ~bank));
+    mem_pio_restart();
+}
+
+void mem_write_buf(uint32_t addr)
+{
+    // FIXME: assert(!cpu_active());
+    // avoid forbidden area
+    uint16_t len = mbuf_len;
+    // while (len && (addr + len > 0xFFFA))
+    //     if (addr + --len <= 0xFFFF)
+    //         REGS(addr + len) = mbuf[len];
+    // while (len && (addr + len > 0xFF00))
+    //     len--;
+    // if (!len)
+    //     return;
+    // rw_addr = addr;
+    // rw_end = len;
+    // rw_pos = 0;
+    // action_state = action_state_write;
+    // main_run();
 }
