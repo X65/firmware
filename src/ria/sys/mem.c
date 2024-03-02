@@ -110,7 +110,7 @@ static void mem_ram_pio_init(void)
     pio_sm_config config = mem_spi_program_get_default_config(mem_ram_program_offset);
     sm_config_set_clkdiv_int_frac(&config, 100, 0); // FIXME: remove?
     sm_config_set_in_shift(&config, false, true, 8);
-    sm_config_set_out_shift(&config, false, true, 32);
+    sm_config_set_out_shift(&config, false, true, 8);
     sm_config_set_sideset_pins(&config, MEM_RAM_CLK_PIN);
     sm_config_set_set_pins(&config, MEM_RAM_CE0_PIN, 2);
     sm_config_set_in_pins(&config, MEM_RAM_SIO0_PIN);
@@ -138,6 +138,7 @@ static void mem_ram_pio_init(void)
     mem_ram_jump_read_operation = pio_encode_jmp(mem_ram_program_offset + mem_qpi_offset_read_operation);
     mem_ram_jump_write_operation = pio_encode_jmp(mem_ram_program_offset + mem_qpi_offset_write_operation);
 
+    sm_config_set_out_shift(&config, false, true, 32);
     pio_sm_init(MEM_RAM_PIO, MEM_RAM_SM, mem_ram_program_offset, &config);
     pio_sm_set_enabled(MEM_RAM_PIO, MEM_RAM_SM, true);
 
