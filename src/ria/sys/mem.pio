@@ -126,12 +126,15 @@ loop:
 ; SPI mode program, used solely to switch to QPI mode
 .program mem_spi
 .side_set 1
+
     out pins, 1     side 0  ; Stall here on empty (sideset proceeds even if
     in  pins, 1     side 1  ; instruction stalls, so we stall with SCK low)
+
 
 ; QPI mode program, used for data transfers
 .program mem_qpi
 .side_set 1
+
     mov osr, ~null      side 0  ; Load ones to OSR
     out pindirs, 4      side 0  ; Set SIO0-3 to OUT mode (we are going to send command)
     pull                side 0  ; Pull command (and possibly address)
@@ -140,13 +143,24 @@ loop:
     out pins, 4         side 0  ; Push command (2 nybbles) and maybe address (6 nybbles)
     jmp x-- loop        side 1  ; X was set to how many
 
-    mov osr, null       side 0  ; Load zeros to OSR
-    out pindirs, 4      side 1  ; Set SIO0-3 to IN mode (we are going to read command reply)
-
 delay:
     nop                 side 0  ; Memory requires 6 delay cycles after providing command
     jmp y-- delay       side 1  ; Y was set to how many
 
-.wrap_target
-    nop                 side 0  ; Now read as meny bytes as Pico CPU
-    in pins, 4          side 1  ; or DMA requests (2 nybbles for each)
+    mov x, osr          side 0  ; Load X with OSR, to recycle if pull on empty
+    pull noblock        side 1  ; pull exec instruction if available or recycle already pulled
+    nop                 side 0  ; align CLK cycle
+    mov exec, osr       side 1  ; Read jump instruction selecting READ/WRITE loop
+                                ; encoded jmp has side 0
+public read_operation:
+    mov osr, null       side 1  ; Load zeros to OSR
+    out pindirs, 4      side 0  ; Set SIO0-3 to IN mode (we are going to read command reply)
+
+read_loop:
+    in pins, 4          side 1  ; Now read as many bytes as Pico CPU or DMA
+    jmp read_loop       side 0  ; requests (2 nybbles for each)
+
+public write_operation:
+write_loop:
+    in pins, 4          side 1  ; Now write as long as Pico CPU or DMA
+    jmp write_loop      side 0  ; provides data (2 nybbles for each)
