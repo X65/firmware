@@ -119,20 +119,27 @@ loop:
 ;  IN/OUT: SIO0-3
 ;     SET: CE0-1
 ; SIDESET: CLK
-;
-; X - how many nybbles to output
-; Y - how many delay cycles before read
 
 ; SPI mode program, used solely to switch to QPI mode
 .program mem_spi
 .side_set 1
-
     out pins, 1     side 0  ; Stall here on empty (sideset proceeds even if
     in  pins, 1     side 1  ; instruction stalls, so we stall with SCK low)
 
+; QPI mode program, used for data write
+; pushes TX fifo incoming as 8bit bytes, as fast as possible
+.program mem_qpi_write
+.side_set 1
+    out pins, 4         side 0  ; Push command (2 nybbles) and address (6 nybbles)
+    nop                 side 1  ; and following data
 
-; QPI mode program, used for data transfers
-.program mem_qpi
+; QPI mode program, used for reading
+; it needs to send command and possibly address, than switch to reading
+; reads until got reset by firmware
+;
+; X - how many nybbles to output
+; Y - how many delay cycles before read
+.program mem_qpi_read
 .side_set 1
 
     mov osr, ~null      side 0  ; Load ones to OSR
@@ -143,24 +150,15 @@ loop:
     out pins, 4         side 0  ; Push command (2 nybbles) and maybe address (6 nybbles)
     jmp x-- loop        side 1  ; X was set to how many
 
+    mov osr, null       side 0  ; Load zeros to OSR
+    out pindirs, 4      side 1  ; Set SIO0-3 to IN mode (we are going to read command reply)
+
 delay:
     nop                 side 0  ; Memory requires 6 delay cycles after providing command
     jmp y-- delay       side 1  ; Y was set to how many
 
-    mov x, osr          side 0  ; Load X with OSR, to recycle if pull on empty
-    pull noblock        side 1  ; pull exec instruction if available or recycle already pulled
-    nop                 side 0  ; align CLK cycle
-    mov exec, osr       side 1  ; Read jump instruction selecting READ/WRITE loop
-                                ; encoded jmp has side 0
-public read_operation:
-    mov osr, null       side 1  ; Load zeros to OSR
-    out pindirs, 4      side 0  ; Set SIO0-3 to IN mode (we are going to read command reply)
+.wrap_target
+    nop                 side 0  ; Now read as many bytes as Pico CPU or DMA
+    in pins, 4          side 1  ; requests (2 nybbles for each)
 
-read_loop:
-    in pins, 4          side 1  ; Now read as many bytes as Pico CPU or DMA
-    jmp read_loop       side 0  ; requests (2 nybbles for each)
 
-public write_operation:
-write_loop:
-    in pins, 4          side 1  ; Now write as long as Pico CPU or DMA
-    jmp write_loop      side 0  ; provides data (2 nybbles for each)

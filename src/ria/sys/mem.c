@@ -15,9 +15,8 @@
 uint8_t mbuf[MBUF_SIZE] __attribute__((aligned(4)));
 size_t mbuf_len;
 
-static uint mem_ram_program_offset;
-static uint32_t mem_ram_jump_read_operation;
-static uint32_t mem_ram_jump_write_operation;
+static uint mem_ram_write_program_offset;
+static uint mem_ram_read_program_offset;
 
 #define MEM_CPU_ADDRESS_BUS_HISTORY_LENGTH 20
 static uint32_t mem_cpu_address_bus_history[MEM_CPU_ADDRESS_BUS_HISTORY_LENGTH];
@@ -106,8 +105,8 @@ static void mem_bus_pio_init(void)
 static void mem_ram_pio_init(void)
 {
     // PIO to manage PSRAM memory read/writes
-    mem_ram_program_offset = pio_add_program(MEM_RAM_PIO, &mem_spi_program);
-    pio_sm_config config = mem_spi_program_get_default_config(mem_ram_program_offset);
+    mem_ram_write_program_offset = pio_add_program(MEM_RAM_PIO, &mem_spi_program);
+    pio_sm_config config = mem_spi_program_get_default_config(mem_ram_write_program_offset);
     sm_config_set_clkdiv_int_frac(&config, 100, 0); // FIXME: remove?
     sm_config_set_in_shift(&config, false, true, 8);
     sm_config_set_out_shift(&config, false, true, 8);
@@ -117,30 +116,41 @@ static void mem_ram_pio_init(void)
     sm_config_set_out_pins(&config, MEM_RAM_SIO0_PIN, 4);
     for (int i = MEM_RAM_PIN_BASE; i < MEM_RAM_PIN_BASE + MEM_RAM_PINS_USED; i++)
         pio_gpio_init(MEM_RAM_PIO, i);
-    pio_sm_set_consecutive_pindirs(MEM_RAM_PIO, MEM_RAM_SM, MEM_RAM_PIN_BASE, MEM_RAM_PINS_USED, true);
-    gpio_pull_up(MEM_RAM_CLK_PIN);
-    pio_sm_init(MEM_RAM_PIO, MEM_RAM_SM, mem_ram_program_offset, &config);
+    gpio_pull_down(MEM_RAM_CLK_PIN);
+    pio_sm_set_consecutive_pindirs(MEM_RAM_PIO, MEM_RAM_WRITE_SM, MEM_RAM_PIN_BASE, MEM_RAM_PINS_USED, true);
+    pio_sm_init(MEM_RAM_PIO, MEM_RAM_WRITE_SM, mem_ram_write_program_offset, &config);
 
     // Switch all banks to QPI mode
-    pio_sm_set_enabled(MEM_RAM_PIO, MEM_RAM_SM, true);
-    for (int bank = 0; bank < MEM_RAM_BANKS; bank++)
+    // Do it twice, just to make sure
+    pio_sm_set_enabled(MEM_RAM_PIO, MEM_RAM_WRITE_SM, true);
+    for (int bank = 0; bank < MEM_RAM_BANKS * 2; bank++)
     {
-        pio_sm_exec_wait_blocking(MEM_RAM_PIO, MEM_RAM_SM, pio_encode_set(pio_pins, bank));
-        pio_sm_put(MEM_RAM_PIO, MEM_RAM_SM, 0x35000000); // QPI Mode Enable 0x35, left aligned
-        pio_sm_get_blocking(MEM_RAM_PIO, MEM_RAM_SM);    // wait for completion
+        pio_sm_exec_wait_blocking(MEM_RAM_PIO, MEM_RAM_WRITE_SM, pio_encode_set(pio_pins, bank));
+        pio_sm_put(MEM_RAM_PIO, MEM_RAM_WRITE_SM, 0x35000000); // QPI Mode Enable 0x35, left aligned
+        pio_sm_get_blocking(MEM_RAM_PIO, MEM_RAM_WRITE_SM);    // wait for completion
     }
 
-    // Now load and run QPI program
-    pio_sm_set_enabled(MEM_RAM_PIO, MEM_RAM_SM, false);
-    pio_remove_program(MEM_RAM_PIO, &mem_spi_program, mem_ram_program_offset);
-    mem_ram_program_offset = pio_add_program(MEM_RAM_PIO, &mem_qpi_program);
-    sm_config_set_wrap(&config, mem_ram_program_offset + mem_qpi_wrap_target, mem_ram_program_offset + mem_qpi_wrap);
-    mem_ram_jump_read_operation = pio_encode_jmp(mem_ram_program_offset + mem_qpi_offset_read_operation);
-    mem_ram_jump_write_operation = pio_encode_jmp(mem_ram_program_offset + mem_qpi_offset_write_operation);
+    // Now load and run QPI programs
 
+    // Write QPI
+    pio_sm_set_enabled(MEM_RAM_PIO, MEM_RAM_WRITE_SM, false);
+    pio_remove_program(MEM_RAM_PIO, &mem_spi_program, mem_ram_write_program_offset);
+    pio_sm_restart(MEM_RAM_PIO, MEM_RAM_WRITE_SM);
+
+    sm_config_set_fifo_join(&config, PIO_FIFO_JOIN_TX);
+    mem_ram_write_program_offset = pio_add_program(MEM_RAM_PIO, &mem_qpi_write_program);
+    sm_config_set_wrap(&config, mem_ram_write_program_offset + mem_qpi_write_wrap_target, mem_ram_write_program_offset + mem_qpi_write_wrap);
+    pio_sm_init(MEM_RAM_PIO, MEM_RAM_WRITE_SM, mem_ram_write_program_offset, &config);
+    pio_sm_set_enabled(MEM_RAM_PIO, MEM_RAM_WRITE_SM, true);
+
+    // Read QPI
     sm_config_set_out_shift(&config, false, true, 32);
-    pio_sm_init(MEM_RAM_PIO, MEM_RAM_SM, mem_ram_program_offset, &config);
-    pio_sm_set_enabled(MEM_RAM_PIO, MEM_RAM_SM, true);
+    sm_config_set_fifo_join(&config, PIO_FIFO_JOIN_NONE);
+    pio_sm_set_consecutive_pindirs(MEM_RAM_PIO, MEM_RAM_READ_SM, MEM_RAM_PIN_BASE, MEM_RAM_PINS_USED, true);
+    mem_ram_read_program_offset = pio_add_program(MEM_RAM_PIO, &mem_qpi_read_program);
+    sm_config_set_wrap(&config, mem_ram_read_program_offset + mem_qpi_read_wrap_target, mem_ram_read_program_offset + mem_qpi_read_wrap);
+    pio_sm_init(MEM_RAM_PIO, MEM_RAM_READ_SM, mem_ram_read_program_offset, &config);
+    pio_sm_set_enabled(MEM_RAM_PIO, MEM_RAM_READ_SM, true);
 
     // // Need both channels now to configure chain ping-pong
     // int addr_chan = dma_claim_unused_channel(true);
@@ -211,84 +221,90 @@ void mem_task(void)
     }
 }
 
-static void mem_pio_restart()
+static void mem_sm_restart(uint sm)
 {
-    pio_sm_set_enabled(MEM_RAM_PIO, MEM_RAM_SM, false);
-    pio_sm_clear_fifos(MEM_RAM_PIO, MEM_RAM_SM);
-    pio_sm_restart(MEM_RAM_PIO, MEM_RAM_SM);
-    pio_sm_clkdiv_restart(MEM_RAM_PIO, MEM_RAM_SM);
-    pio_sm_exec(MEM_RAM_PIO, MEM_RAM_SM, pio_encode_jmp(mem_ram_program_offset));
-    pio_sm_set_enabled(MEM_RAM_PIO, MEM_RAM_SM, true);
+    pio_sm_set_enabled(MEM_RAM_PIO, sm, false);
+    pio_sm_clear_fifos(MEM_RAM_PIO, sm);
+    pio_sm_restart(MEM_RAM_PIO, sm);
+    pio_sm_clkdiv_restart(MEM_RAM_PIO, sm);
+    if (sm == MEM_RAM_READ_SM)
+    {
+        pio_sm_exec(MEM_RAM_PIO, sm, pio_encode_jmp(mem_ram_read_program_offset));
+    }
+    pio_sm_set_enabled(MEM_RAM_PIO, sm, true);
 }
 
-#define MEM_RAM_PIN_DIRECTION_CYCLES     1 // needed to change pins direction
-#define MEM_RAM_PIN_OPERATION_JMP_CYCLES 2 // needed to jump to operation
+#define MEM_RAM_PIN_DIRECTION_CYCLES 1 // needed to change pins direction
 
 static void mem_read_id(int8_t bank, uint8_t ID[8])
 {
-    pio_sm_exec_wait_blocking(MEM_RAM_PIO, MEM_RAM_SM, pio_encode_set(pio_pins, bank));
+    pio_sm_exec_wait_blocking(MEM_RAM_PIO, MEM_RAM_READ_SM, pio_encode_set(pio_pins, bank));
     // push 2 nibbles (X, 0 indexed thus -1)
-    pio_sm_exec(MEM_RAM_PIO, MEM_RAM_SM,
+    pio_sm_exec(MEM_RAM_PIO, MEM_RAM_READ_SM,
                 pio_encode_set(pio_x, (2 - 1)));
     // load 6 wait cycles to Y, (0 indexed thus -1)
-    pio_sm_exec(MEM_RAM_PIO, MEM_RAM_SM,
-                pio_encode_set(pio_y, (6 - 1) - MEM_RAM_PIN_OPERATION_JMP_CYCLES - MEM_RAM_PIN_DIRECTION_CYCLES));
+    pio_sm_exec(MEM_RAM_PIO, MEM_RAM_READ_SM,
+                pio_encode_set(pio_y, (6 - 1) - MEM_RAM_PIN_DIRECTION_CYCLES));
 
     uint32_t command = 0x9F000000; // QPI Read ID 0x35, left aligned
-    pio_sm_put(MEM_RAM_PIO, MEM_RAM_SM, command);
-    pio_sm_put(MEM_RAM_PIO, MEM_RAM_SM, mem_ram_jump_read_operation);
+    pio_sm_put(MEM_RAM_PIO, MEM_RAM_READ_SM, command);
 
     uint8_t i = 7;
     do
     {
-        ID[i] = pio_sm_get_blocking(MEM_RAM_PIO, MEM_RAM_SM);
+        ID[i] = pio_sm_get_blocking(MEM_RAM_PIO, MEM_RAM_READ_SM);
     } while (i--);
 
-    pio_sm_exec(MEM_RAM_PIO, MEM_RAM_SM, pio_encode_set(pio_pins, ~bank));
-    mem_pio_restart();
+    pio_sm_exec(MEM_RAM_PIO, MEM_RAM_READ_SM, pio_encode_set(pio_pins, ~bank));
+    mem_sm_restart(MEM_RAM_READ_SM);
 }
 
 void mem_read_buf(uint32_t addr)
 {
     uint8_t bank = (addr & 0xFFFFFF) >> 22;
-    pio_sm_exec_wait_blocking(MEM_RAM_PIO, MEM_RAM_SM, pio_encode_set(pio_pins, bank));
+    pio_sm_exec_wait_blocking(MEM_RAM_PIO, MEM_RAM_READ_SM, pio_encode_set(pio_pins, bank));
     // push 8 nibbles (X, 0 indexed thus -1)
-    pio_sm_exec(MEM_RAM_PIO, MEM_RAM_SM,
+    pio_sm_exec(MEM_RAM_PIO, MEM_RAM_READ_SM,
                 pio_encode_set(pio_x, (8 - 1)));
     // load 6 wait cycles to Y, (0 indexed thus -1)
-    pio_sm_exec(MEM_RAM_PIO, MEM_RAM_SM,
-                pio_encode_set(pio_y, (6 - 1) - MEM_RAM_PIN_OPERATION_JMP_CYCLES - MEM_RAM_PIN_DIRECTION_CYCLES));
+    pio_sm_exec(MEM_RAM_PIO, MEM_RAM_READ_SM,
+                pio_encode_set(pio_y, (6 - 1) - MEM_RAM_PIN_DIRECTION_CYCLES));
 
     uint32_t command = 0xEB000000 | (addr & 0xFFFFFF); // QPI Fast Read 0xEB
-    pio_sm_put(MEM_RAM_PIO, MEM_RAM_SM, command);
-    pio_sm_put(MEM_RAM_PIO, MEM_RAM_SM, mem_ram_jump_read_operation);
+    pio_sm_put(MEM_RAM_PIO, MEM_RAM_READ_SM, command);
 
     for (uint16_t i = 0; i < mbuf_len; i++)
     {
-        mbuf[i] = pio_sm_get_blocking(MEM_RAM_PIO, MEM_RAM_SM);
+        mbuf[i] = pio_sm_get_blocking(MEM_RAM_PIO, MEM_RAM_READ_SM);
     }
 
-    pio_sm_exec(MEM_RAM_PIO, MEM_RAM_SM, pio_encode_set(pio_pins, ~bank));
-    mem_pio_restart();
+    pio_sm_exec(MEM_RAM_PIO, MEM_RAM_READ_SM, pio_encode_set(pio_pins, ~bank));
+    mem_sm_restart(MEM_RAM_READ_SM);
 }
 
 void mem_write_buf(uint32_t addr)
 {
-    // FIXME: assert(!cpu_active());
-    // avoid forbidden area
-    uint16_t len = mbuf_len;
-    // while (len && (addr + len > 0xFFFA))
-    //     if (addr + --len <= 0xFFFF)
-    //         REGS(addr + len) = mbuf[len];
-    // while (len && (addr + len > 0xFF00))
-    //     len--;
-    // if (!len)
-    //     return;
-    // rw_addr = addr;
-    // rw_end = len;
-    // rw_pos = 0;
-    // action_state = action_state_write;
-    // main_run();
+    uint8_t bank = (addr & 0xFFFFFF) >> 22;
+    pio_sm_exec(MEM_RAM_PIO, MEM_RAM_READ_SM, pio_encode_set(pio_pins, bank));
+
+    pio_sm_put(MEM_RAM_PIO, MEM_RAM_WRITE_SM, 0x38000000); // QPI Write 0x38
+    pio_sm_put(MEM_RAM_PIO, MEM_RAM_WRITE_SM, addr << 8);
+    pio_sm_put(MEM_RAM_PIO, MEM_RAM_WRITE_SM, addr << 16);
+    pio_sm_put(MEM_RAM_PIO, MEM_RAM_WRITE_SM, addr << 24);
+
+    for (uint16_t i = 0; i < mbuf_len; i++)
+    {
+        pio_sm_put_blocking(MEM_RAM_PIO, MEM_RAM_WRITE_SM, mbuf[i] << 24);
+    }
+
+    while (!pio_sm_is_tx_fifo_empty(MEM_RAM_PIO, MEM_RAM_WRITE_SM))
+    {
+    }
+    uint32_t delay = 100;
+    while (delay--)
+    {
+    }
+    pio_sm_exec(MEM_RAM_PIO, MEM_RAM_READ_SM, pio_encode_set(pio_pins, ~bank));
 }
 
 void mem_print_status(void)
