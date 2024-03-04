@@ -142,9 +142,20 @@ loop:
 .program mem_qpi_read
 .side_set 1
 
+; memory needs 6 wait cycles
+; -1 cycle used for changing pindirs
+; -1 because loop is indexed from 0
+.define wait_cycles     (6 - 1 - 1)
+
     mov osr, ~null      side 0  ; Load ones to OSR
     out pindirs, 4      side 0  ; Set SIO0-3 to OUT mode (we are going to send command)
-    pull                side 0  ; Pull command (and possibly address)
+
+    set y, wait_cycles  side 0  ; set Y with wait cycles
+
+    ; now wait for TX data
+    pull                side 0  ; pull memory bank select instruction
+    out exec, 16        side 0  ; Exec Memory bank select (CE0-1) encoded as "set pins, .." instruction
+    out x,    16        side 0  ; Load how many nybbles of command to transmit
 
 loop:
     out pins, 4         side 0  ; Push command (2 nybbles) and maybe address (6 nybbles)
@@ -159,6 +170,6 @@ delay:
 
 .wrap_target
     nop                 side 0  ; Now read as many bytes as Pico CPU or DMA
-    in pins, 4          side 1  ; requests (2 nybbles for each)
+    in pins, 4          side 1  ; allows (2 nybbles for each)
 
 

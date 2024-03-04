@@ -83,8 +83,8 @@ void main_task(void);
 
 // RAM access
 #define MEM_RAM_BANKS    4
-#define MEM_RAM_PIO      pio0
-#define MEM_RAM_WRITE_SM 1
-#define MEM_RAM_READ_SM  2
+#define MEM_RAM_PIO      pio1
+#define MEM_RAM_WRITE_SM 0
+#define MEM_RAM_READ_SM  1
 
 #endif /* _MAIN_H_ */
