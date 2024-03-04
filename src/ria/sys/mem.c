@@ -277,12 +277,20 @@ void mem_read_buf(uint32_t addr)
     mem_read_sm_restart(MEM_RAM_READ_SM);
 }
 
+static inline bool pio_sm_is_tx_fifo_stalled(PIO pio, uint sm)
+{
+    check_pio_param(pio);
+    check_sm_param(sm);
+    return (pio->fdebug & (1u << (PIO_FDEBUG_TXSTALL_LSB + sm))) != 0;
+}
+
 void mem_write_buf(uint32_t addr)
 {
+    // enable memory bank using Read SM, without blocking
     uint8_t bank = (addr & 0xFFFFFF) >> 22;
     pio_sm_exec(MEM_RAM_PIO, MEM_RAM_READ_SM, mem_ram_pio_set_pins_instruction | (bank & 0b11));
 
-    // start writing ASAP
+    // and start writing ASAP
     pio_sm_set_enabled(MEM_RAM_PIO, MEM_RAM_WRITE_SM, true);
     pio_sm_put(MEM_RAM_PIO, MEM_RAM_WRITE_SM, 0x38000000); // QPI Write 0x38
 
@@ -298,13 +306,8 @@ void mem_write_buf(uint32_t addr)
         pio_sm_put_blocking(MEM_RAM_PIO, MEM_RAM_WRITE_SM, mbuf[i] << 24);
     }
 
-    while (!pio_sm_is_tx_fifo_empty(MEM_RAM_PIO, MEM_RAM_WRITE_SM))
-    {
-    }
-    uint32_t delay = 100;
-    while (delay--)
-    {
-    }
+    while (!pio_sm_is_tx_fifo_stalled(MEM_RAM_PIO, MEM_RAM_WRITE_SM))
+        tight_loop_contents();
     pio_sm_exec(MEM_RAM_PIO, MEM_RAM_READ_SM, mem_ram_pio_set_pins_instruction | (~bank & 0b11));
 
     // re-enable Read SM
