@@ -6,22 +6,42 @@
  */
 
 #include "mem.h"
+#include "hardware/dma.h"
 #include "hardware/gpio.h"
+#include "hardware/irq.h"
 #include "hardware/pio.h"
 #include "main.h"
 #include "mem.pio.h"
+#include <stdbool.h>
 #include <stdio.h>
 
 uint8_t mbuf[MBUF_SIZE] __attribute__((aligned(4)));
 size_t mbuf_len;
 
+static uint8_t mem_ram_current_bank;
 static uint mem_ram_write_program_offset;
 static uint mem_ram_read_program_offset;
 static uint mem_ram_pio_set_pins_instruction;
+static int mem_ram_write_dma_chan;
+static dma_channel_config mem_ram_write_dma_config;
 
 #define MEM_CPU_ADDRESS_BUS_HISTORY_LENGTH 20
 static uint32_t mem_cpu_address_bus_history[MEM_CPU_ADDRESS_BUS_HISTORY_LENGTH];
 static uint8_t mem_cpu_address_bus_history_index = 0;
+
+static inline void pio_sm_clear_tx_fifo_stalled(PIO pio, uint sm)
+{
+    check_pio_param(pio);
+    check_sm_param(sm);
+    pio->fdebug = (1u << (PIO_FDEBUG_TXSTALL_LSB + sm));
+}
+
+static inline bool pio_sm_is_tx_fifo_stalled(PIO pio, uint sm)
+{
+    check_pio_param(pio);
+    check_sm_param(sm);
+    return (pio->fdebug & (1u << (PIO_FDEBUG_TXSTALL_LSB + sm))) != 0;
+}
 
 static void __attribute__((optimize("O1")))
 mem_bus_pio_irq_handler()
@@ -103,6 +123,24 @@ static void mem_bus_pio_init(void)
     //     true);
 }
 
+static void __attribute__((optimize("O1")))
+mem_ram_write_dma_handler()
+{
+    if (pio_sm_is_tx_fifo_empty(MEM_RAM_PIO, MEM_RAM_WRITE_SM) && pio_sm_is_tx_fifo_stalled(MEM_RAM_PIO, MEM_RAM_WRITE_SM))
+    {
+        // clear the interrupt request
+        dma_hw->ints0 = 1u << mem_ram_write_dma_chan;
+
+        // stop Write SM
+        pio_sm_set_enabled(MEM_RAM_PIO, MEM_RAM_WRITE_SM, false);
+        // end write Command by enabling some other bank
+        pio_sm_exec(MEM_RAM_PIO, MEM_RAM_READ_SM, mem_ram_pio_set_pins_instruction | (~mem_ram_current_bank & 0b11));
+
+        // re-enable Read SM
+        pio_sm_set_enabled(MEM_RAM_PIO, MEM_RAM_READ_SM, true);
+    }
+}
+
 static void mem_ram_pio_init(void)
 {
     // PIO to manage PSRAM memory read/writes
@@ -155,6 +193,22 @@ static void mem_ram_pio_init(void)
     sm_config_set_wrap(&config, mem_ram_read_program_offset + mem_qpi_read_wrap_target, mem_ram_read_program_offset + mem_qpi_read_wrap);
     pio_sm_init(MEM_RAM_PIO, MEM_RAM_READ_SM, mem_ram_read_program_offset, &config);
     pio_sm_set_enabled(MEM_RAM_PIO, MEM_RAM_READ_SM, true);
+
+    // Write PIO DMA channel
+    mem_ram_write_dma_chan = dma_claim_unused_channel(true);
+    mem_ram_write_dma_config = dma_channel_get_default_config(mem_ram_write_dma_chan);
+    channel_config_set_high_priority(&mem_ram_write_dma_config, true);
+    channel_config_set_transfer_data_size(&mem_ram_write_dma_config, DMA_SIZE_8);
+    channel_config_set_write_increment(&mem_ram_write_dma_config, false);
+    channel_config_set_dreq(&mem_ram_write_dma_config, MEM_RAM_WRITE_DREQ);
+    dma_channel_configure(mem_ram_write_dma_chan, &mem_ram_write_dma_config,
+                          &MEM_RAM_PIO->txf[MEM_RAM_WRITE_SM],
+                          NULL,
+                          0,
+                          false);
+    dma_channel_set_irq0_enabled(mem_ram_write_dma_chan, true);
+    irq_set_exclusive_handler(DMA_IRQ_0, mem_ram_write_dma_handler);
+    irq_set_enabled(DMA_IRQ_0, true);
 
     // // Need both channels now to configure chain ping-pong
     // int addr_chan = dma_claim_unused_channel(true);
@@ -260,9 +314,9 @@ void mem_read_buf(uint32_t addr)
 {
     // enable memory bank
     // and push 8 nibbles (X, 0 indexed thus -1)
-    uint8_t bank = (addr & 0xFFFFFF) >> 22;
+    mem_ram_current_bank = (addr & 0xFFFFFF) >> 22;
     pio_sm_put(MEM_RAM_PIO, MEM_RAM_READ_SM,
-               (mem_ram_pio_set_pins_instruction | bank) << 16 //
+               (mem_ram_pio_set_pins_instruction | mem_ram_current_bank) << 16 //
                    | (8 - 1));
 
     uint32_t command = 0xEB000000 | (addr & 0xFFFFFF); // QPI Fast Read 0xEB
@@ -273,49 +327,31 @@ void mem_read_buf(uint32_t addr)
         mbuf[i] = pio_sm_get_blocking(MEM_RAM_PIO, MEM_RAM_READ_SM);
     }
 
-    pio_sm_exec(MEM_RAM_PIO, MEM_RAM_READ_SM, mem_ram_pio_set_pins_instruction | (~bank & 0b11));
+    pio_sm_exec(MEM_RAM_PIO, MEM_RAM_READ_SM, mem_ram_pio_set_pins_instruction | (~mem_ram_current_bank & 0b11));
     mem_read_sm_restart(MEM_RAM_READ_SM);
-}
-
-static inline bool pio_sm_is_tx_fifo_stalled(PIO pio, uint sm)
-{
-    check_pio_param(pio);
-    check_sm_param(sm);
-    return (pio->fdebug & (1u << (PIO_FDEBUG_TXSTALL_LSB + sm))) != 0;
 }
 
 void mem_write_buf(uint32_t addr)
 {
     // enable memory bank using Read SM, without blocking
-    uint8_t bank = (addr & 0xFFFFFF) >> 22;
-    pio_sm_exec(MEM_RAM_PIO, MEM_RAM_READ_SM, mem_ram_pio_set_pins_instruction | (bank & 0b11));
+    mem_ram_current_bank = (addr & 0xFFFFFF) >> 22;
+    pio_sm_exec(MEM_RAM_PIO, MEM_RAM_READ_SM, mem_ram_pio_set_pins_instruction | (mem_ram_current_bank & 0b11));
 
     // and start writing ASAP
     pio_sm_set_enabled(MEM_RAM_PIO, MEM_RAM_WRITE_SM, true);
-    pio_sm_put(MEM_RAM_PIO, MEM_RAM_WRITE_SM, 0x38000000); // QPI Write 0x38
+    mbuf[0] = (uint8_t)0x38; // QPI Write 0x38
+    mbuf[1] = (uint8_t)(addr >> 16);
+    mbuf[2] = (uint8_t)(addr >> 8);
+    mbuf[3] = (uint8_t)(addr);
+    dma_channel_set_read_addr(mem_ram_write_dma_chan, mbuf, false);
+    dma_channel_set_trans_count(mem_ram_write_dma_chan, mbuf_len, false);
+    channel_config_set_read_increment(&mem_ram_write_dma_config, true);
+    dma_channel_set_config(mem_ram_write_dma_chan, &mem_ram_write_dma_config, true);
 
     // disable Read SM so it does not interfere with write
     pio_sm_set_enabled(MEM_RAM_PIO, MEM_RAM_READ_SM, false);
 
-    pio_sm_put(MEM_RAM_PIO, MEM_RAM_WRITE_SM, addr << 8);
-    pio_sm_put(MEM_RAM_PIO, MEM_RAM_WRITE_SM, addr << 16);
-    pio_sm_put(MEM_RAM_PIO, MEM_RAM_WRITE_SM, addr << 24);
-
-    for (uint16_t i = 0; i < mbuf_len; i++)
-    {
-        pio_sm_put_blocking(MEM_RAM_PIO, MEM_RAM_WRITE_SM, mbuf[i] << 24);
-    }
-
-    while (!pio_sm_is_tx_fifo_stalled(MEM_RAM_PIO, MEM_RAM_WRITE_SM))
-        tight_loop_contents();
-    pio_sm_exec(MEM_RAM_PIO, MEM_RAM_READ_SM, mem_ram_pio_set_pins_instruction | (~bank & 0b11));
-
-    // re-enable Read SM
-    pio_sm_set_enabled(MEM_RAM_PIO, MEM_RAM_WRITE_SM, false);
-    pio_sm_set_enabled(MEM_RAM_PIO, MEM_RAM_READ_SM, true);
-
-    // clear any leftovers in fifo
-    pio_sm_clear_fifos(MEM_RAM_PIO, MEM_RAM_WRITE_SM);
+    pio_sm_clear_tx_fifo_stalled(MEM_RAM_PIO, MEM_RAM_WRITE_SM);
 }
 
 void mem_print_status(void)

@@ -74,7 +74,7 @@ void ram_mon_address(const char *args, size_t len)
         return;
     }
     uint32_t data = 0x80000000;
-    mbuf_len = 0;
+    mbuf_len = 4; // leave place for inserting memory command
     for (; i < len; i++)
     {
         char ch = args[i];

@@ -82,9 +82,10 @@ void main_task(void);
 #define MEM_BUS_IRQ     PIO0_IRQ_0 // must match MEM_BUS_PIO and MEM_BUS_PIO_IRQ
 
 // RAM access
-#define MEM_RAM_BANKS    4
-#define MEM_RAM_PIO      pio1
-#define MEM_RAM_WRITE_SM 0
-#define MEM_RAM_READ_SM  1
+#define MEM_RAM_BANKS      4
+#define MEM_RAM_PIO        pio1
+#define MEM_RAM_READ_SM    0
+#define MEM_RAM_WRITE_SM   1
+#define MEM_RAM_WRITE_DREQ DREQ_PIO1_TX1 // must match MEM_RAM_PIO and MEM_RAM_WRITE_SM
 
 #endif /* _MAIN_H_ */
