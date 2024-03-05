@@ -29,7 +29,7 @@ static void cmd_ria_read(void)
     cmd_state = SYS_IDLE;
     // FIXME: if (ria_print_error_message())
     //     return;
-    printf("%04lX", rw_addr);
+    printf("%06lX", rw_addr);
     for (size_t i = 0; i < mbuf_len; i++)
         printf(" %02X", mbuf[i]);
     printf("\n");

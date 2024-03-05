@@ -171,5 +171,3 @@ delay:
 .wrap_target
     nop                 side 0  ; Now read as many bytes as Pico CPU or DMA
     in pins, 4          side 1  ; allows (2 nybbles for each)
-
-

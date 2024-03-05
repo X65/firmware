@@ -13,12 +13,12 @@
 #include "main.h"
 #include "mem.pio.h"
 #include <stdbool.h>
+#include <stdint.h>
 #include <stdio.h>
 
 uint8_t mbuf[MBUF_SIZE] __attribute__((aligned(4)));
 size_t mbuf_len;
 
-static uint8_t mem_ram_current_bank;
 static uint mem_ram_write_program_offset;
 static uint mem_ram_read_program_offset;
 static uint mem_ram_pio_set_pins_instruction;
@@ -133,12 +133,19 @@ mem_ram_write_dma_handler()
 
         // stop Write SM
         pio_sm_set_enabled(MEM_RAM_PIO, MEM_RAM_WRITE_SM, false);
-        // end write Command by enabling some other bank
-        pio_sm_exec(MEM_RAM_PIO, MEM_RAM_READ_SM, mem_ram_pio_set_pins_instruction | (~mem_ram_current_bank & 0b11));
+        // end write Command by disabling chip select
+        pio_sm_exec(MEM_RAM_PIO, MEM_RAM_READ_SM, mem_ram_pio_set_pins_instruction | 0b11);
 
         // re-enable Read SM
         pio_sm_set_enabled(MEM_RAM_PIO, MEM_RAM_READ_SM, true);
     }
+}
+
+inline uint8_t get_chip_select(uint8_t bank)
+{
+    uint8_t ce = bank & 0b01;
+    ce |= ~(ce << 1) & 0b10;
+    return (ce & 0b11);
 }
 
 static void mem_ram_pio_init(void)
@@ -167,10 +174,11 @@ static void mem_ram_pio_init(void)
     pio_sm_set_enabled(MEM_RAM_PIO, MEM_RAM_WRITE_SM, true);
     for (int bank = 0; bank < MEM_RAM_BANKS * 2; bank++)
     {
-        pio_sm_exec_wait_blocking(MEM_RAM_PIO, MEM_RAM_WRITE_SM, mem_ram_pio_set_pins_instruction | (bank & 0b11));
+        pio_sm_exec_wait_blocking(MEM_RAM_PIO, MEM_RAM_WRITE_SM, mem_ram_pio_set_pins_instruction | get_chip_select(bank));
         pio_sm_put(MEM_RAM_PIO, MEM_RAM_WRITE_SM, 0x35000000); // QPI Mode Enable 0x35, left aligned
         pio_sm_get_blocking(MEM_RAM_PIO, MEM_RAM_WRITE_SM);    // wait for completion
     }
+    pio_sm_exec(MEM_RAM_PIO, MEM_RAM_READ_SM, mem_ram_pio_set_pins_instruction | 0b11);
 
     // Now load and run QPI programs
 
@@ -294,7 +302,7 @@ static void mem_read_id(int8_t bank, uint8_t ID[8])
     // enable memory bank
     // and push 2 nibbles (X, 0 indexed thus -1)
     pio_sm_put(MEM_RAM_PIO, MEM_RAM_READ_SM,
-               (mem_ram_pio_set_pins_instruction | bank) << 16 //
+               (mem_ram_pio_set_pins_instruction | get_chip_select(bank)) << 16 //
                    | (2 - 1));
 
     // QPI Read ID 0x35, left aligned
@@ -306,7 +314,7 @@ static void mem_read_id(int8_t bank, uint8_t ID[8])
         ID[i] = pio_sm_get_blocking(MEM_RAM_PIO, MEM_RAM_READ_SM);
     } while (i--);
 
-    pio_sm_exec(MEM_RAM_PIO, MEM_RAM_READ_SM, mem_ram_pio_set_pins_instruction | (~bank & 0b11));
+    pio_sm_exec(MEM_RAM_PIO, MEM_RAM_READ_SM, mem_ram_pio_set_pins_instruction | 0b11);
     mem_read_sm_restart(MEM_RAM_READ_SM);
 }
 
@@ -314,9 +322,8 @@ void mem_read_buf(uint32_t addr)
 {
     // enable memory bank
     // and push 8 nibbles (X, 0 indexed thus -1)
-    mem_ram_current_bank = (addr & 0xFFFFFF) >> 22;
     pio_sm_put(MEM_RAM_PIO, MEM_RAM_READ_SM,
-               (mem_ram_pio_set_pins_instruction | mem_ram_current_bank) << 16 //
+               (mem_ram_pio_set_pins_instruction | get_chip_select((addr & 0xFFFFFF) >> 23)) << 16 //
                    | (8 - 1));
 
     uint32_t command = 0xEB000000 | (addr & 0xFFFFFF); // QPI Fast Read 0xEB
@@ -327,15 +334,15 @@ void mem_read_buf(uint32_t addr)
         mbuf[i] = pio_sm_get_blocking(MEM_RAM_PIO, MEM_RAM_READ_SM);
     }
 
-    pio_sm_exec(MEM_RAM_PIO, MEM_RAM_READ_SM, mem_ram_pio_set_pins_instruction | (~mem_ram_current_bank & 0b11));
+    pio_sm_exec(MEM_RAM_PIO, MEM_RAM_READ_SM, mem_ram_pio_set_pins_instruction | 0b11);
     mem_read_sm_restart(MEM_RAM_READ_SM);
 }
 
 void mem_write_buf(uint32_t addr)
 {
     // enable memory bank using Read SM, without blocking
-    mem_ram_current_bank = (addr & 0xFFFFFF) >> 22;
-    pio_sm_exec(MEM_RAM_PIO, MEM_RAM_READ_SM, mem_ram_pio_set_pins_instruction | (mem_ram_current_bank & 0b11));
+    pio_sm_exec(MEM_RAM_PIO, MEM_RAM_READ_SM,
+                mem_ram_pio_set_pins_instruction | get_chip_select((addr & 0xFFFFFF) >> 23));
 
     // and start writing ASAP
     pio_sm_set_enabled(MEM_RAM_PIO, MEM_RAM_WRITE_SM, true);
