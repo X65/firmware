@@ -90,6 +90,7 @@ static void run(void)
 {
     // vga_run();
     // api_run();
+    mem_run();
     ria_run(); // Must be immediately before cpu
     cpu_run(); // Must be last
 }
@@ -100,6 +101,7 @@ static void stop(void)
     cpu_stop(); // Must be first
     // vga_stop(); // Must be before ria
     ria_stop();
+    mem_stop();
     // pix_stop();
     // std_stop();
     kbd_stop();

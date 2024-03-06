@@ -9,7 +9,6 @@
 #include "pico/stdio/driver.h"
 #include "pico/stdlib.h"
 #include "sys/cpu.h"
-#include "sys/ria.h"
 #include <stdio.h>
 
 #define COM_BUF_SIZE          256
@@ -420,7 +419,7 @@ void com_task(void)
 
     // Allow UART RX FIFO to fill during RIA actions.
     // At all other times the FIFO must be emptied to detect breaks.
-    if (!ria_active())
+    if (!main_active())
     {
         if (com_callback && com_timeout_ms && absolute_time_diff_us(get_absolute_time(), com_timer) < 0)
         {
@@ -448,7 +447,7 @@ void com_task(void)
                 }
                 else if (cpu_active())
                     cpu_com_rx(ch);
-                if (ria_active()) // FIXME: why?
+                if (main_active()) // FIXME: why?
                     break;
                 ch = getchar_timeout_us(0);
             }

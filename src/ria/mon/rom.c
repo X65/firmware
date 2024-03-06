@@ -383,7 +383,7 @@ bool rom_help(const char *args, size_t len)
 
 static bool rom_action_is_finished(void)
 {
-    if (ria_active())
+    if (main_active())
         return false;
     // FIXME: if (ria_print_error_message())
     // {

@@ -5,6 +5,7 @@
  * SPDX-License-Identifier: BSD-3-Clause
  */
 
+#include "main.h"
 #include "str.h"
 #include "sys/com.h"
 #include "sys/mem.h"
@@ -74,7 +75,7 @@ void ram_mon_address(const char *args, size_t len)
         return;
     }
     uint32_t data = 0x80000000;
-    mbuf_len = 4; // leave place for inserting memory command
+    mbuf_len = 0;
     for (; i < len; i++)
     {
         char ch = args[i];
@@ -149,7 +150,7 @@ void ram_mon_binary(const char *args, size_t len)
 
 void ram_task(void)
 {
-    if (ria_active())
+    if (main_active())
         return;
     switch (cmd_state)
     {

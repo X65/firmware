@@ -6,7 +6,6 @@
  */
 
 #include "mem.h"
-#include "hardware/dma.h"
 #include "hardware/gpio.h"
 #include "hardware/irq.h"
 #include "hardware/pio.h"
@@ -22,8 +21,7 @@ size_t mbuf_len;
 
 static uint mem_ram_read_program_offset;
 static uint mem_ram_pio_set_pins_instruction;
-static int mem_ram_write_dma_chan;
-static dma_channel_config mem_ram_write_dma_config;
+static uint mem_ram_ce_high_instruction;
 
 static uint8_t mem_ram_ID[MEM_RAM_BANKS][8];
 
@@ -125,24 +123,6 @@ static void mem_bus_pio_init(void)
     //     true);
 }
 
-static void __attribute__((optimize("O1")))
-mem_ram_write_dma_handler(void)
-{
-    if (pio_sm_is_tx_fifo_empty(MEM_RAM_PIO, MEM_RAM_WRITE_SM) && pio_sm_is_tx_fifo_stalled(MEM_RAM_PIO, MEM_RAM_WRITE_SM))
-    {
-        // clear the interrupt request
-        dma_hw->ints0 = 1u << mem_ram_write_dma_chan;
-
-        // stop Write SM
-        pio_sm_set_enabled(MEM_RAM_PIO, MEM_RAM_WRITE_SM, false);
-        // end write Command by disabling chip select
-        pio_sm_exec(MEM_RAM_PIO, MEM_RAM_READ_SM, mem_ram_pio_set_pins_instruction | 0b11);
-
-        // re-enable Read SM
-        pio_sm_set_enabled(MEM_RAM_PIO, MEM_RAM_READ_SM, true);
-    }
-}
-
 inline uint8_t get_chip_select(uint8_t bank)
 {
     uint8_t ce = bank & 0b01;
@@ -158,6 +138,14 @@ static void mem_read_sm_restart(uint sm, uint addr)
     pio_sm_clkdiv_restart(MEM_RAM_PIO, sm);
     pio_sm_exec(MEM_RAM_PIO, sm, pio_encode_jmp(addr));
     pio_sm_set_enabled(MEM_RAM_PIO, sm, true);
+}
+
+static void mem_ram_wait_for_write_pio(void)
+{
+    pio_sm_clear_tx_fifo_stalled(MEM_RAM_PIO, MEM_RAM_WRITE_SM);
+    do
+        tight_loop_contents();
+    while (!pio_sm_is_tx_fifo_empty(MEM_RAM_PIO, MEM_RAM_WRITE_SM) || !pio_sm_is_tx_fifo_stalled(MEM_RAM_PIO, MEM_RAM_WRITE_SM));
 }
 
 static void mem_ram_pio_init(void)
@@ -196,22 +184,6 @@ static void mem_ram_pio_init(void)
     pio_sm_init(MEM_RAM_PIO, MEM_RAM_READ_SM, mem_ram_read_program_offset, &config);
     pio_sm_set_enabled(MEM_RAM_PIO, MEM_RAM_READ_SM, false);
 
-    // Write PIO DMA channel
-    mem_ram_write_dma_chan = dma_claim_unused_channel(true);
-    mem_ram_write_dma_config = dma_channel_get_default_config(mem_ram_write_dma_chan);
-    channel_config_set_high_priority(&mem_ram_write_dma_config, true);
-    channel_config_set_transfer_data_size(&mem_ram_write_dma_config, DMA_SIZE_8);
-    channel_config_set_write_increment(&mem_ram_write_dma_config, false);
-    channel_config_set_dreq(&mem_ram_write_dma_config, MEM_RAM_WRITE_DREQ);
-    dma_channel_configure(mem_ram_write_dma_chan, &mem_ram_write_dma_config,
-                          &MEM_RAM_PIO->txf[MEM_RAM_WRITE_SM],
-                          NULL,
-                          0,
-                          false);
-    dma_channel_set_irq0_enabled(mem_ram_write_dma_chan, true);
-    irq_set_exclusive_handler(DMA_IRQ_0, mem_ram_write_dma_handler);
-    irq_set_enabled(DMA_IRQ_0, true);
-
     // Program for SPI mode
     uint mem_ram_spi_program_offset = pio_add_program(MEM_RAM_PIO, &mem_spi_program);
     sm_config_set_wrap(&config, mem_ram_spi_program_offset + mem_spi_wrap_target, mem_ram_spi_program_offset + mem_spi_wrap);
@@ -221,10 +193,10 @@ static void mem_ram_pio_init(void)
     pio_sm_set_enabled(MEM_RAM_PIO, MEM_RAM_SPI_SM, false);
 
     // Disable all memory banks (pull up both CE#) on all SMs waiting for their PIO to stabilize
-    uint ce_high_instruction = mem_ram_pio_set_pins_instruction | 0b11;
-    pio_sm_exec_wait_blocking(MEM_RAM_PIO, MEM_RAM_WRITE_SM, ce_high_instruction);
-    pio_sm_exec_wait_blocking(MEM_RAM_PIO, MEM_RAM_READ_SM, ce_high_instruction);
-    pio_sm_exec_wait_blocking(MEM_RAM_PIO, MEM_RAM_SPI_SM, ce_high_instruction);
+    mem_ram_ce_high_instruction = mem_ram_pio_set_pins_instruction | 0b11;
+    pio_sm_exec_wait_blocking(MEM_RAM_PIO, MEM_RAM_WRITE_SM, mem_ram_ce_high_instruction);
+    pio_sm_exec_wait_blocking(MEM_RAM_PIO, MEM_RAM_READ_SM, mem_ram_ce_high_instruction);
+    pio_sm_exec_wait_blocking(MEM_RAM_PIO, MEM_RAM_SPI_SM, mem_ram_ce_high_instruction);
 
     // memory chips require 150us to complete device initialization
     busy_wait_until(from_us_since_boot(150));
@@ -233,26 +205,19 @@ static void mem_ram_pio_init(void)
     pio_sm_set_enabled(MEM_RAM_PIO, MEM_RAM_WRITE_SM, true);
     for (int bank = 0; bank < MEM_RAM_BANKS; bank++)
     {
-        pio_sm_clear_tx_fifo_stalled(MEM_RAM_PIO, MEM_RAM_WRITE_SM);
         pio_sm_exec_wait_blocking(MEM_RAM_PIO, MEM_RAM_WRITE_SM, mem_ram_pio_set_pins_instruction | get_chip_select(bank));
         pio_sm_put(MEM_RAM_PIO, MEM_RAM_WRITE_SM, 0x66000000); // RSTEN, left aligned
-        while (!pio_sm_is_tx_fifo_empty(MEM_RAM_PIO, MEM_RAM_WRITE_SM) || !pio_sm_is_tx_fifo_stalled(MEM_RAM_PIO, MEM_RAM_WRITE_SM))
-        {
-            tight_loop_contents();
-        }
+        mem_ram_wait_for_write_pio();
     }
     for (int bank = 0; bank < MEM_RAM_BANKS; bank++)
     {
-        pio_sm_clear_tx_fifo_stalled(MEM_RAM_PIO, MEM_RAM_WRITE_SM);
         pio_sm_exec_wait_blocking(MEM_RAM_PIO, MEM_RAM_WRITE_SM, mem_ram_pio_set_pins_instruction | get_chip_select(bank));
         pio_sm_put(MEM_RAM_PIO, MEM_RAM_WRITE_SM, 0x99000000); // RST, left aligned
-        while (!pio_sm_is_tx_fifo_empty(MEM_RAM_PIO, MEM_RAM_WRITE_SM) || !pio_sm_is_tx_fifo_stalled(MEM_RAM_PIO, MEM_RAM_WRITE_SM))
-        {
-            tight_loop_contents();
-        }
+        mem_ram_wait_for_write_pio();
     }
-    pio_sm_exec(MEM_RAM_PIO, MEM_RAM_WRITE_SM, ce_high_instruction);
+    pio_sm_exec_wait_blocking(MEM_RAM_PIO, MEM_RAM_WRITE_SM, mem_ram_ce_high_instruction);
     pio_sm_set_enabled(MEM_RAM_PIO, MEM_RAM_WRITE_SM, false);
+
     // Now reset using SPI mode in case we are after power up
     pio_sm_set_enabled(MEM_RAM_PIO, MEM_RAM_SPI_SM, true);
     for (int bank = 0; bank < MEM_RAM_BANKS; bank++)
@@ -269,7 +234,8 @@ static void mem_ram_pio_init(void)
         pio_sm_get_blocking(MEM_RAM_PIO, MEM_RAM_SPI_SM);    // wait for completion
         mem_read_sm_restart(MEM_RAM_SPI_SM, mem_ram_spi_program_offset);
     }
-    pio_sm_exec(MEM_RAM_PIO, MEM_RAM_SPI_SM, ce_high_instruction);
+    pio_sm_exec_wait_blocking(MEM_RAM_PIO, MEM_RAM_SPI_SM, mem_ram_ce_high_instruction);
+
     // Read memory IDs
     for (int bank = 0; bank < MEM_RAM_BANKS; bank++)
     {
@@ -284,7 +250,18 @@ static void mem_ram_pio_init(void)
 
         mem_read_sm_restart(MEM_RAM_SPI_SM, mem_ram_spi_program_offset);
     }
-    pio_sm_exec(MEM_RAM_PIO, MEM_RAM_SPI_SM, ce_high_instruction);
+    pio_sm_exec_wait_blocking(MEM_RAM_PIO, MEM_RAM_SPI_SM, mem_ram_ce_high_instruction);
+
+    // Toggle Wrap boundary to 32 bytes
+    for (int bank = 0; bank < MEM_RAM_BANKS; bank++)
+    {
+        pio_sm_exec_wait_blocking(MEM_RAM_PIO, MEM_RAM_SPI_SM, mem_ram_pio_set_pins_instruction | get_chip_select(bank));
+        pio_sm_put(MEM_RAM_PIO, MEM_RAM_SPI_SM, 0xC0000000); // Wrap Boundary Toggle, left aligned
+        pio_sm_get_blocking(MEM_RAM_PIO, MEM_RAM_SPI_SM);    // wait for completion
+        mem_read_sm_restart(MEM_RAM_SPI_SM, mem_ram_spi_program_offset);
+    }
+    pio_sm_exec_wait_blocking(MEM_RAM_PIO, MEM_RAM_SPI_SM, mem_ram_ce_high_instruction);
+
     // Finally enable QPI mode
     for (int bank = 0; bank < MEM_RAM_BANKS; bank++)
     {
@@ -293,7 +270,7 @@ static void mem_ram_pio_init(void)
         pio_sm_get_blocking(MEM_RAM_PIO, MEM_RAM_SPI_SM);    // wait for completion
         mem_read_sm_restart(MEM_RAM_SPI_SM, mem_ram_spi_program_offset);
     }
-    pio_sm_exec(MEM_RAM_PIO, MEM_RAM_SPI_SM, ce_high_instruction);
+    pio_sm_exec_wait_blocking(MEM_RAM_PIO, MEM_RAM_SPI_SM, mem_ram_ce_high_instruction);
     pio_sm_set_enabled(MEM_RAM_PIO, MEM_RAM_SPI_SM, false);
 
     // // Need both channels now to configure chain ping-pong
@@ -356,6 +333,16 @@ void mem_init(void)
     mem_ram_pio_init();
 }
 
+void mem_run(void)
+{
+    // TODO: connect bus PIO and mem PIO with DMA channels
+}
+
+void mem_stop(void)
+{
+    // TODO: remove above connection
+}
+
 void mem_task(void)
 {
     if (main_active())
@@ -365,7 +352,7 @@ void mem_task(void)
             mem_cpu_address_bus_history_index++;
             for (int i = 0; i < MEM_CPU_ADDRESS_BUS_HISTORY_LENGTH; i++)
             {
-                printf("CPU: 0x%3lX\n", mem_cpu_address_bus_history[i]);
+                printf("CPU: 0x%06lX\n", mem_cpu_address_bus_history[i]);
             }
         }
     }
@@ -387,7 +374,9 @@ void mem_read_buf(uint32_t addr)
         mbuf[i] = pio_sm_get_blocking(MEM_RAM_PIO, MEM_RAM_READ_SM);
     }
 
-    pio_sm_exec(MEM_RAM_PIO, MEM_RAM_READ_SM, mem_ram_pio_set_pins_instruction | 0b11);
+    // finish Read Command by disabling chip select
+    pio_sm_exec(MEM_RAM_PIO, MEM_RAM_READ_SM, mem_ram_ce_high_instruction);
+    // re-start Read SM
     mem_read_sm_restart(MEM_RAM_READ_SM, mem_ram_read_program_offset);
 }
 
@@ -399,19 +388,29 @@ void mem_write_buf(uint32_t addr)
 
     // and start writing ASAP
     pio_sm_set_enabled(MEM_RAM_PIO, MEM_RAM_WRITE_SM, true);
-    mbuf[0] = (uint8_t)0x38; // QPI Write 0x38
-    mbuf[1] = (uint8_t)(addr >> 16);
-    mbuf[2] = (uint8_t)(addr >> 8);
-    mbuf[3] = (uint8_t)(addr);
-    dma_channel_set_read_addr(mem_ram_write_dma_chan, mbuf, false);
-    dma_channel_set_trans_count(mem_ram_write_dma_chan, mbuf_len, false);
-    channel_config_set_read_increment(&mem_ram_write_dma_config, true);
-    dma_channel_set_config(mem_ram_write_dma_chan, &mem_ram_write_dma_config, true);
+
+    pio_sm_put(MEM_RAM_PIO, MEM_RAM_WRITE_SM, 0x38000000); // QPI Write 0x38
 
     // disable Read SM so it does not interfere with write
     pio_sm_set_enabled(MEM_RAM_PIO, MEM_RAM_READ_SM, false);
 
-    pio_sm_clear_tx_fifo_stalled(MEM_RAM_PIO, MEM_RAM_WRITE_SM);
+    pio_sm_put(MEM_RAM_PIO, MEM_RAM_WRITE_SM, addr << 8);
+    pio_sm_put(MEM_RAM_PIO, MEM_RAM_WRITE_SM, addr << 16);
+    pio_sm_put(MEM_RAM_PIO, MEM_RAM_WRITE_SM, addr << 24);
+
+    for (uint16_t i = 0; i < mbuf_len; i++)
+    {
+        pio_sm_put_blocking(MEM_RAM_PIO, MEM_RAM_WRITE_SM, mbuf[i] << 24);
+    }
+
+    mem_ram_wait_for_write_pio();
+
+    // stop Write SM
+    pio_sm_set_enabled(MEM_RAM_PIO, MEM_RAM_WRITE_SM, false);
+    // finish Write Command by disabling chip select
+    pio_sm_exec(MEM_RAM_PIO, MEM_RAM_READ_SM, mem_ram_ce_high_instruction);
+    // re-enable Read SM
+    pio_sm_set_enabled(MEM_RAM_PIO, MEM_RAM_READ_SM, true);
 }
 
 void mem_print_status(void)

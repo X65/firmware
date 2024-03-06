@@ -30,16 +30,14 @@ extern size_t mbuf_len;
 
 void mem_init(void);
 void mem_task(void);
+void mem_run(void);
+void mem_stop(void);
 void mem_print_status(void);
-void mem_select_bank(int8_t bank);
 
 // Move data from the RAM to mbuf.
 void mem_read_buf(uint32_t addr);
 
 // Move data from mbuf to the RAM.
 void mem_write_buf(uint32_t addr);
-
-// The RIA is active when it's performing an mbuf action.
-bool mem_active();
 
 #endif /* _MEM_H_ */

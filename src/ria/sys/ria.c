@@ -13,14 +13,6 @@
 
 #define RIA_WATCHDOG_MS 250
 
-static enum state {
-    action_state_idle = 0,
-    action_state_read,
-    action_state_write,
-    action_state_verify,
-} volatile action_state
-    = action_state_idle;
-
 static volatile bool irq_enabled;
 
 void ria_trigger_irq(void)
@@ -43,12 +35,6 @@ void ria_stop(void)
 {
     irq_enabled = false;
     gpio_put(CPU_IRQB_PIN, true);
-    action_state = action_state_idle;
-}
-
-bool ria_active(void)
-{
-    return action_state != action_state_idle;
 }
 
 void ria_task(void)
@@ -66,8 +52,8 @@ void ria_init(void)
     assert(!((uintptr_t)regs & 0x1F));
 
     // Lower CPU0 on crossbar by raising others
-    // bus_ctrl_hw->priority |=              // FIXME: do we need this?
-    //     BUSCTRL_BUS_PRIORITY_DMA_R_BITS | //
-    //     BUSCTRL_BUS_PRIORITY_DMA_W_BITS | //
-    //     BUSCTRL_BUS_PRIORITY_PROC1_BITS;
+    bus_ctrl_hw->priority |=              //
+        BUSCTRL_BUS_PRIORITY_DMA_R_BITS | //
+        BUSCTRL_BUS_PRIORITY_DMA_W_BITS | //
+        BUSCTRL_BUS_PRIORITY_PROC1_BITS;
 }
