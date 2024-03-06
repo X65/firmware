@@ -19,7 +19,6 @@
 uint8_t mbuf[MBUF_SIZE] __attribute__((aligned(4)));
 size_t mbuf_len;
 
-static uint mem_ram_write_program_offset;
 static uint mem_ram_read_program_offset;
 static uint mem_ram_pio_set_pins_instruction;
 static int mem_ram_write_dma_chan;
@@ -151,56 +150,35 @@ inline uint8_t get_chip_select(uint8_t bank)
 static void mem_ram_pio_init(void)
 {
     // PIO to manage PSRAM memory read/writes
-    mem_ram_write_program_offset = pio_add_program(MEM_RAM_PIO, &mem_spi_program);
-    pio_sm_config config = mem_spi_program_get_default_config(mem_ram_write_program_offset);
+
+    // Grab GPIO pins
+    for (int i = MEM_RAM_PIN_BASE; i < MEM_RAM_PIN_BASE + MEM_RAM_PINS_USED; i++)
+        pio_gpio_init(MEM_RAM_PIO, i);
+    gpio_pull_down(MEM_RAM_CLK_PIN);
+
+    // Write QPI program
+    uint mem_ram_write_program_offset = pio_add_program(MEM_RAM_PIO, &mem_qpi_write_program);
+    pio_sm_config config = mem_qpi_write_program_get_default_config(mem_ram_write_program_offset);
     sm_config_set_clkdiv_int_frac(&config, 100, 0); // FIXME: remove?
     sm_config_set_in_shift(&config, false, true, 8);
     sm_config_set_out_shift(&config, false, true, 8);
+    sm_config_set_fifo_join(&config, PIO_FIFO_JOIN_TX); // we do not read using this PIO
     sm_config_set_sideset_pins(&config, MEM_RAM_CLK_PIN);
     sm_config_set_set_pins(&config, MEM_RAM_CE0_PIN, 2);
     sm_config_set_in_pins(&config, MEM_RAM_SIO0_PIN);
     sm_config_set_out_pins(&config, MEM_RAM_SIO0_PIN, 4);
-    for (int i = MEM_RAM_PIN_BASE; i < MEM_RAM_PIN_BASE + MEM_RAM_PINS_USED; i++)
-        pio_gpio_init(MEM_RAM_PIO, i);
-    gpio_pull_down(MEM_RAM_CLK_PIN);
     pio_sm_set_consecutive_pindirs(MEM_RAM_PIO, MEM_RAM_WRITE_SM, MEM_RAM_PIN_BASE, MEM_RAM_PINS_USED, true);
     pio_sm_init(MEM_RAM_PIO, MEM_RAM_WRITE_SM, mem_ram_write_program_offset, &config);
-
-    // create "set pins, .." instruction
-    mem_ram_pio_set_pins_instruction = pio_encode_set(pio_pins, 0);
-
-    // Switch all banks to QPI mode
-    // Do it twice, just to make sure
-    pio_sm_set_enabled(MEM_RAM_PIO, MEM_RAM_WRITE_SM, true);
-    for (int bank = 0; bank < MEM_RAM_BANKS * 2; bank++)
-    {
-        pio_sm_exec_wait_blocking(MEM_RAM_PIO, MEM_RAM_WRITE_SM, mem_ram_pio_set_pins_instruction | get_chip_select(bank));
-        pio_sm_put(MEM_RAM_PIO, MEM_RAM_WRITE_SM, 0x35000000); // QPI Mode Enable 0x35, left aligned
-        pio_sm_get_blocking(MEM_RAM_PIO, MEM_RAM_WRITE_SM);    // wait for completion
-    }
-    pio_sm_exec(MEM_RAM_PIO, MEM_RAM_READ_SM, mem_ram_pio_set_pins_instruction | 0b11);
-
-    // Now load and run QPI programs
-
-    // Write QPI
     pio_sm_set_enabled(MEM_RAM_PIO, MEM_RAM_WRITE_SM, false);
-    pio_remove_program(MEM_RAM_PIO, &mem_spi_program, mem_ram_write_program_offset);
-    pio_sm_restart(MEM_RAM_PIO, MEM_RAM_WRITE_SM);
-
-    sm_config_set_fifo_join(&config, PIO_FIFO_JOIN_TX);
-    mem_ram_write_program_offset = pio_add_program(MEM_RAM_PIO, &mem_qpi_write_program);
-    sm_config_set_wrap(&config, mem_ram_write_program_offset + mem_qpi_write_wrap_target, mem_ram_write_program_offset + mem_qpi_write_wrap);
-    pio_sm_init(MEM_RAM_PIO, MEM_RAM_WRITE_SM, mem_ram_write_program_offset, &config);
-    // keep disabled, to not interfere with Read SM
 
     // Read QPI
     sm_config_set_out_shift(&config, false, true, 32);
     sm_config_set_fifo_join(&config, PIO_FIFO_JOIN_NONE);
-    pio_sm_set_consecutive_pindirs(MEM_RAM_PIO, MEM_RAM_READ_SM, MEM_RAM_PIN_BASE, MEM_RAM_PINS_USED, true);
     mem_ram_read_program_offset = pio_add_program(MEM_RAM_PIO, &mem_qpi_read_program);
     sm_config_set_wrap(&config, mem_ram_read_program_offset + mem_qpi_read_wrap_target, mem_ram_read_program_offset + mem_qpi_read_wrap);
+    pio_sm_set_consecutive_pindirs(MEM_RAM_PIO, MEM_RAM_READ_SM, MEM_RAM_PIN_BASE, MEM_RAM_PINS_USED, true);
     pio_sm_init(MEM_RAM_PIO, MEM_RAM_READ_SM, mem_ram_read_program_offset, &config);
-    pio_sm_set_enabled(MEM_RAM_PIO, MEM_RAM_READ_SM, true);
+    pio_sm_set_enabled(MEM_RAM_PIO, MEM_RAM_READ_SM, false);
 
     // Write PIO DMA channel
     mem_ram_write_dma_chan = dma_claim_unused_channel(true);
@@ -217,6 +195,29 @@ static void mem_ram_pio_init(void)
     dma_channel_set_irq0_enabled(mem_ram_write_dma_chan, true);
     irq_set_exclusive_handler(DMA_IRQ_0, mem_ram_write_dma_handler);
     irq_set_enabled(DMA_IRQ_0, true);
+
+    // Program for SPI mode
+    sm_config_set_out_shift(&config, false, true, 8);
+    uint mem_ram_spi_program_offset = pio_add_program(MEM_RAM_PIO, &mem_spi_program);
+    sm_config_set_wrap(&config, mem_ram_spi_program_offset + mem_spi_wrap_target, mem_ram_spi_program_offset + mem_spi_wrap);
+    pio_sm_set_consecutive_pindirs(MEM_RAM_PIO, MEM_RAM_SPI_SM, MEM_RAM_PIN_BASE, MEM_RAM_PINS_USED, true);
+    pio_sm_init(MEM_RAM_PIO, MEM_RAM_SPI_SM, mem_ram_spi_program_offset, &config);
+    pio_sm_set_enabled(MEM_RAM_PIO, MEM_RAM_SPI_SM, false);
+
+    // create "set pins, .." instruction
+    mem_ram_pio_set_pins_instruction = pio_encode_set(pio_pins, 0);
+
+    // Switch all banks to QPI mode
+    // Do it twice, just to make sure
+    pio_sm_set_enabled(MEM_RAM_PIO, MEM_RAM_SPI_SM, true);
+    for (int bank = 0; bank < MEM_RAM_BANKS * 2; bank++)
+    {
+        pio_sm_exec_wait_blocking(MEM_RAM_PIO, MEM_RAM_SPI_SM, mem_ram_pio_set_pins_instruction | get_chip_select(bank));
+        pio_sm_put(MEM_RAM_PIO, MEM_RAM_SPI_SM, 0x35000000); // QPI Mode Enable 0x35, left aligned
+        pio_sm_get_blocking(MEM_RAM_PIO, MEM_RAM_SPI_SM);    // wait for completion
+    }
+    pio_sm_exec(MEM_RAM_PIO, MEM_RAM_SPI_SM, mem_ram_pio_set_pins_instruction | 0b11);
+    pio_sm_set_enabled(MEM_RAM_PIO, MEM_RAM_SPI_SM, false);
 
     // // Need both channels now to configure chain ping-pong
     // int addr_chan = dma_claim_unused_channel(true);
@@ -249,6 +250,12 @@ static void mem_ram_pio_init(void)
     //     &MEM_RAM_PIO->rxf[MEM_RAM_SM],             // src
     //     1,
     //     true);
+
+    // Do not need SPI program anymore
+    pio_remove_program(MEM_RAM_PIO, &mem_spi_program, mem_ram_spi_program_offset);
+
+    // Reads are most often and require fast reaction, so enable Read SM by default
+    pio_sm_set_enabled(MEM_RAM_PIO, MEM_RAM_READ_SM, true);
 }
 
 void mem_init(void)
