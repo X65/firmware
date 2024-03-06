@@ -120,12 +120,6 @@ loop:
 ;     SET: CE0-1
 ; SIDESET: CLK
 
-; SPI mode program, used solely to switch to QPI mode
-.program mem_spi
-.side_set 1
-    out pins, 1     side 0  ; Stall here on empty (sideset proceeds even if
-    in  pins, 1     side 1  ; instruction stalls, so we stall with SCK low)
-
 ; QPI mode program, used for data write
 ; pushes TX fifo incoming as 8bit bytes, as fast as possible
 .program mem_qpi_write
@@ -170,4 +164,24 @@ delay:
 
 .wrap_target
     nop                 side 0  ; Now read as many bytes as Pico CPU or DMA
-    in pins, 4          side 1  ; allows (2 nybbles for each)
+    in pins, 4          side 1  ; requests (2 nybbles for each)
+
+; SPI mode program, used solely to reset and read ID
+.program mem_spi
+.side_set 1
+
+    mov osr, ~null      side 0  ; Load ones to OSR
+    out pindirs, 4      side 0  ; Set SIO0-3 to OUT mode (we are going to send command)
+
+    pull                side 0
+    set x, 31           side 0  ; Push 32 (0 counting) bits of command (8) + address (24)
+loop:
+    out pins, 1         side 0
+    jmp x-- loop        side 1
+
+    mov osr, null       side 1  ; Load zeros to OSR
+    out pindirs, 4      side 1  ; Set SIO0-3 to IN mode (we are going to read command reply)
+
+.wrap_target
+    nop                 side 0  ; Now read as many bytes as Pico CPU or DMA
+    in pins, 1          side 1  ; requests

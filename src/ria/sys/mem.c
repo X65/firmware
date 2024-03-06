@@ -10,6 +10,7 @@
 #include "hardware/gpio.h"
 #include "hardware/irq.h"
 #include "hardware/pio.h"
+#include "hardware/timer.h"
 #include "main.h"
 #include "mem.pio.h"
 #include <stdbool.h>
@@ -23,6 +24,8 @@ static uint mem_ram_read_program_offset;
 static uint mem_ram_pio_set_pins_instruction;
 static int mem_ram_write_dma_chan;
 static dma_channel_config mem_ram_write_dma_config;
+
+static uint8_t mem_ram_ID[MEM_RAM_BANKS][8];
 
 #define MEM_CPU_ADDRESS_BUS_HISTORY_LENGTH 20
 static uint32_t mem_cpu_address_bus_history[MEM_CPU_ADDRESS_BUS_HISTORY_LENGTH];
@@ -43,7 +46,7 @@ static inline bool pio_sm_is_tx_fifo_stalled(PIO pio, uint sm)
 }
 
 static void __attribute__((optimize("O1")))
-mem_bus_pio_irq_handler()
+mem_bus_pio_irq_handler(void)
 {
     // read address and flags
     uint32_t address_bus = pio_sm_get_blocking(MEM_BUS_PIO, MEM_BUS_SM) >> 6;
@@ -123,7 +126,7 @@ static void mem_bus_pio_init(void)
 }
 
 static void __attribute__((optimize("O1")))
-mem_ram_write_dma_handler()
+mem_ram_write_dma_handler(void)
 {
     if (pio_sm_is_tx_fifo_empty(MEM_RAM_PIO, MEM_RAM_WRITE_SM) && pio_sm_is_tx_fifo_stalled(MEM_RAM_PIO, MEM_RAM_WRITE_SM))
     {
@@ -147,6 +150,16 @@ inline uint8_t get_chip_select(uint8_t bank)
     return (ce & 0b11);
 }
 
+static void mem_read_sm_restart(uint sm, uint addr)
+{
+    pio_sm_set_enabled(MEM_RAM_PIO, sm, false);
+    pio_sm_clear_fifos(MEM_RAM_PIO, sm);
+    pio_sm_restart(MEM_RAM_PIO, sm);
+    pio_sm_clkdiv_restart(MEM_RAM_PIO, sm);
+    pio_sm_exec(MEM_RAM_PIO, sm, pio_encode_jmp(addr));
+    pio_sm_set_enabled(MEM_RAM_PIO, sm, true);
+}
+
 static void mem_ram_pio_init(void)
 {
     // PIO to manage PSRAM memory read/writes
@@ -155,6 +168,9 @@ static void mem_ram_pio_init(void)
     for (int i = MEM_RAM_PIN_BASE; i < MEM_RAM_PIN_BASE + MEM_RAM_PINS_USED; i++)
         pio_gpio_init(MEM_RAM_PIO, i);
     gpio_pull_down(MEM_RAM_CLK_PIN);
+
+    // create "set pins, .." instruction
+    mem_ram_pio_set_pins_instruction = pio_encode_set(pio_pins, 0);
 
     // Write QPI program
     uint mem_ram_write_program_offset = pio_add_program(MEM_RAM_PIO, &mem_qpi_write_program);
@@ -197,26 +213,87 @@ static void mem_ram_pio_init(void)
     irq_set_enabled(DMA_IRQ_0, true);
 
     // Program for SPI mode
-    sm_config_set_out_shift(&config, false, true, 8);
     uint mem_ram_spi_program_offset = pio_add_program(MEM_RAM_PIO, &mem_spi_program);
     sm_config_set_wrap(&config, mem_ram_spi_program_offset + mem_spi_wrap_target, mem_ram_spi_program_offset + mem_spi_wrap);
+    sm_config_set_in_pins(&config, MEM_RAM_SIO1_PIN);
     pio_sm_set_consecutive_pindirs(MEM_RAM_PIO, MEM_RAM_SPI_SM, MEM_RAM_PIN_BASE, MEM_RAM_PINS_USED, true);
     pio_sm_init(MEM_RAM_PIO, MEM_RAM_SPI_SM, mem_ram_spi_program_offset, &config);
     pio_sm_set_enabled(MEM_RAM_PIO, MEM_RAM_SPI_SM, false);
 
-    // create "set pins, .." instruction
-    mem_ram_pio_set_pins_instruction = pio_encode_set(pio_pins, 0);
+    // Disable all memory banks (pull up both CE#) on all SMs waiting for their PIO to stabilize
+    uint ce_high_instruction = mem_ram_pio_set_pins_instruction | 0b11;
+    pio_sm_exec_wait_blocking(MEM_RAM_PIO, MEM_RAM_WRITE_SM, ce_high_instruction);
+    pio_sm_exec_wait_blocking(MEM_RAM_PIO, MEM_RAM_READ_SM, ce_high_instruction);
+    pio_sm_exec_wait_blocking(MEM_RAM_PIO, MEM_RAM_SPI_SM, ce_high_instruction);
 
-    // Switch all banks to QPI mode
-    // Do it twice, just to make sure
+    // memory chips require 150us to complete device initialization
+    busy_wait_until(from_us_since_boot(150));
+
+    // Reset all banks using QPI mode in case we are doing software reset and chips are in QPI mode
+    pio_sm_set_enabled(MEM_RAM_PIO, MEM_RAM_WRITE_SM, true);
+    for (int bank = 0; bank < MEM_RAM_BANKS; bank++)
+    {
+        pio_sm_clear_tx_fifo_stalled(MEM_RAM_PIO, MEM_RAM_WRITE_SM);
+        pio_sm_exec_wait_blocking(MEM_RAM_PIO, MEM_RAM_WRITE_SM, mem_ram_pio_set_pins_instruction | get_chip_select(bank));
+        pio_sm_put(MEM_RAM_PIO, MEM_RAM_WRITE_SM, 0x66000000); // RSTEN, left aligned
+        while (!pio_sm_is_tx_fifo_empty(MEM_RAM_PIO, MEM_RAM_WRITE_SM) || !pio_sm_is_tx_fifo_stalled(MEM_RAM_PIO, MEM_RAM_WRITE_SM))
+        {
+            tight_loop_contents();
+        }
+    }
+    for (int bank = 0; bank < MEM_RAM_BANKS; bank++)
+    {
+        pio_sm_clear_tx_fifo_stalled(MEM_RAM_PIO, MEM_RAM_WRITE_SM);
+        pio_sm_exec_wait_blocking(MEM_RAM_PIO, MEM_RAM_WRITE_SM, mem_ram_pio_set_pins_instruction | get_chip_select(bank));
+        pio_sm_put(MEM_RAM_PIO, MEM_RAM_WRITE_SM, 0x99000000); // RST, left aligned
+        while (!pio_sm_is_tx_fifo_empty(MEM_RAM_PIO, MEM_RAM_WRITE_SM) || !pio_sm_is_tx_fifo_stalled(MEM_RAM_PIO, MEM_RAM_WRITE_SM))
+        {
+            tight_loop_contents();
+        }
+    }
+    pio_sm_exec(MEM_RAM_PIO, MEM_RAM_WRITE_SM, ce_high_instruction);
+    pio_sm_set_enabled(MEM_RAM_PIO, MEM_RAM_WRITE_SM, false);
+    // Now reset using SPI mode in case we are after power up
     pio_sm_set_enabled(MEM_RAM_PIO, MEM_RAM_SPI_SM, true);
-    for (int bank = 0; bank < MEM_RAM_BANKS * 2; bank++)
+    for (int bank = 0; bank < MEM_RAM_BANKS; bank++)
+    {
+        pio_sm_exec_wait_blocking(MEM_RAM_PIO, MEM_RAM_SPI_SM, mem_ram_pio_set_pins_instruction | get_chip_select(bank));
+        pio_sm_put(MEM_RAM_PIO, MEM_RAM_SPI_SM, 0x66000000); // RSTEN, left aligned
+        pio_sm_get_blocking(MEM_RAM_PIO, MEM_RAM_SPI_SM);    // wait for completion
+        mem_read_sm_restart(MEM_RAM_SPI_SM, mem_ram_spi_program_offset);
+    }
+    for (int bank = 0; bank < MEM_RAM_BANKS; bank++)
+    {
+        pio_sm_exec_wait_blocking(MEM_RAM_PIO, MEM_RAM_SPI_SM, mem_ram_pio_set_pins_instruction | get_chip_select(bank));
+        pio_sm_put(MEM_RAM_PIO, MEM_RAM_SPI_SM, 0x99000000); // RST, left aligned
+        pio_sm_get_blocking(MEM_RAM_PIO, MEM_RAM_SPI_SM);    // wait for completion
+        mem_read_sm_restart(MEM_RAM_SPI_SM, mem_ram_spi_program_offset);
+    }
+    pio_sm_exec(MEM_RAM_PIO, MEM_RAM_SPI_SM, ce_high_instruction);
+    // Read memory IDs
+    for (int bank = 0; bank < MEM_RAM_BANKS; bank++)
+    {
+        pio_sm_exec_wait_blocking(MEM_RAM_PIO, MEM_RAM_SPI_SM, mem_ram_pio_set_pins_instruction | get_chip_select(bank));
+
+        pio_sm_put(MEM_RAM_PIO, MEM_RAM_SPI_SM, 0x9F000000); // QPI Read ID, left aligned
+        uint8_t i = 7;
+        do
+        {
+            mem_ram_ID[bank][i] = pio_sm_get_blocking(MEM_RAM_PIO, MEM_RAM_SPI_SM);
+        } while (i--);
+
+        mem_read_sm_restart(MEM_RAM_SPI_SM, mem_ram_spi_program_offset);
+    }
+    pio_sm_exec(MEM_RAM_PIO, MEM_RAM_SPI_SM, ce_high_instruction);
+    // Finally enable QPI mode
+    for (int bank = 0; bank < MEM_RAM_BANKS; bank++)
     {
         pio_sm_exec_wait_blocking(MEM_RAM_PIO, MEM_RAM_SPI_SM, mem_ram_pio_set_pins_instruction | get_chip_select(bank));
         pio_sm_put(MEM_RAM_PIO, MEM_RAM_SPI_SM, 0x35000000); // QPI Mode Enable 0x35, left aligned
         pio_sm_get_blocking(MEM_RAM_PIO, MEM_RAM_SPI_SM);    // wait for completion
+        mem_read_sm_restart(MEM_RAM_SPI_SM, mem_ram_spi_program_offset);
     }
-    pio_sm_exec(MEM_RAM_PIO, MEM_RAM_SPI_SM, mem_ram_pio_set_pins_instruction | 0b11);
+    pio_sm_exec(MEM_RAM_PIO, MEM_RAM_SPI_SM, ce_high_instruction);
     pio_sm_set_enabled(MEM_RAM_PIO, MEM_RAM_SPI_SM, false);
 
     // // Need both channels now to configure chain ping-pong
@@ -294,37 +371,6 @@ void mem_task(void)
     }
 }
 
-static void mem_read_sm_restart(uint sm)
-{
-    pio_sm_set_enabled(MEM_RAM_PIO, sm, false);
-    pio_sm_clear_fifos(MEM_RAM_PIO, sm);
-    pio_sm_restart(MEM_RAM_PIO, sm);
-    pio_sm_clkdiv_restart(MEM_RAM_PIO, sm);
-    pio_sm_exec(MEM_RAM_PIO, sm, pio_encode_jmp(mem_ram_read_program_offset));
-    pio_sm_set_enabled(MEM_RAM_PIO, sm, true);
-}
-
-static void mem_read_id(int8_t bank, uint8_t ID[8])
-{
-    // enable memory bank
-    // and push 2 nibbles (X, 0 indexed thus -1)
-    pio_sm_put(MEM_RAM_PIO, MEM_RAM_READ_SM,
-               (mem_ram_pio_set_pins_instruction | get_chip_select(bank)) << 16 //
-                   | (2 - 1));
-
-    // QPI Read ID 0x35, left aligned
-    pio_sm_put(MEM_RAM_PIO, MEM_RAM_READ_SM, 0x9F000000);
-
-    uint8_t i = 7;
-    do
-    {
-        ID[i] = pio_sm_get_blocking(MEM_RAM_PIO, MEM_RAM_READ_SM);
-    } while (i--);
-
-    pio_sm_exec(MEM_RAM_PIO, MEM_RAM_READ_SM, mem_ram_pio_set_pins_instruction | 0b11);
-    mem_read_sm_restart(MEM_RAM_READ_SM);
-}
-
 void mem_read_buf(uint32_t addr)
 {
     // enable memory bank
@@ -342,7 +388,7 @@ void mem_read_buf(uint32_t addr)
     }
 
     pio_sm_exec(MEM_RAM_PIO, MEM_RAM_READ_SM, mem_ram_pio_set_pins_instruction | 0b11);
-    mem_read_sm_restart(MEM_RAM_READ_SM);
+    mem_read_sm_restart(MEM_RAM_READ_SM, mem_ram_read_program_offset);
 }
 
 void mem_write_buf(uint32_t addr)
@@ -370,28 +416,41 @@ void mem_write_buf(uint32_t addr)
 
 void mem_print_status(void)
 {
-    for (uint8_t i = 0; i < MEM_RAM_BANKS; i++)
+    for (uint8_t bank = 0; bank < MEM_RAM_BANKS; bank++)
     {
-        uint8_t ID[8] = {0};
-        mem_read_id(i, ID);
+        uint8_t *ID = mem_ram_ID[bank];
         // #ifndef NDEBUG
-        //         printf("%llx\n", *((uint64_t *)ID));
+        // printf("%llx\n", *((uint64_t *)ID));
         // #endif
-        printf("MEM%d: ", i);
+        printf("MEM%d: ", bank);
         switch (ID[7])
         {
         case 0x00:
         case 0xff:
             printf("Not Found\n");
             break;
+        case 0x0d: // ESP
         case 0x9d: // ISSI
         {
             uint8_t device_density = (ID[5] & 0b11100000) >> 5;
-            printf("%2dMb ISSI (%llx)%s\n",
-                   device_density == 0b000   ? 8
-                   : device_density == 0b001 ? 16
-                   : device_density == 0b010 ? 32
-                                             : 0,
+            uint8_t size = 0;
+            switch (device_density)
+            {
+            case 0b000:
+                size = 8;
+                break;
+            case 0b001:
+                size = 16;
+                break;
+            case 0b010:
+                size = 32;
+                break;
+            }
+            if (ID[7] == 0x0d) // ESP reports differently than ISSI
+                size *= 2;
+            printf("%2dMb %s (%llx)%s\n",
+                   size,
+                   ID[7] == 0x0d ? "ESP" : "ISSI",
                    *((uint64_t *)ID) & 0xffffffffffff,
                    ID[6] != 0x5d ? " Not Passed" : 0);
         }
