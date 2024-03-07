@@ -6,6 +6,7 @@
  */
 
 #include "mem.h"
+#include "hardware/dma.h"
 #include "hardware/gpio.h"
 #include "hardware/irq.h"
 #include "hardware/pio.h"
@@ -22,6 +23,9 @@ size_t mbuf_len;
 static uint mem_ram_read_program_offset;
 static uint mem_ram_pio_set_pins_instruction;
 static uint mem_ram_ce_high_instruction;
+
+static int mem_read_chan;
+static int mem_write_chan;
 
 static uint8_t mem_ram_ID[MEM_RAM_BANKS][8];
 
@@ -43,26 +47,59 @@ static inline bool pio_sm_is_tx_fifo_stalled(PIO pio, uint sm)
     return (pio->fdebug & (1u << (PIO_FDEBUG_TXSTALL_LSB + sm))) != 0;
 }
 
+static inline uint8_t get_chip_select(uint8_t bank)
+{
+    uint8_t ce = bank & 0b01;
+    ce |= ~(ce << 1) & 0b10;
+    return (ce & 0b11);
+}
+
+// 0b 0 0 ... VAB RWB
+#define CPU_RWB_MASK (1 << 24)
+#define CPU_VAB_MASK (1 << 25)
+
 static void __attribute__((optimize("O1")))
 mem_bus_pio_irq_handler(void)
 {
+    // printf("mem_bus_pio_irq_handler\n");
     // read address and flags
-    uint32_t address_bus = pio_sm_get_blocking(MEM_BUS_PIO, MEM_BUS_SM) >> 6;
-    uint32_t mem_cpu_address = address_bus & 0xffffff;
-    uint8_t mem_cpu_lines = address_bus >> 24;
-    (void)mem_cpu_lines;
-    static uint32_t last_mem_cpu_address = 0x1234;
-    if (mem_cpu_address_bus_history_index < MEM_CPU_ADDRESS_BUS_HISTORY_LENGTH && last_mem_cpu_address != mem_cpu_address)
+    uint32_t address_bus = pio_sm_get(MEM_BUS_PIO, MEM_BUS_SM) >> 6;
+
+    if (address_bus & CPU_VAB_MASK)
     {
-        last_mem_cpu_address = mem_cpu_address;
-        mem_cpu_address_bus_history[mem_cpu_address_bus_history_index++] = mem_cpu_address;
+        // address is "invalid", so we can return anything
+        // push WAI opcode to halt if CPU would process it as instruction
+        pio_sm_put(MEM_BUS_PIO, MEM_BUS_SM, 0xCB);
+        // TODO: move to PIO code?
     }
-    // printf("> %lx %x\n", mem_cpu_address, mem_cpu_lines);
+    else
+    {
+        if (address_bus & CPU_RWB_MASK)
+        { // CPU is reading
+            // enable memory bank
+            pio_sm_put(MEM_RAM_PIO, MEM_RAM_READ_SM,
+                       (mem_ram_pio_set_pins_instruction | get_chip_select((address_bus & 0xFFFFFF) >> 23)));
 
-    // feed NOP to CPU
-    pio_sm_put_blocking(MEM_BUS_PIO, MEM_BUS_SM, 0xEA);
+            uint32_t command = 0xEB000000 | (address_bus & 0xFFFFFF); // QPI Fast Read 0xEB
+            pio_sm_put(MEM_RAM_PIO, MEM_RAM_READ_SM, command);
 
-    // Clear the interrupt request.
+            // Trigger reading 1 byte
+            pio_sm_put(MEM_RAM_PIO, MEM_RAM_READ_SM, (2 - 1));
+            dma_channel_set_trans_count(mem_read_chan, 1, true);
+
+            if (main_active() && mem_cpu_address_bus_history_index < MEM_CPU_ADDRESS_BUS_HISTORY_LENGTH)
+            {
+                mem_cpu_address_bus_history[mem_cpu_address_bus_history_index++] = address_bus & 0xFFFFFF;
+            }
+            // printf("> %lx %x\n", mem_cpu_address, mem_cpu_lines);
+        }
+        else
+        { // CPU is writing
+            printf("CPU is writing somehow\?\?!\n");
+        }
+    }
+
+    // Clear the interrupt request
     pio_interrupt_clear(MEM_BUS_PIO, MEM_BUS_PIO_IRQ);
 }
 
@@ -88,46 +125,6 @@ static void mem_bus_pio_init(void)
     irq_set_exclusive_handler(MEM_BUS_IRQ, mem_bus_pio_irq_handler);
     irq_set_enabled(MEM_BUS_IRQ, true);
     pio_sm_set_enabled(MEM_BUS_PIO, MEM_BUS_SM, true);
-
-    // // Need both channels now to configure chain ping-pong
-    // int addr_chan = dma_claim_unused_channel(true);
-    // int data_chan = dma_claim_unused_channel(true);
-
-    // // DMA move the requested memory data to PIO for output
-    // dma_channel_config data_dma = dma_channel_get_default_config(data_chan);
-    // channel_config_set_high_priority(&data_dma, true);
-    // channel_config_set_dreq(&data_dma, pio_get_dreq(MEM_BUS_PIO, MEM_BUS_SM, false));
-    // channel_config_set_read_increment(&data_dma, false);
-    // channel_config_set_transfer_data_size(&data_dma, DMA_SIZE_8);
-    // channel_config_set_chain_to(&data_dma, addr_chan);
-    // dma_channel_configure(
-    //     data_chan,
-    //     &data_dma,
-    //     regs,                            // dst
-    //     &MEM_BUS_PIO->rxf[MEM_BUS_SM], // src
-    //     1,
-    //     false);
-
-    // // DMA move address from PIO into the data DMA config
-    // dma_channel_config addr_dma = dma_channel_get_default_config(addr_chan);
-    // channel_config_set_high_priority(&addr_dma, true);
-    // channel_config_set_dreq(&addr_dma, pio_get_dreq(MEM_BUS_PIO, MEM_BUS_SM, false));
-    // channel_config_set_read_increment(&addr_dma, false);
-    // channel_config_set_chain_to(&addr_dma, data_chan);
-    // dma_channel_configure(
-    //     addr_chan,
-    //     &addr_dma,
-    //     &dma_channel_hw_addr(data_chan)->write_addr, // dst
-    //     &MEM_BUS_PIO->rxf[MEM_BUS_SM],             // src
-    //     1,
-    //     true);
-}
-
-inline uint8_t get_chip_select(uint8_t bank)
-{
-    uint8_t ce = bank & 0b01;
-    ce |= ~(ce << 1) & 0b10;
-    return (ce & 0b11);
 }
 
 static void mem_read_sm_restart(uint sm, uint addr)
@@ -273,43 +270,42 @@ static void mem_ram_pio_init(void)
     pio_sm_exec_wait_blocking(MEM_RAM_PIO, MEM_RAM_SPI_SM, mem_ram_ce_high_instruction);
     pio_sm_set_enabled(MEM_RAM_PIO, MEM_RAM_SPI_SM, false);
 
-    // // Need both channels now to configure chain ping-pong
-    // int addr_chan = dma_claim_unused_channel(true);
-    // int data_chan = dma_claim_unused_channel(true);
-
-    // // DMA move the requested memory data to PIO for output
-    // dma_channel_config data_dma = dma_channel_get_default_config(data_chan);
-    // channel_config_set_high_priority(&data_dma, true);
-    // channel_config_set_dreq(&data_dma, pio_get_dreq(MEM_RAM_PIO, MEM_RAM_SM, true));
-    // channel_config_set_transfer_data_size(&data_dma, DMA_SIZE_8);
-    // channel_config_set_chain_to(&data_dma, addr_chan);
-    // dma_channel_configure(
-    //     data_chan,
-    //     &data_dma,
-    //     &MEM_RAM_PIO->txf[MEM_RAM_SM], // dst
-    //     regs,                           // src
-    //     1,
-    //     false);
-
-    // // DMA move address from PIO into the data DMA config
-    // dma_channel_config addr_dma = dma_channel_get_default_config(addr_chan);
-    // channel_config_set_high_priority(&addr_dma, true);
-    // channel_config_set_dreq(&addr_dma, pio_get_dreq(MEM_RAM_PIO, MEM_RAM_SM, false));
-    // channel_config_set_read_increment(&addr_dma, false);
-    // channel_config_set_chain_to(&addr_dma, data_chan);
-    // dma_channel_configure(
-    //     addr_chan,
-    //     &addr_dma,
-    //     &dma_channel_hw_addr(data_chan)->read_addr, // dst
-    //     &MEM_RAM_PIO->rxf[MEM_RAM_SM],             // src
-    //     1,
-    //     true);
-
     // Do not need SPI program anymore
     pio_remove_program(MEM_RAM_PIO, &mem_spi_program, mem_ram_spi_program_offset);
 
     // Reads are most often and require fast reaction, so enable Read SM by default
     pio_sm_set_enabled(MEM_RAM_PIO, MEM_RAM_READ_SM, true);
+}
+
+static void mem_dma_init(void)
+{
+    mem_read_chan = dma_claim_unused_channel(true);
+    dma_channel_config read_dma = dma_channel_get_default_config(mem_read_chan);
+    channel_config_set_high_priority(&read_dma, true);
+    channel_config_set_dreq(&read_dma, pio_get_dreq(MEM_RAM_PIO, MEM_RAM_READ_SM, false));
+    channel_config_set_read_increment(&read_dma, false);
+    channel_config_set_transfer_data_size(&read_dma, DMA_SIZE_8);
+    dma_channel_configure(
+        mem_read_chan,
+        &read_dma,
+        &MEM_BUS_PIO->txf[MEM_BUS_SM],      // dst
+        &MEM_RAM_PIO->rxf[MEM_RAM_READ_SM], // src
+        1,
+        false);
+
+    mem_write_chan = dma_claim_unused_channel(true);
+    dma_channel_config write_dma = dma_channel_get_default_config(mem_write_chan);
+    channel_config_set_high_priority(&write_dma, true);
+    channel_config_set_dreq(&write_dma, pio_get_dreq(MEM_BUS_PIO, MEM_BUS_SM, false));
+    channel_config_set_read_increment(&write_dma, false);
+    channel_config_set_transfer_data_size(&write_dma, DMA_SIZE_8);
+    dma_channel_configure(
+        mem_write_chan,
+        &write_dma,
+        &MEM_RAM_PIO->txf[MEM_RAM_WRITE_SM], // dst
+        &MEM_BUS_PIO->rxf[MEM_BUS_SM],       // src
+        1,
+        false);
 }
 
 void mem_init(void)
@@ -331,6 +327,7 @@ void mem_init(void)
     // the inits
     mem_bus_pio_init();
     mem_ram_pio_init();
+    mem_dma_init();
 }
 
 void mem_run(void)
