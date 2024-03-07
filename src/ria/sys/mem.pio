@@ -128,43 +128,47 @@ loop:
     nop                 side 1  ; and following data
 
 ; QPI mode program, used for reading
-; it needs to send command and possibly address, than switch to reading
-; reads until got reset by firmware
-;
-; X - how many nybbles to output
-; Y - how many delay cycles before read
+; it sends command and address, than switch to reading
+; reads given number of bytes and restarts
 .program mem_qpi_read
 .side_set 1
 
 ; memory needs 6 wait cycles
 ; -1 cycle used for changing pindirs
+; -1 cycle used for setting wait cycles
 ; -1 because loop is indexed from 0
-.define wait_cycles     (6 - 1 - 1)
+.define wait_cycles     (6 -1 -1 -1)
+
+    set pins, 0b11      side 0  ; Disable memory banks
 
     mov osr, ~null      side 0  ; Load ones to OSR
     out pindirs, 4      side 0  ; Set SIO0-3 to OUT mode (we are going to send command)
 
-    set y, wait_cycles  side 0  ; set Y with wait cycles
+    set y, (8 -1)       side 0  ; Will transmit 8 nybbles of command (2 command, 6 address)
 
     ; now wait for TX data
-    pull                side 0  ; pull memory bank select instruction
-    out exec, 16        side 0  ; Exec Memory bank select (CE0-1) encoded as "set pins, .." instruction
-    out x,    16        side 0  ; Load how many nybbles of command to transmit
+    pull                side 0  ; Pull memory bank select instruction
+    out exec, 32        side 0  ; Exec Memory bank select (CE0-1) encoded as "set pins, .." instruction
 
 loop:
-    out pins, 4         side 0  ; Push command (2 nybbles) and maybe address (6 nybbles)
-    jmp x-- loop        side 1  ; X was set to how many
+    out pins, 4         side 0  ; Push command (2 nybbles) and address (6 nybbles)
+    jmp y--, loop       side 1
 
-    mov osr, null       side 0  ; Load zeros to OSR
-    out pindirs, 4      side 1  ; Set SIO0-3 to IN mode (we are going to read command reply)
+    out x, 32           side 0  ; Load how many nybbles of data to transmit (-1)
+
+    mov osr, null       side 1  ; Load zeros to OSR
+    out pindirs, 4      side 0  ; Set SIO0-3 to IN mode (we are going to read command reply)
+
+    set y, wait_cycles  side 1  ; Set Y with wait cycles
 
 delay:
     nop                 side 0  ; Memory requires 6 delay cycles after providing command
-    jmp y-- delay       side 1  ; Y was set to how many
+    jmp y--, delay      side 1  ; Y was set to how many
 
-.wrap_target
-    nop                 side 0  ; Now read as many bytes as Pico CPU or DMA
-    in pins, 4          side 1  ; requests (2 nybbles for each)
+    nop                 side 0
+transmit:
+    in pins, 4          side 1  ; Now read X many nybbles
+    jmp x--, transmit   side 0
 
 ; SPI mode program, used solely to reset and read ID
 .program mem_spi

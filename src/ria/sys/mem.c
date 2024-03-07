@@ -361,23 +361,19 @@ void mem_task(void)
 void mem_read_buf(uint32_t addr)
 {
     // enable memory bank
-    // and push 8 nibbles (X, 0 indexed thus -1)
     pio_sm_put(MEM_RAM_PIO, MEM_RAM_READ_SM,
-               (mem_ram_pio_set_pins_instruction | get_chip_select((addr & 0xFFFFFF) >> 23)) << 16 //
-                   | (8 - 1));
+               (mem_ram_pio_set_pins_instruction | get_chip_select((addr & 0xFFFFFF) >> 23)));
 
     uint32_t command = 0xEB000000 | (addr & 0xFFFFFF); // QPI Fast Read 0xEB
     pio_sm_put(MEM_RAM_PIO, MEM_RAM_READ_SM, command);
+
+    // Read mbuf_len*2 nybbles (half-bytes), 0-offset thus -1
+    pio_sm_put(MEM_RAM_PIO, MEM_RAM_READ_SM, mbuf_len * 2 - 1);
 
     for (uint16_t i = 0; i < mbuf_len; i++)
     {
         mbuf[i] = pio_sm_get_blocking(MEM_RAM_PIO, MEM_RAM_READ_SM);
     }
-
-    // finish Read Command by disabling chip select
-    pio_sm_exec(MEM_RAM_PIO, MEM_RAM_READ_SM, mem_ram_ce_high_instruction);
-    // re-start Read SM
-    mem_read_sm_restart(MEM_RAM_READ_SM, mem_ram_read_program_offset);
 }
 
 void mem_write_buf(uint32_t addr)
