@@ -13,6 +13,7 @@
 #include "hardware/timer.h"
 #include "main.h"
 #include "mem.pio.h"
+#include "pico/multicore.h"
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -32,20 +33,6 @@ static uint8_t mem_ram_ID[MEM_RAM_BANKS][8];
 static uint32_t mem_cpu_address_bus_history[MEM_CPU_ADDRESS_BUS_HISTORY_LENGTH];
 static uint8_t mem_cpu_address_bus_history_index = 0;
 
-static inline void pio_sm_clear_tx_fifo_stalled(PIO pio, uint sm)
-{
-    check_pio_param(pio);
-    check_sm_param(sm);
-    pio->fdebug = (1u << (PIO_FDEBUG_TXSTALL_LSB + sm));
-}
-
-static inline bool pio_sm_is_tx_fifo_stalled(PIO pio, uint sm)
-{
-    check_pio_param(pio);
-    check_sm_param(sm);
-    return (pio->fdebug & (1u << (PIO_FDEBUG_TXSTALL_LSB + sm))) != 0;
-}
-
 static inline uint8_t get_chip_select(uint8_t bank)
 {
     uint8_t ce = bank & 0b01;
@@ -57,49 +44,76 @@ static inline uint8_t get_chip_select(uint8_t bank)
 #define CPU_VAB_MASK (1 << 24)
 #define CPU_RWB_MASK (1 << 25)
 
+// This interrupt handler runs on second CPU core
 static void __attribute__((optimize("O1")))
 mem_bus_pio_irq_handler(void)
 {
     // printf("mem_bus_pio_irq_handler\n");
-    // read address and flags
-    uint32_t address_bus = pio_sm_get(MEM_BUS_PIO, MEM_BUS_SM) >> 6;
-
-    if (address_bus & CPU_VAB_MASK)
+    while (!pio_sm_is_rx_fifo_empty(MEM_BUS_PIO, MEM_BUS_SM))
     {
-        // address is "invalid", so we can return anything
-        // push WAI opcode to halt if CPU would process it as instruction
-        pio_sm_put(MEM_BUS_PIO, MEM_BUS_SM, 0xCB);
-        // TODO: move to PIO code?
-    }
-    else
-    {
-        if (address_bus & CPU_RWB_MASK)
-        { // CPU is reading
-            // enable memory bank
-            pio_sm_put(MEM_RAM_PIO, MEM_RAM_READ_SM,
-                       (mem_ram_pio_set_pins_instruction | get_chip_select((address_bus & 0xFFFFFF) >> 23)));
+        // read address and flags
+        uint32_t address_bus = pio_sm_get(MEM_BUS_PIO, MEM_BUS_SM) >> 6;
+        // TODO: get rid of this >> 6 - update masks, push address << 2
 
-            uint32_t command = 0xEB000000 | (address_bus & 0xFFFFFF); // QPI Fast Read 0xEB
-            pio_sm_put(MEM_RAM_PIO, MEM_RAM_READ_SM, command);
-
-            // Trigger reading 1 byte
-            pio_sm_put(MEM_RAM_PIO, MEM_RAM_READ_SM, (2 - 1));
-            dma_channel_set_trans_count(mem_read_chan, 1, true);
-
-            if (main_active() && mem_cpu_address_bus_history_index < MEM_CPU_ADDRESS_BUS_HISTORY_LENGTH)
-            {
-                mem_cpu_address_bus_history[mem_cpu_address_bus_history_index++] = address_bus & 0xFFFFFF;
-            }
-            // printf("> %lx %x\n", mem_cpu_address, mem_cpu_lines);
+        if (address_bus & CPU_VAB_MASK)
+        {
+            // address is "invalid", do nothing
         }
         else
-        { // CPU is writing
-            printf("CPU is writing somehow\?\?!\n");
+        {
+            if (address_bus & CPU_RWB_MASK)
+            { // CPU is reading
+                // enable memory bank
+                pio_sm_put(MEM_RAM_PIO, MEM_RAM_READ_SM,
+                           (mem_ram_pio_set_pins_instruction | get_chip_select((address_bus & 0xFFFFFF) >> 23)));
+                // TODO: access bank address directly: address_bus[3] (after shifting << 2)
+
+                uint32_t command = 0xEB000000 | (address_bus & 0xFFFFFF); // QPI Fast Read 0xEB
+                pio_sm_put(MEM_RAM_PIO, MEM_RAM_READ_SM, command);
+
+                // Trigger reading 1 byte
+                pio_sm_put(MEM_RAM_PIO, MEM_RAM_READ_SM, (2 - 1));
+                dma_channel_set_trans_count(mem_read_chan, 1, true);
+
+                if (main_active() && mem_cpu_address_bus_history_index < MEM_CPU_ADDRESS_BUS_HISTORY_LENGTH)
+                {
+                    mem_cpu_address_bus_history[mem_cpu_address_bus_history_index++] = address_bus & 0xFFFFFF;
+                }
+                // printf("> %lx %x\n", mem_cpu_address, mem_cpu_lines);
+            }
+            else
+            { // CPU is writing
+                // push WAI opcode to halt if CPU would process it as instruction
+                pio_sm_put(MEM_BUS_PIO, MEM_BUS_SM, 0xCB);
+                // // feed NOP to CPU
+                // pio_sm_put(MEM_BUS_PIO, MEM_BUS_SM, 0xEA);
+                if (main_active() && mem_cpu_address_bus_history_index < MEM_CPU_ADDRESS_BUS_HISTORY_LENGTH)
+                {
+                    mem_cpu_address_bus_history[mem_cpu_address_bus_history_index++] = 0;
+                }
+            }
         }
     }
 
     // Clear the interrupt request
     pio_interrupt_clear(MEM_BUS_PIO, MEM_BUS_PIO_IRQ);
+}
+
+// This is called to signal end of memory write
+static void __attribute__((optimize("O1")))
+mem_ram_pio_irq_handler(void)
+{
+    // printf("mem_ram_pio_irq_handler\n");
+
+    // stop Write SM
+    pio_sm_set_enabled(MEM_RAM_PIO, MEM_RAM_WRITE_SM, false);
+    pio_sm_exec(MEM_RAM_PIO, MEM_RAM_WRITE_SM, mem_ram_ce_high_instruction);
+
+    // re-enable Read SM
+    pio_sm_set_enabled(MEM_RAM_PIO, MEM_RAM_READ_SM, true);
+
+    // Clear the interrupt request
+    pio_interrupt_clear(MEM_RAM_PIO, MEM_RAM_PIO_IRQ);
 }
 
 static void mem_bus_pio_init(void)
@@ -122,7 +136,6 @@ static void mem_bus_pio_init(void)
     pio_interrupt_clear(MEM_BUS_PIO, MEM_BUS_PIO_IRQ);
     pio_sm_init(MEM_BUS_PIO, MEM_BUS_SM, offset, &config);
     irq_set_exclusive_handler(MEM_BUS_IRQ, mem_bus_pio_irq_handler);
-    irq_set_enabled(MEM_BUS_IRQ, true);
     pio_sm_set_enabled(MEM_BUS_PIO, MEM_BUS_SM, true);
 }
 
@@ -134,14 +147,6 @@ static void mem_read_sm_restart(uint sm, uint addr)
     pio_sm_clkdiv_restart(MEM_RAM_PIO, sm);
     pio_sm_exec(MEM_RAM_PIO, sm, pio_encode_jmp(addr));
     pio_sm_set_enabled(MEM_RAM_PIO, sm, true);
-}
-
-static void mem_ram_wait_for_write_pio(void)
-{
-    pio_sm_clear_tx_fifo_stalled(MEM_RAM_PIO, MEM_RAM_WRITE_SM);
-    do
-        tight_loop_contents();
-    while (!pio_sm_is_tx_fifo_empty(MEM_RAM_PIO, MEM_RAM_WRITE_SM) || !pio_sm_is_tx_fifo_stalled(MEM_RAM_PIO, MEM_RAM_WRITE_SM));
 }
 
 static void mem_ram_pio_init(void)
@@ -175,7 +180,11 @@ static void mem_ram_pio_init(void)
     sm_config_set_out_shift(&write_config, false, true, 8);
     sm_config_set_fifo_join(&write_config, PIO_FIFO_JOIN_TX); // we do not read using this PIO
     pio_sm_set_consecutive_pindirs(MEM_RAM_PIO, MEM_RAM_WRITE_SM, MEM_RAM_PIN_BASE, MEM_RAM_PINS_USED, true);
+    pio_set_irq0_source_enabled(MEM_RAM_PIO, pis_interrupt0, true);
+    pio_interrupt_clear(MEM_RAM_PIO, MEM_RAM_PIO_IRQ);
     pio_sm_init(MEM_RAM_PIO, MEM_RAM_WRITE_SM, mem_ram_write_program_offset, &write_config);
+    irq_set_exclusive_handler(MEM_RAM_IRQ, mem_ram_pio_irq_handler);
+    irq_set_enabled(MEM_RAM_IRQ, true);
     pio_sm_set_enabled(MEM_RAM_PIO, MEM_RAM_WRITE_SM, false);
 
     // Read SPI program
@@ -195,21 +204,26 @@ static void mem_ram_pio_init(void)
     busy_wait_until(from_us_since_boot(150));
 
     // Reset all banks using QPI mode in case we are doing software reset and chips are in QPI mode
-    pio_sm_set_enabled(MEM_RAM_PIO, MEM_RAM_WRITE_SM, true);
     for (int bank = 0; bank < MEM_RAM_BANKS; bank++)
     {
-        pio_sm_exec_wait_blocking(MEM_RAM_PIO, MEM_RAM_WRITE_SM, mem_ram_pio_set_pins_instruction | get_chip_select(bank));
+        pio_sm_put(MEM_RAM_PIO, MEM_RAM_WRITE_SM, mem_ram_pio_set_pins_instruction | get_chip_select(bank));
+        pio_sm_put(MEM_RAM_PIO, MEM_RAM_WRITE_SM, (2 - 1) << 24);
         pio_sm_put(MEM_RAM_PIO, MEM_RAM_WRITE_SM, 0x66000000); // RSTEN, left aligned
-        mem_ram_wait_for_write_pio();
+        pio_sm_set_enabled(MEM_RAM_PIO, MEM_RAM_WRITE_SM, true);
+        while ((MEM_RAM_PIO->ctrl & (1u << MEM_RAM_WRITE_SM)))
+            tight_loop_contents(); // spin while SM enabled
+        pio_sm_set_enabled(MEM_RAM_PIO, MEM_RAM_READ_SM, false);
     }
     for (int bank = 0; bank < MEM_RAM_BANKS; bank++)
     {
-        pio_sm_exec_wait_blocking(MEM_RAM_PIO, MEM_RAM_WRITE_SM, mem_ram_pio_set_pins_instruction | get_chip_select(bank));
+        pio_sm_put(MEM_RAM_PIO, MEM_RAM_WRITE_SM, mem_ram_pio_set_pins_instruction | get_chip_select(bank));
+        pio_sm_put(MEM_RAM_PIO, MEM_RAM_WRITE_SM, (2 - 1) << 24);
         pio_sm_put(MEM_RAM_PIO, MEM_RAM_WRITE_SM, 0x99000000); // RST, left aligned
-        mem_ram_wait_for_write_pio();
+        pio_sm_set_enabled(MEM_RAM_PIO, MEM_RAM_WRITE_SM, true);
+        while ((MEM_RAM_PIO->ctrl & (1u << MEM_RAM_WRITE_SM)))
+            tight_loop_contents(); // spin while SM enabled
+        pio_sm_set_enabled(MEM_RAM_PIO, MEM_RAM_READ_SM, false);
     }
-    pio_sm_exec_wait_blocking(MEM_RAM_PIO, MEM_RAM_WRITE_SM, mem_ram_ce_high_instruction);
-    pio_sm_set_enabled(MEM_RAM_PIO, MEM_RAM_WRITE_SM, false);
 
     // Now reset using SPI mode in case we are after power up
     pio_sm_set_enabled(MEM_RAM_PIO, MEM_RAM_READ_SM, true);
@@ -309,6 +323,12 @@ static void mem_dma_init(void)
         false);
 }
 
+void mem_core1_init(void)
+{
+    // enabble Bus IRQ handler on Core1
+    irq_set_enabled(MEM_BUS_IRQ, true);
+}
+
 void mem_init(void)
 {
     // Adjustments for GPIO performance. Important!
@@ -329,6 +349,8 @@ void mem_init(void)
     mem_bus_pio_init();
     mem_ram_pio_init();
     mem_dma_init();
+
+    multicore_launch_core1(mem_core1_init);
 }
 
 void mem_run(void)
@@ -376,12 +398,16 @@ void mem_read_buf(uint32_t addr)
 
 void mem_write_buf(uint32_t addr)
 {
-    // enable memory bank using Read SM, without blocking
-    pio_sm_exec(MEM_RAM_PIO, MEM_RAM_READ_SM,
-                mem_ram_pio_set_pins_instruction | get_chip_select((addr & 0xFFFFFF) >> 23));
+    // enable memory bank
+    pio_sm_put(MEM_RAM_PIO, MEM_RAM_WRITE_SM,
+               (mem_ram_pio_set_pins_instruction | get_chip_select((addr & 0xFFFFFF) >> 23)));
 
     // and start writing ASAP
     pio_sm_set_enabled(MEM_RAM_PIO, MEM_RAM_WRITE_SM, true);
+
+    // Write 8 nybbles (half-bytes) of command (2 command, 6 address)
+    // and mbuf_len*2 nybbles, 0-offset thus -1
+    pio_sm_put(MEM_RAM_PIO, MEM_RAM_WRITE_SM, (8 + mbuf_len * 2 - 1) << 24);
 
     pio_sm_put(MEM_RAM_PIO, MEM_RAM_WRITE_SM, 0x38000000); // QPI Write 0x38
 
@@ -396,15 +422,6 @@ void mem_write_buf(uint32_t addr)
     {
         pio_sm_put_blocking(MEM_RAM_PIO, MEM_RAM_WRITE_SM, mbuf[i] << 24);
     }
-
-    mem_ram_wait_for_write_pio();
-
-    // stop Write SM
-    pio_sm_set_enabled(MEM_RAM_PIO, MEM_RAM_WRITE_SM, false);
-    // finish Write Command by disabling chip select
-    pio_sm_exec(MEM_RAM_PIO, MEM_RAM_READ_SM, mem_ram_ce_high_instruction);
-    // re-enable Read SM
-    pio_sm_set_enabled(MEM_RAM_PIO, MEM_RAM_READ_SM, true);
 }
 
 void mem_print_status(void)

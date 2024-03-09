@@ -80,7 +80,7 @@
 ; TBD: it can be done in PIO program or in CPU interrupt routine
 ;
 
-; One Pico clock cycle @208Mhz is ~4,81ns
+; One Pico clock cycle @208MHz is ~4,81ns
 
 .program mem_bus
 
@@ -92,6 +92,7 @@
 
     nop                 side 0b0000 [1] ; clock LOW, BUFF0, Read, wait ~4,8ns
 .wrap_target
+start:
     mov osr, null       side 0b0000 [1] ; 00000000 to OSR
     out pindirs, 8      side 0b0000 [1] ; D0-D7 in
     nop                 side 0b0000 [1] ; nop to get total 8 cycles of delay (~38,5ns)
@@ -99,10 +100,23 @@
     ; read without delay, to trigger memory read/write as fast as possible
     in  pins, 8         side 0b0010     ; read A0-A7, switch to BUFF1
     in  pins, 8         side 0b0100     ; read A8-A15, switch to BUFF2
-    in  pins, 10        side 0b0101     ; read BA0-BA7,RWB,VAB, set clock HIGH
+    in  pins, 10        side 0b0101     ; read BA0-BA7,VAB,RWB, set clock HIGH
 
-    ;; FIXME: assume CPU is reading (RWB is HIGH)
     irq set 0           side 0b0101     ; request processing by Pico CPU code
+
+    ; while the Pico is preparing data, we can make decision what to do next
+    mov osr, ~pins      side 0b0101     ; load negated pins
+    out null, 8         side 0b0101     ; throw away data bus
+    out y, 1            side 0b0101     ; load VAB to Y
+    jmp !y, start       side 0b0101     ; if address is invalid, proceed immediately to next cycle
+
+    out y, 1            side 0b0101     ; load RWB to Y
+    jmp !y, read        side 0b0101     ; if _negated_ RWB is low, thus Read
+
+    ;; CPU is writing (RWB is LOW)
+
+read:
+    ; CPU is reading (RWB is HIGH)
     mov osr, ~null      side 0b0101     ; 11111111 to OSR, and wait ~10ns for bus release
     out pindirs, 8      side 0b1101     ; D0-D7 out, clock still HIGH, BUFF2 Write
     pull                side 0b1101     ; pull reply to OSR
@@ -124,8 +138,20 @@ loop:
 ; pushes TX fifo incoming as 8bit bytes, as fast as possible
 .program mem_qpi_write
 .side_set 1
+
+    set pins, 0b11      side 0  ; Disable memory banks
+
+    ; now wait for TX data
+    pull                side 0  ; Pull memory bank select instruction
+    out exec, 32        side 0  ; Exec Memory bank select (CE0-1) encoded as "set pins, .." instruction
+    out x, 8            side 0  ; Load how many nybbles of data to transmit (-1)
+
+transmit:
     out pins, 4         side 0  ; Push command (2 nybbles) and address (6 nybbles)
-    nop                 side 1  ; and following data
+    jmp x--, transmit   side 1  ; and following data
+
+    irq set 0           side 0  ; signal done processing to Pico CPU code
+
 
 ; QPI mode program, used for reading
 ; it sends command and address, than switch to reading
@@ -167,8 +193,9 @@ delay:
 
     nop                 side 0
 transmit:
-    in pins, 4          side 1  ; Now read X many nybbles
+    in pins, 4          side 1  ; Now read X-many nybbles
     jmp x--, transmit   side 0
+
 
 ; SPI mode program, used solely to reset and read ID
 .program mem_spi

@@ -84,7 +84,9 @@ void main_task(void);
 // RAM access
 #define MEM_RAM_BANKS    2
 #define MEM_RAM_PIO      pio1
-#define MEM_RAM_READ_SM  0 // Read QPI program (and initially SPI program)
-#define MEM_RAM_WRITE_SM 1 // Write QPI program
+#define MEM_RAM_PIO_IRQ  0
+#define MEM_RAM_IRQ      PIO1_IRQ_0 // must match MEM_BUS_PIO and MEM_BUS_PIO_IRQ
+#define MEM_RAM_READ_SM  0          // Read QPI program (and initially SPI program)
+#define MEM_RAM_WRITE_SM 1          // Write QPI program
 
 #endif /* _MAIN_H_ */
