@@ -182,15 +182,14 @@ static void mem_ram_pio_init(void)
     uint mem_ram_spi_program_offset = pio_add_program(MEM_RAM_PIO, &mem_spi_program);
     sm_config_set_wrap(&spi_config, mem_ram_spi_program_offset + mem_spi_wrap_target, mem_ram_spi_program_offset + mem_spi_wrap);
     sm_config_set_in_pins(&spi_config, MEM_RAM_SIO1_PIN);
-    pio_sm_set_consecutive_pindirs(MEM_RAM_PIO, MEM_RAM_SPI_SM, MEM_RAM_PIN_BASE, MEM_RAM_PINS_USED, true);
-    pio_sm_init(MEM_RAM_PIO, MEM_RAM_SPI_SM, mem_ram_spi_program_offset, &spi_config);
-    pio_sm_set_enabled(MEM_RAM_PIO, MEM_RAM_SPI_SM, false);
+    pio_sm_set_consecutive_pindirs(MEM_RAM_PIO, MEM_RAM_READ_SM, MEM_RAM_PIN_BASE, MEM_RAM_PINS_USED, true);
+    pio_sm_init(MEM_RAM_PIO, MEM_RAM_READ_SM, mem_ram_spi_program_offset, &spi_config);
+    pio_sm_set_enabled(MEM_RAM_PIO, MEM_RAM_READ_SM, false);
 
     // Disable all memory banks (pull up both CE#) on all SMs waiting for their PIO to stabilize
     mem_ram_ce_high_instruction = mem_ram_pio_set_pins_instruction | 0b11;
     pio_sm_exec_wait_blocking(MEM_RAM_PIO, MEM_RAM_WRITE_SM, mem_ram_ce_high_instruction);
     pio_sm_exec_wait_blocking(MEM_RAM_PIO, MEM_RAM_READ_SM, mem_ram_ce_high_instruction);
-    pio_sm_exec_wait_blocking(MEM_RAM_PIO, MEM_RAM_SPI_SM, mem_ram_ce_high_instruction);
 
     // memory chips require 150us to complete device initialization
     busy_wait_until(from_us_since_boot(150));
@@ -213,59 +212,59 @@ static void mem_ram_pio_init(void)
     pio_sm_set_enabled(MEM_RAM_PIO, MEM_RAM_WRITE_SM, false);
 
     // Now reset using SPI mode in case we are after power up
-    pio_sm_set_enabled(MEM_RAM_PIO, MEM_RAM_SPI_SM, true);
+    pio_sm_set_enabled(MEM_RAM_PIO, MEM_RAM_READ_SM, true);
     for (int bank = 0; bank < MEM_RAM_BANKS; bank++)
     {
-        pio_sm_exec_wait_blocking(MEM_RAM_PIO, MEM_RAM_SPI_SM, mem_ram_pio_set_pins_instruction | get_chip_select(bank));
-        pio_sm_put(MEM_RAM_PIO, MEM_RAM_SPI_SM, 0x66000000); // RSTEN, left aligned
-        pio_sm_get_blocking(MEM_RAM_PIO, MEM_RAM_SPI_SM);    // wait for completion
-        mem_read_sm_restart(MEM_RAM_SPI_SM, mem_ram_spi_program_offset);
+        pio_sm_exec_wait_blocking(MEM_RAM_PIO, MEM_RAM_READ_SM, mem_ram_pio_set_pins_instruction | get_chip_select(bank));
+        pio_sm_put(MEM_RAM_PIO, MEM_RAM_READ_SM, 0x66000000); // RSTEN, left aligned
+        pio_sm_get_blocking(MEM_RAM_PIO, MEM_RAM_READ_SM);    // wait for completion
+        mem_read_sm_restart(MEM_RAM_READ_SM, mem_ram_spi_program_offset);
     }
     for (int bank = 0; bank < MEM_RAM_BANKS; bank++)
     {
-        pio_sm_exec_wait_blocking(MEM_RAM_PIO, MEM_RAM_SPI_SM, mem_ram_pio_set_pins_instruction | get_chip_select(bank));
-        pio_sm_put(MEM_RAM_PIO, MEM_RAM_SPI_SM, 0x99000000); // RST, left aligned
-        pio_sm_get_blocking(MEM_RAM_PIO, MEM_RAM_SPI_SM);    // wait for completion
-        mem_read_sm_restart(MEM_RAM_SPI_SM, mem_ram_spi_program_offset);
+        pio_sm_exec_wait_blocking(MEM_RAM_PIO, MEM_RAM_READ_SM, mem_ram_pio_set_pins_instruction | get_chip_select(bank));
+        pio_sm_put(MEM_RAM_PIO, MEM_RAM_READ_SM, 0x99000000); // RST, left aligned
+        pio_sm_get_blocking(MEM_RAM_PIO, MEM_RAM_READ_SM);    // wait for completion
+        mem_read_sm_restart(MEM_RAM_READ_SM, mem_ram_spi_program_offset);
     }
-    pio_sm_exec_wait_blocking(MEM_RAM_PIO, MEM_RAM_SPI_SM, mem_ram_ce_high_instruction);
+    pio_sm_exec_wait_blocking(MEM_RAM_PIO, MEM_RAM_READ_SM, mem_ram_ce_high_instruction);
 
     // Read memory IDs
     for (int bank = 0; bank < MEM_RAM_BANKS; bank++)
     {
-        pio_sm_exec_wait_blocking(MEM_RAM_PIO, MEM_RAM_SPI_SM, mem_ram_pio_set_pins_instruction | get_chip_select(bank));
+        pio_sm_exec_wait_blocking(MEM_RAM_PIO, MEM_RAM_READ_SM, mem_ram_pio_set_pins_instruction | get_chip_select(bank));
 
-        pio_sm_put(MEM_RAM_PIO, MEM_RAM_SPI_SM, 0x9F000000); // QPI Read ID, left aligned
+        pio_sm_put(MEM_RAM_PIO, MEM_RAM_READ_SM, 0x9F000000); // QPI Read ID, left aligned
         uint8_t i = 7;
         do
         {
-            mem_ram_ID[bank][i] = pio_sm_get_blocking(MEM_RAM_PIO, MEM_RAM_SPI_SM);
+            mem_ram_ID[bank][i] = pio_sm_get_blocking(MEM_RAM_PIO, MEM_RAM_READ_SM);
         } while (i--);
 
-        mem_read_sm_restart(MEM_RAM_SPI_SM, mem_ram_spi_program_offset);
+        mem_read_sm_restart(MEM_RAM_READ_SM, mem_ram_spi_program_offset);
     }
-    pio_sm_exec_wait_blocking(MEM_RAM_PIO, MEM_RAM_SPI_SM, mem_ram_ce_high_instruction);
+    pio_sm_exec_wait_blocking(MEM_RAM_PIO, MEM_RAM_READ_SM, mem_ram_ce_high_instruction);
 
     // Toggle Wrap boundary to 32 bytes
     for (int bank = 0; bank < MEM_RAM_BANKS; bank++)
     {
-        pio_sm_exec_wait_blocking(MEM_RAM_PIO, MEM_RAM_SPI_SM, mem_ram_pio_set_pins_instruction | get_chip_select(bank));
-        pio_sm_put(MEM_RAM_PIO, MEM_RAM_SPI_SM, 0xC0000000); // Wrap Boundary Toggle, left aligned
-        pio_sm_get_blocking(MEM_RAM_PIO, MEM_RAM_SPI_SM);    // wait for completion
-        mem_read_sm_restart(MEM_RAM_SPI_SM, mem_ram_spi_program_offset);
+        pio_sm_exec_wait_blocking(MEM_RAM_PIO, MEM_RAM_READ_SM, mem_ram_pio_set_pins_instruction | get_chip_select(bank));
+        pio_sm_put(MEM_RAM_PIO, MEM_RAM_READ_SM, 0xC0000000); // Wrap Boundary Toggle, left aligned
+        pio_sm_get_blocking(MEM_RAM_PIO, MEM_RAM_READ_SM);    // wait for completion
+        mem_read_sm_restart(MEM_RAM_READ_SM, mem_ram_spi_program_offset);
     }
-    pio_sm_exec_wait_blocking(MEM_RAM_PIO, MEM_RAM_SPI_SM, mem_ram_ce_high_instruction);
+    pio_sm_exec_wait_blocking(MEM_RAM_PIO, MEM_RAM_READ_SM, mem_ram_ce_high_instruction);
 
     // Finally enable QPI mode
     for (int bank = 0; bank < MEM_RAM_BANKS; bank++)
     {
-        pio_sm_exec_wait_blocking(MEM_RAM_PIO, MEM_RAM_SPI_SM, mem_ram_pio_set_pins_instruction | get_chip_select(bank));
-        pio_sm_put(MEM_RAM_PIO, MEM_RAM_SPI_SM, 0x35000000); // QPI Mode Enable 0x35, left aligned
-        pio_sm_get_blocking(MEM_RAM_PIO, MEM_RAM_SPI_SM);    // wait for completion
-        mem_read_sm_restart(MEM_RAM_SPI_SM, mem_ram_spi_program_offset);
+        pio_sm_exec_wait_blocking(MEM_RAM_PIO, MEM_RAM_READ_SM, mem_ram_pio_set_pins_instruction | get_chip_select(bank));
+        pio_sm_put(MEM_RAM_PIO, MEM_RAM_READ_SM, 0x35000000); // QPI Mode Enable 0x35, left aligned
+        pio_sm_get_blocking(MEM_RAM_PIO, MEM_RAM_READ_SM);    // wait for completion
+        mem_read_sm_restart(MEM_RAM_READ_SM, mem_ram_spi_program_offset);
     }
-    pio_sm_exec_wait_blocking(MEM_RAM_PIO, MEM_RAM_SPI_SM, mem_ram_ce_high_instruction);
-    pio_sm_set_enabled(MEM_RAM_PIO, MEM_RAM_SPI_SM, false);
+    pio_sm_exec_wait_blocking(MEM_RAM_PIO, MEM_RAM_READ_SM, mem_ram_ce_high_instruction);
+    pio_sm_set_enabled(MEM_RAM_PIO, MEM_RAM_READ_SM, false);
 
     // Do not need SPI program anymore
     pio_remove_program(MEM_RAM_PIO, &mem_spi_program, mem_ram_spi_program_offset);
