@@ -178,13 +178,6 @@ static void mem_ram_pio_init(void)
     pio_sm_init(MEM_RAM_PIO, MEM_RAM_WRITE_SM, mem_ram_write_program_offset, &write_config);
     pio_sm_set_enabled(MEM_RAM_PIO, MEM_RAM_WRITE_SM, false);
 
-    // Read QPI program
-    uint mem_ram_read_program_offset = pio_add_program(MEM_RAM_PIO, &mem_qpi_read_program);
-    sm_config_set_wrap(&read_config, mem_ram_read_program_offset + mem_qpi_read_wrap_target, mem_ram_read_program_offset + mem_qpi_read_wrap);
-    pio_sm_set_consecutive_pindirs(MEM_RAM_PIO, MEM_RAM_READ_SM, MEM_RAM_PIN_BASE, MEM_RAM_PINS_USED, true);
-    pio_sm_init(MEM_RAM_PIO, MEM_RAM_READ_SM, mem_ram_read_program_offset, &read_config);
-    pio_sm_set_enabled(MEM_RAM_PIO, MEM_RAM_READ_SM, false);
-
     // Read SPI program
     uint mem_ram_spi_program_offset = pio_add_program(MEM_RAM_PIO, &mem_spi_program);
     sm_config_set_wrap(&spi_config, mem_ram_spi_program_offset + mem_spi_wrap_target, mem_ram_spi_program_offset + mem_spi_wrap);
@@ -277,6 +270,11 @@ static void mem_ram_pio_init(void)
     // Do not need SPI program anymore
     pio_remove_program(MEM_RAM_PIO, &mem_spi_program, mem_ram_spi_program_offset);
 
+    // Read QPI program
+    uint mem_ram_read_program_offset = pio_add_program(MEM_RAM_PIO, &mem_qpi_read_program);
+    sm_config_set_wrap(&read_config, mem_ram_read_program_offset + mem_qpi_read_wrap_target, mem_ram_read_program_offset + mem_qpi_read_wrap);
+    pio_sm_set_consecutive_pindirs(MEM_RAM_PIO, MEM_RAM_READ_SM, MEM_RAM_PIN_BASE, MEM_RAM_PINS_USED, true);
+    pio_sm_init(MEM_RAM_PIO, MEM_RAM_READ_SM, mem_ram_read_program_offset, &read_config);
     // Reads are most often and require fast reaction, so enable Read SM by default
     pio_sm_set_enabled(MEM_RAM_PIO, MEM_RAM_READ_SM, true);
 }
