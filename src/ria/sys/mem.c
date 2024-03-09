@@ -158,34 +158,39 @@ static void mem_ram_pio_init(void)
 
     // Write QPI program
     uint mem_ram_write_program_offset = pio_add_program(MEM_RAM_PIO, &mem_qpi_write_program);
-    pio_sm_config config = mem_qpi_write_program_get_default_config(mem_ram_write_program_offset);
-    sm_config_set_clkdiv_int_frac(&config, 100, 0); // FIXME: remove?
-    sm_config_set_in_shift(&config, false, true, 8);
-    sm_config_set_out_shift(&config, false, true, 8);
-    sm_config_set_fifo_join(&config, PIO_FIFO_JOIN_TX); // we do not read using this PIO
-    sm_config_set_sideset_pins(&config, MEM_RAM_CLK_PIN);
-    sm_config_set_set_pins(&config, MEM_RAM_CE0_PIN, 2);
-    sm_config_set_in_pins(&config, MEM_RAM_SIO0_PIN);
-    sm_config_set_out_pins(&config, MEM_RAM_SIO0_PIN, 4);
+    pio_sm_config write_config = mem_qpi_write_program_get_default_config(mem_ram_write_program_offset);
+    sm_config_set_clkdiv_int_frac(&write_config, 100, 0); // FIXME: remove?
+    sm_config_set_in_shift(&write_config, false, true, 8);
+    sm_config_set_out_shift(&write_config, false, true, 32);
+    sm_config_set_sideset_pins(&write_config, MEM_RAM_CLK_PIN);
+    sm_config_set_set_pins(&write_config, MEM_RAM_CE0_PIN, 2);
+    sm_config_set_in_pins(&write_config, MEM_RAM_SIO0_PIN);
+    sm_config_set_out_pins(&write_config, MEM_RAM_SIO0_PIN, 4);
+
+    // Copy write_config as template for other state machines
+    pio_sm_config read_config = write_config;
+    pio_sm_config spi_config = write_config;
+
+    // Init Write SM
+    sm_config_set_out_shift(&write_config, false, true, 8);
+    sm_config_set_fifo_join(&write_config, PIO_FIFO_JOIN_TX); // we do not read using this PIO
     pio_sm_set_consecutive_pindirs(MEM_RAM_PIO, MEM_RAM_WRITE_SM, MEM_RAM_PIN_BASE, MEM_RAM_PINS_USED, true);
-    pio_sm_init(MEM_RAM_PIO, MEM_RAM_WRITE_SM, mem_ram_write_program_offset, &config);
+    pio_sm_init(MEM_RAM_PIO, MEM_RAM_WRITE_SM, mem_ram_write_program_offset, &write_config);
     pio_sm_set_enabled(MEM_RAM_PIO, MEM_RAM_WRITE_SM, false);
 
-    // Read QPI
-    sm_config_set_out_shift(&config, false, true, 32);
-    sm_config_set_fifo_join(&config, PIO_FIFO_JOIN_NONE);
+    // Read QPI program
     uint mem_ram_read_program_offset = pio_add_program(MEM_RAM_PIO, &mem_qpi_read_program);
-    sm_config_set_wrap(&config, mem_ram_read_program_offset + mem_qpi_read_wrap_target, mem_ram_read_program_offset + mem_qpi_read_wrap);
+    sm_config_set_wrap(&read_config, mem_ram_read_program_offset + mem_qpi_read_wrap_target, mem_ram_read_program_offset + mem_qpi_read_wrap);
     pio_sm_set_consecutive_pindirs(MEM_RAM_PIO, MEM_RAM_READ_SM, MEM_RAM_PIN_BASE, MEM_RAM_PINS_USED, true);
-    pio_sm_init(MEM_RAM_PIO, MEM_RAM_READ_SM, mem_ram_read_program_offset, &config);
+    pio_sm_init(MEM_RAM_PIO, MEM_RAM_READ_SM, mem_ram_read_program_offset, &read_config);
     pio_sm_set_enabled(MEM_RAM_PIO, MEM_RAM_READ_SM, false);
 
-    // Program for SPI mode
+    // Read SPI program
     uint mem_ram_spi_program_offset = pio_add_program(MEM_RAM_PIO, &mem_spi_program);
-    sm_config_set_wrap(&config, mem_ram_spi_program_offset + mem_spi_wrap_target, mem_ram_spi_program_offset + mem_spi_wrap);
+    sm_config_set_wrap(&spi_config, mem_ram_spi_program_offset + mem_spi_wrap_target, mem_ram_spi_program_offset + mem_spi_wrap);
+    sm_config_set_in_pins(&spi_config, MEM_RAM_SIO1_PIN);
     pio_sm_set_consecutive_pindirs(MEM_RAM_PIO, MEM_RAM_SPI_SM, MEM_RAM_PIN_BASE, MEM_RAM_PINS_USED, true);
-    sm_config_set_in_pins(&config, MEM_RAM_SIO1_PIN);
-    pio_sm_init(MEM_RAM_PIO, MEM_RAM_SPI_SM, mem_ram_spi_program_offset, &config);
+    pio_sm_init(MEM_RAM_PIO, MEM_RAM_SPI_SM, mem_ram_spi_program_offset, &spi_config);
     pio_sm_set_enabled(MEM_RAM_PIO, MEM_RAM_SPI_SM, false);
 
     // Disable all memory banks (pull up both CE#) on all SMs waiting for their PIO to stabilize
