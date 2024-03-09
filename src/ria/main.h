@@ -49,8 +49,8 @@ void main_task(void);
 
 #define MEM_BUS_PIN_BASE  6
 #define MEM_DATA_PIN_BASE (MEM_BUS_PIN_BASE + 0) /* D0-D7 */
-#define CPU_RWB_PIN       (MEM_BUS_PIN_BASE + 8)
-#define CPU_VAB_PIN       (MEM_BUS_PIN_BASE + 9)
+#define CPU_VAB_PIN       (MEM_BUS_PIN_BASE + 8)
+#define CPU_RWB_PIN       (MEM_BUS_PIN_BASE + 9)
 #define CPU_PHI2_PIN      (MEM_BUS_PIN_BASE + 10)
 #define MEM_BE0_PIN       (MEM_BUS_PIN_BASE + 11) /* BUF0 ENABLE */
 #define MEM_BE1_PIN       (MEM_BUS_PIN_BASE + 12) /* BUF1 ENABLE */

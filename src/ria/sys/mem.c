@@ -20,7 +20,6 @@
 uint8_t mbuf[MBUF_SIZE] __attribute__((aligned(4)));
 size_t mbuf_len;
 
-static uint mem_ram_read_program_offset;
 static uint mem_ram_pio_set_pins_instruction;
 static uint mem_ram_ce_high_instruction;
 
@@ -55,8 +54,8 @@ static inline uint8_t get_chip_select(uint8_t bank)
 }
 
 // 0b 0 0 ... VAB RWB
-#define CPU_RWB_MASK (1 << 24)
-#define CPU_VAB_MASK (1 << 25)
+#define CPU_VAB_MASK (1 << 24)
+#define CPU_RWB_MASK (1 << 25)
 
 static void __attribute__((optimize("O1")))
 mem_bus_pio_irq_handler(void)
@@ -175,7 +174,7 @@ static void mem_ram_pio_init(void)
     // Read QPI
     sm_config_set_out_shift(&config, false, true, 32);
     sm_config_set_fifo_join(&config, PIO_FIFO_JOIN_NONE);
-    mem_ram_read_program_offset = pio_add_program(MEM_RAM_PIO, &mem_qpi_read_program);
+    uint mem_ram_read_program_offset = pio_add_program(MEM_RAM_PIO, &mem_qpi_read_program);
     sm_config_set_wrap(&config, mem_ram_read_program_offset + mem_qpi_read_wrap_target, mem_ram_read_program_offset + mem_qpi_read_wrap);
     pio_sm_set_consecutive_pindirs(MEM_RAM_PIO, MEM_RAM_READ_SM, MEM_RAM_PIN_BASE, MEM_RAM_PINS_USED, true);
     pio_sm_init(MEM_RAM_PIO, MEM_RAM_READ_SM, mem_ram_read_program_offset, &config);
@@ -184,8 +183,8 @@ static void mem_ram_pio_init(void)
     // Program for SPI mode
     uint mem_ram_spi_program_offset = pio_add_program(MEM_RAM_PIO, &mem_spi_program);
     sm_config_set_wrap(&config, mem_ram_spi_program_offset + mem_spi_wrap_target, mem_ram_spi_program_offset + mem_spi_wrap);
-    sm_config_set_in_pins(&config, MEM_RAM_SIO1_PIN);
     pio_sm_set_consecutive_pindirs(MEM_RAM_PIO, MEM_RAM_SPI_SM, MEM_RAM_PIN_BASE, MEM_RAM_PINS_USED, true);
+    sm_config_set_in_pins(&config, MEM_RAM_SIO1_PIN);
     pio_sm_init(MEM_RAM_PIO, MEM_RAM_SPI_SM, mem_ram_spi_program_offset, &config);
     pio_sm_set_enabled(MEM_RAM_PIO, MEM_RAM_SPI_SM, false);
 
