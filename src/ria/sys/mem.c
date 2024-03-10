@@ -83,13 +83,38 @@ mem_bus_pio_irq_handler(void)
             }
             else
             { // CPU is writing
-                // push WAI opcode to halt if CPU would process it as instruction
-                pio_sm_put(MEM_BUS_PIO, MEM_BUS_SM, 0xCB);
-                // // feed NOP to CPU
-                // pio_sm_put(MEM_BUS_PIO, MEM_BUS_SM, 0xEA);
+                // enable memory bank
+                pio_sm_put(MEM_RAM_PIO, MEM_RAM_WRITE_SM,
+                           (mem_ram_pio_set_pins_instruction | get_chip_select((address_bus & 0xFFFFFF) >> 23)));
+
+                // and start writing ASAP
+                pio_sm_set_enabled(MEM_RAM_PIO, MEM_RAM_WRITE_SM, true);
+
+                // Trigger writing 8 nybbles of command and 1 byte of data
+                pio_sm_put(MEM_RAM_PIO, MEM_RAM_WRITE_SM, (8 + 2 - 1) << 24);
+
+                pio_sm_put(MEM_RAM_PIO, MEM_RAM_WRITE_SM, 0x38000000); // QPI Write 0x38
+
+                // disable Read SM so it does not interfere with write
+                pio_sm_set_enabled(MEM_RAM_PIO, MEM_RAM_READ_SM, false);
+
+                pio_sm_put(MEM_RAM_PIO, MEM_RAM_WRITE_SM, address_bus << 8);
+                pio_sm_put(MEM_RAM_PIO, MEM_RAM_WRITE_SM, address_bus << 16);
+                pio_sm_put(MEM_RAM_PIO, MEM_RAM_WRITE_SM, address_bus << 24);
+
+                // Fetch data from CPU Bus FIFO and push to RAM Write
+                pio_sm_put(MEM_RAM_PIO, MEM_RAM_WRITE_SM, pio_sm_get_blocking(MEM_BUS_PIO, MEM_BUS_SM) << 24);
+
+                // NOTE: Memory Write is fire'n'forget. CPU BUS state machine does not wait
+                // for Write completion, instead proceeds to next cycle, that will READ instruction
+                // from memory. Above `if` branch will be triggered by IRQ, to process and enqueue read
+                // instruction in Memory FIFO, while Write is still in-progress.
+                // The MEM_RAM_READ_SM is still disabled, so the Read will not start until Write finishes.
+                // CPU BUS SM will stall waiting for Read data is TX FIFO, making a loooong PHI2 HIGH phase.
+
                 if (main_active() && mem_cpu_address_bus_history_index < MEM_CPU_ADDRESS_BUS_HISTORY_LENGTH)
                 {
-                    mem_cpu_address_bus_history[mem_cpu_address_bus_history_index++] = 0;
+                    mem_cpu_address_bus_history[mem_cpu_address_bus_history_index++] = (address_bus & 0xFFFFFF) | 0x80000000;
                 }
             }
         }
@@ -325,7 +350,7 @@ static void mem_dma_init(void)
 
 void mem_core1_init(void)
 {
-    // enabble Bus IRQ handler on Core1
+    // enable Bus IRQ handler on Core1
     irq_set_enabled(MEM_BUS_IRQ, true);
 }
 
@@ -372,7 +397,9 @@ void mem_task(void)
             mem_cpu_address_bus_history_index++;
             for (int i = 0; i < MEM_CPU_ADDRESS_BUS_HISTORY_LENGTH; i++)
             {
-                printf("CPU: 0x%06lX\n", mem_cpu_address_bus_history[i]);
+                printf("CPU: 0x%06lX %s\n",
+                       mem_cpu_address_bus_history[i] & 0xFFFFFF,
+                       mem_cpu_address_bus_history[i] & 0x80000000 ? "w" : "R");
             }
         }
     }
