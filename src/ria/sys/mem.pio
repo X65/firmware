@@ -142,13 +142,14 @@ loop:
 
     set pins, 0b11      side 0  ; Disable memory banks
 
-    ; now wait for TX data
-    pull                side 0  ; Pull memory bank select instruction
-    out exec, 32        side 0  ; Exec Memory bank select (CE0-1) encoded as "set pins, .." instruction
-    out x, 8            side 0  ; Load how many nybbles of data to transmit (-1)
+    ; wait for TX FIFO data
+    pull                side 0  ; manual pull in case previous transmit did not empty OSR
+    out exec, 16        side 0  ; Exec Memory bank select (CE0-1) encoded as "set pins, .." instruction
+    out x, 12           side 0  ; Load how many nybbles of data to transmit (-1) (max 32)
+    out pindirs, 4      side 0  ; Set SIO0-3 to OUT mode (we are going to send)
 
 transmit:
-    out pins, 4         side 0  ; Push command (2 nybbles) and address (6 nybbles)
+    out pins, 4         side 0  ; Push command and addresss
     jmp x--, transmit   side 1  ; and following data
 
     irq set 0           side 0  ; signal done processing to Pico CPU code
@@ -173,7 +174,7 @@ transmit:
 
     set y, (8 -1)       side 0  ; Will transmit 8 nybbles of command (2 command, 6 address)
 
-    ; now wait for TX data
+    ; wait for TX FIFO data
     pull                side 0  ; Pull memory bank select instruction
     out exec, 32        side 0  ; Exec Memory bank select (CE0-1) encoded as "set pins, .." instruction
 
@@ -182,6 +183,7 @@ loop:
     jmp y--, loop       side 1
 
     out x, 32           side 0  ; Load how many nybbles of data to transmit (-1)
+                                ; This is put after command, to start the command ASAP (after setting CE)
 
     mov osr, null       side 1  ; Load zeros to OSR
     out pindirs, 4      side 0  ; Set SIO0-3 to IN mode (we are going to read command reply)

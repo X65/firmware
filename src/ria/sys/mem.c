@@ -48,12 +48,20 @@ static inline uint8_t get_chip_select(uint8_t bank)
 static void __attribute__((optimize("O1")))
 mem_bus_pio_irq_handler(void)
 {
-    // printf("mem_bus_pio_irq_handler\n");
-    while (!pio_sm_is_rx_fifo_empty(MEM_BUS_PIO, MEM_BUS_SM))
+    // clear RXUNDER flag
+    MEM_BUS_PIO->fdebug = (1u << (PIO_FDEBUG_RXUNDER_LSB + MEM_BUS_SM));
+    while (true)
     {
         // read address and flags
-        uint32_t address_bus = pio_sm_get(MEM_BUS_PIO, MEM_BUS_SM) >> 6;
         // TODO: get rid of this >> 6 - update masks, push address << 2
+        uint32_t address_bus = pio_sm_get(MEM_BUS_PIO, MEM_BUS_SM) >> 6;
+        // exit if there was nothing to read
+        if ((MEM_BUS_PIO->fdebug & (1u << (PIO_FDEBUG_RXUNDER_LSB + MEM_BUS_SM))) != 0)
+        {
+            // Clear the interrupt request
+            pio_interrupt_clear(MEM_BUS_PIO, MEM_BUS_PIO_IRQ);
+            return;
+        }
 
         if (address_bus & CPU_VAB_MASK)
         {
@@ -79,31 +87,29 @@ mem_bus_pio_irq_handler(void)
                 {
                     mem_cpu_address_bus_history[mem_cpu_address_bus_history_index++] = address_bus & 0xFFFFFF;
                 }
-                // printf("> %lx %x\n", mem_cpu_address, mem_cpu_lines);
             }
             else
             { // CPU is writing
                 // enable memory bank
                 pio_sm_put(MEM_RAM_PIO, MEM_RAM_WRITE_SM,
-                           (mem_ram_pio_set_pins_instruction | get_chip_select((address_bus & 0xFFFFFF) >> 23)));
+                           (mem_ram_pio_set_pins_instruction | get_chip_select((address_bus & 0xFFFFFF) >> 23)) << 16
+                               // Trigger writing 8 nybbles of command and 1 byte of data
+                               | (8 + 2 - 1) << 4
+                               // set pindirs to OUT
+                               | 0b1111);
 
                 // and start writing ASAP
                 pio_sm_set_enabled(MEM_RAM_PIO, MEM_RAM_WRITE_SM, true);
 
-                // Trigger writing 8 nybbles of command and 1 byte of data
-                pio_sm_put(MEM_RAM_PIO, MEM_RAM_WRITE_SM, (8 + 2 - 1) << 24);
-
-                pio_sm_put(MEM_RAM_PIO, MEM_RAM_WRITE_SM, 0x38000000); // QPI Write 0x38
-
                 // disable Read SM so it does not interfere with write
                 pio_sm_set_enabled(MEM_RAM_PIO, MEM_RAM_READ_SM, false);
 
-                pio_sm_put(MEM_RAM_PIO, MEM_RAM_WRITE_SM, address_bus << 8);
-                pio_sm_put(MEM_RAM_PIO, MEM_RAM_WRITE_SM, address_bus << 16);
-                pio_sm_put(MEM_RAM_PIO, MEM_RAM_WRITE_SM, address_bus << 24);
+                uint32_t command = 0x38000000 | (address_bus & 0xFFFFFF); // QPI Write 0x38
+                pio_sm_put(MEM_RAM_PIO, MEM_RAM_WRITE_SM, command);
 
                 // Fetch data from CPU Bus FIFO and push to RAM Write
-                pio_sm_put(MEM_RAM_PIO, MEM_RAM_WRITE_SM, pio_sm_get_blocking(MEM_BUS_PIO, MEM_BUS_SM) << 24);
+                uint32_t data = pio_sm_get_blocking(MEM_BUS_PIO, MEM_BUS_SM) << 24;
+                pio_sm_put(MEM_RAM_PIO, MEM_RAM_WRITE_SM, data);
 
                 // NOTE: Memory Write is fire'n'forget. CPU BUS state machine does not wait
                 // for Write completion, instead proceeds to next cycle, that will READ instruction
@@ -119,9 +125,6 @@ mem_bus_pio_irq_handler(void)
             }
         }
     }
-
-    // Clear the interrupt request
-    pio_interrupt_clear(MEM_BUS_PIO, MEM_BUS_PIO_IRQ);
 }
 
 // This is called to signal end of memory write
@@ -202,7 +205,6 @@ static void mem_ram_pio_init(void)
     pio_sm_config spi_config = write_config;
 
     // Init Write SM
-    sm_config_set_out_shift(&write_config, false, true, 8);
     sm_config_set_fifo_join(&write_config, PIO_FIFO_JOIN_TX); // we do not read using this PIO
     pio_sm_set_consecutive_pindirs(MEM_RAM_PIO, MEM_RAM_WRITE_SM, MEM_RAM_PIN_BASE, MEM_RAM_PINS_USED, true);
     pio_set_irq0_source_enabled(MEM_RAM_PIO, pis_interrupt0, true);
@@ -231,8 +233,10 @@ static void mem_ram_pio_init(void)
     // Reset all banks using QPI mode in case we are doing software reset and chips are in QPI mode
     for (int bank = 0; bank < MEM_RAM_BANKS; bank++)
     {
-        pio_sm_put(MEM_RAM_PIO, MEM_RAM_WRITE_SM, mem_ram_pio_set_pins_instruction | get_chip_select(bank));
-        pio_sm_put(MEM_RAM_PIO, MEM_RAM_WRITE_SM, (2 - 1) << 24);
+        pio_sm_put(MEM_RAM_PIO, MEM_RAM_WRITE_SM,
+                   (mem_ram_pio_set_pins_instruction | get_chip_select(bank)) << 16
+                       | (2 - 1) << 4
+                       | 0b1111);
         pio_sm_put(MEM_RAM_PIO, MEM_RAM_WRITE_SM, 0x66000000); // RSTEN, left aligned
         pio_sm_set_enabled(MEM_RAM_PIO, MEM_RAM_WRITE_SM, true);
         while ((MEM_RAM_PIO->ctrl & (1u << MEM_RAM_WRITE_SM)))
@@ -241,8 +245,10 @@ static void mem_ram_pio_init(void)
     }
     for (int bank = 0; bank < MEM_RAM_BANKS; bank++)
     {
-        pio_sm_put(MEM_RAM_PIO, MEM_RAM_WRITE_SM, mem_ram_pio_set_pins_instruction | get_chip_select(bank));
-        pio_sm_put(MEM_RAM_PIO, MEM_RAM_WRITE_SM, (2 - 1) << 24);
+        pio_sm_put(MEM_RAM_PIO, MEM_RAM_WRITE_SM,
+                   (mem_ram_pio_set_pins_instruction | get_chip_select(bank)) << 16
+                       | (2 - 1) << 4
+                       | 0b1111);
         pio_sm_put(MEM_RAM_PIO, MEM_RAM_WRITE_SM, 0x99000000); // RST, left aligned
         pio_sm_set_enabled(MEM_RAM_PIO, MEM_RAM_WRITE_SM, true);
         while ((MEM_RAM_PIO->ctrl & (1u << MEM_RAM_WRITE_SM)))
@@ -425,29 +431,30 @@ void mem_read_buf(uint32_t addr)
 
 void mem_write_buf(uint32_t addr)
 {
+    assert(mbuf_len <= 32); // Memory Write wraps at 32 bytes
+
     // enable memory bank
     pio_sm_put(MEM_RAM_PIO, MEM_RAM_WRITE_SM,
-               (mem_ram_pio_set_pins_instruction | get_chip_select((addr & 0xFFFFFF) >> 23)));
+               (mem_ram_pio_set_pins_instruction | get_chip_select((addr & 0xFFFFFF) >> 23)) << 16
+                   // Write 8 nybbles (half-bytes) of command (2 command, 6 address)
+                   // and mbuf_len*2 nybbles, 0-offset thus -1
+                   | (8 + mbuf_len * 2 - 1) << 4
+                   // set pindirs to OUT
+                   | 0b1111);
 
     // and start writing ASAP
     pio_sm_set_enabled(MEM_RAM_PIO, MEM_RAM_WRITE_SM, true);
 
-    // Write 8 nybbles (half-bytes) of command (2 command, 6 address)
-    // and mbuf_len*2 nybbles, 0-offset thus -1
-    pio_sm_put(MEM_RAM_PIO, MEM_RAM_WRITE_SM, (8 + mbuf_len * 2 - 1) << 24);
-
-    pio_sm_put(MEM_RAM_PIO, MEM_RAM_WRITE_SM, 0x38000000); // QPI Write 0x38
-
     // disable Read SM so it does not interfere with write
     pio_sm_set_enabled(MEM_RAM_PIO, MEM_RAM_READ_SM, false);
 
-    pio_sm_put(MEM_RAM_PIO, MEM_RAM_WRITE_SM, addr << 8);
-    pio_sm_put(MEM_RAM_PIO, MEM_RAM_WRITE_SM, addr << 16);
-    pio_sm_put(MEM_RAM_PIO, MEM_RAM_WRITE_SM, addr << 24);
+    uint32_t command = 0x38000000 | (addr & 0xFFFFFF); // QPI Write 0x38
+    pio_sm_put(MEM_RAM_PIO, MEM_RAM_WRITE_SM, command);
 
-    for (uint16_t i = 0; i < mbuf_len; i++)
+    for (size_t i = 0; i < mbuf_len; i += 4)
     {
-        pio_sm_put_blocking(MEM_RAM_PIO, MEM_RAM_WRITE_SM, mbuf[i] << 24);
+        uint32_t data = mbuf[i] << 24 | mbuf[i + 1] << 16 | mbuf[i + 2] << 8 | mbuf[i + 3];
+        pio_sm_put_blocking(MEM_RAM_PIO, MEM_RAM_WRITE_SM, data);
     }
 }
 
