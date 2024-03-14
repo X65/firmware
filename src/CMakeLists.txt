@@ -14,15 +14,15 @@ target_sources(tinyusb_ria PRIVATE
     ${TINY_USB_SRC_FILES}
 )
 
-add_library(tinyusb_vga STATIC EXCLUDE_FROM_ALL)
-target_include_directories(tinyusb_vga PRIVATE
+add_library(tinyusb_vpu STATIC EXCLUDE_FROM_ALL)
+target_include_directories(tinyusb_vpu PRIVATE
     ${CMAKE_CURRENT_LIST_DIR}/tinyusb/src
-    vga
+    vpu
 )
-target_link_libraries(tinyusb_vga PUBLIC
+target_link_libraries(tinyusb_vpu PUBLIC
     pico_stdlib
 )
-target_sources(tinyusb_vga PRIVATE
+target_sources(tinyusb_vpu PRIVATE
     ${TINY_USB_SRC_FILES}
 )
 
@@ -64,9 +64,9 @@ pico_generate_pio_header(rp6502_ria
     ${CMAKE_CURRENT_LIST_DIR}/ria/sys/mem.pio
 )
 
-# pico_generate_pio_header(rp6502_ria
-#     ${CMAKE_CURRENT_LIST_DIR}/ria/sys/vga.pio
-# )
+pico_generate_pio_header(rp6502_ria
+    ${CMAKE_CURRENT_LIST_DIR}/ria/sys/pix.pio
+)
 
 target_sources(rp6502_ria PRIVATE
     ria/main.c
@@ -100,62 +100,46 @@ target_sources(rp6502_ria PRIVATE
 
 # The Pi Pico VGA
 
-add_executable(rp6502_vga)
-pico_add_extra_outputs(rp6502_vga)
-pico_set_program_name(rp6502_vga "RP6502 VGA")
-pico_set_binary_type(rp6502_vga copy_to_ram)
-pico_set_linker_script(rp6502_vga ${CMAKE_CURRENT_LIST_DIR}/memmap_xram.ld)
+add_executable(rp6502_vpu)
+pico_add_extra_outputs(rp6502_vpu)
+pico_set_program_name(rp6502_vpu "RP6502 VGA")
+pico_set_binary_type(rp6502_vpu copy_to_ram)
 
-target_include_directories(rp6502_vga PRIVATE
+target_include_directories(rp6502_vpu PRIVATE
     ${CMAKE_CURRENT_LIST_DIR}
     ${CMAKE_CURRENT_LIST_DIR}/tinyusb/src
-    vga
+    vpu
 )
 
-target_sources(rp6502_vga PRIVATE
-    vga/main.c
-    vga/modes/mode1.c
-    vga/modes/mode2.c
-    vga/modes/mode3.c
-    vga/modes/mode4.c
-    vga/modes/mode4.S
-    vga/sys/pix.c
-    vga/sys/ria.c
-    vga/sys/std.c
-    vga/sys/vga.c
-    vga/term/color.c
-    vga/term/font.c
-    vga/term/term.c
-    vga/usb/cdc.c
-    vga/usb/descriptors.c
-    vga/usb/serno.c
+target_sources(rp6502_vpu PRIVATE
+    vpu/main.c
+    vpu/sys/pix.c
+    vpu/sys/std.c
+    vpu/sys/vga.c
+    vpu/term/font.c
+    vpu/term/term.c
+    vpu/usb/cdc.c
+    vpu/usb/descriptors.c
+    vpu/usb/serno.c
 )
 
-target_link_libraries(rp6502_vga PRIVATE
+target_link_libraries(rp6502_vpu PRIVATE
     pico_stdlib
     pico_multicore
     pico_unique_id
     pico_scanvideo_dpi
-    hardware_interp
-    tinyusb_vga
+    tinyusb_vpu
 )
 
-pico_generate_pio_header(rp6502_vga
-    ${CMAKE_CURRENT_LIST_DIR}/vga/sys/pix.pio
+pico_generate_pio_header(rp6502_vpu
+    ${CMAKE_CURRENT_LIST_DIR}/vpu/sys/ria.pio
 )
 
-pico_generate_pio_header(rp6502_vga
-    ${CMAKE_CURRENT_LIST_DIR}/vga/sys/ria.pio
-)
-
-target_compile_definitions(rp6502_vga PRIVATE
-    PICO_SCANVIDEO_PLANE_COUNT=3
+target_compile_definitions(rp6502_vpu PRIVATE
     PICO_SCANVIDEO_MAX_SCANLINE_BUFFER_WORDS=323
-    PICO_SCANVIDEO_SCANLINE_BUFFER_COUNT=10
     PICO_SCANVIDEO_COLOR_PIN_BASE=6
     PICO_SCANVIDEO_SYNC_PIN_BASE=26
     PICO_RP2040_USB_DEVICE_ENUMERATION_FIX=1
-    PICO_RP2040_USB_DEVICE_UFRAME_FIX=1
 )
 
 
@@ -163,7 +147,7 @@ target_compile_definitions(rp6502_vga PRIVATE
 # Please change name for hardware forks.
 # For release, set version string and set code page to 0.
 
-set_property(TARGET rp6502_ria rp6502_vga
+set_property(TARGET rp6502_ria rp6502_vpu
     APPEND PROPERTY COMPILE_DEFINITIONS
     RP6502_NAME="Picocomputer 65816"
     RP6502_VERSION=""
@@ -173,20 +157,3 @@ set_property(TARGET rp6502_ria rp6502_vga
     RP6502_MAX_PHI2=8000
     RP6502_EXFAT=0
 )
-
-
-# If no version set, touch the file that provides a dev timestamp for the version.
-
-get_target_property(RP6502_RIA_COMPILE_DEFINITIONS rp6502_ria COMPILE_DEFINITIONS)
-if(RP6502_RIA_COMPILE_DEFINITIONS MATCHES "RP6502_VERSION=\"\"")
-    add_custom_command(TARGET rp6502_ria
-        COMMAND ${CMAKE_COMMAND} -E touch ${CMAKE_CURRENT_LIST_DIR}/ria/sys/sys.c
-    )
-endif()
-
-get_target_property(RP6502_VGA_COMPILE_DEFINITIONS rp6502_vga COMPILE_DEFINITIONS)
-if(RP6502_VGA_COMPILE_DEFINITIONS MATCHES "RP6502_VERSION=\"\"")
-    add_custom_command(TARGET rp6502_vga
-        COMMAND ${CMAKE_COMMAND} -E touch ${CMAKE_CURRENT_LIST_DIR}/vga/sys/ria.c
-    )
-endif()

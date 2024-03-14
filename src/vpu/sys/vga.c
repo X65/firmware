@@ -4,16 +4,15 @@
  * SPDX-License-Identifier: BSD-3-Clause
  */
 
-#include "main.h"
-#include "xram.h"
 #include "vga.h"
-#include "term/term.h"
-#include "pico/stdlib.h"
+#include "hardware/clocks.h"
+#include "hardware/dma.h"
+#include "main.h"
 #include "pico/multicore.h"
 #include "pico/scanvideo.h"
 #include "pico/scanvideo/composable_scanline.h"
-#include "hardware/dma.h"
-#include "hardware/clocks.h"
+#include "pico/stdlib.h"
+#include "term/term.h"
 #include <string.h>
 
 static mutex_t vga_mutex;
@@ -26,6 +25,9 @@ static bool vga_terminal_selected;
 static volatile scanvideo_mode_t const *vga_mode_current;
 static scanvideo_mode_t const *vga_mode_selected;
 static volatile bool vga_mode_switch_triggered;
+
+// FIXME: TEMPORARY:
+uint8_t xram[0x10000];
 
 static const scanvideo_timing_t vga_timing_640x480_60_cea = {
     .clock_freq = 25200000,
@@ -522,8 +524,7 @@ static void vga_find_mode(void)
             vga_mode_selected = &vga_mode_640x360;
     }
     // trigger only if change detected
-    if ((vga_mode_selected != vga_mode_current) ||
-        (vga_terminal_selected != vga_terminal_current))
+    if ((vga_mode_selected != vga_mode_current) || (vga_terminal_selected != vga_terminal_current))
         vga_mode_switch_triggered = true;
 }
 
@@ -606,7 +607,7 @@ void vga_task(void)
 static void vga_memory_init(void)
 {
     // Thought provoking scaffolding
-    strcpy(&xram[45], "**** PICOCOMPUTER 6502 V1 ****");
+    strcpy(&xram[45], "**** PICOCOMPUTER 65816 V1 ****");
     strcpy(&xram[121], "64K RAM SYSTEM  53248 BASIC BYTES FREE");
     strcpy(&xram[200], "READY");
     xram[240] = 32 + 128;
@@ -614,8 +615,7 @@ static void vga_memory_init(void)
     for (int i = 0; i < 1024; i += 8)
         for (int x = 0; x < 8; x++)
             for (int y = 0; y < 8; y++)
-                xram[0x1000 + i + y] =
-                    (xram[0x1000 + i + y] << 1) | ((haxscii[i + x] & (0x01 << y)) >> y);
+                xram[0x1000 + i + y] = (xram[0x1000 + i + y] << 1) | ((haxscii[i + x] & (0x01 << y)) >> y);
     // PETSCII 128-255 are inverse
     for (int i = 0; i < 1024; i += 1)
         xram[0x1400 + i] = ~xram[0x1000 + i];
@@ -623,9 +623,6 @@ static void vga_memory_init(void)
 
 void vga_init(void)
 {
-    // safety check for compiler alignment
-    assert(!((uintptr_t)xram & 0xFFFF));
-
     vga_memory_init();
     mutex_init(&vga_mutex);
     vga_display(vga_sd);

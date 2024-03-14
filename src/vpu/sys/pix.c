@@ -5,18 +5,20 @@
  */
 
 #include "pix.h"
-#include "vga.h"
-#include "pix.pio.h"
-#include "xram.h"
-#include "term/font.h"
 #include "hardware/dma.h"
 #include "hardware/structs/bus_ctrl.h"
+#include "ria.pio.h"
+#include "term/font.h"
+#include "vga.h"
 #include <stdio.h>
 
-#define VGA_PIX_PIO pio1
+#define VGA_PIX_PIO     pio1
 #define VGA_PIX_REGS_SM 1
 #define VGA_PIX_XRAM_SM 2
-#define VGA_PHI2_PIN 11
+#define VGA_PHI2_PIN    11
+
+// FIXME: TEMPORARY:
+extern uint8_t xram[0x10000];
 
 void pix_init(void)
 {
@@ -24,8 +26,8 @@ void pix_init(void)
     static volatile uint32_t dma_addr;
 
     // Raise DMA above CPU on crossbar
-    bus_ctrl_hw->priority |=
-        BUSCTRL_BUS_PRIORITY_DMA_R_BITS |
+    bus_ctrl_hw->priority |=              //
+        BUSCTRL_BUS_PRIORITY_DMA_R_BITS | //
         BUSCTRL_BUS_PRIORITY_DMA_W_BITS;
 
     dma_addr = (uint32_t)xram;

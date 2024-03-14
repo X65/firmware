@@ -4,22 +4,23 @@
  * SPDX-License-Identifier: BSD-3-Clause
  */
 
-#include "ansi.h"
-#include "font.h"
-#include "term.h"
-#include "pico/stdlib.h"
-#include "pico/stdio/driver.h"
+#include "term/term.h"
 #include "pico/scanvideo.h"
 #include "pico/scanvideo/composable_scanline.h"
+#include "pico/stdio/driver.h"
+#include "pico/stdlib.h"
+#include "sys/vga.h"
+#include "term/ansi.h"
+#include "term/font.h"
 #include <stdio.h>
 
 // If you are extending this for use outside the Picocomputer,
 // CSI codes with multiple parameters will need a more complete
 // implementation first.
 
-#define TERM_WIDTH 80
-#define TERM_HEIGHT 32
-#define TERM_MEM_SIZE (TERM_WIDTH * TERM_HEIGHT * 2)
+#define TERM_WIDTH     80
+#define TERM_HEIGHT    32
+#define TERM_MEM_SIZE  (TERM_WIDTH * TERM_HEIGHT * 2)
 #define TERM_WORD_WRAP 1
 static int term_x = 0, term_y = 0;
 static int term_y_offset = 0;

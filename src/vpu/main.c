@@ -5,27 +5,24 @@
  */
 
 #include "main.h"
-#include "sys/led.h"
+#include "pico/stdlib.h"
 #include "sys/pix.h"
+#include "sys/std.h"
 #include "sys/vga.h"
 #include "term/font.h"
 #include "term/term.h"
-#include "usb/cdc.h"
-#include "usb/probe.h"
-#include "usb/serno.h"
-#include "pico/stdlib.h"
 #include "tusb.h"
+#include "usb/cdc.h"
+#include "usb/serno.h"
 
 static void init(void)
 {
+    std_init();
     vga_init();
     font_init();
     term_init();
     serno_init(); // before tusb
     tusb_init();
-    cdc_init();
-    probe_init();
-    led_init();
     pix_init();
 }
 
@@ -35,15 +32,17 @@ static void task(void)
     term_task();
     tud_task();
     cdc_task();
-    probe_task();
-    led_task();
     pix_task();
+    std_task();
+}
+
+void main_flush(void)
+{
 }
 
 void main_reclock(void)
 {
-    cdc_reclock();
-    probe_reclock();
+    std_reclock();
 }
 
 void main()
