@@ -6,6 +6,7 @@
 
 #include "main.h"
 #include "pico/stdlib.h"
+#include "sys/led.h"
 #include "sys/pix.h"
 #include "sys/std.h"
 #include "sys/vga.h"
@@ -23,6 +24,7 @@ static void init(void)
     term_init();
     serno_init(); // before tusb
     tusb_init();
+    led_init();
     pix_init();
 }
 
@@ -32,6 +34,7 @@ static void task(void)
     term_task();
     tud_task();
     cdc_task();
+    led_task();
     pix_task();
     std_task();
 }

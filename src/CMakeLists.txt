@@ -113,6 +113,7 @@ target_include_directories(rp6502_vpu PRIVATE
 
 target_sources(rp6502_vpu PRIVATE
     vpu/main.c
+    vpu/sys/led.c
     vpu/sys/pix.c
     vpu/sys/std.c
     vpu/sys/vga.c
