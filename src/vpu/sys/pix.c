@@ -4,12 +4,12 @@
  * SPDX-License-Identifier: BSD-3-Clause
  */
 
-#include "pix.h"
+#include "sys/pix.h"
 #include "hardware/dma.h"
 #include "hardware/structs/bus_ctrl.h"
 #include "ria.pio.h"
+#include "sys/vga.h"
 #include "term/font.h"
-#include "vga.h"
 #include <stdio.h>
 
 #define VGA_PIX_PIO     pio1
@@ -105,7 +105,7 @@ void pix_init(void)
     dma_channel_configure(
         data_chan,
         &data_dma,
-        xram,         // dst
+        (void *)xram, // dst
         &dma_fifo[2], // src
         1,
         false);
@@ -145,7 +145,7 @@ static void pix_video_mode(uint16_t mode)
 
 void pix_task(void)
 {
-    if (!pio_sm_is_rx_fifo_empty(VGA_PIX_PIO, VGA_PIX_REGS_SM))
+    while (!pio_sm_is_rx_fifo_empty(VGA_PIX_PIO, VGA_PIX_REGS_SM))
     {
         uint32_t raw = pio_sm_get(VGA_PIX_PIO, VGA_PIX_REGS_SM);
         uint16_t data = raw;
