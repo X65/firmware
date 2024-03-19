@@ -10,3 +10,6 @@
 [submodule "src/tinyusb"]
 	path = src/tinyusb
 	url = https://github.com/hathach/tinyusb.git
+[submodule "src/picodvi"]
+	path = src/picodvi
+	url = https://github.com/Wren6991/PicoDVI.git

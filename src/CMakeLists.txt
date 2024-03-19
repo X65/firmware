@@ -98,7 +98,9 @@ target_sources(rp6502_ria PRIVATE
 )
 
 
-# The Pi Pico VGA
+# The Pi Pico VPU
+
+add_subdirectory(picodvi/software/libdvi)
 
 add_executable(rp6502_vpu)
 pico_add_extra_outputs(rp6502_vpu)
@@ -114,9 +116,9 @@ target_include_directories(rp6502_vpu PRIVATE
 target_sources(rp6502_vpu PRIVATE
     vpu/main.c
     vpu/sys/led.c
+    vpu/sys/out.c
     vpu/sys/pix.c
     vpu/sys/std.c
-    vpu/sys/vga.c
     vpu/term/font.c
     vpu/term/term.c
     vpu/usb/cdc.c
@@ -128,7 +130,7 @@ target_link_libraries(rp6502_vpu PRIVATE
     pico_stdlib
     pico_multicore
     pico_unique_id
-    pico_scanvideo_dpi
+    libdvi
     tinyusb_vpu
 )
 

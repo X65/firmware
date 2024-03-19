@@ -7,9 +7,9 @@
 #include "main.h"
 #include "pico/stdlib.h"
 #include "sys/led.h"
-#include "sys/pix.h"
+#include "sys/out.h"
+// #include "sys/pix.h"
 #include "sys/std.h"
-#include "sys/vga.h"
 #include "term/font.h"
 #include "term/term.h"
 #include "tusb.h"
@@ -19,22 +19,22 @@
 static void init(void)
 {
     std_init();
-    vga_init();
+    out_init();
     font_init();
     term_init();
     serno_init(); // before tusb
     tusb_init();
     led_init();
-    pix_init();
+    // pix_init();
 }
 
 static void task(void)
 {
-    vga_task();
+    out_task();
     term_task();
     tud_task();
     cdc_task();
-    pix_task();
+    // pix_task();
     led_task();
     std_task();
 }

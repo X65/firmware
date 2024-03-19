@@ -5,8 +5,8 @@
  */
 
 #include "term/term.h"
-#include "pico/scanvideo.h"
-#include "pico/scanvideo/composable_scanline.h"
+// #include "pico/scanvideo.h"
+// #include "pico/scanvideo/composable_scanline.h"
 #include "pico/stdio/driver.h"
 #include "pico/stdlib.h"
 #include "sys/vga.h"
@@ -303,34 +303,34 @@ void term_init(void)
     // become part of stdout
     stdio_set_driver_enabled(&term_stdio, true);
     // populate color lookup table
-    uint32_t colors[] = {
-        PICO_SCANVIDEO_PIXEL_FROM_RGB8(0, 0, 0),
-        PICO_SCANVIDEO_PIXEL_FROM_RGB8(205, 0, 0),
-        PICO_SCANVIDEO_PIXEL_FROM_RGB8(0, 205, 0),
-        PICO_SCANVIDEO_PIXEL_FROM_RGB8(205, 205, 0),
-        PICO_SCANVIDEO_PIXEL_FROM_RGB8(0, 0, 205),
-        PICO_SCANVIDEO_PIXEL_FROM_RGB8(205, 0, 205),
-        PICO_SCANVIDEO_PIXEL_FROM_RGB8(0, 205, 205),
-        PICO_SCANVIDEO_PIXEL_FROM_RGB8(229, 229, 229),
-        PICO_SCANVIDEO_PIXEL_FROM_RGB8(127, 127, 127),
-        PICO_SCANVIDEO_PIXEL_FROM_RGB8(255, 0, 0),
-        PICO_SCANVIDEO_PIXEL_FROM_RGB8(0, 255, 0),
-        PICO_SCANVIDEO_PIXEL_FROM_RGB8(255, 255, 0),
-        PICO_SCANVIDEO_PIXEL_FROM_RGB8(0, 0, 255),
-        PICO_SCANVIDEO_PIXEL_FROM_RGB8(255, 0, 255),
-        PICO_SCANVIDEO_PIXEL_FROM_RGB8(0, 255, 255),
-        PICO_SCANVIDEO_PIXEL_FROM_RGB8(255, 255, 255),
-    };
-    for (int c = 0; c < 256; c++)
-    {
-        uint32_t fgcolor = colors[c & 0x0f];
-        uint32_t bgcolor = colors[(c & 0xf0) >> 4];
-        size_t pos = c * 4;
-        term_color_data[pos] = bgcolor | (bgcolor << 16);
-        term_color_data[pos + 1] = bgcolor | (fgcolor << 16);
-        term_color_data[pos + 2] = fgcolor | (bgcolor << 16);
-        term_color_data[pos + 3] = fgcolor | (fgcolor << 16);
-    }
+    // uint32_t colors[] = {
+    //     PICO_SCANVIDEO_PIXEL_FROM_RGB8(0, 0, 0),
+    //     PICO_SCANVIDEO_PIXEL_FROM_RGB8(205, 0, 0),
+    //     PICO_SCANVIDEO_PIXEL_FROM_RGB8(0, 205, 0),
+    //     PICO_SCANVIDEO_PIXEL_FROM_RGB8(205, 205, 0),
+    //     PICO_SCANVIDEO_PIXEL_FROM_RGB8(0, 0, 205),
+    //     PICO_SCANVIDEO_PIXEL_FROM_RGB8(205, 0, 205),
+    //     PICO_SCANVIDEO_PIXEL_FROM_RGB8(0, 205, 205),
+    //     PICO_SCANVIDEO_PIXEL_FROM_RGB8(229, 229, 229),
+    //     PICO_SCANVIDEO_PIXEL_FROM_RGB8(127, 127, 127),
+    //     PICO_SCANVIDEO_PIXEL_FROM_RGB8(255, 0, 0),
+    //     PICO_SCANVIDEO_PIXEL_FROM_RGB8(0, 255, 0),
+    //     PICO_SCANVIDEO_PIXEL_FROM_RGB8(255, 255, 0),
+    //     PICO_SCANVIDEO_PIXEL_FROM_RGB8(0, 0, 255),
+    //     PICO_SCANVIDEO_PIXEL_FROM_RGB8(255, 0, 255),
+    //     PICO_SCANVIDEO_PIXEL_FROM_RGB8(0, 255, 255),
+    //     PICO_SCANVIDEO_PIXEL_FROM_RGB8(255, 255, 255),
+    // };
+    // for (int c = 0; c < 256; c++)
+    // {
+    //     uint32_t fgcolor = colors[c & 0x0f];
+    //     uint32_t bgcolor = colors[(c & 0xf0) >> 4];
+    //     size_t pos = c * 4;
+    //     term_color_data[pos] = bgcolor | (bgcolor << 16);
+    //     term_color_data[pos + 1] = bgcolor | (fgcolor << 16);
+    //     term_color_data[pos + 2] = fgcolor | (bgcolor << 16);
+    //     term_color_data[pos + 3] = fgcolor | (fgcolor << 16);
+    // }
     term_clear();
 }
 
@@ -355,32 +355,32 @@ void term_render(struct scanvideo_scanline_buffer *dest, uint16_t height)
 {
     // renders 80 columns into 640 pixels with 16 fg/bg colors
     // requires PICO_SCANVIDEO_MAX_SCANLINE_BUFFER_WORDS=323
-    int line = scanvideo_scanline_number(dest->scanline_id);
-    while (height <= term_y * 16)
-    {
-        line += 16;
-        height += 16;
-    }
-    const uint8_t *font_line = &font16[(line & 15) * 256];
-    line = line / 16 + term_y_offset;
-    if (line >= TERM_HEIGHT)
-        line -= TERM_HEIGHT;
-    uint8_t *term_ptr = term_memory + TERM_WIDTH * 2 * line;
-    uint32_t *buf = dest->data;
-    for (int i = 0; i < TERM_WIDTH * 2; i += 2)
-    {
-        uint8_t bits = font_line[term_ptr[i]];
-        uint32_t *colors = term_color_data + term_ptr[i + 1] * 4;
-        *++buf = colors[bits >> 6];
-        *++buf = colors[bits >> 4 & 0x03];
-        *++buf = colors[bits >> 2 & 0x03];
-        *++buf = colors[bits & 0x03];
-    }
-    buf = (void *)dest->data;
-    buf[0] = COMPOSABLE_RAW_RUN | (buf[1] << 16);
-    buf[1] = 637 | (buf[1] & 0xFFFF0000);
-    buf[321] = COMPOSABLE_RAW_1P | 0;
-    buf[322] = COMPOSABLE_EOL_SKIP_ALIGN;
-    dest->data_used = 323;
-    dest->status = SCANLINE_OK;
+    // int line = scanvideo_scanline_number(dest->scanline_id);
+    // while (height <= term_y * 16)
+    // {
+    //     line += 16;
+    //     height += 16;
+    // }
+    // const uint8_t *font_line = &font16[(line & 15) * 256];
+    // line = line / 16 + term_y_offset;
+    // if (line >= TERM_HEIGHT)
+    //     line -= TERM_HEIGHT;
+    // uint8_t *term_ptr = term_memory + TERM_WIDTH * 2 * line;
+    // uint32_t *buf = dest->data;
+    // for (int i = 0; i < TERM_WIDTH * 2; i += 2)
+    // {
+    //     uint8_t bits = font_line[term_ptr[i]];
+    //     uint32_t *colors = term_color_data + term_ptr[i + 1] * 4;
+    //     *++buf = colors[bits >> 6];
+    //     *++buf = colors[bits >> 4 & 0x03];
+    //     *++buf = colors[bits >> 2 & 0x03];
+    //     *++buf = colors[bits & 0x03];
+    // }
+    // buf = (void *)dest->data;
+    // buf[0] = COMPOSABLE_RAW_RUN | (buf[1] << 16);
+    // buf[1] = 637 | (buf[1] & 0xFFFF0000);
+    // buf[321] = COMPOSABLE_RAW_1P | 0;
+    // buf[322] = COMPOSABLE_EOL_SKIP_ALIGN;
+    // dest->data_used = 323;
+    // dest->status = SCANLINE_OK;
 }
