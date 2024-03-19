@@ -49,19 +49,32 @@ void out_core1_main()
 
 void out_task(void)
 {
-    // Pass out pointers into our preprepared image, discard the pointers when
+    // Pass out pointers into our prepared image, discard the pointers when
     // returned to us. Use frame_ctr to scroll the image
     static uint frame_ctr = 0;
 
-    for (uint y = 0; y < FRAME_HEIGHT; ++y)
+    static uint y = 0;
+    static const uint16_t *scanline = NULL;
+
+    if (!scanline)
     {
         uint y_scroll = (y + frame_ctr) % FRAME_HEIGHT;
-        const uint16_t *scanline = &((const uint16_t *)testcard_320x240)[y_scroll * FRAME_WIDTH];
+        scanline = &((const uint16_t *)testcard_320x240)[y_scroll * FRAME_WIDTH];
         queue_add_blocking_u32(&dvi0.q_colour_valid, &scanline);
-        while (queue_try_remove_u32(&dvi0.q_colour_free, &scanline))
-            ;
+
+        if (++y >= FRAME_HEIGHT)
+        {
+            y = 0;
+            ++frame_ctr;
+        }
     }
-    ++frame_ctr;
+    else
+    {
+        if (queue_try_remove_u32(&dvi0.q_colour_free, &scanline))
+        {
+            scanline = NULL;
+        }
+    }
 }
 
 void out_init(void)
