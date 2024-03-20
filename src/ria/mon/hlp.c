@@ -47,7 +47,8 @@ static const char __in_flash("helptext") hlp_text_about[]
       "           TinyUSB - Copyright (c) 2018 hathach (tinyusb.org)\n"
       "             FatFs - Copyright (c) 20xx ChaN\n"
       "          littlefs - Copyright (c) 2022 The littlefs authors\n"
-      "                     Copyright (c) 2017 Arm Limited";
+      "                     Copyright (c) 2017 Arm Limited\n"
+      "           PicoDVI - Copyright (c) 2021 Luke Wren";
 
 static const char __in_flash("helptext") hlp_text_system[]
     = "The Picocomputer does not use a traditional parallel ROM like a 27C64 or\n"
@@ -59,7 +60,7 @@ static const char __in_flash("helptext") hlp_text_system[]
       "they will always stop the CPU. The memory monitor is accessed by typing\n"
       "a hex address as a command:\n"
       "]0200\n"
-      "0200 DA DA DA DA DA DA DA DA DA DA DA DA DA DA DA DA\n"
+      "000200 DA DA DA DA DA DA DA DA DA DA DA DA DA DA DA DA\n"
       "The 16MB of memory is accessible from $00000 to $FFFFF.\n"
       "You can also set memory. For example, to set the reset vector:\n"
       "]FFFC 00 02\n"
