@@ -7,13 +7,11 @@
 #ifndef _TERM_H_
 #define _TERM_H_
 
-#include <stdint.h>
-
-struct scanvideo_scanline_buffer;
+#include "pico/types.h"
 
 void term_init(void);
 void term_task(void);
 void term_clear(void);
-void term_render(struct scanvideo_scanline_buffer *dest, uint16_t height);
+void term_render(uint y, int plane, uint32_t *tmdsbuf);
 
 #endif /* _TERM_H_ */

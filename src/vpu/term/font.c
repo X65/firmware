@@ -14,8 +14,8 @@
 // Code Page 437-999 data is only glyphs 128-255.
 // Setting a code page builds the complete font in RAM.
 
-uint8_t __not_in_flash("font") font8[2048] = {};
-uint8_t __not_in_flash("font") font16[4096] = {};
+uint8_t __not_in_flash("font") __attribute__((aligned(4))) font8[2048] = {};
+uint8_t __not_in_flash("font") __attribute__((aligned(4))) font16[4096] = {};
 
 // missing pages supported by FatFs: 720, 932, 936, 949, 950
 

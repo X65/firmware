@@ -1,33 +1,112 @@
 /*
  * Copyright (c) 2023 Rumbledethumps
+ * Copyright (c) 2024 Tomasz Sterna
  *
  * SPDX-License-Identifier: BSD-3-Clause
  */
 
 #include "term/term.h"
-// #include "pico/scanvideo.h"
-// #include "pico/scanvideo/composable_scanline.h"
 #include "pico/stdio/driver.h"
 #include "pico/stdlib.h"
-#include "sys/vga.h"
 #include "term/ansi.h"
 #include "term/font.h"
+#include <stdint.h>
 #include <stdio.h>
 
 // If you are extending this for use outside the Picocomputer,
 // CSI codes with multiple parameters will need a more complete
 // implementation first.
 
-#define TERM_WIDTH     80
-#define TERM_HEIGHT    32
-#define TERM_MEM_SIZE  (TERM_WIDTH * TERM_HEIGHT * 2)
+#include "picodvi/software/apps/colour_terminal/tmds_encode_font_2bpp.h"
+
+#include "picodvi/software/assets/font_8x8.h"
+#define FONT_CHAR_WIDTH  8
+#define FONT_CHAR_HEIGHT 8
+#define FONT_N_CHARS     95
+#define FONT_FIRST_ASCII 32
+
+// Pixel format RGB222
+uint8_t colors[] = {
+    0b000000,
+    0b100000,
+    0b001000,
+    0b101000,
+    0b000010,
+    0b100010,
+    0b001010,
+    0b101010,
+    0b010101,
+    0b110000,
+    0b001100,
+    0b111100,
+    0b000011,
+    0b110011,
+    0b001111,
+    0b111111,
+};
+
+#define CHAR_COLS 96
+#define CHAR_ROWS 30
+
+#define FRAME_WIDTH (CHAR_COLS * FONT_CHAR_WIDTH)
+
+#define COLOUR_PLANE_SIZE_WORDS (CHAR_ROWS * CHAR_COLS * 4 / 32)
+uint8_t charbuf[CHAR_ROWS * CHAR_COLS];
+uint32_t colourbuf[3 * COLOUR_PLANE_SIZE_WORDS];
+
+static inline void set_char(uint x, uint y, char c)
+{
+    if (x >= CHAR_COLS || y >= CHAR_ROWS)
+        return;
+    charbuf[x + y * CHAR_COLS] = c;
+}
+
+// Pixel format RGB222
+static void set_colour222(uint x, uint y, uint8_t fg, uint8_t bg)
+{
+    if (x >= CHAR_COLS || y >= CHAR_ROWS)
+        return;
+    uint char_index = x + y * CHAR_COLS;
+    uint bit_index = char_index % 8 * 4;
+    uint word_index = char_index / 8;
+    for (int plane = 0; plane < 3; ++plane)
+    {
+        uint32_t fg_bg_combined = (fg & 0x3) | (bg << 2 & 0xc);
+        colourbuf[word_index] = (colourbuf[word_index] & ~(0xfu << bit_index)) | (fg_bg_combined << bit_index);
+        fg >>= 2;
+        bg >>= 2;
+        word_index += COLOUR_PLANE_SIZE_WORDS;
+    }
+}
+
+static uint16_t get_colour222(uint x, uint y)
+{
+    if (x >= CHAR_COLS || y >= CHAR_ROWS)
+        return 0;
+    uint16_t fg = 0;
+    uint16_t bg = 0;
+    uint char_index = x + y * CHAR_COLS;
+    uint bit_index = char_index % 8 * 4;
+    uint word_index = char_index / 8;
+    for (int plane = 0; plane < 3; ++plane)
+    {
+
+        uint32_t fg_bg_combined = (colourbuf[word_index] & (0xfu << bit_index)) >> bit_index;
+        fg |= (fg_bg_combined & 0x3) << (plane * 2);
+        bg |= ((fg_bg_combined >> 2) & 0x3) << (plane * 2);
+        word_index += COLOUR_PLANE_SIZE_WORDS;
+    }
+    return (bg << 8) | fg;
+}
+
+static inline void set_colour(uint x, uint y, uint8_t bg_fg)
+{
+    set_colour222(x, y, colors[bg_fg & 0x0f], colors[(bg_fg & 0xf0) >> 4]);
+}
+
 #define TERM_WORD_WRAP 1
 static int term_x = 0, term_y = 0;
-static int term_y_offset = 0;
 static uint8_t term_color = 0x07;
-static uint32_t term_color_data[1024];
-static uint8_t term_memory[TERM_MEM_SIZE];
-static uint8_t *term_ptr = term_memory;
 static absolute_time_t term_timer = {0};
 static int32_t term_blink_state = 0;
 static ansi_state_t term_state = ansi_state_C0;
@@ -35,9 +114,10 @@ static int term_csi_param;
 
 static void term_cursor_set_inv(bool inv)
 {
-    if (term_blink_state == -1 || inv == term_blink_state || term_x >= TERM_WIDTH)
+    if (term_blink_state == -1 || inv == term_blink_state || term_x >= CHAR_COLS)
         return;
-    term_ptr[1] = ((term_ptr[1] & 0x0F) << 4) | ((term_ptr[1] & 0xF0) >> 4);
+    uint16_t fg_bg_combined = get_colour222(term_x, term_y);
+    set_colour222(term_x, term_y, (fg_bg_combined & 0xff00) >> 8, (fg_bg_combined & 0x00ff));
     term_blink_state = inv;
 }
 
@@ -80,63 +160,45 @@ static void term_out_sgr(int param)
 
 static void term_out_ht()
 {
-    if (term_x < TERM_WIDTH)
+    if (term_x < CHAR_COLS)
     {
         int xp = 8 - ((term_x + 8) & 7);
-        term_ptr += xp * 2;
         term_x += xp;
     }
 }
 
 static void term_out_lf()
 {
-    term_ptr += TERM_WIDTH * 2;
-    if (term_ptr >= term_memory + TERM_MEM_SIZE)
+    if (++term_y == CHAR_ROWS)
     {
-        term_ptr -= TERM_MEM_SIZE;
-    }
-
-    if (++term_y == TERM_HEIGHT)
-    {
-        term_y = TERM_HEIGHT - 1;
-        if (++term_y_offset == TERM_HEIGHT)
-        {
-            term_y_offset = 0;
-        }
-        uint8_t *line_ptr = term_ptr - term_x * 2;
-        for (size_t x = 0; x < TERM_WIDTH * 2; x += 2)
+        term_y = CHAR_ROWS - 1;
+        uint8_t *line_ptr = charbuf + term_y * CHAR_COLS;
+        for (size_t x = 0; x < CHAR_COLS; ++x)
         {
             line_ptr[x] = ' ';
-            line_ptr[x + 1] = term_color;
+            set_colour(x, term_y, term_color);
         }
     }
 }
 
 static void term_out_ff()
 {
-    term_ptr -= term_x * 2;
-    term_ptr += (TERM_HEIGHT - term_y) * TERM_WIDTH * 2;
     term_x = term_y = 0;
-    if (term_ptr >= term_memory + TERM_MEM_SIZE)
+    for (size_t i = 0; i < CHAR_ROWS * CHAR_COLS; ++i)
     {
-        term_ptr -= TERM_MEM_SIZE;
-    }
-    for (size_t i = 0; i < TERM_MEM_SIZE; i += 2)
-    {
-        term_memory[i] = ' ';
-        term_memory[i + 1] = term_color;
+        charbuf[i] = ' ';
+        set_colour(i % CHAR_COLS, i / CHAR_COLS, term_color);
     }
 }
 
 static void term_out_cr()
 {
-    term_ptr -= term_x * 2;
     term_x = 0;
 }
 
 static void term_out_char(char ch)
 {
-    if (term_x == TERM_WIDTH)
+    if (term_x == CHAR_COLS)
     {
         if (TERM_WORD_WRAP)
         {
@@ -145,21 +207,19 @@ static void term_out_char(char ch)
         }
         else
         {
-            term_ptr -= 2;
             term_x -= 1;
         }
     }
-    term_x++;
-    *term_ptr++ = ch;
-    *term_ptr++ = term_color;
+    set_char(term_x, term_y, ch);
+    set_colour(term_x, term_y, term_color);
+    ++term_x;
 }
 
 // Cursor forward
 static void term_out_cuf(int cols)
 {
-    if (cols > TERM_WIDTH - term_x)
-        cols = TERM_WIDTH - term_x;
-    term_ptr += cols * 2;
+    if (cols > CHAR_COLS - term_x)
+        cols = CHAR_COLS - term_x;
     term_x += cols;
 }
 
@@ -168,29 +228,28 @@ static void term_out_cub(int cols)
 {
     if (cols > term_x)
         cols = term_x;
-    term_ptr -= cols * 2;
     term_x -= cols;
 }
 
 // Delete characters
 static void term_out_dch(int chars)
 {
-    uint8_t *tp = term_ptr;
-    if (chars > TERM_WIDTH - term_x)
-        chars = TERM_WIDTH - term_x;
-    for (int i = term_x; i < TERM_WIDTH; i++)
+    uint8_t *line = charbuf + term_y * CHAR_COLS;
+    if (chars > CHAR_COLS - term_x)
+        chars = CHAR_COLS - term_x;
+    for (int x = term_x; x < CHAR_COLS; x++)
     {
-        if (chars + i >= TERM_WIDTH)
+        if (chars + x >= CHAR_COLS)
         {
-            tp[0] = ' ';
-            tp[1] = term_color;
+            line[x] = ' ';
+            set_colour(x, term_y, term_color);
         }
         else
         {
-            tp[0] = tp[chars * 2];
-            tp[1] = tp[chars * 2 + 1];
+            line[x] = line[x + chars];
+            uint16_t colour = get_colour222(x + chars, term_y);
+            set_colour222(x, term_y, (colour & 0x00ff), (colour & 0xff00) >> 8);
         }
-        tp += 2;
     }
 }
 
@@ -302,36 +361,16 @@ void term_init(void)
 {
     // become part of stdout
     stdio_set_driver_enabled(&term_stdio, true);
-    // populate color lookup table
-    // uint32_t colors[] = {
-    //     PICO_SCANVIDEO_PIXEL_FROM_RGB8(0, 0, 0),
-    //     PICO_SCANVIDEO_PIXEL_FROM_RGB8(205, 0, 0),
-    //     PICO_SCANVIDEO_PIXEL_FROM_RGB8(0, 205, 0),
-    //     PICO_SCANVIDEO_PIXEL_FROM_RGB8(205, 205, 0),
-    //     PICO_SCANVIDEO_PIXEL_FROM_RGB8(0, 0, 205),
-    //     PICO_SCANVIDEO_PIXEL_FROM_RGB8(205, 0, 205),
-    //     PICO_SCANVIDEO_PIXEL_FROM_RGB8(0, 205, 205),
-    //     PICO_SCANVIDEO_PIXEL_FROM_RGB8(229, 229, 229),
-    //     PICO_SCANVIDEO_PIXEL_FROM_RGB8(127, 127, 127),
-    //     PICO_SCANVIDEO_PIXEL_FROM_RGB8(255, 0, 0),
-    //     PICO_SCANVIDEO_PIXEL_FROM_RGB8(0, 255, 0),
-    //     PICO_SCANVIDEO_PIXEL_FROM_RGB8(255, 255, 0),
-    //     PICO_SCANVIDEO_PIXEL_FROM_RGB8(0, 0, 255),
-    //     PICO_SCANVIDEO_PIXEL_FROM_RGB8(255, 0, 255),
-    //     PICO_SCANVIDEO_PIXEL_FROM_RGB8(0, 255, 255),
-    //     PICO_SCANVIDEO_PIXEL_FROM_RGB8(255, 255, 255),
-    // };
-    // for (int c = 0; c < 256; c++)
-    // {
-    //     uint32_t fgcolor = colors[c & 0x0f];
-    //     uint32_t bgcolor = colors[(c & 0xf0) >> 4];
-    //     size_t pos = c * 4;
-    //     term_color_data[pos] = bgcolor | (bgcolor << 16);
-    //     term_color_data[pos + 1] = bgcolor | (fgcolor << 16);
-    //     term_color_data[pos + 2] = fgcolor | (bgcolor << 16);
-    //     term_color_data[pos + 3] = fgcolor | (fgcolor << 16);
-    // }
+
     term_clear();
+    // for (uint y = 0; y < CHAR_ROWS; ++y)
+    // {
+    //     for (uint x = 0; x < CHAR_COLS; ++x)
+    //     {
+    //         set_char(x, y, (x + y * CHAR_COLS) % FONT_N_CHARS + FONT_FIRST_ASCII);
+    //         set_colour(x, y, (y << 4) | x);
+    //     }
+    // }
 }
 
 void term_task(void)
@@ -348,39 +387,16 @@ void term_task(void)
 void term_clear(void)
 {
     // reset state and clear screen
-    puts("\30\33[0m\f");
+    fputs("\30\33[0m\f", stdout);
+    term_out_ff();
 }
 
-void term_render(struct scanvideo_scanline_buffer *dest, uint16_t height)
+void term_render(uint y, int plane, uint32_t *tmdsbuf)
 {
-    // renders 80 columns into 640 pixels with 16 fg/bg colors
-    // requires PICO_SCANVIDEO_MAX_SCANLINE_BUFFER_WORDS=323
-    // int line = scanvideo_scanline_number(dest->scanline_id);
-    // while (height <= term_y * 16)
-    // {
-    //     line += 16;
-    //     height += 16;
-    // }
-    // const uint8_t *font_line = &font16[(line & 15) * 256];
-    // line = line / 16 + term_y_offset;
-    // if (line >= TERM_HEIGHT)
-    //     line -= TERM_HEIGHT;
-    // uint8_t *term_ptr = term_memory + TERM_WIDTH * 2 * line;
-    // uint32_t *buf = dest->data;
-    // for (int i = 0; i < TERM_WIDTH * 2; i += 2)
-    // {
-    //     uint8_t bits = font_line[term_ptr[i]];
-    //     uint32_t *colors = term_color_data + term_ptr[i + 1] * 4;
-    //     *++buf = colors[bits >> 6];
-    //     *++buf = colors[bits >> 4 & 0x03];
-    //     *++buf = colors[bits >> 2 & 0x03];
-    //     *++buf = colors[bits & 0x03];
-    // }
-    // buf = (void *)dest->data;
-    // buf[0] = COMPOSABLE_RAW_RUN | (buf[1] << 16);
-    // buf[1] = 637 | (buf[1] & 0xFFFF0000);
-    // buf[321] = COMPOSABLE_RAW_1P | 0;
-    // buf[322] = COMPOSABLE_EOL_SKIP_ALIGN;
-    // dest->data_used = 323;
-    // dest->status = SCANLINE_OK;
+    tmds_encode_font_2bpp(
+        (const uint8_t *)&charbuf[y / FONT_CHAR_HEIGHT * CHAR_COLS],
+        &colourbuf[y / FONT_CHAR_HEIGHT * (COLOUR_PLANE_SIZE_WORDS / CHAR_ROWS) + plane * COLOUR_PLANE_SIZE_WORDS],
+        tmdsbuf + plane * (FRAME_WIDTH / DVI_SYMBOLS_PER_WORD),
+        FRAME_WIDTH,
+        (const uint8_t *)&font_8x8[y % FONT_CHAR_HEIGHT * FONT_N_CHARS] - FONT_FIRST_ASCII);
 }

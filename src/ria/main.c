@@ -285,4 +285,5 @@ int main(void)
             is_breaking = false;
         }
     }
+    __builtin_unreachable();
 }

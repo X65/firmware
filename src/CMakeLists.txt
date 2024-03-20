@@ -124,6 +124,7 @@ target_sources(rp6502_vpu PRIVATE
     vpu/usb/cdc.c
     vpu/usb/descriptors.c
     vpu/usb/serno.c
+    picodvi/software/apps/colour_terminal/tmds_encode_font_2bpp.S
 )
 
 target_link_libraries(rp6502_vpu PRIVATE
@@ -143,6 +144,9 @@ target_compile_definitions(rp6502_vpu PRIVATE
     PICO_SCANVIDEO_COLOR_PIN_BASE=6
     PICO_SCANVIDEO_SYNC_PIN_BASE=26
     PICO_RP2040_USB_DEVICE_ENUMERATION_FIX=1
+    DVI_VERTICAL_REPEAT=2
+    DVI_SYMBOLS_PER_WORD=2
+    PICO_CORE1_STACK_SIZE=0x200
 )
 
 

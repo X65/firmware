@@ -48,9 +48,10 @@ void main_reclock(void)
     std_reclock();
 }
 
-void main()
+int main()
 {
     init();
-    while (1)
+    while (true)
         task();
+    __builtin_unreachable();
 }
