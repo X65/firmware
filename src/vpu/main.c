@@ -19,8 +19,8 @@
 static void init(void)
 {
     std_init();
+    font_init(); // before out_init (copies data from flash before overclocking)
     out_init();
-    font_init();
     term_init();
     serno_init(); // before tusb
     tusb_init();

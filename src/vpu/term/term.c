@@ -22,8 +22,8 @@
 #include "picodvi/software/assets/font_8x8.h"
 #define FONT_CHAR_WIDTH  8
 #define FONT_CHAR_HEIGHT 8
-#define FONT_N_CHARS     95
-#define FONT_FIRST_ASCII 32
+#define FONT_N_CHARS     256
+#define FONT_FIRST_ASCII 0
 
 // Pixel format RGB222
 uint8_t colors[] = {
@@ -398,5 +398,5 @@ void term_render(uint y, int plane, uint32_t *tmdsbuf)
         &colourbuf[y / FONT_CHAR_HEIGHT * (COLOUR_PLANE_SIZE_WORDS / CHAR_ROWS) + plane * COLOUR_PLANE_SIZE_WORDS],
         tmdsbuf + plane * (FRAME_WIDTH / DVI_SYMBOLS_PER_WORD),
         FRAME_WIDTH,
-        (const uint8_t *)&font_8x8[y % FONT_CHAR_HEIGHT * FONT_N_CHARS] - FONT_FIRST_ASCII);
+        (const uint8_t *)&font8[y % FONT_CHAR_HEIGHT * FONT_N_CHARS] - FONT_FIRST_ASCII);
 }
