@@ -106,6 +106,7 @@ static inline void set_colour(uint x, uint y, uint8_t bg_fg)
 
 #define TERM_WORD_WRAP 1
 static int term_x = 0, term_y = 0;
+static int term_y_offset = 0;
 static uint8_t term_color = 0x07;
 static absolute_time_t term_timer = {0};
 static int32_t term_blink_state = 0;
@@ -116,8 +117,9 @@ static void term_cursor_set_inv(bool inv)
 {
     if (term_blink_state == -1 || inv == term_blink_state || term_x >= CHAR_COLS)
         return;
-    uint16_t fg_bg_combined = get_colour222(term_x, term_y);
-    set_colour222(term_x, term_y, (fg_bg_combined & 0xff00) >> 8, (fg_bg_combined & 0x00ff));
+    const uint8_t line = (term_y + term_y_offset) % CHAR_ROWS;
+    uint16_t fg_bg_combined = get_colour222(term_x, line);
+    set_colour222(term_x, line, (fg_bg_combined & 0xff00) >> 8, (fg_bg_combined & 0x00ff));
     term_blink_state = inv;
 }
 
@@ -172,11 +174,16 @@ static void term_out_lf()
     if (++term_y == CHAR_ROWS)
     {
         term_y = CHAR_ROWS - 1;
-        uint8_t *line_ptr = charbuf + term_y * CHAR_COLS;
+        if (++term_y_offset == CHAR_ROWS)
+        {
+            term_y_offset = 0;
+        }
+        const uint8_t line = (term_y + term_y_offset) % CHAR_ROWS;
+        uint8_t *line_ptr = charbuf + line * CHAR_COLS;
         for (size_t x = 0; x < CHAR_COLS; ++x)
         {
             line_ptr[x] = ' ';
-            set_colour(x, term_y, term_color);
+            set_colour(x, line, term_color);
         }
     }
 }
@@ -210,8 +217,9 @@ static void term_out_char(char ch)
             term_x -= 1;
         }
     }
-    set_char(term_x, term_y, ch);
-    set_colour(term_x, term_y, term_color);
+    const uint8_t line = (term_y + term_y_offset) % CHAR_ROWS;
+    set_char(term_x, line, ch);
+    set_colour(term_x, line, term_color);
     ++term_x;
 }
 
@@ -234,21 +242,22 @@ static void term_out_cub(int cols)
 // Delete characters
 static void term_out_dch(int chars)
 {
-    uint8_t *line = charbuf + term_y * CHAR_COLS;
+    const uint8_t line = (term_y + term_y_offset) % CHAR_ROWS;
+    uint8_t *line_ptr = charbuf + line * CHAR_COLS;
     if (chars > CHAR_COLS - term_x)
         chars = CHAR_COLS - term_x;
     for (int x = term_x; x < CHAR_COLS; x++)
     {
         if (chars + x >= CHAR_COLS)
         {
-            line[x] = ' ';
-            set_colour(x, term_y, term_color);
+            line_ptr[x] = ' ';
+            set_colour(x, line, term_color);
         }
         else
         {
-            line[x] = line[x + chars];
-            uint16_t colour = get_colour222(x + chars, term_y);
-            set_colour222(x, term_y, (colour & 0x00ff), (colour & 0xff00) >> 8);
+            line_ptr[x] = line_ptr[x + chars];
+            uint16_t colour = get_colour222(x + chars, line);
+            set_colour222(x, line, (colour & 0x00ff), (colour & 0xff00) >> 8);
         }
     }
 }
@@ -393,10 +402,14 @@ void term_clear(void)
 
 void term_render(uint y, int plane, uint32_t *tmdsbuf)
 {
+    const uint8_t font_line = y % FONT_CHAR_HEIGHT;
+    uint8_t line = y / FONT_CHAR_HEIGHT + term_y_offset;
+    if (line >= CHAR_ROWS)
+        line -= CHAR_ROWS;
     tmds_encode_font_2bpp(
-        (const uint8_t *)&charbuf[y / FONT_CHAR_HEIGHT * CHAR_COLS],
-        &colourbuf[y / FONT_CHAR_HEIGHT * (COLOUR_PLANE_SIZE_WORDS / CHAR_ROWS) + plane * COLOUR_PLANE_SIZE_WORDS],
+        (const uint8_t *)&charbuf[line * CHAR_COLS],
+        &colourbuf[line * (COLOUR_PLANE_SIZE_WORDS / CHAR_ROWS) + plane * COLOUR_PLANE_SIZE_WORDS],
         tmdsbuf + plane * (FRAME_WIDTH / DVI_SYMBOLS_PER_WORD),
         FRAME_WIDTH,
-        (const uint8_t *)&font8[y % FONT_CHAR_HEIGHT * FONT_N_CHARS] - FONT_FIRST_ASCII);
+        (const uint8_t *)&font8[font_line * FONT_N_CHARS] - FONT_FIRST_ASCII);
 }
