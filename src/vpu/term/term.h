@@ -12,6 +12,6 @@
 void term_init(void);
 void term_task(void);
 void term_clear(void);
-void term_render(uint y, int plane, uint32_t *tmdsbuf);
+void term_render(uint y, uint32_t *tmdsbuf);
 
 #endif /* _TERM_H_ */

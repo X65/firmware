@@ -121,6 +121,8 @@ target_sources(rp6502_vpu PRIVATE
     vpu/sys/std.c
     vpu/term/font.c
     vpu/term/term.c
+    vpu/cgia/cgia.c
+    vpu/cgia/tmds_encode_cgia.S
     vpu/usb/cdc.c
     vpu/usb/descriptors.c
     vpu/usb/serno.c
@@ -147,6 +149,9 @@ target_compile_definitions(rp6502_vpu PRIVATE
     DVI_VERTICAL_REPEAT=2
     DVI_SYMBOLS_PER_WORD=2
     PICO_CORE1_STACK_SIZE=0x200
+	# DVI_N_TMDS_BUFFERS=8
+    # TMDS_FULLRES_NO_DC_BALANCE=1
+    # TMDS_ENCODE_UNROLL=8
 )
 
 

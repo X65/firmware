@@ -6,6 +6,7 @@
 
 #include "out.h"
 
+#include "cgia/cgia.h"
 #include "hardware/structs/bus_ctrl.h"
 #include "hardware/sync.h"
 #include "hardware/vreg.h"
@@ -28,35 +29,42 @@ static const struct dvi_serialiser_cfg x65_dvi_cfg = {
     .invert_diffpairs = false,
 };
 
-// $ cvt 768 480 60
-//   # 768x480 @ 60.00 Hz (CVT)
-//   #   field rate 59.90 Hz; hsync: 29.95 kHz; pclk: 28.75 MHz
-//   Modeline "768x480_60.00"  28.75  768 792 864 960  480 483 489 500  -HSync +Vsync
+/** https://retrocomputing.stackexchange.com/a/13872
+> In standard bitmap mode the C64 outputs 320 pixels in 40µs.
+> The visible portion of a line is ~52µs; in 60Hz regions ~240 lines
+> are considered 'visible', but in PAL regions it's ~288 lines.
+> So if there were no borders, there'd be around 52/40*320 = 416 pixels
+> across the visible portion of a line.
+*/
+
+// ANTIC generates 32/40/48 column text mode => max 256/320/384 px map mode
+// ANTIC supports up to 240 Display List instructions
+// With pixel-doubling this gives 768x480 mode, which has nice 16:10 aspect ratio
+// Timings computed using https://tomverbeure.github.io/video_timings_calculator
+// Back porches adjusted to fit 26.6MHz pixel clock
 const struct dvi_timing __dvi_const(dvi_timing_768x480p_60hz) = {
-    .h_sync_polarity = false,
-    .h_front_porch = 24,
-    .h_sync_width = 72,
-    .h_back_porch = 96,
+    .h_sync_polarity = true,
+    .h_front_porch = 48,
+    .h_sync_width = 32,
+    .h_back_porch = 48,
     .h_active_pixels = 768,
 
-    .v_sync_polarity = true,
+    .v_sync_polarity = false,
     .v_front_porch = 3,
     .v_sync_width = 6,
-    .v_back_porch = 11,
+    .v_back_porch = 6,
     .v_active_lines = 480,
 
-    .bit_clk_khz = 288000,
+    .bit_clk_khz = 266000,
 };
 
 // DVDD 1.2V (1.1V seems ok too)
-#define FRAME_WIDTH  768
-#define FRAME_HEIGHT 240
-#define VREG_VSEL    VREG_VOLTAGE_1_20
-#define DVI_TIMING   dvi_timing_768x480p_60hz
+#define VREG_VSEL  VREG_VOLTAGE_1_20
+#define DVI_TIMING dvi_timing_768x480p_60hz
 
 struct dvi_inst dvi0;
 
-void out_core1_main()
+void __not_in_flash_func(out_core1_main)()
 {
     dvi_register_irqs_this_core(&dvi0, DMA_IRQ_0);
     dvi_start(&dvi0);
@@ -66,10 +74,7 @@ void out_core1_main()
         {
             uint32_t *tmdsbuf;
             queue_remove_blocking(&dvi0.q_tmds_free, &tmdsbuf);
-            for (int plane = 0; plane < 3; ++plane)
-            {
-                term_render(y, plane, tmdsbuf);
-            }
+            cgia_render(y, tmdsbuf);
             queue_add_blocking(&dvi0.q_tmds_valid, &tmdsbuf);
         }
     }

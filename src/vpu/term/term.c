@@ -400,16 +400,20 @@ void term_clear(void)
     term_out_ff();
 }
 
-void term_render(uint y, int plane, uint32_t *tmdsbuf)
+void term_render(uint y, uint32_t *tmdsbuf)
 {
     const uint8_t font_line = y % FONT_CHAR_HEIGHT;
     uint8_t line = y / FONT_CHAR_HEIGHT + term_y_offset;
     if (line >= CHAR_ROWS)
         line -= CHAR_ROWS;
-    tmds_encode_font_2bpp(
-        (const uint8_t *)&charbuf[line * CHAR_COLS],
-        &colourbuf[line * (COLOUR_PLANE_SIZE_WORDS / CHAR_ROWS) + plane * COLOUR_PLANE_SIZE_WORDS],
-        tmdsbuf + plane * (FRAME_WIDTH / DVI_SYMBOLS_PER_WORD),
-        FRAME_WIDTH,
-        (const uint8_t *)&font8[font_line * FONT_N_CHARS] - FONT_FIRST_ASCII);
+
+    for (int plane = 0; plane < 3; ++plane)
+    {
+        tmds_encode_font_2bpp(
+            (const uint8_t *)&charbuf[line * CHAR_COLS],
+            &colourbuf[line * (COLOUR_PLANE_SIZE_WORDS / CHAR_ROWS) + plane * COLOUR_PLANE_SIZE_WORDS],
+            tmdsbuf + plane * (FRAME_WIDTH / DVI_SYMBOLS_PER_WORD),
+            FRAME_WIDTH,
+            (const uint8_t *)&font8[font_line * FONT_N_CHARS] - FONT_FIRST_ASCII);
+    }
 }

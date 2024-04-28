@@ -9,6 +9,7 @@
 #include "sys/led.h"
 #include "sys/out.h"
 // #include "sys/pix.h"
+#include "cgia/cgia.h"
 #include "sys/std.h"
 #include "term/font.h"
 #include "term/term.h"
@@ -20,6 +21,7 @@ static void init(void)
 {
     std_init();
     font_init(); // before out_init (copies data from flash before overclocking)
+    cgia_init();
     out_init();
     term_init();
     serno_init(); // before tusb
@@ -31,6 +33,7 @@ static void init(void)
 static void task(void)
 {
     out_task();
+    cgia_task();
     term_task();
     tud_task();
     cdc_task();
