@@ -8,6 +8,7 @@
 #include "term/term.h"
 #include "pico/stdio/driver.h"
 #include "pico/stdlib.h"
+#include "sys/out.h"
 #include "term/ansi.h"
 #include "term/font.h"
 #include <stdint.h>
@@ -45,12 +46,11 @@ uint8_t colors[] = {
     0b111111,
 };
 
-#define CHAR_COLS 96
-#define CHAR_ROWS 30
+#define CHAR_COLS (FRAME_WIDTH / FONT_CHAR_WIDTH)
+#define CHAR_ROWS (FRAME_HEIGHT / FONT_CHAR_HEIGHT)
 
-#define FRAME_WIDTH (CHAR_COLS * FONT_CHAR_WIDTH)
-
-#define COLOUR_PLANE_SIZE_WORDS (CHAR_ROWS * CHAR_COLS * 4 / 32)
+#define COLOUR_PLANE_ROW_WORDS  (CHAR_COLS * 4 / 32)
+#define COLOUR_PLANE_SIZE_WORDS (CHAR_ROWS * COLOUR_PLANE_ROW_WORDS)
 uint8_t charbuf[CHAR_ROWS * CHAR_COLS];
 uint32_t colourbuf[3 * COLOUR_PLANE_SIZE_WORDS];
 
@@ -66,9 +66,8 @@ static void set_colour222(uint x, uint y, uint8_t fg, uint8_t bg)
 {
     if (x >= CHAR_COLS || y >= CHAR_ROWS)
         return;
-    uint char_index = x + y * CHAR_COLS;
-    uint bit_index = char_index % 8 * 4;
-    uint word_index = char_index / 8;
+    uint word_index = y * COLOUR_PLANE_ROW_WORDS + x / 8;
+    uint bit_index = x % 8 * 4;
     for (int plane = 0; plane < 3; ++plane)
     {
         uint32_t fg_bg_combined = (fg & 0x3) | (bg << 2 & 0xc);
@@ -85,9 +84,8 @@ static uint16_t get_colour222(uint x, uint y)
         return 0;
     uint16_t fg = 0;
     uint16_t bg = 0;
-    uint char_index = x + y * CHAR_COLS;
-    uint bit_index = char_index % 8 * 4;
-    uint word_index = char_index / 8;
+    uint word_index = y * COLOUR_PLANE_ROW_WORDS + x / 8;
+    uint bit_index = x % 8 * 4;
     for (int plane = 0; plane < 3; ++plane)
     {
 
@@ -411,7 +409,7 @@ void term_render(uint y, uint32_t *tmdsbuf)
     {
         tmds_encode_font_2bpp(
             (const uint8_t *)&charbuf[line * CHAR_COLS],
-            &colourbuf[line * (COLOUR_PLANE_SIZE_WORDS / CHAR_ROWS) + plane * COLOUR_PLANE_SIZE_WORDS],
+            &colourbuf[line * COLOUR_PLANE_ROW_WORDS + plane * COLOUR_PLANE_SIZE_WORDS],
             tmdsbuf + plane * (FRAME_WIDTH / DVI_SYMBOLS_PER_WORD),
             FRAME_WIDTH,
             (const uint8_t *)&font8[font_line * FONT_N_CHARS] - FONT_FIRST_ASCII);
