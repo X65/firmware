@@ -37,6 +37,7 @@ bool main_active(void);
  */
 
 void main_task(void);
+void main_reclock(void);
 
 /* All pin assignments
  */

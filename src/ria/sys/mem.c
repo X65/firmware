@@ -11,9 +11,11 @@
 #include "hardware/irq.h"
 #include "hardware/pio.h"
 #include "hardware/timer.h"
+#include "hardware/vreg.h"
 #include "main.h"
 #include "mem.pio.h"
 #include "pico/multicore.h"
+#include "pico/stdlib.h"
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -149,7 +151,7 @@ static void mem_bus_pio_init(void)
     // PIO to manage PHI2 clock and 65816 address/data bus
     uint offset = pio_add_program(MEM_BUS_PIO, &mem_bus_program);
     pio_sm_config config = mem_bus_program_get_default_config(offset);
-    sm_config_set_clkdiv_int_frac(&config, 10, 0); // FIXME: remove?
+    sm_config_set_clkdiv_int_frac(&config, 3, 0); // FIXME: remove?
     sm_config_set_in_shift(&config, true, true, 26);
     sm_config_set_out_shift(&config, true, false, 0);
     sm_config_set_sideset_pins(&config, CPU_PHI2_PIN);
@@ -192,7 +194,7 @@ static void mem_ram_pio_init(void)
     // Write QPI program
     uint mem_ram_write_program_offset = pio_add_program(MEM_RAM_PIO, &mem_qpi_write_program);
     pio_sm_config write_config = mem_qpi_write_program_get_default_config(mem_ram_write_program_offset);
-    sm_config_set_clkdiv_int_frac(&write_config, 100, 0); // FIXME: remove?
+    sm_config_set_clkdiv_int_frac(&write_config, 4, 0); // FIXME: remove?
     sm_config_set_in_shift(&write_config, false, true, 8);
     sm_config_set_out_shift(&write_config, false, true, 32);
     sm_config_set_sideset_pins(&write_config, MEM_RAM_CLK_PIN);
@@ -362,6 +364,11 @@ void mem_core1_init(void)
 
 void mem_init(void)
 {
+    vreg_set_voltage(VREG_VOLTAGE_1_20);
+    sleep_ms(10);
+    set_sys_clock_khz(266000, true);
+    main_reclock();
+
     // Adjustments for GPIO performance. Important!
     for (int i = MEM_BUS_PIN_BASE; i < MEM_BUS_PIN_BASE + MEM_BUS_PINS_USED; i++)
     {
@@ -464,7 +471,7 @@ void mem_print_status(void)
     {
         uint8_t *ID = mem_ram_ID[bank];
         // #ifndef NDEBUG
-        // printf("%llx\n", *((uint64_t *)ID));
+        //         printf("%llx\n", *((uint64_t *)ID));
         // #endif
         printf("MEM%d: ", bank);
         switch (ID[7])

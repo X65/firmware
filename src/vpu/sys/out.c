@@ -40,6 +40,7 @@ static const struct dvi_serialiser_cfg x65_dvi_cfg = {
 // ANTIC generates 32/40/48 column text mode => max 256/320/384 px map mode
 // ANTIC supports up to 240 Display List instructions
 // With pixel-doubling this gives 768x480 mode, which has nice 16:10 aspect ratio
+// My TV recognizes this as 480p60 :-D
 // Timings computed using https://tomverbeure.github.io/video_timings_calculator
 // Back porches adjusted to fit 26.6MHz pixel clock
 const struct dvi_timing __dvi_const(dvi_timing_768x480p_60hz) = {

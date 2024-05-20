@@ -34,6 +34,10 @@ pico_add_extra_outputs(rp6502_ria)
 pico_set_program_name(rp6502_ria "RP6502 RIA")
 pico_set_binary_type(rp6502_ria copy_to_ram)
 
+pico_define_boot_stage2(slower_boot2 ${PICO_DEFAULT_BOOT_STAGE2_FILE})
+target_compile_definitions(slower_boot2 PRIVATE PICO_FLASH_SPI_CLKDIV=4)
+pico_set_boot_stage2(rp6502_ria slower_boot2)
+
 target_include_directories(rp6502_ria PRIVATE
     ${CMAKE_CURRENT_LIST_DIR}
     ${CMAKE_CURRENT_LIST_DIR}/tinyusb/src
@@ -169,3 +173,20 @@ set_property(TARGET rp6502_ria rp6502_vpu
     RP6502_MAX_PHI2=8000
     RP6502_EXFAT=0
 )
+
+
+# If no version set, touch the file that provides a dev timestamp for the version.
+
+get_target_property(RP6502_RIA_COMPILE_DEFINITIONS rp6502_ria COMPILE_DEFINITIONS)
+if(RP6502_RIA_COMPILE_DEFINITIONS MATCHES "RP6502_VERSION=\"\"")
+    add_custom_command(TARGET rp6502_ria
+        COMMAND ${CMAKE_COMMAND} -E touch ${CMAKE_CURRENT_LIST_DIR}/ria/sys/sys.c
+    )
+endif()
+
+get_target_property(RP6502_VGA_COMPILE_DEFINITIONS rp6502_vpu COMPILE_DEFINITIONS)
+if(RP6502_VGA_COMPILE_DEFINITIONS MATCHES "RP6502_VERSION=\"\"")
+    add_custom_command(TARGET rp6502_vpu
+        COMMAND ${CMAKE_COMMAND} -E touch ${CMAKE_CURRENT_LIST_DIR}/vpu/sys/ria.c
+    )
+endif()

@@ -7,7 +7,7 @@
 #ifndef _OUT_H_
 #define _OUT_H_
 
-#define FRAME_WIDTH  800
+#define FRAME_WIDTH  768
 #define FRAME_HEIGHT 240
 
 void out_init(void);
