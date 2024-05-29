@@ -91,7 +91,7 @@
   movs r5, #127
 
 .if \mapped
-  ldr r4, [r2, #POP1_OFFS + INTERP1]  // load background color pointer
+  ldr r4, [r2, #PEEK1_OFFS + INTERP1]  // load background color pointer
 .else
   mov r4, r10       // shared background color (given in r1)
 .endif
