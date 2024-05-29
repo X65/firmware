@@ -16,6 +16,15 @@
 .cpu cortex-m0plus
 .thumb
 
+// Put every function in its own ELF section, to permit linker GC
+.macro decl_func name
+.section .time_critical.\name, "ax"
+.global \name
+.type \name,%function
+.thumb_func
+\name:
+.endm
+
 //////////////////// MODE 3 ////////////////////
 
 // r0 is output TMDS buffer
@@ -47,50 +56,51 @@
 .endm
 
 // r0 is output TMDS buffer
-// r1 is background_color address
-// r2 is width in pixels
+// r1 is width in pixels
+// r2 is background_color address
 // interpolator 0 lane 0 is configured to index bitmap data
 // interpolator 1 lane 0 is configured to index colour map
 // interpolator 1 lane 0 is configured to index background map
 
-.section .scratch_x.tmds_encode_mode_3, "ax"
-.global tmds_encode_mode_3
-.type tmds_encode_mode_3,%function
-.thumb_func
-tmds_encode_mode_3:
-
+.macro tmds_encode_mode_3_shared_or_mapped mapped
   push {r4-r7, lr}
   mov r4, r8
   mov r5, r9
   mov r6, r10
   push {r4-r6}
 
-  lsls r2, #1       // 2 symbols per word -> 2 bytes per symbol
-  mov ip, r2
+.if !\mapped
+  mov r10, r2       // r10 - background color address
+.endif
+
+  lsls r1, #1       // 2 symbols per word -> 2 bytes per symbol
+  mov ip, r1
   add ip, r0        // loop until reaching required buffer offset
 
   ldr r2, =(SIO_BASE + SIO_INTERP0_ACCUM0_OFFSET)
 
-  ldr r6, =buffer_length
+  ldr r6, =tmds_buffer_length
   ldr r6, [r6]
   mov r8, r6        // keep for later use
 
   ldr r6, =cgia_palette
   mov r9, r6        // r9 - palette begin address
 
-  mov r10, r1       // r10 - background color address
 
-
-loop:
+3:
   movs r5, #127
 
-  mov r4, r10
+.if \mapped
+  ldr r4, [r2, #POP1_OFFS + INTERP1]  // load background color pointer
+.else
+  mov r4, r10       // shared background color (given in r1)
+.endif
   ldrb r4, [r4]
   ands r4, r5       // clamp index to 127
-  mov r11, r4 // TODO: try to move r11 below r8, so we can remove this "mov"
+  mov r11, r4       // r11 - background color index
 
   ldr r4, [r2, #POP0_OFFS + INTERP1]  // load color pointer
-  ldrb r4, [r4]     // load foreground color index
+  ldrb r4, [r4]     // r4 - foreground color index
   ands r4, r5       // clamp index to 127
 
   ldr r1, [r2, #POP0_OFFS]  // load bitmap offset
@@ -107,14 +117,20 @@ loop:
   write_pixel
 
   cmp r0, ip
-  blo loop
+  blo 3b
 
   pop {r4-r6}
   mov r8, r4
   mov r9, r5
   mov r10, r6
   pop {r4-r7, pc}
+.endm
 
+decl_func tmds_encode_mode_3_shared
+	tmds_encode_mode_3_shared_or_mapped 0
+
+decl_func tmds_encode_mode_3_mapped
+	tmds_encode_mode_3_shared_or_mapped 1
 
 //////////////////// BORDER ////////////////////
 
@@ -133,19 +149,14 @@ loop:
 // r0 is output TMDS buffer
 // r1 is background colour
 // r2 is width in columns
-.section .scratch_x.tmds_encode_border, "ax"
-.global tmds_encode_border
-.type tmds_encode_border,%function
-.thumb_func
-tmds_encode_border:
-
+decl_func tmds_encode_border
   push {r4-r7, lr}
   mov r4, r8
   mov r5, r9
   mov r6, r10
   push {r4-r6}
 
-  ldr r6, =buffer_length
+  ldr r6, =tmds_buffer_length
   ldr r6, [r6]
   mov r8, r6      // keep for later use
   mov r9, r2      // save column counter for later
@@ -175,5 +186,5 @@ tmds_encode_border:
   pop {r4-r7, pc}
 
 .align 2
-buffer_length:
+tmds_buffer_length:
 .word 768*2       // 768 px - 2px per word (4/2)
