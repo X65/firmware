@@ -67,6 +67,9 @@ struct dvi_inst dvi0;
 
 void __not_in_flash_func(out_core1_main)()
 {
+    // CGIA needs to initialize this core interpolators
+    cgia_core1_init();
+
     dvi_register_irqs_this_core(&dvi0, DMA_IRQ_0);
     dvi_start(&dvi0);
     while (true)

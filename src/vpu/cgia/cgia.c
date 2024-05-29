@@ -1,4 +1,7 @@
+#include "hardware/interp.h"
+
 #include "sys/std.h"
+#include <stdint.h>
 #include <stdio.h>
 
 #include "cgia.h"
@@ -57,6 +60,7 @@ uint32_t __attribute__((aligned(4))) cgia_palette[CGIA_COLORS_NUM * PALETTE_WORD
 #define FRAME_CHARS (DISPLAY_WIDTH_PIXELS / 8)
 uint8_t __attribute__((aligned(4))) screen[FRAME_CHARS];
 uint8_t __attribute__((aligned(4))) colour[FRAME_CHARS];
+uint8_t __attribute__((aligned(4))) backgr[FRAME_CHARS];
 
 void init_palette()
 {
@@ -78,7 +82,8 @@ static volatile struct registers_t
 {
     uint16_t memory_scan;
     uint16_t color_scan;
-    uint8_t borderColor;
+    uint8_t border_color;
+    uint8_t row_height;
 } __attribute__((aligned(4))) registers;
 
 static volatile uint frame = 0;
@@ -92,9 +97,23 @@ void cgia_init(void)
     {
         screen[i] = i & 0xff;
         colour[i] = i % CGIA_COLORS_NUM;
+        backgr[i] = (127 - i) % CGIA_COLORS_NUM;
     }
 
-    registers.borderColor = 1;
+    registers.border_color = 1;
+    registers.row_height = 1;
+}
+
+void cgia_core1_init(void)
+{
+    interp_config cfg = interp_default_config();
+    interp_config_set_add_raw(&cfg, true);
+    interp_set_config(interp0, 0, &cfg);
+    interp_set_config(interp0, 1, &cfg);
+    interp_set_config(interp1, 0, &cfg);
+    interp_set_config(interp1, 1, &cfg);
+    interp_set_base(interp1, 0, 1);
+    interp_set_base(interp1, 1, 1);
 }
 
 void __not_in_flash_func(cgia_render)(uint y, uint32_t *tmdsbuf)
@@ -107,29 +126,25 @@ void __not_in_flash_func(cgia_render)(uint y, uint32_t *tmdsbuf)
 
         if (frame % 10 == 0)
         {
-            registers.borderColor = (registers.borderColor + 1) & 0b01111111;
+            registers.border_color = (registers.border_color + 1) & 0b01111111;
         }
     }
 
     if (y < 24 || y >= (24 + 192))
     {
-        p = tmds_encode_border(
-            p,
-            registers.borderColor,
-            DISPLAY_WIDTH_PIXELS / 8);
+        p = tmds_encode_border(p, registers.border_color, DISPLAY_WIDTH_PIXELS / 8);
     }
     else if (y >= 48 && y < (48 + 128))
     {
         uint32_t *buf = p;
-        // uint8_t offset = 0;
-        uint8_t offset = (y - 48 + (frame / 2)) % 16;
-        if (offset >= 8)
-            offset = 15 - offset;
-        p = tmds_encode_mode_3(
-            p,
-            screen,
-            colour + offset,
-            FRAME_WIDTH);
+
+        uint8_t column_stride = registers.row_height;
+        interp_set_accumulator(interp0, 0, (uintptr_t)screen - column_stride);
+        interp_set_base(interp0, 0, column_stride);
+        interp_set_accumulator(interp1, 0, (uintptr_t)colour - 1);
+        interp_set_accumulator(interp1, 1, (uintptr_t)backgr - 1);
+        p = tmds_encode_mode_3(p, screen, colour, FRAME_WIDTH);
+
         {
             static char printf_buffer[256];
             char *chr;
@@ -190,19 +205,16 @@ void __not_in_flash_func(cgia_render)(uint y, uint32_t *tmdsbuf)
     }
     else
     {
-        p = tmds_encode_border(
-            p,
-            registers.borderColor,
-            DISPLAY_BORDER_COLUMNS);
-        p = tmds_encode_mode_3(
-            p,
-            screen,
-            colour,
-            FRAME_WIDTH - DISPLAY_BORDER_COLUMNS * 8 * 2 * 2);
-        p = tmds_encode_border(
-            p,
-            registers.borderColor,
-            DISPLAY_BORDER_COLUMNS);
+        p = tmds_encode_border(p, registers.border_color, DISPLAY_BORDER_COLUMNS);
+
+        uint8_t column_stride = registers.row_height;
+        interp_set_accumulator(interp0, 0, (uintptr_t)screen - column_stride);
+        interp_set_base(interp0, 0, column_stride);
+        interp_set_accumulator(interp1, 0, (uintptr_t)colour - 1);
+        interp_set_accumulator(interp1, 1, (uintptr_t)backgr - 1);
+        p = tmds_encode_mode_3(p, screen, colour, FRAME_WIDTH - DISPLAY_BORDER_COLUMNS * 8 * 2 * 2);
+
+        p = tmds_encode_border(p, registers.border_color, DISPLAY_BORDER_COLUMNS);
     }
 }
 

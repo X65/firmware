@@ -1,3 +1,17 @@
+#include "hardware/regs/addressmap.h"
+#include "hardware/regs/sio.h"
+
+// Offsets suitable for ldr/str (must be <= 0x7c):
+#define ACCUM0_OFFS     (SIO_INTERP0_ACCUM0_OFFSET     - SIO_INTERP0_ACCUM0_OFFSET)
+#define ACCUM1_OFFS     (SIO_INTERP0_ACCUM1_OFFSET     - SIO_INTERP0_ACCUM0_OFFSET)
+#define PEEK0_OFFS      (SIO_INTERP0_PEEK_LANE0_OFFSET - SIO_INTERP0_ACCUM0_OFFSET)
+#define PEEK1_OFFS      (SIO_INTERP0_PEEK_LANE1_OFFSET - SIO_INTERP0_ACCUM0_OFFSET)
+#define PEEK2_OFFS      (SIO_INTERP0_PEEK_FULL_OFFSET  - SIO_INTERP0_ACCUM0_OFFSET)
+#define POP0_OFFS       (SIO_INTERP0_POP_LANE0_OFFSET  - SIO_INTERP0_ACCUM0_OFFSET)
+#define POP1_OFFS       (SIO_INTERP0_POP_LANE1_OFFSET  - SIO_INTERP0_ACCUM0_OFFSET)
+#define POP2_OFFS       (SIO_INTERP0_POP_FULL_OFFSET   - SIO_INTERP0_ACCUM0_OFFSET)
+#define INTERP1         (SIO_INTERP1_ACCUM0_OFFSET     - SIO_INTERP0_ACCUM0_OFFSET)
+
 .syntax unified
 .cpu cortex-m0plus
 .thumb
@@ -24,8 +38,10 @@
 
 // r0 is output TMDS buffer
 // r1 is the bitmap for this scanline
-// r2 is colour buffer
 // r3 is width in pixels
+// interpolator 0 lane 0 is configured to index bitmap data
+// interpolator 1 lane 0 is configured to index colour map
+// interpolator 1 lane 0 is configured to index background map
 
 .section .scratch_x.tmds_encode_mode_3, "ax"
 .global tmds_encode_mode_3
@@ -43,6 +59,8 @@ tmds_encode_mode_3:
   mov ip, r3
   add ip, r0        // loop until reaching required buffer offset
 
+  ldr r2, =(SIO_BASE + SIO_INTERP0_ACCUM0_OFFSET)
+
   ldr r6, =buffer_length
   ldr r6, [r6]
   mov r8, r6         // keep for later use
@@ -53,7 +71,8 @@ tmds_encode_mode_3:
 
 loop:
   mov r4, r9
-  ldrb r7, [r2]
+  ldr r7, [r2, #POP0_OFFS + INTERP1]
+  ldrb r7, [r7]
   lsls r7, #4       // 4 channels per palette entry * 4 bytes per word
   adds r4, r7       // r4 is foreground color
   mov r11, r1       // save bitmap pointer
@@ -68,7 +87,6 @@ loop:
   write_pixel
   write_pixel
   write_pixel
-  adds r2, #1       // move to next color cell
   mov r1, r11       // restore bitmap pointer
   adds r1, #1       // move to next bitmap cell
 
