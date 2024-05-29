@@ -37,7 +37,6 @@
 .endm
 
 // r0 is output TMDS buffer
-// r1 is the bitmap for this scanline
 // r3 is width in pixels
 // interpolator 0 lane 0 is configured to index bitmap data
 // interpolator 1 lane 0 is configured to index colour map
@@ -55,7 +54,7 @@ tmds_encode_mode_3:
   mov r6, r10
   push {r4-r6}
 
-  lsls r3, #1        // 2 symbols per word -> 2 bytes per symbol
+  lsls r3, #1       // 2 symbols per word -> 2 bytes per symbol
   mov ip, r3
   add ip, r0        // loop until reaching required buffer offset
 
@@ -63,19 +62,19 @@ tmds_encode_mode_3:
 
   ldr r6, =buffer_length
   ldr r6, [r6]
-  mov r8, r6         // keep for later use
+  mov r8, r6        // keep for later use
   ldr r6, =cgia_palette
-  mov r9, r6
-  mov r10, r6        // background color - FIXME: hardcoded black
+  mov r9, r6        // r9 - palette begin
+  mov r10, r6       // background color - FIXME: hardcoded black
 
 
 loop:
-  mov r4, r9
-  ldr r7, [r2, #POP0_OFFS + INTERP1]
-  ldrb r7, [r7]
+  mov r4, r9        // palette begin to r4
+  ldr r7, [r2, #POP0_OFFS + INTERP1]  // load color pointer
+  ldrb r7, [r7]     // load color index
   lsls r7, #4       // 4 channels per palette entry * 4 bytes per word
   adds r4, r7       // r4 is foreground color
-  mov r11, r1       // save bitmap pointer
+  ldr r1, [r2, #POP0_OFFS]  // load bitmap offset
   ldrb r1, [r1]     // load bitmap data
   lsls r1, #24      // move to MSB
 
@@ -87,8 +86,6 @@ loop:
   write_pixel
   write_pixel
   write_pixel
-  mov r1, r11       // restore bitmap pointer
-  adds r1, #1       // move to next bitmap cell
 
   cmp r0, ip
   blo loop

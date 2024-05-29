@@ -58,7 +58,7 @@ uint32_t __attribute__((aligned(4))) cgia_palette[CGIA_COLORS_NUM * PALETTE_WORD
 #define DISPLAY_BORDER_COLUMNS 4
 
 #define FRAME_CHARS (DISPLAY_WIDTH_PIXELS / 8)
-uint8_t __attribute__((aligned(4))) screen[FRAME_CHARS];
+uint8_t __attribute__((aligned(4))) screen[FRAME_CHARS * 8];
 uint8_t __attribute__((aligned(4))) colour[FRAME_CHARS];
 uint8_t __attribute__((aligned(4))) backgr[FRAME_CHARS];
 
@@ -93,15 +93,18 @@ void cgia_init(void)
     init_palette();
 
     // TODO: fill with 0s
-    for (int i = 0; i < FRAME_CHARS; ++i)
+    for (int i = 0; i < FRAME_CHARS * 8; ++i)
     {
         screen[i] = i & 0xff;
+    }
+    for (int i = 0; i < FRAME_CHARS; ++i)
+    {
         colour[i] = i % CGIA_COLORS_NUM;
         backgr[i] = (127 - i) % CGIA_COLORS_NUM;
     }
 
     registers.border_color = 1;
-    registers.row_height = 1;
+    registers.row_height = 8; // FIXME: 0 should mean 1, 255 should mean 256
 }
 
 void cgia_core1_init(void)
@@ -139,8 +142,9 @@ void __not_in_flash_func(cgia_render)(uint y, uint32_t *tmdsbuf)
         uint32_t *buf = p;
 
         uint8_t column_stride = registers.row_height;
-        interp_set_accumulator(interp0, 0, (uintptr_t)screen - column_stride);
         interp_set_base(interp0, 0, column_stride);
+        uint8_t row_offset = y % registers.row_height;
+        interp_set_accumulator(interp0, 0, (uintptr_t)screen - column_stride + row_offset);
         interp_set_accumulator(interp1, 0, (uintptr_t)colour - 1);
         interp_set_accumulator(interp1, 1, (uintptr_t)backgr - 1);
         p = tmds_encode_mode_3(p, screen, colour, FRAME_WIDTH);
@@ -208,8 +212,8 @@ void __not_in_flash_func(cgia_render)(uint y, uint32_t *tmdsbuf)
         p = tmds_encode_border(p, registers.border_color, DISPLAY_BORDER_COLUMNS);
 
         uint8_t column_stride = registers.row_height;
-        interp_set_accumulator(interp0, 0, (uintptr_t)screen - column_stride);
         interp_set_base(interp0, 0, column_stride);
+        interp_set_accumulator(interp0, 0, (uintptr_t)screen - column_stride);
         interp_set_accumulator(interp1, 0, (uintptr_t)colour - 1);
         interp_set_accumulator(interp1, 1, (uintptr_t)backgr - 1);
         p = tmds_encode_mode_3(p, screen, colour, FRAME_WIDTH - DISPLAY_BORDER_COLUMNS * 8 * 2 * 2);
