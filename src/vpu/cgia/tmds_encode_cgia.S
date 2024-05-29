@@ -82,12 +82,16 @@ tmds_encode_mode_3:
 
 
 loop:
+  movs r5, #127
+
   mov r4, r10
   ldrb r4, [r4]
+  ands r4, r5       // clamp index to 127
   mov r11, r4 // TODO: try to move r11 below r8, so we can remove this "mov"
 
   ldr r4, [r2, #POP0_OFFS + INTERP1]  // load color pointer
   ldrb r4, [r4]     // load foreground color index
+  ands r4, r5       // clamp index to 127
 
   ldr r1, [r2, #POP0_OFFS]  // load bitmap offset
   ldrb r1, [r1]     // load bitmap data
