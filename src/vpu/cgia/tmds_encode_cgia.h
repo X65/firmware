@@ -10,8 +10,7 @@ uint32_t *__not_in_flash_func(tmds_encode_border)(
 
 uint32_t *__not_in_flash_func(tmds_encode_mode_3)(
     uint32_t *tmdsbuf,
-    const uint8_t *screenPtr,
-    const uint8_t *colourPtr,
+    volatile uint8_t *background_colour,
     uint32_t pixels);
 
 #endif

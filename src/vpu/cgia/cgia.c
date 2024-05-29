@@ -83,6 +83,7 @@ static volatile struct registers_t
     uint16_t memory_scan;
     uint16_t color_scan;
     uint8_t border_color;
+    uint8_t background_color;
     uint8_t row_height;
 } __attribute__((aligned(4))) registers;
 
@@ -104,6 +105,7 @@ void cgia_init(void)
     }
 
     registers.border_color = 1;
+    registers.background_color = 63;
     registers.row_height = 8; // FIXME: 0 should mean 1, 255 should mean 256
 }
 
@@ -131,6 +133,10 @@ void __not_in_flash_func(cgia_render)(uint y, uint32_t *tmdsbuf)
         {
             registers.border_color = (registers.border_color + 1) & 0b01111111;
         }
+        if (frame % 17 == 0)
+        {
+            registers.background_color = (registers.background_color - 1) & 0b01111111;
+        }
     }
 
     if (y < 24 || y >= (24 + 192))
@@ -147,7 +153,7 @@ void __not_in_flash_func(cgia_render)(uint y, uint32_t *tmdsbuf)
         interp_set_accumulator(interp0, 0, (uintptr_t)screen - column_stride + row_offset);
         interp_set_accumulator(interp1, 0, (uintptr_t)colour - 1);
         interp_set_accumulator(interp1, 1, (uintptr_t)backgr - 1);
-        p = tmds_encode_mode_3(p, screen, colour, FRAME_WIDTH);
+        p = tmds_encode_mode_3(p, &registers.background_color, FRAME_WIDTH);
 
         {
             static char printf_buffer[256];
@@ -216,7 +222,7 @@ void __not_in_flash_func(cgia_render)(uint y, uint32_t *tmdsbuf)
         interp_set_accumulator(interp0, 0, (uintptr_t)screen - column_stride);
         interp_set_accumulator(interp1, 0, (uintptr_t)colour - 1);
         interp_set_accumulator(interp1, 1, (uintptr_t)backgr - 1);
-        p = tmds_encode_mode_3(p, screen, colour, FRAME_WIDTH - DISPLAY_BORDER_COLUMNS * 8 * 2 * 2);
+        p = tmds_encode_mode_3(p, &registers.background_color, FRAME_WIDTH - DISPLAY_BORDER_COLUMNS * 8 * 2 * 2);
 
         p = tmds_encode_border(p, registers.border_color, DISPLAY_BORDER_COLUMNS);
     }

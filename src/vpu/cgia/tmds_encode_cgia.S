@@ -18,6 +18,13 @@
 
 //////////////////// MODE 3 ////////////////////
 
+// r0 is output TMDS buffer
+// r1 is bitmap (8 MSB)
+// r4 is foreground color index
+// r8 is TMDS buffer length (1 channel)
+// r9 is palette begin address
+// r11 is background color index
+// uses r1,r3,r5-r7
 .macro write_pixel
   lsls r1, #1        // shift-out 1 bit
   bcc 1f
@@ -25,8 +32,11 @@
   mov r5, r4
   b 2f
 1:  // bit is 0 - draw background pixel
-  mov r5, r10
+  mov r5, r11
 2:
+  lsls r5, #4       // 4 channels per palette entry * 4 bytes per word
+  add r5, r9        // r5 is used palettte entry address
+
   ldmia r5, {r5-r7}
   mov r3, r0
   stmia r0!, {r5}
@@ -37,7 +47,8 @@
 .endm
 
 // r0 is output TMDS buffer
-// r3 is width in pixels
+// r1 is background_color address
+// r2 is width in pixels
 // interpolator 0 lane 0 is configured to index bitmap data
 // interpolator 1 lane 0 is configured to index colour map
 // interpolator 1 lane 0 is configured to index background map
@@ -54,8 +65,8 @@ tmds_encode_mode_3:
   mov r6, r10
   push {r4-r6}
 
-  lsls r3, #1       // 2 symbols per word -> 2 bytes per symbol
-  mov ip, r3
+  lsls r2, #1       // 2 symbols per word -> 2 bytes per symbol
+  mov ip, r2
   add ip, r0        // loop until reaching required buffer offset
 
   ldr r2, =(SIO_BASE + SIO_INTERP0_ACCUM0_OFFSET)
@@ -63,17 +74,21 @@ tmds_encode_mode_3:
   ldr r6, =buffer_length
   ldr r6, [r6]
   mov r8, r6        // keep for later use
+
   ldr r6, =cgia_palette
-  mov r9, r6        // r9 - palette begin
-  mov r10, r6       // background color - FIXME: hardcoded black
+  mov r9, r6        // r9 - palette begin address
+
+  mov r10, r1       // r10 - background color address
 
 
 loop:
-  mov r4, r9        // palette begin to r4
-  ldr r7, [r2, #POP0_OFFS + INTERP1]  // load color pointer
-  ldrb r7, [r7]     // load color index
-  lsls r7, #4       // 4 channels per palette entry * 4 bytes per word
-  adds r4, r7       // r4 is foreground color
+  mov r4, r10
+  ldrb r4, [r4]
+  mov r11, r4 // TODO: try to move r11 below r8, so we can remove this "mov"
+
+  ldr r4, [r2, #POP0_OFFS + INTERP1]  // load color pointer
+  ldrb r4, [r4]     // load foreground color index
+
   ldr r1, [r2, #POP0_OFFS]  // load bitmap offset
   ldrb r1, [r1]     // load bitmap data
   lsls r1, #24      // move to MSB
