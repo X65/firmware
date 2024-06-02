@@ -8,6 +8,7 @@
 #include "cgia_palette.h"
 #include "tmds_encode_cgia.h"
 
+#include "display_lists.h"
 #include "veto-the_mill.h"
 
 #include "sys/out.h"
@@ -45,14 +46,29 @@ void init_palette()
 
 static volatile struct registers_t
 {
-    uint16_t memory_scan;
-    uint16_t color_scan;
+    uint8_t display_bank;
+    uint8_t sprite_bank;
+
+    uint16_t dl_offset;
+    uint16_t memory_offset;
+    uint16_t colour_offset;
+    uint16_t backgr_offset;
+
+    uint8_t sprite_enable;
+    uint16_t sprite_offset[8];
+
+    // TODO: change to DBANK(8) + DLIST(16) (DLISTL/DLISTH)
+    uint8_t *display_list;
+    uint8_t *memory_scan;
+    uint8_t *colour_scan;
+    uint8_t *backgr_scan;
+
     uint8_t border_color;
     uint8_t background_color;
     uint8_t row_height;
+    uint8_t border_columns;
+    bool transparent_background;
 } __attribute__((aligned(4))) registers;
-
-static volatile uint frame = 0;
 
 void cgia_init(void)
 {
@@ -69,9 +85,18 @@ void cgia_init(void)
         backgr[i] = (127 - i) % CGIA_COLORS_NUM;
     }
 
+    // FIXME: these should be initialized by CPU Operating System
     registers.border_color = 1;
     registers.background_color = 0;
-    registers.row_height = 8; // FIXME: 0 should mean 1, 255 should mean 256
+    registers.row_height = 7;
+    registers.display_list = hires_mode_dl;
+    registers.memory_scan = bitmap_data;
+    registers.colour_scan = colour_data;
+    registers.backgr_scan = background_data;
+
+    // Config
+    registers.transparent_background = false;
+    registers.border_columns = 4;
 }
 
 void cgia_core1_init(void)
@@ -86,54 +111,153 @@ void cgia_core1_init(void)
     interp_set_base(interp1, 1, 1);
 }
 
+#define MODE_BIT 0b00001000
+#define LMS_BIT  0b01000000
+#define DLI_BIT  0b10000000
+
 void __not_in_flash_func(cgia_render)(uint y, uint32_t *tmdsbuf)
 {
+    static uint8_t row_line_count = 0;
+    static bool wait_vbl = true;
+
+    if (wait_vbl && y != 0)
+    {
+        // DL is stopped and waiting for VBL
+        // generate full-length border line
+        (void)tmds_encode_border(tmdsbuf, registers.border_color, DISPLAY_WIDTH_PIXELS / 8);
+        // and we're done
+        return;
+    }
+
+    if (y == 0) // start of frame - reset flags and counters
+    {
+        wait_vbl = false;
+        row_line_count = 0;
+    }
+
+    uint8_t dl_instr = *registers.display_list;
+    uint8_t dl_row_lines = registers.row_height;
+
+    // mode row + LMS enabled?
+    if (row_line_count == 0 && (dl_instr & (MODE_BIT | LMS_BIT)) == (MODE_BIT | LMS_BIT))
+    {
+        // TODO:
+        // registers.memory_scan = read_memory(registers.display_base << 16 & registers.display_list)
+        registers.memory_scan = bitmap_data; // FIXME: HARDCODED!
+
+        // Load Color and Background Map addresses
+        if (dl_instr & DLI_BIT)
+        {
+            // TODO:
+            // registers.colour_scan = read_memory(registers.display_base << 16 & registers.display_list)
+            // registers.backgr_scan = read_memory(registers.display_base << 16 & registers.display_list)
+            registers.colour_scan = colour_data;     // FIXME: HARDCODED!
+            registers.backgr_scan = background_data; // FIXME: HARDCODED!
+        }
+    }
+
+    // Used for tracking where to blit pixel data
     uint32_t *p = tmdsbuf;
 
-    if (y == 0)
-    {
-        ++frame;
+    // Left border
+    if (dl_instr & MODE_BIT && registers.border_columns)
+        p = tmds_encode_border(p, registers.border_color, registers.border_columns);
 
-        // if (frame % 10 == 0)
-        // {
-        //     registers.border_color = (registers.border_color + 1) & 0b01111111;
-        // }
-        // if (frame % 17 == 0)
-        // {
-        //     registers.background_color = (registers.background_color - 1) & 0b01111111;
-        // }
+    // DL mode
+    switch (dl_instr & 0b00001111)
+    {
+
+        // Instructions:
+
+    case 0x0: // INSTR0 - blank lines
+        dl_row_lines = dl_instr >> 4;
+        (void)tmds_encode_border(p, registers.border_color, DISPLAY_WIDTH_PIXELS / 8);
+        break;
+    case 0x1: // INSTR1 - JMP
+        // Load DL address
+        // registers.display_list = read_memory(registers.display_base << 16 & registers.display_list)
+        registers.display_list = hires_mode_dl; // FIXME: HARDCODED!
+        row_line_count = 0;                     // will start new row
+
+        if (dl_instr & LMS_BIT)
+        {
+            wait_vbl = true;
+        }
+        // process next DL instruction
+        return cgia_render(y, p);
+        break;
+
+        // Mode Rows:
+
+    case (0x3 | MODE_BIT): // MODE3 - bitmap mode
+    {
+        const int row_px = FRAME_WIDTH - (registers.border_columns << 5);
+        const uint8_t row_height = registers.row_height + 1;
+        interp_set_base(interp0, 0, row_height);
+        interp_set_accumulator(interp0, 0, (uintptr_t)registers.memory_scan - row_height);
+        interp_set_accumulator(interp1, 0, (uintptr_t)registers.colour_scan - 1);
+        interp_set_accumulator(interp1, 1, (uintptr_t)registers.backgr_scan - 1);
+        if (registers.transparent_background)
+        {
+            p = tmds_encode_mode_3_shared(p, row_px, &registers.background_color);
+        }
+        else
+        {
+            p = tmds_encode_mode_3_mapped(p, row_px);
+        }
+
+        // next raster line starts with next byte, but color/bg scan stays the same
+        ++registers.memory_scan;
+    }
+    break;
+
+        // UNKNOWN MODE - generate pink line (should not happen)
+    default:
+        (void)tmds_encode_border(tmdsbuf, 115, DISPLAY_WIDTH_PIXELS / 8);
+        dl_row_lines = row_line_count; // force moving to next DL instruction
+        goto skip_right_border;
     }
 
-    if (y < 24 || y >= (24 + 192))
+    // Right border
+    if (dl_instr & MODE_BIT && registers.border_columns)
+        p = tmds_encode_border(p, registers.border_color, registers.border_columns);
+
+skip_right_border:
+
+    // Should we run a new DL row?
+    if (row_line_count == dl_row_lines)
     {
-        p = tmds_encode_border(p, registers.border_color, DISPLAY_WIDTH_PIXELS / 8);
+        // Update scan pointers
+        if (dl_instr & MODE_BIT)
+        {
+            // update scan pointers to current value
+            registers.memory_scan = (uint8_t *)(uintptr_t)interp_peek_lane_result(interp0, 0) - row_line_count;
+            registers.colour_scan = (uint8_t *)(uintptr_t)interp_peek_lane_result(interp1, 0);
+            registers.backgr_scan = (uint8_t *)(uintptr_t)interp_peek_lane_result(interp1, 1);
+        }
+
+        // Reset line counter
+        row_line_count = 0;
+
+        // Move to next DL instruction
+        ++registers.display_list;
+        // mode row + LMS enabled?
+        if ((dl_instr & (MODE_BIT | LMS_BIT)) == (MODE_BIT | LMS_BIT))
+        {
+            if (dl_instr & DLI_BIT)
+            {
+                registers.display_list += (2 + 4);
+            }
+            else
+            {
+                registers.display_list += 2;
+            }
+        }
     }
-    // else if (y >= 48 && y < (48 + 128))
-    // {
-    //     uint8_t column_stride = registers.row_height;
-    //     interp_set_base(interp0, 0, column_stride);
-    //     uint8_t row_offset = y % registers.row_height;
-    //     interp_set_accumulator(interp0, 0, (uintptr_t)screen - column_stride + row_offset);
-    //     interp_set_accumulator(interp1, 0, (uintptr_t)colour - 1);
-    //     interp_set_accumulator(interp1, 1, (uintptr_t)backgr - 1);
-    //     p = tmds_encode_mode_3_shared(p, FRAME_WIDTH, &registers.background_color);
-    // }
     else
     {
-        p = tmds_encode_border(p, registers.border_color, DISPLAY_BORDER_COLUMNS);
-
-        uint8_t row_height = registers.row_height;
-        interp_set_base(interp0, 0, row_height);
-        uint8_t offset = y - 24;
-        uint8_t row = offset / row_height;
-        uint8_t row_offset = offset % row_height;
-        interp_set_accumulator(interp0, 0, (uintptr_t)bitmap_data - row_height + row * 40 * 8 + row_offset);
-        interp_set_accumulator(interp1, 0, (uintptr_t)colour_data - 1 + row * 40);
-        interp_set_accumulator(interp1, 1, (uintptr_t)background_data - 1 + row * 40);
-        // p = tmds_encode_mode_3_shared(p, FRAME_WIDTH - DISPLAY_BORDER_COLUMNS * 8 * 2 * 2, &registers.background_color);
-        p = tmds_encode_mode_3_mapped(p, FRAME_WIDTH - DISPLAY_BORDER_COLUMNS * 8 * 2 * 2);
-
-        p = tmds_encode_border(p, registers.border_color, DISPLAY_BORDER_COLUMNS);
+        // Move to next line of current DL row
+        ++row_line_count;
     }
 }
 
