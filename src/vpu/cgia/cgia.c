@@ -112,13 +112,32 @@ void cgia_core1_init(void)
 }
 
 #define MODE_BIT 0b00001000
-#define LMS_BIT  0b01000000
 #define DLI_BIT  0b10000000
 
 void __not_in_flash_func(cgia_render)(uint y, uint32_t *tmdsbuf)
 {
     static uint8_t row_line_count = 0;
     static bool wait_vbl = true;
+#if 0
+    { // DL debugger
+        static int frame = 0;
+        if (y == 0)
+            ++frame;
+        static char printf_buffer[256];
+        char *chr;
+        if (frame == 60 * 5)
+        {
+            sprintf(printf_buffer, "%03d: %p => %02x\t%d%s\n\r",
+                    y, registers.display_list, *registers.display_list, row_line_count,
+                    wait_vbl ? " w" : "");
+            chr = printf_buffer;
+            while (*chr)
+            {
+                std_out_write(*chr++);
+            }
+        }
+    }
+#endif
 
     if (wait_vbl && y != 0)
     {
@@ -138,24 +157,6 @@ void __not_in_flash_func(cgia_render)(uint y, uint32_t *tmdsbuf)
     uint8_t dl_instr = *registers.display_list;
     uint8_t dl_row_lines = registers.row_height;
 
-    // mode row + LMS enabled?
-    if (row_line_count == 0 && (dl_instr & (MODE_BIT | LMS_BIT)) == (MODE_BIT | LMS_BIT))
-    {
-        // TODO:
-        // registers.memory_scan = read_memory(registers.display_base << 16 & registers.display_list)
-        registers.memory_scan = bitmap_data; // FIXME: HARDCODED!
-
-        // Load Color and Background Map addresses
-        if (dl_instr & DLI_BIT)
-        {
-            // TODO:
-            // registers.colour_scan = read_memory(registers.display_base << 16 & registers.display_list)
-            // registers.backgr_scan = read_memory(registers.display_base << 16 & registers.display_list)
-            registers.colour_scan = colour_data;     // FIXME: HARDCODED!
-            registers.backgr_scan = background_data; // FIXME: HARDCODED!
-        }
-    }
-
     // Used for tracking where to blit pixel data
     uint32_t *p = tmdsbuf;
 
@@ -166,28 +167,51 @@ void __not_in_flash_func(cgia_render)(uint y, uint32_t *tmdsbuf)
     // DL mode
     switch (dl_instr & 0b00001111)
     {
-
-        // Instructions:
+        // ------- Instructions -------
 
     case 0x0: // INSTR0 - blank lines
         dl_row_lines = dl_instr >> 4;
         (void)tmds_encode_border(p, registers.border_color, DISPLAY_WIDTH_PIXELS / 8);
-        break;
+        goto skip_right_border;
+
     case 0x1: // INSTR1 - JMP
         // Load DL address
         // registers.display_list = read_memory(registers.display_base << 16 & registers.display_list)
         registers.display_list = hires_mode_dl; // FIXME: HARDCODED!
         row_line_count = 0;                     // will start new row
 
-        if (dl_instr & LMS_BIT)
-        {
+        if (dl_instr & DLI_BIT)
             wait_vbl = true;
-        }
-        // process next DL instruction
-        return cgia_render(y, p);
-        break;
 
-        // Mode Rows:
+        // .display_list is already pointing to next instruction
+        return cgia_render(y, p); // process next DL instruction
+
+    case 0x2:                     // Load Memory
+        ++registers.display_list; // Move to next DL instruction
+        if (dl_instr & 0b00010000)
+        { // memory scan
+            // TODO:
+            // registers.memory_scan = read_memory(registers.display_base << 16 & registers.display_list)
+            registers.memory_scan = bitmap_data; // FIXME: HARDCODED!
+            registers.display_list += 2;
+        }
+        if (dl_instr & 0b00100000)
+        { // color scan
+            // TODO:
+            // registers.colour_scan = read_memory(registers.display_base << 16 & registers.display_list)
+            registers.colour_scan = colour_data; // FIXME: HARDCODED!
+            registers.display_list += 2;
+        }
+        if (dl_instr & 0b01000000)
+        { // background scan
+            // TODO:
+            // registers.backgr_scan = read_memory(registers.display_base << 16 & registers.display_list)
+            registers.backgr_scan = background_data; // FIXME: HARDCODED!
+            registers.display_list += 2;
+        }
+        return cgia_render(y, p); // process next DL instruction
+
+        // ------- Mode Rows -------
 
     case (0x3 | MODE_BIT): // MODE3 - bitmap mode
     {
@@ -211,7 +235,7 @@ void __not_in_flash_func(cgia_render)(uint y, uint32_t *tmdsbuf)
     }
     break;
 
-        // UNKNOWN MODE - generate pink line (should not happen)
+        // ------- UNKNOWN MODE - generate pink line (should not happen)
     default:
         (void)tmds_encode_border(tmdsbuf, 115, DISPLAY_WIDTH_PIXELS / 8);
         dl_row_lines = row_line_count; // force moving to next DL instruction
@@ -241,18 +265,6 @@ skip_right_border:
 
         // Move to next DL instruction
         ++registers.display_list;
-        // mode row + LMS enabled?
-        if ((dl_instr & (MODE_BIT | LMS_BIT)) == (MODE_BIT | LMS_BIT))
-        {
-            if (dl_instr & DLI_BIT)
-            {
-                registers.display_list += (2 + 4);
-            }
-            else
-            {
-                registers.display_list += 2;
-            }
-        }
     }
     else
     {
