@@ -164,9 +164,7 @@ void __not_in_flash_func(cgia_render)(uint y, uint32_t *tmdsbuf)
     uint border_columns = registers.border_columns;
     if (border_columns > MAX_BORDER_COLUMNS)
         border_columns = MAX_BORDER_COLUMNS;
-    uint row_px = FRAME_WIDTH - (border_columns << 5);
-    if (row_px > FRAME_WIDTH)
-        row_px = FRAME_WIDTH;
+    uint row_columns = FRAME_CHARS - 2 * border_columns;
 
     // Left border
     if (dl_instr & MODE_BIT && border_columns)
@@ -234,15 +232,17 @@ void __not_in_flash_func(cgia_render)(uint y, uint32_t *tmdsbuf)
         interp_set_accumulator(interp0, 0, (uintptr_t)registers.memory_scan - row_height);
         interp_set_accumulator(interp1, 0, (uintptr_t)registers.colour_scan - 1);
         interp_set_accumulator(interp1, 1, (uintptr_t)registers.backgr_scan - 1);
-        if (row_px)
+        if (row_columns)
         {
             if (registers.transparent_background)
             {
-                p = tmds_encode_mode_3_shared(p, row_px, &registers.background_color);
+                load_scanline_buffer_shared(scanline_buffer, row_columns);
+                p = tmds_encode_mode_3_shared(p, scanline_buffer, row_columns, &registers.background_color);
             }
             else
             {
-                p = tmds_encode_mode_3_mapped(p, row_px);
+                load_scanline_buffer_mapped(scanline_buffer, row_columns);
+                p = tmds_encode_mode_3_mapped(p, scanline_buffer, row_columns);
             }
         }
 
@@ -258,7 +258,6 @@ void __not_in_flash_func(cgia_render)(uint y, uint32_t *tmdsbuf)
         interp_set_accumulator(interp0, 0, (uintptr_t)registers.memory_scan - row_height);
         interp_set_accumulator(interp1, 0, (uintptr_t)registers.colour_scan - 1);
         interp_set_accumulator(interp1, 1, (uintptr_t)registers.backgr_scan - 1);
-        const uint row_columns = row_px >> 4; // 2px * 8 per column
         if (row_columns)
         {
             if (registers.transparent_background)

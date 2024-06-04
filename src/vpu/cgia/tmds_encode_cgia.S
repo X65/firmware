@@ -28,39 +28,39 @@
 //////////////////// MODE 3 ////////////////////
 
 // r0 is output TMDS buffer
-// r1 is bitmap (8 MSB)
-// r4 is foreground color index
+// r1 is scanline data buffer - do not touch!
+// r5 is bitmap (8 MSB)
+// r6 is foreground color index
+// r7 is background color index
 // r8 is TMDS buffer length (1 channel)
 // r9 is palette begin address
-// r11 is background color index
-// uses r1,r3,r5-r7
-.macro write_pixel
-  lsls r1, #1        // shift-out 1 bit
+// changes r0,r2-r4,r5,r11
+.macro write_pixel_bmp
+  lsls r5, #1        // shift-out 1 bit
   bcc 1f
     // bit is 1 - draw foreground pixel
-  mov r5, r4
+  mov r2, r6
   b 2f
 1:  // bit is 0 - draw background pixel
-  mov r5, r11
+  mov r2, r7
 2:
-  lsls r5, #4       // 4 channels per palette entry * 4 bytes per word
-  add r5, r9        // r5 is used palettte entry address
+  lsls r2, #4       // 4 channels per palette entry * 4 bytes per word
+  add r2, r9        // r2 is used palettte entry address
 
-  ldmia r5, {r5-r7}
-  mov r3, r0
-  stmia r0!, {r5}
-  add r3, r8
-  str r6, [r3]
-  add r3, r8
-  str r7, [r3]
+  ldmia r2, {r2-r4}
+  mov r11, r0
+  stmia r0!, {r2}
+  mov r2, r11
+  add r2, r8
+  str r3, [r2]
+  add r2, r8
+  str r4, [r2]
 .endm
 
 // r0 is output TMDS buffer
-// r1 is width in pixels
-// r2 is background_color address
-// interpolator 0 lane 0 is configured to index bitmap data
-// interpolator 1 lane 0 is configured to index colour map
-// interpolator 1 lane 0 is configured to index background map
+// r1 is scanline data buffer
+// r2 is width in bytes
+// r3 is background_color address
 
 .macro tmds_encode_mode_3_shared_or_mapped mapped
   push {r4-r7, lr}
@@ -70,53 +70,46 @@
   push {r4-r6}
 
 .if !\mapped
-  mov r10, r2       // r10 - background color address
+  mov r10, r3       // r10 - background color address
 .endif
 
-  lsls r1, #1       // 2 symbols per word -> 2 bytes per symbol
-  mov ip, r1
-  add ip, r0        // loop until reaching required buffer offset
-
-  ldr r2, =(SIO_BASE + SIO_INTERP0_ACCUM0_OFFSET)
+  mov r6, r2
+  lsls r6, #3       // 2 words: bitmap, color
+.if \mapped
+  lsls r2, #2
+  add r6, r2       // and 1 word of background
+.endif
+  add r6, r1        // compute end scanline offset
+  mov ip, r6        // will loop until reached
 
   ldr r6, =tmds_buffer_length
   ldr r6, [r6]
-  mov r8, r6        // keep for later use
+  mov r8, r6        // r8 - tmds buffer length (one color channel)
 
   ldr r6, =cgia_palette
   mov r9, r6        // r9 - palette begin address
 
-
 3:
-  movs r5, #127
-
 .if \mapped
-  ldr r4, [r2, #PEEK1_OFFS + INTERP1]  // load background color pointer
+  ldmia r1!, {r5-r7}  // load 3 words from scanline buffer
 .else
-  mov r4, r10       // shared background color (given in r1)
+  ldmia r1!, {r5-r6}  // load 2 words from scanline buffer
+  mov r7, r10         // and 1 byte from background color
+  ldrb r7, [r7]       // memory register (address in r10)
 .endif
-  ldrb r4, [r4]
-  ands r4, r5       // clamp index to 127
-  mov r11, r4       // r11 - background color index
 
-  ldr r4, [r2, #POP0_OFFS + INTERP1]  // load color pointer
-  ldrb r4, [r4]     // r4 - foreground color index
-  ands r4, r5       // clamp index to 127
+  lsls r5, #24        // move LSB to MSB
 
-  ldr r1, [r2, #POP0_OFFS]  // load bitmap offset
-  ldrb r1, [r1]     // load bitmap data
-  lsls r1, #24      // move to MSB
+  write_pixel_bmp
+  write_pixel_bmp
+  write_pixel_bmp
+  write_pixel_bmp
+  write_pixel_bmp
+  write_pixel_bmp
+  write_pixel_bmp
+  write_pixel_bmp
 
-  write_pixel
-  write_pixel
-  write_pixel
-  write_pixel
-  write_pixel
-  write_pixel
-  write_pixel
-  write_pixel
-
-  cmp r0, ip
+  cmp r1, ip
   blo 3b
 
   pop {r4-r6}
@@ -131,7 +124,6 @@ decl_func tmds_encode_mode_3_shared
 
 decl_func tmds_encode_mode_3_mapped
 	tmds_encode_mode_3_shared_or_mapped 1
-
 
 //////////////////// MODE 5 ////////////////////
 
