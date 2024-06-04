@@ -45,7 +45,7 @@ void init_palette()
     }
 }
 
-static volatile struct registers_t
+static struct registers_t
 {
     uint8_t display_bank;
     uint8_t sprite_bank;
@@ -65,11 +65,12 @@ static volatile struct registers_t
     uint8_t *backgr_scan;
 
     uint8_t border_color;
-    uint8_t background_color;
     uint8_t row_height;
     uint8_t border_columns;
     bool transparent_background;
 } __attribute__((aligned(4))) registers;
+
+uint8_t __attribute__((aligned(4))) background_color;
 
 void cgia_init(void)
 {
@@ -88,7 +89,7 @@ void cgia_init(void)
 
     // FIXME: these should be initialized by CPU Operating System
     registers.border_color = 3;
-    registers.background_color = 0;
+    background_color = 0;
     registers.row_height = 7;
     registers.display_list = hires_mode_dl;
     registers.memory_scan = bitmap_data;
@@ -237,7 +238,7 @@ void __not_in_flash_func(cgia_render)(uint y, uint32_t *tmdsbuf)
             if (registers.transparent_background)
             {
                 load_scanline_buffer_shared(scanline_buffer, row_columns);
-                p = tmds_encode_mode_3_shared(p, scanline_buffer, row_columns, &registers.background_color);
+                p = tmds_encode_mode_3_shared(p, scanline_buffer, row_columns);
             }
             else
             {
@@ -263,7 +264,7 @@ void __not_in_flash_func(cgia_render)(uint y, uint32_t *tmdsbuf)
             if (registers.transparent_background)
             {
                 load_scanline_buffer_shared(scanline_buffer, row_columns);
-                p = tmds_encode_mode_5_shared(p, scanline_buffer, row_columns, &registers.background_color);
+                p = tmds_encode_mode_5_shared(p, scanline_buffer, row_columns);
             }
             else
             {

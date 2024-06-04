@@ -60,8 +60,6 @@
 // r0 is output TMDS buffer
 // r1 is scanline data buffer
 // r2 is width in bytes
-// r3 is background_color address
-
 .macro tmds_encode_mode_3_shared_or_mapped mapped
   push {r4-r7, lr}
   mov r4, r8
@@ -69,15 +67,11 @@
   mov r6, r10
   push {r4-r6}
 
-.if !\mapped
-  mov r10, r3       // r10 - background color address
-.endif
-
   mov r6, r2
   lsls r6, #3       // 2 words: bitmap, color
 .if \mapped
   lsls r2, #2
-  add r6, r2       // and 1 word of background
+  add r6, r2        // and 1 word of background
 .endif
   add r6, r1        // compute end scanline offset
   mov ip, r6        // will loop until reached
@@ -94,8 +88,8 @@
   ldmia r1!, {r5-r7}  // load 3 words from scanline buffer
 .else
   ldmia r1!, {r5-r6}  // load 2 words from scanline buffer
-  mov r7, r10         // and 1 byte from background color
-  ldrb r7, [r7]       // memory register (address in r10)
+  ldr r7, =background_color
+  ldrb r7, [r7]       // and background color memory register
 .endif
 
   lsls r5, #24        // move LSB to MSB
@@ -135,7 +129,7 @@ decl_func tmds_encode_mode_3_mapped
 // r8 is TMDS buffer length (1 channel)
 // r9 is palette begin address
 // changes r0,r2-r4,r5,r11
-.macro write_pixel_5
+.macro write_pixel_multi
   lsls r5, #1        // shift-out 1 bit
   bcc 1f
     // bit is 1 - draw foreground pixel
@@ -160,8 +154,6 @@ decl_func tmds_encode_mode_3_mapped
 // r0 is output TMDS buffer
 // r1 is scanline data buffer
 // r2 is width in bytes
-// r3 is background_color address
-
 .macro tmds_encode_mode_5_shared_or_mapped mapped
   push {r4-r7, lr}
   mov r4, r8
@@ -169,15 +161,11 @@ decl_func tmds_encode_mode_3_mapped
   mov r6, r10
   push {r4-r6}
 
-.if !\mapped
-  mov r10, r3       // r10 - background color address
-.endif
-
   mov r6, r2
   lsls r6, #3       // 2 words: bitmap, color
 .if \mapped
   lsls r2, #2
-  add r6, r2       // and 1 word of background
+  add r6, r2        // and 1 word of background
 .endif
   add r6, r1        // compute end scanline offset
   mov ip, r6        // will loop until reached
@@ -194,20 +182,20 @@ decl_func tmds_encode_mode_3_mapped
   ldmia r1!, {r5-r7}  // load 3 words from scanline buffer
 .else
   ldmia r1!, {r5-r6}  // load 2 words from scanline buffer
-  mov r7, r10         // and 1 byte from background color
-  ldrb r7, [r7]       // memory register (address in r10)
+  ldr r7, =background_color
+  ldrb r7, [r7]       // and background color memory register
 .endif
 
   lsls r5, #24        // move LSB to MSB
 
-  write_pixel_5
-  write_pixel_5
-  write_pixel_5
-  write_pixel_5
-  write_pixel_5
-  write_pixel_5
-  write_pixel_5
-  write_pixel_5
+  write_pixel_multi
+  write_pixel_multi
+  write_pixel_multi
+  write_pixel_multi
+  write_pixel_multi
+  write_pixel_multi
+  write_pixel_multi
+  write_pixel_multi
 
   cmp r1, ip
   blo 3b
