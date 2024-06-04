@@ -20,10 +20,11 @@ static const uint32_t __scratch_x("tmds_table") tmds_table[] = {
 #define PALETTE_WORDS 4
 uint32_t __attribute__((aligned(4))) cgia_palette[CGIA_COLORS_NUM * PALETTE_WORDS];
 
-#define DISPLAY_WIDTH_PIXELS   (FRAME_WIDTH / 2)
-#define DISPLAY_BORDER_COLUMNS 4
+#define DISPLAY_WIDTH_PIXELS (FRAME_WIDTH / 2)
+#define MAX_BORDER_COLUMNS   (FRAME_WIDTH / 2 / 8 / 2)
 
 #define FRAME_CHARS (DISPLAY_WIDTH_PIXELS / 8)
+uint32_t __attribute__((aligned(4))) scanline_buffer[FRAME_CHARS * 3];
 uint8_t __attribute__((aligned(4))) screen[FRAME_CHARS * 8];
 uint8_t __attribute__((aligned(4))) colour[FRAME_CHARS];
 uint8_t __attribute__((aligned(4))) backgr[FRAME_CHARS];
@@ -86,7 +87,7 @@ void cgia_init(void)
     }
 
     // FIXME: these should be initialized by CPU Operating System
-    registers.border_color = 1;
+    registers.border_color = 3;
     registers.background_color = 0;
     registers.row_height = 7;
     registers.display_list = hires_mode_dl;
@@ -160,14 +161,21 @@ void __not_in_flash_func(cgia_render)(uint y, uint32_t *tmdsbuf)
     // Used for tracking where to blit pixel data
     uint32_t *p = tmdsbuf;
 
+    uint border_columns = registers.border_columns;
+    if (border_columns > MAX_BORDER_COLUMNS)
+        border_columns = MAX_BORDER_COLUMNS;
+    uint row_px = FRAME_WIDTH - (border_columns << 5);
+    if (row_px > FRAME_WIDTH)
+        row_px = FRAME_WIDTH;
+
     // Left border
-    if (dl_instr & MODE_BIT && registers.border_columns)
-        p = tmds_encode_border(p, registers.border_color, registers.border_columns);
+    if (dl_instr & MODE_BIT && border_columns)
+        p = tmds_encode_border(p, registers.border_color, border_columns);
 
     // DL mode
     switch (dl_instr & 0b00001111)
     {
-        // ------- Instructions -------
+        // ------- Instructions --------------
 
     case 0x0: // INSTR0 - blank lines
         dl_row_lines = dl_instr >> 4;
@@ -217,26 +225,55 @@ void __not_in_flash_func(cgia_render)(uint y, uint32_t *tmdsbuf)
         }
         return cgia_render(y, p); // process next DL instruction
 
-        // ------- Mode Rows -------
+        // ------- Mode Rows --------------
 
     case (0x3 | MODE_BIT): // MODE3 - bitmap mode
     {
-        const int row_px = FRAME_WIDTH - (registers.border_columns << 5);
         const uint8_t row_height = registers.row_height + 1;
         interp_set_base(interp0, 0, row_height);
         interp_set_accumulator(interp0, 0, (uintptr_t)registers.memory_scan - row_height);
         interp_set_accumulator(interp1, 0, (uintptr_t)registers.colour_scan - 1);
         interp_set_accumulator(interp1, 1, (uintptr_t)registers.backgr_scan - 1);
-        if (registers.transparent_background)
+        if (row_px)
         {
-            p = tmds_encode_mode_3_shared(p, row_px, &registers.background_color);
-        }
-        else
-        {
-            p = tmds_encode_mode_3_mapped(p, row_px);
+            if (registers.transparent_background)
+            {
+                p = tmds_encode_mode_3_shared(p, row_px, &registers.background_color);
+            }
+            else
+            {
+                p = tmds_encode_mode_3_mapped(p, row_px);
+            }
         }
 
-        // next raster line starts with next byte, but color/bg scan stays the same
+        // next raster line starts with next byte, but color/bg scan stay the same
+        ++registers.memory_scan;
+    }
+    break;
+
+    case (0x5 | MODE_BIT): // MODE5 - multicolor bitmap mode
+    {
+        const uint8_t row_height = registers.row_height + 1;
+        interp_set_base(interp0, 0, row_height);
+        interp_set_accumulator(interp0, 0, (uintptr_t)registers.memory_scan - row_height);
+        interp_set_accumulator(interp1, 0, (uintptr_t)registers.colour_scan - 1);
+        interp_set_accumulator(interp1, 1, (uintptr_t)registers.backgr_scan - 1);
+        const uint row_columns = row_px >> 4; // 2px * 8 per column
+        if (row_columns)
+        {
+            if (registers.transparent_background)
+            {
+                load_scanline_buffer_shared(scanline_buffer, row_columns);
+                p = tmds_encode_mode_5_shared(p, scanline_buffer, row_columns, &registers.background_color);
+            }
+            else
+            {
+                load_scanline_buffer_mapped(scanline_buffer, row_columns);
+                p = tmds_encode_mode_5_mapped(p, scanline_buffer, row_columns);
+            }
+        }
+
+        // next raster line starts with next byte, but color/bg scan stay the same
         ++registers.memory_scan;
     }
     break;
@@ -249,8 +286,8 @@ void __not_in_flash_func(cgia_render)(uint y, uint32_t *tmdsbuf)
     }
 
     // Right border
-    if (dl_instr & MODE_BIT && registers.border_columns)
-        p = tmds_encode_border(p, registers.border_color, registers.border_columns);
+    if (dl_instr & MODE_BIT && border_columns)
+        p = tmds_encode_border(p, registers.border_color, border_columns);
 
 skip_right_border:
 
