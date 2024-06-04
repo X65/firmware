@@ -197,11 +197,11 @@ decl_func tmds_encode_mode_3_mapped
   mov r9, r6        // r9 - palette begin address
 
   ldr r2, =cell_colors
-  ldr r6, =shared_color // load background color memory register
+  ldr r6, =shared_color // load shared background color memory registers
   ldrh r6, [r6]
-  strb r6, [r2, #3]   // second shared color
+  strb r6, [r2, #0]   // shared color
   lsrs r6, #8
-  strb r6, [r2, #0]   // TODO: you cannot change the value during rendering (by CPU write to register)
+  strb r6, [r2, #3]   // TODO: you cannot change the value during rendering (by CPU write to register)
                       // NOTE: see how MODE3 does this
 3:
   ldmia r1!, {r3-r5}  // load 3 words from scanline buffer

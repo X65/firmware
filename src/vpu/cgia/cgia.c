@@ -8,8 +8,8 @@
 #include "cgia_palette.h"
 #include "tmds_encode_cgia.h"
 
+#include "carrion-One_Zak_And_His_Kracken.h"
 #include "display_lists.h"
-#include "veto-the_mill.h"
 
 #include "sys/out.h"
 
@@ -88,10 +88,10 @@ void cgia_init(void)
     }
 
     // FIXME: these should be initialized by CPU Operating System
-    registers.border_color = 3;
-    shared_color[0] = 11; // TODO: write as registry, remember to clamp value to 127
-    shared_color[1] = 66;
-    registers.row_height = 7;
+    registers.border_color = 0;
+    shared_color[0] = background_color_1; // TODO: write as registry, remember to clamp value to 127
+    shared_color[1] = background_color_2;
+    registers.row_height = 0;
     registers.display_list = hires_mode_dl;
     registers.memory_scan = bitmap_data;
     registers.colour_scan = colour_data;
