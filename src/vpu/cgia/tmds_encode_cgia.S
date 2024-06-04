@@ -16,6 +16,10 @@
 .cpu cortex-m0plus
 .thumb
 
+.data
+cell_colors: .skip 4  // Reserve 4 bytes for the multi color array
+
+
 // Put every function in its own ELF section, to permit linker GC
 .macro decl_func name
 .section .time_critical.\name, "ax"
@@ -122,33 +126,27 @@ decl_func tmds_encode_mode_3_mapped
 //////////////////// MODE 5 ////////////////////
 
 // r0 is output TMDS buffer
-// r1 is scanline data buffer - do not touch!
-// r5 is bitmap (8 MSB)
-// r6 is foreground color index
-// r7 is background color index
+// r1 is 00000011 mask
+// r2 is cell_colors array pointer
+// r3 is bitmap (8 LSB)
 // r8 is TMDS buffer length (1 channel)
 // r9 is palette begin address
-// changes r0,r2-r4,r5,r11
-.macro write_pixel_multi
-  lsls r5, #1        // shift-out 1 bit
-  bcc 1f
-    // bit is 1 - draw foreground pixel
-  mov r2, r6
-  b 2f
-1:  // bit is 0 - draw background pixel
-  mov r2, r7
-2:
-  lsls r2, #4       // 4 channels per palette entry * 4 bytes per word
-  add r2, r9        // r2 is used palettte entry address
+// changes r0,r4-r6,r7,r11
+.macro write_pixel_multi sh_amt
+  mov r4, r3
+  lsrs r4, #\sh_amt
+  ands r4, r1
+  ldrb r4, [r2, r4]
+  lsls r4, #4       // 4 channels per palette entry * 4 bytes per word
+  add r4, r9        // r4 is used palettte entry address
 
-  ldmia r2, {r2-r4}
-  mov r11, r0
-  stmia r0!, {r2}
-  mov r2, r11
-  add r2, r8
-  str r3, [r2]
-  add r2, r8
-  str r4, [r2]
+  ldmia r4, {r4-r6}
+  mov r7, r0
+  stmia r0!, {r4}
+  add r7, r8
+  str r5, [r7]
+  add r7, r8
+  str r6, [r7]
 .endm
 
 // r0 is output TMDS buffer
@@ -177,25 +175,33 @@ decl_func tmds_encode_mode_3_mapped
   ldr r6, =cgia_palette
   mov r9, r6        // r9 - palette begin address
 
+  ldr r2, =cell_colors
+  ldr r6, =multi_color
+  ldrh r6, [r6]
+  strb r6, [r2, #2]
+  lsrs r6, #8
+  strb r6, [r2, #1]
+
+  ldr r7, =background_color
+  ldrb r7, [r7]       // load background color memory register
+  strb r7, [r2, #3]   // TODO: you cannot change the value during rendering (by CPU write to register)
+                      // NOTE: see how MODE3 does this
 3:
 .if \mapped
-  ldmia r1!, {r5-r7}  // load 3 words from scanline buffer
+  ldmia r1!, {r3-r5}  // load 3 words from scanline buffer
+  strb r5, [r2, #3]   // store background color
 .else
-  ldmia r1!, {r5-r6}  // load 2 words from scanline buffer
-  ldr r7, =background_color
-  ldrb r7, [r7]       // and background color memory register
+  ldmia r1!, {r3-r4}  // load 2 words from scanline buffer
 .endif
+  strb r4, [r2]       // store foreground color
 
-  lsls r5, #24        // move LSB to MSB
-
-  write_pixel_multi
-  write_pixel_multi
-  write_pixel_multi
-  write_pixel_multi
-  write_pixel_multi
-  write_pixel_multi
-  write_pixel_multi
-  write_pixel_multi
+  mov r10, r1 // backup buffer pointer
+  movs r1, 3  // 00000011
+  write_pixel_multi 6
+  write_pixel_multi 4
+  write_pixel_multi 2
+  write_pixel_multi 0
+  mov r1, r10 // restore buffer pointer
 
   cmp r1, ip
   blo 3b

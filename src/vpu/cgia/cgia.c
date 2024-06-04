@@ -71,6 +71,7 @@ static struct registers_t
 } __attribute__((aligned(4))) registers;
 
 uint8_t __attribute__((aligned(4))) background_color;
+uint8_t __attribute__((aligned(4))) multi_color[2];
 
 void cgia_init(void)
 {
@@ -89,7 +90,9 @@ void cgia_init(void)
 
     // FIXME: these should be initialized by CPU Operating System
     registers.border_color = 3;
-    background_color = 0;
+    background_color = 0; // TODO: write as registry, remember to clamp value to 127
+    multi_color[0] = 10;  // TODO: write as registry, remember to clamp value to 127
+    multi_color[1] = 20;
     registers.row_height = 7;
     registers.display_list = hires_mode_dl;
     registers.memory_scan = bitmap_data;
@@ -261,6 +264,7 @@ void __not_in_flash_func(cgia_render)(uint y, uint32_t *tmdsbuf)
         interp_set_accumulator(interp1, 1, (uintptr_t)registers.backgr_scan - 1);
         if (row_columns)
         {
+            row_columns <<= 1; // this mode generates 4x8 cells, so requires 2x columns
             if (registers.transparent_background)
             {
                 load_scanline_buffer_shared(scanline_buffer, row_columns);
