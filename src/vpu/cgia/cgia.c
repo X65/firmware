@@ -282,6 +282,32 @@ void __not_in_flash_func(cgia_render)(uint y, uint32_t *tmdsbuf)
     }
     break;
 
+    case (0x7 | MODE_BIT): // MODE7 - doubled multicolor bitmap mode
+    {
+        const uint8_t row_height = registers.row_height + 1;
+        interp_set_base(interp0, 0, row_height);
+        interp_set_accumulator(interp0, 0, (uintptr_t)registers.memory_scan - row_height);
+        interp_set_accumulator(interp1, 0, (uintptr_t)registers.colour_scan - 1);
+        interp_set_accumulator(interp1, 1, (uintptr_t)registers.backgr_scan - 1);
+        if (row_columns)
+        {
+            if (registers.transparent_background)
+            {
+                load_scanline_buffer_shared(scanline_buffer, row_columns);
+                p = tmds_encode_mode_7_shared(p, scanline_buffer, row_columns);
+            }
+            else
+            {
+                load_scanline_buffer_mapped(scanline_buffer, row_columns);
+                p = tmds_encode_mode_7_mapped(p, scanline_buffer, row_columns);
+            }
+        }
+
+        // next raster line starts with next byte, but color/bg scan stay the same
+        ++registers.memory_scan;
+    }
+    break;
+
         // ------- UNKNOWN MODE - generate pink line (should not happen)
     default:
         (void)tmds_encode_border(tmdsbuf, 115, DISPLAY_WIDTH_PIXELS / 8);

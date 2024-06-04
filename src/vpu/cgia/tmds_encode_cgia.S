@@ -131,7 +131,7 @@ decl_func tmds_encode_mode_3_mapped
 // r3 is bitmap (8 LSB)
 // r8 is TMDS buffer length (1 channel)
 // r9 is palette begin address
-// changes r0,r4-r6,r7,r11
+// changes r0,r4-r6,r7
 .macro write_pixel_multi sh_amt
   mov r4, r3
   lsrs r4, #\sh_amt
@@ -149,10 +149,33 @@ decl_func tmds_encode_mode_3_mapped
   str r6, [r7]
 .endm
 
+// changes r0,r4-r6,r7,r11
+.macro write_pixel_multi_doubled sh_amt
+  mov r4, r3
+  lsrs r4, #\sh_amt
+  ands r4, r1
+  ldrb r5, [r2, r4]
+  lsls r5, #4       // 4 channels per palette entry * 4 bytes per word
+  add r5, r9        // r4 is used palettte entry address
+
+  ldmia r5, {r5-r7}
+  mov r4, r5
+  mov r11, r0
+  stmia r0!, {r4-r5}
+  add r11, r8
+  mov r5, r6
+  mov r4, r11
+  stmia r4!, {r5-r6}
+  add r11, r8
+  mov r6, r7
+  mov r4, r11
+  stmia r4!, {r6-r7}
+.endm
+
 // r0 is output TMDS buffer
 // r1 is scanline data buffer
 // r2 is width in bytes
-.macro tmds_encode_mode_5_shared_or_mapped mapped
+.macro tmds_encode_mode_5_shared_or_mapped mapped doubled
   push {r4-r7, lr}
   mov r4, r8
   mov r5, r9
@@ -197,10 +220,17 @@ decl_func tmds_encode_mode_3_mapped
 
   mov r10, r1 // backup buffer pointer
   movs r1, 3  // 00000011
+.if \doubled
+  write_pixel_multi_doubled 6
+  write_pixel_multi_doubled 4
+  write_pixel_multi_doubled 2
+  write_pixel_multi_doubled 0
+.else
   write_pixel_multi 6
   write_pixel_multi 4
   write_pixel_multi 2
   write_pixel_multi 0
+.endif
   mov r1, r10 // restore buffer pointer
 
   cmp r1, ip
@@ -214,10 +244,16 @@ decl_func tmds_encode_mode_3_mapped
 .endm
 
 decl_func tmds_encode_mode_5_shared
-	tmds_encode_mode_5_shared_or_mapped 0
+	tmds_encode_mode_5_shared_or_mapped 0 0
 
 decl_func tmds_encode_mode_5_mapped
-	tmds_encode_mode_5_shared_or_mapped 1
+	tmds_encode_mode_5_shared_or_mapped 1 0
+
+decl_func tmds_encode_mode_7_shared
+	tmds_encode_mode_5_shared_or_mapped 0 1
+
+decl_func tmds_encode_mode_7_mapped
+	tmds_encode_mode_5_shared_or_mapped 1 1
 
 //////////////////// BORDER ////////////////////
 
