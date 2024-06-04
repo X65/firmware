@@ -92,7 +92,7 @@ cell_colors: .skip 4  // Reserve 4 bytes for the multi color array
   ldmia r1!, {r5-r7}  // load 3 words from scanline buffer
 .else
   ldmia r1!, {r5-r6}  // load 2 words from scanline buffer
-  ldr r7, =background_color
+  ldr r7, =shared_color
   ldrb r7, [r7]       // and background color memory register
 .endif
 
@@ -175,7 +175,7 @@ decl_func tmds_encode_mode_3_mapped
 // r0 is output TMDS buffer
 // r1 is scanline data buffer
 // r2 is width in bytes
-.macro tmds_encode_mode_5_shared_or_mapped mapped doubled
+.macro tmds_encode_mode_5_or_7 doubled
   push {r4-r7, lr}
   mov r4, r8
   mov r5, r9
@@ -184,10 +184,8 @@ decl_func tmds_encode_mode_3_mapped
 
   mov r6, r2
   lsls r6, #3       // 2 words: bitmap, color
-.if \mapped
   lsls r2, #2
   add r6, r2        // and 1 word of background
-.endif
   add r6, r1        // compute end scanline offset
   mov ip, r6        // will loop until reached
 
@@ -199,24 +197,16 @@ decl_func tmds_encode_mode_3_mapped
   mov r9, r6        // r9 - palette begin address
 
   ldr r2, =cell_colors
-  ldr r6, =multi_color
+  ldr r6, =shared_color // load background color memory register
   ldrh r6, [r6]
-  strb r6, [r2, #2]
+  strb r6, [r2, #3]   // second shared color
   lsrs r6, #8
-  strb r6, [r2, #1]
-
-  ldr r7, =background_color
-  ldrb r7, [r7]       // load background color memory register
-  strb r7, [r2, #3]   // TODO: you cannot change the value during rendering (by CPU write to register)
+  strb r6, [r2, #0]   // TODO: you cannot change the value during rendering (by CPU write to register)
                       // NOTE: see how MODE3 does this
 3:
-.if \mapped
   ldmia r1!, {r3-r5}  // load 3 words from scanline buffer
-  strb r5, [r2, #3]   // store background color
-.else
-  ldmia r1!, {r3-r4}  // load 2 words from scanline buffer
-.endif
-  strb r4, [r2]       // store foreground color
+  strb r5, [r2, #1]   // store "off" color
+  strb r4, [r2, #2]   // store "on" color
 
   mov r10, r1 // backup buffer pointer
   movs r1, 3  // 00000011
@@ -243,17 +233,11 @@ decl_func tmds_encode_mode_3_mapped
   pop {r4-r7, pc}
 .endm
 
-decl_func tmds_encode_mode_5_shared
-	tmds_encode_mode_5_shared_or_mapped 0 0
+decl_func tmds_encode_mode_5
+	tmds_encode_mode_5_or_7 0
 
-decl_func tmds_encode_mode_5_mapped
-	tmds_encode_mode_5_shared_or_mapped 1 0
-
-decl_func tmds_encode_mode_7_shared
-	tmds_encode_mode_5_shared_or_mapped 0 1
-
-decl_func tmds_encode_mode_7_mapped
-	tmds_encode_mode_5_shared_or_mapped 1 1
+decl_func tmds_encode_mode_7
+	tmds_encode_mode_5_or_7 1
 
 //////////////////// BORDER ////////////////////
 

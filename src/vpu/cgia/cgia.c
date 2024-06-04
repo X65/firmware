@@ -70,8 +70,7 @@ static struct registers_t
     bool transparent_background;
 } __attribute__((aligned(4))) registers;
 
-uint8_t __attribute__((aligned(4))) background_color;
-uint8_t __attribute__((aligned(4))) multi_color[2];
+uint8_t __attribute__((aligned(4))) shared_color[2];
 
 void cgia_init(void)
 {
@@ -90,9 +89,8 @@ void cgia_init(void)
 
     // FIXME: these should be initialized by CPU Operating System
     registers.border_color = 3;
-    background_color = 0; // TODO: write as registry, remember to clamp value to 127
-    multi_color[0] = 10;  // TODO: write as registry, remember to clamp value to 127
-    multi_color[1] = 20;
+    shared_color[0] = 11; // TODO: write as registry, remember to clamp value to 127
+    shared_color[1] = 66;
     registers.row_height = 7;
     registers.display_list = hires_mode_dl;
     registers.memory_scan = bitmap_data;
@@ -265,16 +263,8 @@ void __not_in_flash_func(cgia_render)(uint y, uint32_t *tmdsbuf)
         if (row_columns)
         {
             row_columns <<= 1; // this mode generates 4x8 cells, so requires 2x columns
-            if (registers.transparent_background)
-            {
-                load_scanline_buffer_shared(scanline_buffer, row_columns);
-                p = tmds_encode_mode_5_shared(p, scanline_buffer, row_columns);
-            }
-            else
-            {
-                load_scanline_buffer_mapped(scanline_buffer, row_columns);
-                p = tmds_encode_mode_5_mapped(p, scanline_buffer, row_columns);
-            }
+            load_scanline_buffer_mapped(scanline_buffer, row_columns);
+            p = tmds_encode_mode_5(p, scanline_buffer, row_columns);
         }
 
         // next raster line starts with next byte, but color/bg scan stay the same
@@ -291,16 +281,8 @@ void __not_in_flash_func(cgia_render)(uint y, uint32_t *tmdsbuf)
         interp_set_accumulator(interp1, 1, (uintptr_t)registers.backgr_scan - 1);
         if (row_columns)
         {
-            if (registers.transparent_background)
-            {
-                load_scanline_buffer_shared(scanline_buffer, row_columns);
-                p = tmds_encode_mode_7_shared(p, scanline_buffer, row_columns);
-            }
-            else
-            {
-                load_scanline_buffer_mapped(scanline_buffer, row_columns);
-                p = tmds_encode_mode_7_mapped(p, scanline_buffer, row_columns);
-            }
+            load_scanline_buffer_mapped(scanline_buffer, row_columns);
+            p = tmds_encode_mode_7(p, scanline_buffer, row_columns);
         }
 
         // next raster line starts with next byte, but color/bg scan stay the same
