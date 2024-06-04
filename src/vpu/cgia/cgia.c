@@ -174,7 +174,13 @@ void __not_in_flash_func(cgia_render)(uint y, uint32_t *tmdsbuf)
         (void)tmds_encode_border(p, registers.border_color, DISPLAY_WIDTH_PIXELS / 8);
         goto skip_right_border;
 
-    case 0x1: // INSTR1 - JMP
+    case 0x1: // INSTR1 - duplicate lines
+        dl_row_lines = dl_instr >> 4;
+        // FIXME: for now leave TMDS buffer as is - will display it again
+        // TODO: store last TMDS buffer pointer at the end of the frame and copy to current one
+        goto skip_right_border;
+
+    case 0x2: // INSTR1 - JMP
         // Load DL address
         // registers.display_list = read_memory(registers.display_base << 16 & registers.display_list)
         registers.display_list = hires_mode_dl; // FIXME: HARDCODED!
@@ -186,7 +192,7 @@ void __not_in_flash_func(cgia_render)(uint y, uint32_t *tmdsbuf)
         // .display_list is already pointing to next instruction
         return cgia_render(y, p); // process next DL instruction
 
-    case 0x2:                     // Load Memory
+    case 0x3:                     // Load Memory
         ++registers.display_list; // Move to next DL instruction
         if (dl_instr & 0b00010000)
         { // memory scan
