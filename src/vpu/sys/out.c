@@ -43,7 +43,23 @@ static const struct dvi_serialiser_cfg x65_dvi_cfg = {
 // My TV recognizes this as 480p60 :-D
 // Timings computed using https://tomverbeure.github.io/video_timings_calculator
 // Back porches adjusted to fit 26.6MHz pixel clock
-const struct dvi_timing __dvi_const(dvi_timing_768x480p_60hz) = {
+static const struct dvi_timing __dvi_const(dvi_timing_768x480p_60hz) = {
+    .h_sync_polarity = false,
+    .h_front_porch = 24,
+    .h_sync_width = 72,
+    .h_back_porch = 96,
+    .h_active_pixels = 768,
+
+    .v_sync_polarity = true,
+    .v_front_porch = 3,
+    .v_sync_width = 6,
+    .v_back_porch = 11,
+    .v_active_lines = 480,
+
+    .bit_clk_khz = 288000,
+};
+// Reduced Blanking - Back porches adjusted to fit 26.6MHz pixel clock
+static const struct dvi_timing __dvi_const(dvi_timing_768x480p_60hz_RB) = {
     .h_sync_polarity = true,
     .h_front_porch = 48,
     .h_sync_width = 32,
