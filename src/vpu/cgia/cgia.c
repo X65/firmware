@@ -118,6 +118,28 @@ void cgia_core1_init(void)
     interp_set_base(interp1, 1, 1);
 }
 
+static inline uint8_t log_2(uint8_t x)
+{
+    if (registers.row_height == 0)
+        return 0; // 1 => *1
+    else if (registers.row_height < 2)
+        return 1; // 2 => *2
+    else if (registers.row_height < 4)
+        return 2; // 3-4 => *4
+    else if (registers.row_height < 8)
+        return 3; // 5-8 => *8
+    else if (registers.row_height < 16)
+        return 4; // 9-16 => *16
+    else if (registers.row_height < 32)
+        return 5; // 17-32 => *32
+    else if (registers.row_height < 64)
+        return 6; // 33-64 => *64
+    else if (registers.row_height < 128)
+        return 7; // 65-128 => *128
+    else
+        return 8; // 129-255 => *256
+}
+
 #define MODE_BIT 0b00001000
 #define DLI_BIT  0b10000000
 
@@ -239,25 +261,7 @@ void __not_in_flash_func(cgia_render)(uint y, uint32_t *tmdsbuf)
         interp_set_accumulator(interp1, 1, (uintptr_t)registers.backgr_scan - 1);
         if (row_columns)
         {
-            uint8_t char_shift = 0;
-            if (registers.row_height == 0)
-                char_shift = 0; // 1 => *1
-            else if (registers.row_height < 2)
-                char_shift = 1; // 2 => *2
-            else if (registers.row_height < 4)
-                char_shift = 2; // 3-4 => *4
-            else if (registers.row_height < 8)
-                char_shift = 3; // 5-8 => *8
-            else if (registers.row_height < 16)
-                char_shift = 4; // 9-16 => *16
-            else if (registers.row_height < 32)
-                char_shift = 5; // 17-32 => *32
-            else if (registers.row_height < 64)
-                char_shift = 6; // 33-64 => *64
-            else if (registers.row_height < 128)
-                char_shift = 7; // 65-128 => *128
-            else
-                char_shift = 8; // 129-255 => *256
+            uint8_t char_shift = log_2(registers.row_height);
             load_textmode_buffer(scanline_buffer, row_columns, registers.character_generator + row_line_count, char_shift);
             p = tmds_encode_mode_3_mapped(p, scanline_buffer, row_columns);
         }
@@ -290,6 +294,22 @@ void __not_in_flash_func(cgia_render)(uint y, uint32_t *tmdsbuf)
     }
     break;
 
+    case (0x4 | MODE_BIT): // MODE4 - multicolor text/tile mode
+    {
+        interp_set_base(interp0, 0, 1);
+        interp_set_accumulator(interp0, 0, (uintptr_t)registers.memory_scan - 1);
+        interp_set_accumulator(interp1, 0, (uintptr_t)registers.colour_scan - 1);
+        interp_set_accumulator(interp1, 1, (uintptr_t)registers.backgr_scan - 1);
+        if (row_columns)
+        {
+            row_columns <<= 1; // this mode generates 4x8 cells, so requires 2x columns
+            uint8_t char_shift = log_2(registers.row_height);
+            load_textmode_buffer(scanline_buffer, row_columns, registers.character_generator + row_line_count, char_shift);
+            p = tmds_encode_mode_5(p, scanline_buffer, row_columns);
+        }
+    }
+    break;
+
     case (0x5 | MODE_BIT): // MODE5 - multicolor bitmap mode
     {
         const uint8_t row_height = registers.row_height + 1;
@@ -306,6 +326,21 @@ void __not_in_flash_func(cgia_render)(uint y, uint32_t *tmdsbuf)
 
         // next raster line starts with next byte, but color/bg scan stay the same
         ++registers.memory_scan;
+    }
+    break;
+
+    case (0x6 | MODE_BIT): // MODE4 - doubled multicolor text/tile mode
+    {
+        interp_set_base(interp0, 0, 1);
+        interp_set_accumulator(interp0, 0, (uintptr_t)registers.memory_scan - 1);
+        interp_set_accumulator(interp1, 0, (uintptr_t)registers.colour_scan - 1);
+        interp_set_accumulator(interp1, 1, (uintptr_t)registers.backgr_scan - 1);
+        if (row_columns)
+        {
+            uint8_t char_shift = log_2(registers.row_height);
+            load_textmode_buffer(scanline_buffer, row_columns, registers.character_generator + row_line_count, char_shift);
+            p = tmds_encode_mode_7(p, scanline_buffer, row_columns);
+        }
     }
     break;
 
