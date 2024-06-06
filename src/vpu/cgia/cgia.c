@@ -10,6 +10,7 @@
 
 #include "carrion-One_Zak_And_His_Kracken.h"
 #include "display_lists.h"
+#include "font_8.h"
 
 #include "sys/out.h"
 
@@ -25,9 +26,9 @@ uint32_t __attribute__((aligned(4))) cgia_palette[CGIA_COLORS_NUM * PALETTE_WORD
 
 #define FRAME_CHARS (DISPLAY_WIDTH_PIXELS / 8)
 uint32_t __attribute__((aligned(4))) scanline_buffer[FRAME_CHARS * 3];
-uint8_t __attribute__((aligned(4))) screen[FRAME_CHARS * 8];
-uint8_t __attribute__((aligned(4))) colour[FRAME_CHARS];
-uint8_t __attribute__((aligned(4))) backgr[FRAME_CHARS];
+uint8_t __attribute__((aligned(4))) screen[FRAME_CHARS * 30];
+uint8_t __attribute__((aligned(4))) colour[FRAME_CHARS * 30];
+uint8_t __attribute__((aligned(4))) backgr[FRAME_CHARS * 30];
 
 void init_palette()
 {
@@ -64,6 +65,8 @@ static struct registers_t
     uint8_t *colour_scan;
     uint8_t *backgr_scan;
 
+    uint8_t *character_generator;
+
     uint8_t border_color;
     uint8_t row_height;
     uint8_t border_columns;
@@ -77,25 +80,26 @@ void cgia_init(void)
     init_palette();
 
     // TODO: fill with 0s
-    for (int i = 0; i < FRAME_CHARS * 8; ++i)
+    for (int i = 0; i < FRAME_CHARS * 30; ++i)
     {
         screen[i] = i & 0xff;
     }
-    for (int i = 0; i < FRAME_CHARS; ++i)
+    for (int i = 0; i < FRAME_CHARS * 30; ++i)
     {
         colour[i] = i % CGIA_COLORS_NUM;
         backgr[i] = (127 - i) % CGIA_COLORS_NUM;
     }
 
     // FIXME: these should be initialized by CPU Operating System
-    registers.border_color = 0;
+    registers.border_color = 2;
     shared_color[0] = background_color_1; // TODO: write as registry, remember to clamp value to 127
     shared_color[1] = background_color_2;
-    registers.row_height = 0;
+    registers.row_height = 7;
     registers.display_list = hires_mode_dl;
-    registers.memory_scan = bitmap_data;
-    registers.colour_scan = colour_data;
-    registers.backgr_scan = background_data;
+    registers.memory_scan = screen;
+    registers.colour_scan = colour;
+    registers.backgr_scan = backgr;
+    registers.character_generator = font8_data;
 
     // Config
     registers.transparent_background = false;
@@ -206,26 +210,59 @@ void __not_in_flash_func(cgia_render)(uint y, uint32_t *tmdsbuf)
         { // memory scan
             // TODO:
             // registers.memory_scan = read_memory(registers.display_base << 16 & registers.display_list)
-            registers.memory_scan = bitmap_data; // FIXME: HARDCODED!
+            registers.memory_scan = screen; // FIXME: HARDCODED!
             registers.display_list += 2;
         }
         if (dl_instr & 0b00100000)
         { // color scan
             // TODO:
             // registers.colour_scan = read_memory(registers.display_base << 16 & registers.display_list)
-            registers.colour_scan = colour_data; // FIXME: HARDCODED!
+            registers.colour_scan = colour; // FIXME: HARDCODED!
             registers.display_list += 2;
         }
         if (dl_instr & 0b01000000)
         { // background scan
             // TODO:
             // registers.backgr_scan = read_memory(registers.display_base << 16 & registers.display_list)
-            registers.backgr_scan = background_data; // FIXME: HARDCODED!
+            registers.backgr_scan = backgr; // FIXME: HARDCODED!
             registers.display_list += 2;
         }
         return cgia_render(y, p); // process next DL instruction
 
         // ------- Mode Rows --------------
+
+    case (0x2 | MODE_BIT): // MODE2 - text/tile mode
+    {
+        interp_set_base(interp0, 0, 1);
+        interp_set_accumulator(interp0, 0, (uintptr_t)registers.memory_scan - 1);
+        interp_set_accumulator(interp1, 0, (uintptr_t)registers.colour_scan - 1);
+        interp_set_accumulator(interp1, 1, (uintptr_t)registers.backgr_scan - 1);
+        if (row_columns)
+        {
+            uint8_t char_shift = 0;
+            if (registers.row_height == 0)
+                char_shift = 0; // 1 => *1
+            else if (registers.row_height < 2)
+                char_shift = 1; // 2 => *2
+            else if (registers.row_height < 4)
+                char_shift = 2; // 3-4 => *4
+            else if (registers.row_height < 8)
+                char_shift = 3; // 5-8 => *8
+            else if (registers.row_height < 16)
+                char_shift = 4; // 9-16 => *16
+            else if (registers.row_height < 32)
+                char_shift = 5; // 17-32 => *32
+            else if (registers.row_height < 64)
+                char_shift = 6; // 33-64 => *64
+            else if (registers.row_height < 128)
+                char_shift = 7; // 65-128 => *128
+            else
+                char_shift = 8; // 129-255 => *256
+            load_textmode_buffer(scanline_buffer, row_columns, registers.character_generator + row_line_count, char_shift);
+            p = tmds_encode_mode_3_mapped(p, scanline_buffer, row_columns);
+        }
+    }
+    break;
 
     case (0x3 | MODE_BIT): // MODE3 - bitmap mode
     {
@@ -310,7 +347,7 @@ skip_right_border:
         if (dl_instr & MODE_BIT)
         {
             // update scan pointers to current value
-            registers.memory_scan = (uint8_t *)(uintptr_t)interp_peek_lane_result(interp0, 0) - row_line_count;
+            registers.memory_scan = (uint8_t *)(uintptr_t)interp_peek_lane_result(interp0, 0);
             registers.colour_scan = (uint8_t *)(uintptr_t)interp_peek_lane_result(interp1, 0);
             registers.backgr_scan = (uint8_t *)(uintptr_t)interp_peek_lane_result(interp1, 1);
         }

@@ -338,3 +338,38 @@ decl_func load_scanline_buffer_shared
 
 decl_func load_scanline_buffer_mapped
 	load_scanline_buffer_shared_or_mapped 1
+
+
+// r0 - destination scanline buffer
+// r1 - how many columns to load
+// r2 - character generator address
+// r3 - character length in shift amount
+decl_func load_textmode_buffer
+  push {r4-r7, lr}
+
+  mov ip, r2        // ip - chargen
+
+  ldr r2, =(SIO_BASE + SIO_INTERP0_ACCUM0_OFFSET)
+  movs r7, #127
+
+1:
+  ldr r6, [r2, #PEEK1_OFFS + INTERP1]   // load background color pointer
+  ldrb r6, [r6]     // load background color value (index)
+  ands r6, r7       // clamp index to 127
+
+  ldr r5, [r2, #POP0_OFFS + INTERP1]    // load color pointer
+  ldrb r5, [r5]     // load background color value (index)
+  ands r5, r7       // clamp index to 127
+
+  ldr r4, [r2, #POP0_OFFS]    // load character code offset
+  ldrb r4, [r4]     // load character code
+  lsls r4, r3
+  add r4, ip
+  ldrb r4, [r4]     // load character line bitmap data
+
+  stmia r0!, {r4-r6}
+
+  subs r1, #1
+  bne 1b
+
+  pop {r4-r7, pc}
