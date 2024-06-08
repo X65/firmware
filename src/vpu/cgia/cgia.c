@@ -87,12 +87,12 @@ void cgia_init(void)
     for (int i = 0; i < FRAME_CHARS * 30; ++i)
     {
         colour[i] = i % CGIA_COLORS_NUM;
-        backgr[i] = (127 - i) % CGIA_COLORS_NUM;
+        backgr[i] = ((CGIA_COLORS_NUM - 1) - i) % CGIA_COLORS_NUM;
     }
 
     // FIXME: these should be initialized by CPU Operating System
-    registers.border_color = 2;
-    shared_color[0] = background_color_1; // TODO: write as registry, remember to clamp value to 127
+    registers.border_color = 1;
+    shared_color[0] = background_color_1;
     shared_color[1] = background_color_2;
     registers.row_height = 7;
     registers.display_list = hires_mode_dl;
