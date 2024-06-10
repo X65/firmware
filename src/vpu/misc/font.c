@@ -4,7 +4,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#include "atari_st_8px.h"
+#include "font_8px.h"
 
 #define SCREEN_COLUMNS 16
 
