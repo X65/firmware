@@ -79,19 +79,8 @@ void cgia_init(void)
 {
     init_palette();
 
-    // TODO: fill with 0s
-    for (int i = 0; i < FRAME_CHARS * 30; ++i)
-    {
-        screen[i] = i & 0xff;
-    }
-    for (int i = 0; i < FRAME_CHARS * 30; ++i)
-    {
-        colour[i] = i % CGIA_COLORS_NUM;
-        backgr[i] = ((CGIA_COLORS_NUM - 1) - i) % CGIA_COLORS_NUM;
-    }
-
     // FIXME: these should be initialized by CPU Operating System
-    registers.border_color = 1;
+    registers.border_color = 145;
     shared_color[0] = background_color_1;
     shared_color[1] = background_color_2;
     registers.row_height = 7;
@@ -104,6 +93,23 @@ void cgia_init(void)
     // Config
     registers.transparent_background = false;
     registers.border_columns = 4;
+
+    // TODO: fill with 0s
+    for (int i = 0; i < FRAME_CHARS * 30; ++i)
+    {
+        screen[i] = 0; // i & 0xff;
+    }
+    screen[0] = 'R';
+    screen[1] = 'E';
+    screen[2] = 'A';
+    screen[3] = 'D';
+    screen[4] = 'Y';
+    for (int i = 0; i < FRAME_CHARS * 30; ++i)
+    {
+        colour[i] = 150; // i % CGIA_COLORS_NUM;
+        backgr[i] = 145; // ((CGIA_COLORS_NUM - 1) - i) % CGIA_COLORS_NUM;
+    }
+    backgr[FRAME_CHARS - 2 * registers.border_columns] = 150;
 }
 
 void cgia_core1_init(void)
