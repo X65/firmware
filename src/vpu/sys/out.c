@@ -76,7 +76,7 @@ static const struct dvi_timing __dvi_const(dvi_timing_768x480p_60hz_RB) = {
 };
 
 // DVDD 1.2V (1.1V seems ok too)
-#define VREG_VSEL  VREG_VOLTAGE_1_10
+#define VREG_VSEL  VREG_VOLTAGE_1_15
 #define DVI_TIMING dvi_timing_768x480p_60hz
 
 struct dvi_inst dvi0;

@@ -70,10 +70,81 @@ static struct registers_t
     uint8_t border_color;
     uint8_t row_height;
     uint8_t border_columns;
+
+    uint8_t sprites_active;
+    uint8_t *sprites_address; // FIXME: change to offset (sprite_bank ++ sprites_offset)
+
     bool transparent_background;
 } __attribute__((aligned(4))) registers;
 
 uint8_t __attribute__((aligned(4))) shared_color[2];
+
+#define SPRITE_COUNT 8
+static bool sprites_need_update = false; // TODO: set when writing registers.sprites_active
+
+static struct sprite_t
+{
+    uint16_t pos_x;
+    uint8_t pos_y;
+    uint8_t lines_y;
+    uint8_t flags;
+    uint8_t color[3];
+    uint16_t data_offset;
+    uint16_t next_offset; // after passing lines_y, reload sprite descriptor data
+                          // this is a built-in sprite multiplexer
+
+    // flags:
+    // 0-1 - width in bytes
+    // 2 - active
+    // 3 - multicolor
+    // 4 - double-width
+    // 5 - mirror X
+    // 6 - mirror Y
+    // 7 ...
+
+    // ------- BOOKKEEPING -------
+    // this is not part of the in-memory descriptor
+    uint8_t line_data[4];
+} __attribute__((aligned(4))) sprites[SPRITE_COUNT];
+
+#define EXAMPLE_SPRITE_WIDTH   4
+#define EXAMPLE_SPRITE_HEIGHT  26
+#define EXAMPLE_SPRITE_COLOR_1 0
+#define EXAMPLE_SPRITE_COLOR_2 23
+#define EXAMPLE_SPRITE_COLOR_3 10
+uint8_t __attribute__((aligned(4))) example_sprite_data[EXAMPLE_SPRITE_WIDTH * EXAMPLE_SPRITE_HEIGHT] = {
+    0b00000000, 0b00010101, 0b01000000, 0b00000000, //
+    0b00000000, 0b01011111, 0b11010100, 0b00000000, //
+    0b00000000, 0b01111111, 0b11111101, 0b00000000, //
+    0b00000001, 0b01010101, 0b01111111, 0b01000000, //
+    0b00000101, 0b01010101, 0b01011111, 0b11010000, //
+    0b00000101, 0b10101010, 0b10100101, 0b11010000, //
+    0b00000001, 0b10011001, 0b10101001, 0b01010100, //
+    0b00000001, 0b10011001, 0b10101001, 0b01100100, //
+    0b00000110, 0b10101010, 0b10100101, 0b01101001, //
+    0b00000110, 0b10101010, 0b01101001, 0b10101001, //
+    0b00010101, 0b10100101, 0b01011010, 0b10100100, //
+    0b00000001, 0b01010101, 0b10101010, 0b01010000, //
+    0b00000000, 0b01101010, 0b10100101, 0b01000000, //
+    0b00010100, 0b01010101, 0b01011111, 0b11010000, //
+    0b01101001, 0b01111101, 0b01111111, 0b11110100, //
+    0b01100101, 0b11111101, 0b11010101, 0b11111101, //
+    0b01100111, 0b11110101, 0b01101010, 0b01111101, //
+    0b00010111, 0b11010101, 0b10101010, 0b10011101, //
+    0b00011001, 0b01101001, 0b10101010, 0b10010100, //
+    0b01111101, 0b01101001, 0b01101010, 0b01010000, //
+    0b01111111, 0b01010101, 0b01010101, 0b11110100, //
+    0b01111111, 0b01010101, 0b01010101, 0b01110101, //
+    0b01111111, 0b01010101, 0b01010101, 0b01111101, //
+    0b01011111, 0b01000000, 0b01010101, 0b01111101, //
+    0b00010101, 0b00000000, 0b00000001, 0b01111101, //
+    0b00000000, 0b00000000, 0b00000000, 0b00010100, //
+};
+
+#define SPRITE_MASK_WIDTH        0b00000011
+#define SPRITE_MASK_ACTIVE       0b00000100
+#define SPRITE_MASK_MULTICOLOR   0b00001000
+#define SPRITE_MASK_DOUBLE_WIDTH 0b00010000
 
 void cgia_init(void)
 {
@@ -89,6 +160,20 @@ void cgia_init(void)
     registers.colour_scan = colour;
     registers.backgr_scan = backgr;
     registers.character_generator = font8_data;
+
+    registers.sprites_active = 8; // SPRITE_COUNT;
+    registers.sprites_address = (uint8_t *)sprites;
+    for (int i = 0; i < SPRITE_COUNT; ++i)
+    {
+        sprites[i].flags |= SPRITE_MASK_ACTIVE;
+        sprites[i].flags |= EXAMPLE_SPRITE_WIDTH - 1; // width
+        sprites[i].lines_y = EXAMPLE_SPRITE_HEIGHT;
+        sprites[i].color[0] = EXAMPLE_SPRITE_COLOR_1;
+        sprites[i].color[1] = EXAMPLE_SPRITE_COLOR_2;
+        sprites[i].color[2] = EXAMPLE_SPRITE_COLOR_3;
+        sprites[i].pos_x = 33 * i;
+        sprites[i].pos_y = 8;
+    }
 
     // Config
     registers.transparent_background = false;
@@ -109,7 +194,6 @@ void cgia_init(void)
         colour[i] = 150; // i % CGIA_COLORS_NUM;
         backgr[i] = 145; // ((CGIA_COLORS_NUM - 1) - i) % CGIA_COLORS_NUM;
     }
-    backgr[FRAME_CHARS - 2 * registers.border_columns] = 150;
 }
 
 void cgia_core1_init(void)
@@ -151,6 +235,51 @@ static inline uint8_t log_2(uint8_t x)
 
 void __not_in_flash_func(cgia_render)(uint y, uint32_t *tmdsbuf)
 {
+    if (y == FRAME_HEIGHT - 1)
+    {
+        sprites[0].pos_x += 1;
+        sprites[0].pos_y += 1;
+        if (sprites[0].pos_x > DISPLAY_WIDTH_PIXELS)
+            sprites[0].pos_x = 0;
+        sprites[1].pos_x -= 1;
+        sprites[1].pos_y += 1;
+        if (sprites[1].pos_x > DISPLAY_WIDTH_PIXELS)
+            sprites[1].pos_x = DISPLAY_WIDTH_PIXELS;
+        sprites[2].pos_x += 1;
+        sprites[2].pos_y -= 1;
+        if (sprites[2].pos_x > DISPLAY_WIDTH_PIXELS)
+            sprites[2].pos_x = 0;
+        sprites[3].pos_x -= 1;
+        sprites[3].pos_y -= 1;
+        if (sprites[3].pos_x > DISPLAY_WIDTH_PIXELS)
+            sprites[3].pos_x = DISPLAY_WIDTH_PIXELS;
+
+        sprites[4].pos_x += 1;
+        sprites[4].pos_y += 2;
+        if (sprites[4].pos_x > DISPLAY_WIDTH_PIXELS)
+            sprites[4].pos_x = 0;
+        sprites[5].pos_x -= 2;
+        sprites[5].pos_y += 1;
+        if (sprites[5].pos_x > DISPLAY_WIDTH_PIXELS)
+            sprites[5].pos_x = DISPLAY_WIDTH_PIXELS;
+        sprites[6].pos_x += 2;
+        sprites[6].pos_y -= 1;
+        if (sprites[6].pos_x > DISPLAY_WIDTH_PIXELS)
+            sprites[6].pos_x = 0;
+        sprites[7].pos_x -= 1;
+        sprites[7].pos_y -= 2;
+        if (sprites[7].pos_x > DISPLAY_WIDTH_PIXELS)
+            sprites[7].pos_x = DISPLAY_WIDTH_PIXELS;
+
+        static int frame = 0;
+        ++frame;
+        if (frame % 60 == 0)
+        {
+            uint8_t bg = backgr[FRAME_CHARS - 2 * registers.border_columns];
+            backgr[FRAME_CHARS - 2 * registers.border_columns] = colour[FRAME_CHARS - 2 * registers.border_columns];
+            colour[FRAME_CHARS - 2 * registers.border_columns] = bg;
+        }
+    }
     static uint8_t row_line_count = 0;
     static bool wait_vbl = true;
 #if 0
@@ -381,6 +510,26 @@ void __not_in_flash_func(cgia_render)(uint y, uint32_t *tmdsbuf)
 
 skip_right_border:
 
+    // render sprites to raster line
+    for (int i = 0; i < registers.sprites_active; ++i)
+    {
+        struct sprite_t *sprite = &sprites[i];
+        if (sprite->flags & SPRITE_MASK_ACTIVE)
+        {
+            int sprite_line = y - sprite->pos_y;
+            if (sprite_line >= 0 && sprite_line <= sprite->lines_y)
+            {
+                int sprite_width = sprite->flags & SPRITE_MASK_WIDTH;
+                int sprite_offset = sprite_line * (sprite_width + 1);
+                for (int j = 0; j <= sprite_width; ++j)
+                {
+                    sprite->line_data[j] = example_sprite_data[sprite_offset + j];
+                }
+                tmds_encode_sprite(tmdsbuf, (uint32_t *)sprite, sprite_width);
+            }
+        }
+    }
+
     // Should we run a new DL row?
     if (row_line_count == dl_row_lines)
     {
@@ -403,6 +552,16 @@ skip_right_border:
     {
         // Move to next line of current DL row
         ++row_line_count;
+    }
+
+    // last frame
+    if ((wait_vbl && y == FRAME_HEIGHT - 1) || sprites_need_update)
+    {
+        sprites_need_update = false;
+        for (uint8_t s = 0; s < registers.sprites_active; ++s)
+        {
+            // TODO: copy memory to sprites[SPRITE_COUNT]
+        }
     }
 }
 

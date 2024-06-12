@@ -40,4 +40,9 @@ uint32_t *__not_in_flash_func(tmds_encode_mode_7)(
     uint32_t *scanline_buffer,
     uint32_t columns);
 
+uint32_t *__not_in_flash_func(tmds_encode_sprite)(
+    uint32_t *tmdsbuf,
+    uint32_t *descriptor,
+    uint32_t width);
+
 #endif
