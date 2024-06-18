@@ -96,37 +96,37 @@ start:
     nop                 side 0b0000 [1] ; nop to get total 8 cycles of delay (~38,5ns)
 
     ; read without delay, to trigger memory read/write as fast as possible
-    in  pins, 8         side 0b0100 [1] ; read A0-A7, switch to BUFF1
-    in  pins, 8         side 0b0010 [1] ; read A8-A15, switch to BUFF2
-    in  pins, 10        side 0b0011     ; read BA0-BA7,VAB,RWB, set clock HIGH
+    in  pins, 8         side 0b0010 [1] ; read A0-A7, switch to BUFF1
+    in  pins, 8         side 0b0100 [1] ; read A8-A15, switch to BUFF2
+    in  pins, 10        side 0b0101     ; read BA0-BA7,VAB,RWB, set clock HIGH
 
-    irq set 0           side 0b0011     ; request processing by Pico CPU code
+    irq set 0           side 0b0101     ; request processing by Pico CPU code
 
     ; while the Pico is preparing data, we can make decision what to do next
-    mov osr, ~pins      side 0b0011     ; load negated pins
-    out null, 8         side 0b0011     ; throw away data bus
-    out y, 1            side 0b0011     ; load VAB to Y
-    jmp !y, start       side 0b0011     ; if address is invalid, proceed immediately to next cycle
+    mov osr, ~pins      side 0b0101     ; load negated pins
+    out null, 8         side 0b0101     ; throw away data bus
+    out y, 1            side 0b0101     ; load VAB to Y
+    jmp !y, start       side 0b0101     ; if address is invalid, proceed immediately to next cycle
 
-    out y, 1            side 0b0011     ; load RWB to Y
-    jmp !y, read        side 0b0011     ; if _negated_ RWB is low, thus Read
+    out y, 1            side 0b0101     ; load RWB to Y
+    jmp !y, read        side 0b0101     ; if _negated_ RWB is low, thus Read
 
 write:
     ; CPU is writing (RWB is LOW)
     ; need to wait tMDS (40ns) after PHI2 transition HIGH (we should have enough already)
-    in  pins, 26        side 0b0010     ; read BA0-BA7, set clock LOW
+    in  pins, 26        side 0b0100     ; read BA0-BA7, set clock LOW
     jmp start           side 0b0000     ; continue to next cycle
 
 read:
     ; CPU is reading (RWB is HIGH)
-    mov osr, ~null      side 0b0011     ; 11111111 to OSR, and wait ~10ns for bus release
-    out pindirs, 8      side 0b1011     ; D0-D7 out, clock still HIGH, BUFF2 Write
-    pull                side 0b1011     ; pull reply to OSR
-    set x, 5            side 0b1011 [1] ; loop to get total 14 cycles of delay (~67ns)
+    mov osr, ~null      side 0b0101     ; 11111111 to OSR, and wait ~10ns for bus release
+    out pindirs, 8      side 0b1101     ; D0-D7 out, clock still HIGH, BUFF2 Write
+    pull                side 0b1101     ; pull reply to OSR
+    set x, 5            side 0b1101 [1] ; loop to get total 14 cycles of delay (~67ns)
 loop:
-    jmp x-- loop        side 0b1011
-    out pins, 8         side 0b1011 [1] ; wait ~10ns
-    nop                 side 0b1010 [1] ; clock LOW
+    jmp x-- loop        side 0b1101
+    out pins, 8         side 0b1101 [1] ; wait ~10ns
+    nop                 side 0b1100 [1] ; clock LOW
 .wrap
 
 
