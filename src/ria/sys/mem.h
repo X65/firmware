@@ -12,6 +12,13 @@
 #include <stddef.h>
 #include <stdint.h>
 
+// 64KB CPU RAM
+#ifdef NDEBUG
+extern uint8_t ram[0x10000];
+#else
+extern uint8_t *const ram;
+#endif
+
 // RIA registers are located at the bottom of cpu1 stack.
 // cpu1 runs the action loop and uses very little stack.
 extern uint8_t regs[0x20];

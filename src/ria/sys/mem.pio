@@ -95,21 +95,21 @@ start:
     out pindirs, 8      side 0b0000 [1] ; D0-D7 in
     nop                 side 0b0000 [1] ; nop to get total 8 cycles of delay (~38,5ns)
 
-    ; read without delay, to trigger memory read/write as fast as possible
+    ; switch over buffers as fast as possible
     in  pins, 8         side 0b0010 [1] ; read A0-A7, switch to BUFF1
     in  pins, 8         side 0b0100 [1] ; read A8-A15, switch to BUFF2
     in  pins, 10        side 0b0101     ; read BA0-BA7,VAB,RWB, set clock HIGH
 
     irq set 0           side 0b0101     ; request processing by Pico CPU code
 
-    ; while the Pico is preparing data, we can make decision what to do next
-    mov osr, ~pins      side 0b0101     ; load negated pins
+    ; while Pico is preparing the data, we can make decision what to do next
+    mov osr, ~pins      side 0b0101     ; load _negated_ pins
     out null, 8         side 0b0101     ; throw away data bus
     out y, 1            side 0b0101     ; load VAB to Y
     jmp !y, start       side 0b0101     ; if address is invalid, proceed immediately to next cycle
 
     out y, 1            side 0b0101     ; load RWB to Y
-    jmp !y, read        side 0b0101     ; if _negated_ RWB is low, thus Read
+    jmp !y, read        side 0b0101     ; if _negated_ RWB is low, means Read
 
 write:
     ; CPU is writing (RWB is LOW)
@@ -128,95 +128,3 @@ loop:
     out pins, 8         side 0b1101 [1] ; wait ~10ns
     nop                 side 0b1100 [1] ; clock LOW
 .wrap
-
-
-; This programs talk to 2x 64Mb SerialRAM chips using SPI/QPI protocol
-;
-;  IN/OUT: SIO0-3
-;     SET: CE0-1
-; SIDESET: CLK
-
-; QPI mode program, used for data write
-; pushes TX fifo incoming as 8bit bytes, as fast as possible
-.program mem_qpi_write
-.side_set 1
-
-    set pins, 0b11      side 0  ; Disable memory banks
-
-    ; wait for TX FIFO data
-    pull                side 0  ; manual pull in case previous transmit did not empty OSR
-    out exec, 16        side 0  ; Exec Memory bank select (CE0-1) encoded as "set pins, .." instruction
-    out x, 12           side 0  ; Load how many nybbles of data to transmit (-1) (max 32)
-    out pindirs, 4      side 0  ; Set SIO0-3 to OUT mode (we are going to send)
-
-transmit:
-    out pins, 4         side 0  ; Push command and addresss
-    jmp x--, transmit   side 1  ; and following data
-
-    irq set 0           side 0  ; signal done processing to Pico CPU code
-
-
-; QPI mode program, used for reading
-; it sends command and address, than switch to reading
-; reads given number of bytes and restarts
-.program mem_qpi_read
-.side_set 1
-
-; memory needs 6 wait cycles
-; -1 cycle used for changing pindirs
-; -1 cycle used for setting wait cycles
-; -1 because loop is indexed from 0
-.define wait_cycles     (6 -1 -1 -1)
-
-    set pins, 0b11      side 0  ; Disable memory banks
-
-    mov osr, ~null      side 0  ; Load ones to OSR
-    out pindirs, 4      side 0  ; Set SIO0-3 to OUT mode (we are going to send command)
-
-    set y, (8 -1)       side 0  ; Will transmit 8 nybbles of command (2 command, 6 address)
-
-    ; wait for TX FIFO data
-    pull                side 0  ; Pull memory bank select instruction
-    out exec, 32        side 0  ; Exec Memory bank select (CE0-1) encoded as "set pins, .." instruction
-
-loop:
-    out pins, 4         side 0  ; Push command (2 nybbles) and address (6 nybbles)
-    jmp y--, loop       side 1
-
-    out x, 32           side 0  ; Load how many nybbles of data to transmit (-1)
-                                ; This is put after command, to start the command ASAP (after setting CE)
-
-    mov osr, null       side 1  ; Load zeros to OSR
-    out pindirs, 4      side 0  ; Set SIO0-3 to IN mode (we are going to read command reply)
-
-    set y, wait_cycles  side 1  ; Set Y with wait cycles
-
-delay:
-    nop                 side 0  ; Memory requires 6 delay cycles after providing command
-    jmp y--, delay      side 1  ; Y was set to how many
-
-    nop                 side 0
-transmit:
-    in pins, 4          side 1  ; Now read X-many nybbles
-    jmp x--, transmit   side 0
-
-
-; SPI mode program, used solely to reset and read ID
-.program mem_spi
-.side_set 1
-
-    mov osr, ~null      side 0  ; Load ones to OSR
-    out pindirs, 4      side 0  ; Set SIO0-3 to OUT mode (we are going to send command)
-
-    pull                side 0
-    set x, 31           side 0  ; Push 32 (0 counting) bits of command (8) + address (24)
-loop:
-    out pins, 1         side 0
-    jmp x-- loop        side 1
-
-    mov osr, null       side 1  ; Load zeros to OSR
-    out pindirs, 4      side 1  ; Set SIO0-3 to IN mode (we are going to read command reply)
-
-.wrap_target
-    nop                 side 0  ; Now read as many bytes as Pico CPU or DMA
-    in pins, 1          side 1  ; requests

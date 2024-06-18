@@ -58,15 +58,11 @@ void main_reclock(void);
 #define MEM_DATA_DIR_PIN  (MEM_BUS_PIN_BASE + 13) /* BUFFER2 DIR */
 #define MEM_BUS_PINS_USED 14
 
-#define MEM_RAM_PIN_BASE  20
-#define MEM_RAM_CLK_PIN   (MEM_RAM_PIN_BASE + 0)
-#define MEM_RAM_SIO0_PIN  (MEM_RAM_PIN_BASE + 1)
-#define MEM_RAM_SIO1_PIN  (MEM_RAM_PIN_BASE + 2)
-#define MEM_RAM_SIO2_PIN  (MEM_RAM_PIN_BASE + 3)
-#define MEM_RAM_SIO3_PIN  (MEM_RAM_PIN_BASE + 4)
-#define MEM_RAM_CE0_PIN   (MEM_RAM_PIN_BASE + 5) /* MEM0 ENABLE */
-#define MEM_RAM_CE1_PIN   (MEM_RAM_PIN_BASE + 6) /* MEM1 ENABLE */
-#define MEM_RAM_PINS_USED 7
+#define AUD_SPI_PIN_BASE  20
+#define AUD_SPI_CLOCK_PIN 31
+
+#define EXT_I2C_SDA_PIN 24
+#define EXT_I2C_SCL_PIN 25
 
 /* All resource assignments
  */
@@ -82,12 +78,8 @@ void main_reclock(void);
 #define MEM_BUS_PIO_IRQ 0
 #define MEM_BUS_IRQ     PIO0_IRQ_0 // must match MEM_BUS_PIO and MEM_BUS_PIO_IRQ
 
-// RAM access
-#define MEM_RAM_BANKS    2
-#define MEM_RAM_PIO      pio1
-#define MEM_RAM_PIO_IRQ  0
-#define MEM_RAM_IRQ      PIO1_IRQ_0 // must match MEM_BUS_PIO and MEM_BUS_PIO_IRQ
-#define MEM_RAM_READ_SM  0          // Read QPI program (and initially SPI program)
-#define MEM_RAM_WRITE_SM 1          // Write QPI program
+#define AUD_SPI spi0
+
+#define EXT_I2C i2c0
 
 #endif /* _MAIN_H_ */
