@@ -15,19 +15,11 @@
 #include "pico/stdlib.h"
 #include "term/term.h"
 
+#include "../include/common_dvi_pin_configs.h"
 #include "dvi.h"
 #include "dvi_serialiser.h"
 
 #define __dvi_const(x) __not_in_flash_func(x)
-
-// Pi Pico VPU DVI
-static const struct dvi_serialiser_cfg x65_dvi_cfg = {
-    .pio = DVI_DEFAULT_PIO_INST,
-    .sm_tmds = {DVI_TMDS0_SM, DVI_TMDS1_SM, DVI_TMDS2_SM},
-    .pins_tmds = {DVI_TMDS0_PIN, DVI_TMDS1_PIN, DVI_TMDS2_PIN},
-    .pins_clk = DVI_CLK_PIN,
-    .invert_diffpairs = false,
-};
 
 /** https://retrocomputing.stackexchange.com/a/13872
 > In standard bitmap mode the C64 outputs 320 pixels in 40µs.

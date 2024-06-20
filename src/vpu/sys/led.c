@@ -23,19 +23,20 @@
  *
  */
 
+#include "main.h"
 #include <pico/stdlib.h>
 #include <stdint.h>
 
 void led_init(void)
 {
-    gpio_init(PICO_DEFAULT_LED_PIN);
-    gpio_set_dir(PICO_DEFAULT_LED_PIN, GPIO_OUT);
-    gpio_put(PICO_DEFAULT_LED_PIN, 1);
+    gpio_init(VPU_LED_PIN);
+    gpio_set_dir(VPU_LED_PIN, GPIO_OUT);
+    gpio_put(VPU_LED_PIN, 1);
 }
 
 void led_task(void)
 {
     // heartbeat
     bool on = (time_us_32() / 100000) % 10 > 8;
-    gpio_put(PICO_DEFAULT_LED_PIN, on);
+    gpio_put(VPU_LED_PIN, on);
 }
