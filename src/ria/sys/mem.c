@@ -10,6 +10,7 @@
 #include "hardware/irq.h"
 #include "hardware/pio.h"
 #include "hardware/vreg.h"
+#include "hw.h"
 #include "main.h"
 #include "mem.pio.h"
 #include "pico/multicore.h"
@@ -50,6 +51,8 @@ uint8_t *const ram = (uint8_t *)&ram_blocks;
 uint8_t mbuf[MBUF_SIZE] __attribute__((aligned(4)));
 size_t mbuf_len;
 
+#define IS_HW_ACCESS(address) ((address & 0xFFFFC0) == 0x00FFC0)
+
 static int mem_read_chan;
 static int mem_write_chan;
 
@@ -65,7 +68,6 @@ static uint8_t mem_cpu_address_bus_history_index = 0;
 static void __attribute__((optimize("O1")))
 mem_bus_pio_irq_handler(void)
 {
-    // printf("mem_bus_pio_irq_handler !!!\n");
     // clear RXUNDER flag
     MEM_BUS_PIO->fdebug = (1u << (PIO_FDEBUG_RXUNDER_LSB + MEM_BUS_SM));
     while (true)
@@ -78,7 +80,6 @@ mem_bus_pio_irq_handler(void)
         {
             // Clear the interrupt request
             pio_interrupt_clear(MEM_BUS_PIO, MEM_BUS_PIO_IRQ);
-            // printf("done\n");
             return;
         }
 
@@ -88,15 +89,23 @@ mem_bus_pio_irq_handler(void)
         }
         else
         {
-            // printf("mem_bus_pio_irq_handler %lx %c %c\n",
-            //        address_bus & 0xFFFFFF,
-            //        (address_bus & CPU_VAB_MASK) ? '!' : ' ',
-            //        (address_bus & CPU_RWB_MASK) ? 'r' : 'W');
             if (main_active() && mem_cpu_address_bus_history_index < MEM_CPU_ADDRESS_BUS_HISTORY_LENGTH)
             {
                 mem_cpu_address_bus_history[mem_cpu_address_bus_history_index++] = address_bus;
             }
 
+            if (IS_HW_ACCESS(address_bus))
+            {
+                if (address_bus & CPU_RWB_MASK)
+                {
+                    pio_sm_put_blocking(MEM_BUS_PIO, MEM_BUS_SM, hw_read(address_bus));
+                }
+                else
+                {
+                    hw_write(address_bus, pio_sm_get_blocking(MEM_BUS_PIO, MEM_BUS_SM));
+                }
+                return;
+            }
             if (address_bus & CPU_RWB_MASK)
             { // CPU is reading
                 // Trigger reading 1 byte from RAM to PIO tx FIFO
@@ -231,42 +240,62 @@ void mem_task(void)
 
 void mem_read_buf(uint32_t addr)
 {
-    int dma_chan = dma_claim_unused_channel(true);
-    dma_channel_config dma_chan_config = dma_channel_get_default_config(dma_chan);
-    channel_config_set_transfer_data_size(&dma_chan_config, DMA_SIZE_8);
-    channel_config_set_read_increment(&dma_chan_config, true);
-    channel_config_set_write_increment(&dma_chan_config, true);
-    dma_channel_configure(
-        dma_chan,
-        &dma_chan_config,
-        mbuf,       // Write to buffer
-        &ram[addr], // Read values from "RAM"
-        mbuf_len,   // mbuf_len values to copy
-        true        // Start immediately
-    );
-    dma_channel_wait_for_finish_blocking(dma_chan);
-    dma_channel_unclaim(dma_chan);
+    if (IS_HW_ACCESS(addr))
+    {
+        for (size_t i = 0; i < mbuf_len; ++i)
+        {
+            mbuf[i] = hw_read(addr++);
+        }
+    }
+    else
+    {
+        int dma_chan = dma_claim_unused_channel(true);
+        dma_channel_config dma_chan_config = dma_channel_get_default_config(dma_chan);
+        channel_config_set_transfer_data_size(&dma_chan_config, DMA_SIZE_8);
+        channel_config_set_read_increment(&dma_chan_config, true);
+        channel_config_set_write_increment(&dma_chan_config, true);
+        dma_channel_configure(
+            dma_chan,
+            &dma_chan_config,
+            mbuf,       // Write to buffer
+            &ram[addr], // Read values from "RAM"
+            mbuf_len,   // mbuf_len values to copy
+            true        // Start immediately
+        );
+        dma_channel_wait_for_finish_blocking(dma_chan);
+        dma_channel_unclaim(dma_chan);
+    }
 }
 
 void mem_write_buf(uint32_t addr)
 {
-    assert(mbuf_len <= 32); // Memory Write wraps at 32 bytes
+    if (IS_HW_ACCESS(addr))
+    {
+        for (size_t i = 0; i < mbuf_len; ++i)
+        {
+            hw_write(addr++, mbuf[i]);
+        }
+    }
+    else
+    {
+        assert(mbuf_len <= 32); // Memory Write wraps at 32 bytes
 
-    int dma_chan = dma_claim_unused_channel(true);
-    dma_channel_config dma_chan_config = dma_channel_get_default_config(dma_chan);
-    channel_config_set_transfer_data_size(&dma_chan_config, DMA_SIZE_8);
-    channel_config_set_read_increment(&dma_chan_config, true);
-    channel_config_set_write_increment(&dma_chan_config, true);
-    dma_channel_configure(
-        dma_chan,
-        &dma_chan_config,
-        &ram[addr], // Write to "RAM"
-        mbuf,       // Read values from buffer
-        mbuf_len,   // mbuf_len values to copy
-        true        // Start immediately
-    );
-    dma_channel_wait_for_finish_blocking(dma_chan);
-    dma_channel_unclaim(dma_chan);
+        int dma_chan = dma_claim_unused_channel(true);
+        dma_channel_config dma_chan_config = dma_channel_get_default_config(dma_chan);
+        channel_config_set_transfer_data_size(&dma_chan_config, DMA_SIZE_8);
+        channel_config_set_read_increment(&dma_chan_config, true);
+        channel_config_set_write_increment(&dma_chan_config, true);
+        dma_channel_configure(
+            dma_chan,
+            &dma_chan_config,
+            &ram[addr], // Write to "RAM"
+            mbuf,       // Read values from buffer
+            mbuf_len,   // mbuf_len values to copy
+            true        // Start immediately
+        );
+        dma_channel_wait_for_finish_blocking(dma_chan);
+        dma_channel_unclaim(dma_chan);
+    }
 }
 
 void mem_print_status(void)
