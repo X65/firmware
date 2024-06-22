@@ -73,8 +73,7 @@ mem_bus_pio_irq_handler(void)
     while (true)
     {
         // read address and flags
-        // TODO: get rid of this >> 6 - update masks, push address << 2
-        uint32_t address_bus = pio_sm_get(MEM_BUS_PIO, MEM_BUS_SM) >> 6;
+        uint32_t address_bus = pio_sm_get(MEM_BUS_PIO, MEM_BUS_SM);
         // exit if there was nothing to read
         if ((MEM_BUS_PIO->fdebug & (1u << (PIO_FDEBUG_RXUNDER_LSB + MEM_BUS_SM))) != 0)
         {
@@ -135,7 +134,7 @@ static void mem_bus_pio_init(void)
     uint offset = pio_add_program(MEM_BUS_PIO, &mem_bus_program);
     pio_sm_config config = mem_bus_program_get_default_config(offset);
     sm_config_set_clkdiv_int_frac(&config, MEM_BUS_PIO_CLKDIV_INT, 0); // FIXME: remove?
-    sm_config_set_in_shift(&config, true, true, 26);
+    sm_config_set_in_shift(&config, true, true, 32);
     sm_config_set_out_shift(&config, true, false, 0);
     sm_config_set_sideset_pins(&config, CPU_PHI2_PIN);
     sm_config_set_in_pins(&config, MEM_DATA_PIN_BASE);

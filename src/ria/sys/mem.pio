@@ -98,7 +98,7 @@ start:
     ; switch over buffers as fast as possible
     in  pins, 8         side 0b0010 [1] ; read A0-A7, switch to BUFF1
     in  pins, 8         side 0b0100 [1] ; read A8-A15, switch to BUFF2
-    in  pins, 10        side 0b0101     ; read BA0-BA7,VAB,RWB, set clock HIGH
+    in  pins, 16        side 0b0101     ; read BA0-BA7,VAB,RWB,... set clock HIGH
 
     irq set 0           side 0b0101     ; request processing by Pico CPU code
 
@@ -114,7 +114,7 @@ start:
 write:
     ; CPU is writing (RWB is LOW)
     ; need to wait tMDS (40ns) after PHI2 transition HIGH (we should have enough already)
-    in  pins, 26        side 0b0100     ; read BA0-BA7, set clock LOW
+    in  pins, 32        side 0b0100     ; read BA0-BA7, set clock LOW
     jmp start           side 0b0000     ; continue to next cycle
 
 read:
