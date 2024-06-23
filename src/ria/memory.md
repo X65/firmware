@@ -6,6 +6,12 @@ Following is the memory mapping of registers of hardware interfaced by RIA.
 
 | Address     | Name     | Fn   | Description                                                                                              |
 | ----------- | -------- | ---- | -------------------------------------------------------------------------------------------------------- |
+| $00FFC0,1   | OPERANDA | MATH | Operand A for multiplication and division.                                                               |
+| $00FFC2,3   | OPERANDB | MATH | Operand B for multiplication and division.                                                               |
+| $00FFC4,5   | MULAB    | MATH | OPERANDA \* OPERANDB.                                                                                    |
+| $00FFC6,7   | SDIVAB   | MATH | Signed OPERANDA / unsigned OPERANDB.                                                                     |
+| $00FFC8,9   | UDIVAB   | MATH | Unsigned OPERANDA / OPERANDB.                                                                            |
+| ...         |          |      |                                                                                                          |
 | $00FFD0,1,2 | ADDRSRC  | DMA  | DMA source address.                                                                                      |
 | $00FFD3     | STEPSRC  | DMA  | DMA source step.                                                                                         |
 | $00FFD4,5,6 | ADDRDST  | DMA  | DMA destination address.                                                                                 |
