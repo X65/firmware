@@ -6,12 +6,18 @@ Following is the memory mapping of registers of hardware interfaced by RIA.
 
 | Address     | Name     | Fn   | Description                                                                                              |
 | ----------- | -------- | ---- | -------------------------------------------------------------------------------------------------------- |
-| $00FFC0,1   | OPERANDA | MATH | Operand A for multiplication and division.                                                               |
-| $00FFC2,3   | OPERANDB | MATH | Operand B for multiplication and division.                                                               |
-| $00FFC4,5   | MULAB    | MATH | OPERANDA \* OPERANDB.                                                                                    |
-| $00FFC6,7   | SDIVAB   | MATH | Signed OPERANDA / unsigned OPERANDB.                                                                     |
-| $00FFC8,9   | UDIVAB   | MATH | Unsigned OPERANDA / OPERANDB.                                                                            |
-| ...         |          |      |                                                                                                          |
+| $00FFC0,1   | OPERA    | MATH | Operand A for multiplication and division.                                                               |
+| $00FFC2,3   | OPERB    | MATH | Operand B for multiplication and division.                                                               |
+| $00FFC4,5   | MULAB    | MATH | OPERA \* OPERB.                                                                                          |
+| $00FFC6,7   | DIVAB    | MATH | Signed OPERA / unsigned OPERB.                                                                           |
+| $00FFC8     |          |      |                                                                                                          |
+| $00FFC9     |          |      |                                                                                                          |
+| $00FFCA     |          |      |                                                                                                          |
+| $00FFCB     |          |      |                                                                                                          |
+| $00FFCC     |          |      |                                                                                                          |
+| $00FFCD     |          |      |                                                                                                          |
+| $00FFCE     |          |      |                                                                                                          |
+| $00FFCF     |          |      |                                                                                                          |
 | $00FFD0,1,2 | ADDRSRC  | DMA  | DMA source address.                                                                                      |
 | $00FFD3     | STEPSRC  | DMA  | DMA source step.                                                                                         |
 | $00FFD4,5,6 | ADDRDST  | DMA  | DMA destination address.                                                                                 |
@@ -26,8 +32,7 @@ Following is the memory mapping of registers of hardware interfaced by RIA.
 | $00FFDF     |          |      |                                                                                                          |
 | $00FFE0     | READY    | UART | Flow control for UART FIFO.<br>bit 7 - TX FIFO not full. Ok to send.<br>bit 6 - RX FIFO has data ready.  |
 | $00FFE1     | TX, RX   | UART | Write bytes to the UART.<br>Read bytes from the UART.                                                    |
-| $00FFE2     |          |      |                                                                                                          |
-| $00FFE3     |          |      |                                                                                                          |
+| $00FFE2,3   | RNG      | HW   | Random Number Generator                                                                                  |
 | $00FFE4,5   | COP      | CPU  | 65816 vector.                                                                                            |
 | $00FFE6,7   | BRK      | CPU  | 65816 vector.                                                                                            |
 | $00FFE8,9   | ABORTB   | CPU  | 65816 vector.                                                                                            |
