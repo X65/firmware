@@ -56,7 +56,12 @@ Following is the memory mapping of registers of hardware interfaced by RIA.
 
 | Address | Name  |     | Description                                                                                                                 |
 | ------- | ----- | --- | --------------------------------------------------------------------------------------------------------------------------- |
-| $00FFC0 | VSYNC |     | Increments every 1/60 second when PIX VGA device is connected.                                                              |
-| $00FFC1 | IRQ   |     | Set bit 0 high to enable VSYNC interrupts.<br>Verify source with VSYNC then read or write this register to clear interrupt. |
+| $00FFA0 | VSYNC |     | Increments every 1/60 second when PIX VGA device is connected.                                                              |
+| $00FFA1 | IRQ   |     | Set bit 0 high to enable VSYNC interrupts.<br>Verify source with VSYNC then read or write this register to clear interrupt. |
 
 ## SD-1 - Yamaha YMF825
+
+`$00FF80` - `$00FF9F`
+
+See [YMF825(SD-1) IF specification](https://github.com/X65/ymf825board/blob/master/manual/fbd_spec1.md#interface-register)
+for Interface Register specification
