@@ -59,6 +59,8 @@ Following is the memory mapping of registers of hardware interfaced by RIA.
 | $00FFA0 | VSYNC |     | Increments every 1/60 second when PIX VGA device is connected.                                                              |
 | $00FFA1 | IRQ   |     | Set bit 0 high to enable VSYNC interrupts.<br>Verify source with VSYNC then read or write this register to clear interrupt. |
 
+And most of [Atari ANTIC](https://en.wikipedia.org/wiki/ANTIC#Registers) registers go here…
+
 ## SD-1 - Yamaha YMF825
 
 `$00FF80` - `$00FF9F`
