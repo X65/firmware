@@ -32,6 +32,11 @@ asm(".equ regs, 0x20040000");
 extern uint8_t mbuf[];
 extern size_t mbuf_len;
 
+/* DMA channels
+ */
+extern int mem_read_chan;
+extern int mem_write_chan;
+
 /* Kernel events
  */
 

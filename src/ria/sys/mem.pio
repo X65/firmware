@@ -100,9 +100,8 @@ start:
     in  pins, 8         side 0b0100 [1] ; read A8-A15, switch to BUFF2
     in  pins, 16        side 0b0101     ; read BA0-BA7,VAB,RWB,... set clock HIGH
 
-    irq set 0           side 0b0101     ; request processing by Pico CPU code
-
-    ; while Pico is preparing the data, we can make decision what to do next
+    ; At this point RX fifo is autopushed, and CPU core1 will process the access
+    ; While Pico is processing the data, we can make decision what to do next
     mov osr, ~pins      side 0b0101     ; load _negated_ pins
     out null, 8         side 0b0101     ; throw away data bus
     out y, 1            side 0b0101     ; load VAB to Y

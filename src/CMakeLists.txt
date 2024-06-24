@@ -85,7 +85,6 @@ target_sources(rp6502_ria PRIVATE
     ria/sys/cfg.c
     ria/sys/com.c
     ria/sys/cpu.c
-    ria/sys/hw.c
     ria/sys/lfs.c
     ria/sys/mem.c
     ria/sys/ria.c

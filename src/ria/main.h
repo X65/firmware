@@ -73,10 +73,8 @@ void main_reclock(void);
 #define COM_UART_RX_PIN    5
 
 // CPU bus handling
-#define MEM_BUS_PIO     pio0
-#define MEM_BUS_SM      0
-#define MEM_BUS_PIO_IRQ 0
-#define MEM_BUS_IRQ     PIO0_IRQ_0 // must match MEM_BUS_PIO and MEM_BUS_PIO_IRQ
+#define MEM_BUS_PIO pio0
+#define MEM_BUS_SM  0
 
 #define AUD_SPI spi0
 
