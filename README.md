@@ -1,9 +1,8 @@
-# Picocomputer 65816
+# X65
 
-The Picocomputer explores retro computing and game development by removing the barrier between genuine 8-bit hardware and modern devices. It can be built entirely with through-hole components, compactly using surface mount devices, or even on a breadboard. No programming devices need to be purchased and the only component used that wasn't available in the 1980s is the $4/€4 Raspberry Pi Pico.
+Modern 8-bit microcomputer
 
-Read the documentation:<br>
-<https://picocomputer.github.io/>
+X65 is an effort to build an 8-bit microcomputer for the modern era. It uses best of breed components and strives to keep 8-bit feeling, while being usable for daily basis computing activities.
 
 ## Dev Setup
 
@@ -24,7 +23,7 @@ git submodule update --init
 cd ../..
 ```
 
-The Pi Pico VGA is no longer a Picoprobe. It remains a CDC for console access. To debug Pico RIA or Pico VGA code, you need a Debug Probe or a third Pi Pico as a Picoprobe.
+To debug Pico RIA or Pico VPU code, you need a Debug Probe or a third Pi Pico as a Picoprobe.
 
 The VSCode launch settings connect to a remote debug session. I use multiple terminals for the debugger and console. You'll also want to add a udev rule to avoid a sudo nightmare. The following are rough notes, you may need to install software which is beyond the scope of this README.
 
