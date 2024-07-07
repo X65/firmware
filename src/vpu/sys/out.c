@@ -48,7 +48,7 @@ static const struct dvi_timing __dvi_const(dvi_timing_768x480p_60hz) = {
     .v_back_porch = 11,
     .v_active_lines = 480,
 
-    .bit_clk_khz = 288000,
+    .bit_clk_khz = 400000,
 };
 // Reduced Blanking - Back porches adjusted to fit 26.6MHz pixel clock
 static const struct dvi_timing __dvi_const(dvi_timing_768x480p_60hz_RB) = {
@@ -68,7 +68,7 @@ static const struct dvi_timing __dvi_const(dvi_timing_768x480p_60hz_RB) = {
 };
 
 // DVDD 1.2V (1.1V seems ok too)
-#define VREG_VSEL  VREG_VOLTAGE_1_15
+#define VREG_VSEL  VREG_VOLTAGE_1_20
 #define DVI_TIMING dvi_timing_768x480p_60hz
 
 struct dvi_inst dvi0;

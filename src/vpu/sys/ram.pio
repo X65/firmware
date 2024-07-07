@@ -1,0 +1,83 @@
+.program hyperram_write
+
+; HyperRAM interface. HyperBus clock is clk_sys/4 at maximum.
+
+; - out/in pins are mapped to DQx
+; - set pin is mapped to RWDS
+; - sideset pins are mapped to {CK, CSn}
+;
+; Command format (all little-endian in FIFO words):
+; - 1-byte initial DQ direction (always 0xff)
+; - 3-byte padding
+; - 6-byte command packet, as per HyperRAM datasheet
+; - 1 byte to set DQ directions
+; - 1 byte jump vector, to dispatch to read/write routine
+;
+; For writes, the data follows the command immediately in the TX FIFO. For
+; reads, data should be read by second SM.
+
+.side_set 3
+.define LATENCY 12
+
+;                               /-------  RWDS
+;                               |/------  CK
+;                               ||/-----  CSn
+start: ;                        |||
+    out pindirs, 8       side 0b001     ; Set pins to output. Stall with CSn deasserted
+    out null, 24         side 0b001     ; Drop padding
+
+do_cmd:
+    set x, 2             side 0b000     ; Always 6 bytes in command packet
+cmd_loop:
+    out pins, 8          side 0b000
+    nop                  side 0b010     ; Clock edge equidistant between data transitions
+    out pins, 8          side 0b010
+    jmp x-- cmd_loop     side 0b000
+
+    out pindirs, 8       side 0b010     ; Set pin directions based on 10th byte of cmd packet
+    out pc, 8            side 0b010     ; Dispatch to read/write routine based on 11th byte
+
+public read:
+    nop                  side 0b000 [1]
+    jmp read             side 0b010 [1]
+
+public write:
+    set x, LATENCY       side 0b010     ; TODO: there is place to encode some latency cycles
+delay_loop:                             ; TODO: in the write setup instructions sideset
+    nop                  side 0b010
+    jmp x-- delay_loop   side 0b000
+
+    set pindirs, 1       side 0b000     ; Assert RWDS
+public write_loop:
+    out pins, 8          side 0b000
+    out y, 24            side 0b000
+    jmp y--, write_B     side 0b000
+write_A:
+    nop                  side 0b010     ; Clock first byte
+    nop                  side 0b110     ; Mask RWDS
+    jmp write_out        side 0b100     ; Clock second byte with masked RWDS
+write_B:
+    nop                  side 0b100     ; Mask RWDS
+    nop                  side 0b110     ; Clock first byte
+    nop                  side 0b010     ; Unmask RWDS
+write_out:
+    set pindirs, 0       side 0b000     ; (Clock second byte), deassert RWDS, wrap back to start
+
+.program hyperram_read
+
+; This program waits for RWDS to go LOW, then for rising edge
+; and then it reads incoming DQ on every RWDS transition
+;
+; You need to reset SM manually after finishing the read.
+
+; TODO: possibly increase the speed by removing waits
+; TODO: with the CTRL PIO is clocking HIGH/LOW every cycle, this will read memory with full DDR speed
+
+    wait 0 gpio 21
+    wait 1 gpio 21
+.wrap_target
+    wait 1 gpio 21
+    in pins, 8
+    wait 0 gpio 21
+    in pins, 8
+.wrap

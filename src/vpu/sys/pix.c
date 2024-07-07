@@ -29,35 +29,35 @@ void pix_init(void)
     dma_addr = (uint32_t)xram;
 
     // Two state machines, one program
-    uint offset = pio_add_program(VGA_PIX_PIO, &vga_pix_program);
+    uint offset = pio_add_program(VPU_PIX_PIO, &vga_pix_program);
 
     // PIO to receive VGA registers
     pio_sm_config regs_config = vga_pix_program_get_default_config(offset);
     sm_config_set_in_pins(&regs_config, 0);
     sm_config_set_in_shift(&regs_config, false, false, 0);
     sm_config_set_out_shift(&regs_config, true, false, 4);
-    pio_sm_init(VGA_PIX_PIO, VGA_PIX_REGS_SM, offset, &regs_config);
-    pio_sm_put(VGA_PIX_PIO, VGA_PIX_REGS_SM, 0x1); // channel 1
-    pio_sm_exec_wait_blocking(VGA_PIX_PIO, VGA_PIX_REGS_SM, pio_encode_pull(false, true));
-    pio_sm_exec_wait_blocking(VGA_PIX_PIO, VGA_PIX_REGS_SM, pio_encode_mov(pio_x, pio_osr));
-    pio_sm_exec_wait_blocking(VGA_PIX_PIO, VGA_PIX_REGS_SM, pio_encode_out(pio_null, 32));
+    pio_sm_init(VPU_PIX_PIO, VPU_PIX_REGS_SM, offset, &regs_config);
+    pio_sm_put(VPU_PIX_PIO, VPU_PIX_REGS_SM, 0x1); // channel 1
+    pio_sm_exec_wait_blocking(VPU_PIX_PIO, VPU_PIX_REGS_SM, pio_encode_pull(false, true));
+    pio_sm_exec_wait_blocking(VPU_PIX_PIO, VPU_PIX_REGS_SM, pio_encode_mov(pio_x, pio_osr));
+    pio_sm_exec_wait_blocking(VPU_PIX_PIO, VPU_PIX_REGS_SM, pio_encode_out(pio_null, 32));
     sm_config_set_fifo_join(&regs_config, PIO_FIFO_JOIN_RX);
-    pio_sm_init(VGA_PIX_PIO, VGA_PIX_REGS_SM, offset, &regs_config);
-    pio_sm_set_enabled(VGA_PIX_PIO, VGA_PIX_REGS_SM, true);
+    pio_sm_init(VPU_PIX_PIO, VPU_PIX_REGS_SM, offset, &regs_config);
+    pio_sm_set_enabled(VPU_PIX_PIO, VPU_PIX_REGS_SM, true);
 
     // PIO to receive XRAM
     pio_sm_config xram_config = vga_pix_program_get_default_config(offset);
     sm_config_set_in_pins(&xram_config, 0);
     sm_config_set_in_shift(&xram_config, false, false, 0);
     sm_config_set_out_shift(&xram_config, true, false, 4);
-    pio_sm_init(VGA_PIX_PIO, VGA_PIX_XRAM_SM, offset, &xram_config);
-    pio_sm_put(VGA_PIX_PIO, VGA_PIX_XRAM_SM, 0x0); // channel 0
-    pio_sm_exec_wait_blocking(VGA_PIX_PIO, VGA_PIX_XRAM_SM, pio_encode_pull(false, true));
-    pio_sm_exec_wait_blocking(VGA_PIX_PIO, VGA_PIX_XRAM_SM, pio_encode_mov(pio_x, pio_osr));
-    pio_sm_exec_wait_blocking(VGA_PIX_PIO, VGA_PIX_XRAM_SM, pio_encode_out(pio_null, 32));
+    pio_sm_init(VPU_PIX_PIO, VPU_PIX_XRAM_SM, offset, &xram_config);
+    pio_sm_put(VPU_PIX_PIO, VPU_PIX_XRAM_SM, 0x0); // channel 0
+    pio_sm_exec_wait_blocking(VPU_PIX_PIO, VPU_PIX_XRAM_SM, pio_encode_pull(false, true));
+    pio_sm_exec_wait_blocking(VPU_PIX_PIO, VPU_PIX_XRAM_SM, pio_encode_mov(pio_x, pio_osr));
+    pio_sm_exec_wait_blocking(VPU_PIX_PIO, VPU_PIX_XRAM_SM, pio_encode_out(pio_null, 32));
     sm_config_set_fifo_join(&xram_config, PIO_FIFO_JOIN_RX);
-    pio_sm_init(VGA_PIX_PIO, VGA_PIX_XRAM_SM, offset, &regs_config);
-    pio_sm_set_enabled(VGA_PIX_PIO, VGA_PIX_XRAM_SM, true);
+    pio_sm_init(VPU_PIX_PIO, VPU_PIX_XRAM_SM, offset, &regs_config);
+    pio_sm_set_enabled(VPU_PIX_PIO, VPU_PIX_XRAM_SM, true);
 
     // Need all channels now to configure chaining
     int copy_chan = dma_claim_unused_channel(true);
@@ -109,14 +109,14 @@ void pix_init(void)
     // DMA move raw received data into RAM
     dma_channel_config fifo_dma = dma_channel_get_default_config(fifo_chan);
     channel_config_set_high_priority(&fifo_dma, true);
-    channel_config_set_dreq(&fifo_dma, pio_get_dreq(VGA_PIX_PIO, VGA_PIX_XRAM_SM, false));
+    channel_config_set_dreq(&fifo_dma, pio_get_dreq(VPU_PIX_PIO, VPU_PIX_XRAM_SM, false));
     channel_config_set_read_increment(&fifo_dma, false);
     channel_config_set_chain_to(&fifo_dma, copy_chan);
     dma_channel_configure(
         fifo_chan,
         &fifo_dma,
         &dma_fifo[0],                       // dst
-        &VGA_PIX_PIO->rxf[VGA_PIX_XRAM_SM], // src
+        &VPU_PIX_PIO->rxf[VPU_PIX_XRAM_SM], // src
         1,
         true);
 }
@@ -141,9 +141,9 @@ static void pix_video_mode(uint16_t mode)
 
 void pix_task(void)
 {
-    while (!pio_sm_is_rx_fifo_empty(VGA_PIX_PIO, VGA_PIX_REGS_SM))
+    while (!pio_sm_is_rx_fifo_empty(VPU_PIX_PIO, VPU_PIX_REGS_SM))
     {
-        uint32_t raw = pio_sm_get(VGA_PIX_PIO, VGA_PIX_REGS_SM);
+        uint32_t raw = pio_sm_get(VPU_PIX_PIO, VPU_PIX_REGS_SM);
         uint16_t data = raw;
         // 0-0xFF reachable from api_set_xreg
         // 0x100-0xFFF for internal RIA-to-VGA

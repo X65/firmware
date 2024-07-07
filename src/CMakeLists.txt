@@ -122,6 +122,7 @@ target_sources(rp6502_vpu PRIVATE
     vpu/sys/led.c
     vpu/sys/out.c
     vpu/sys/pix.c
+    vpu/sys/ram.c
     vpu/sys/std.c
     vpu/term/font.c
     vpu/term/term.c
@@ -143,6 +144,10 @@ target_link_libraries(rp6502_vpu PRIVATE
 
 pico_generate_pio_header(rp6502_vpu
     ${CMAKE_CURRENT_LIST_DIR}/vpu/sys/ria.pio
+)
+
+pico_generate_pio_header(rp6502_vpu
+    ${CMAKE_CURRENT_LIST_DIR}/vpu/sys/ram.pio
 )
 
 target_compile_definitions(rp6502_vpu PRIVATE

@@ -110,7 +110,7 @@ void mem_init(void)
     main_reclock();
 
     // Adjustments for GPIO performance. Important!
-    for (int i = MEM_BUS_PIN_BASE; i < MEM_BUS_PIN_BASE + MEM_BUS_PINS_USED; i++)
+    for (int i = MEM_BUS_PIN_BASE; i < MEM_BUS_PIN_BASE + MEM_BUS_PINS_USED; ++i)
     {
         gpio_set_pulls(i, true, true);
         gpio_set_input_hysteresis_enabled(i, false);
@@ -136,7 +136,7 @@ extern void dump_cpu_history(void);
 
 void mem_task(void)
 {
-    dump_cpu_history();
+    // dump_cpu_history();
 }
 
 void mem_read_buf(uint32_t addr)

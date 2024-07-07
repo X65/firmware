@@ -20,6 +20,7 @@
 static void init(void)
 {
     std_init();
+    ram_init();
     font_init(); // before out_init (copies data from flash before overclocking)
     cgia_init();
     out_init();
@@ -34,6 +35,7 @@ static void task(void)
 {
     out_task();
     cgia_task();
+    ram_task();
     term_task();
     tud_task();
     cdc_task();
