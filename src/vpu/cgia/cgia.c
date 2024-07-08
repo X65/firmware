@@ -179,7 +179,6 @@ void cgia_init(void)
     registers.transparent_background = false;
     registers.border_columns = 4;
 
-    // TODO: fill with 0s
     for (int i = 0; i < FRAME_CHARS * 30; ++i)
     {
         screen[i] = 0; // i & 0xff;
@@ -191,8 +190,8 @@ void cgia_init(void)
     screen[4] = 'Y';
     for (int i = 0; i < FRAME_CHARS * 30; ++i)
     {
-        colour[i] = 150; // i % CGIA_COLORS_NUM;
-        backgr[i] = 145; // ((CGIA_COLORS_NUM - 1) - i) % CGIA_COLORS_NUM;
+        colour[i] = 150;                    // i % CGIA_COLORS_NUM;
+        backgr[i] = registers.border_color; // ((CGIA_COLORS_NUM - 1) - i) % CGIA_COLORS_NUM;
     }
 }
 
@@ -275,6 +274,7 @@ void __not_in_flash_func(cgia_render)(uint y, uint32_t *tmdsbuf)
         ++frame;
         if (frame % 60 == 0)
         {
+            // blink cursor
             uint8_t bg = backgr[FRAME_CHARS - 2 * registers.border_columns];
             backgr[FRAME_CHARS - 2 * registers.border_columns] = colour[FRAME_CHARS - 2 * registers.border_columns];
             colour[FRAME_CHARS - 2 * registers.border_columns] = bg;
@@ -287,18 +287,11 @@ void __not_in_flash_func(cgia_render)(uint y, uint32_t *tmdsbuf)
         static int frame = 0;
         if (y == 0)
             ++frame;
-        static char printf_buffer[256];
-        char *chr;
         if (frame == 60 * 5)
         {
-            sprintf(printf_buffer, "%03d: %p => %02x\t%d%s\n\r",
-                    y, registers.display_list, *registers.display_list, row_line_count,
-                    wait_vbl ? " w" : "");
-            chr = printf_buffer;
-            while (*chr)
-            {
-                std_out_write(*chr++);
-            }
+            printf("%03d: %p => %02x\t%d%s\n\r",
+                   y, registers.display_list, *registers.display_list, row_line_count,
+                   wait_vbl ? " w" : "");
         }
     }
 #endif

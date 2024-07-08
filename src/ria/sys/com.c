@@ -417,40 +417,34 @@ void com_task(void)
         main_break();
     break_detect = current_break;
 
-    // Allow UART RX FIFO to fill during RIA actions.
-    // At all other times the FIFO must be emptied to detect breaks.
-    if (!main_active())
+    // At all times the FIFO must be emptied to detect breaks.
+    if (com_callback && com_timeout_ms && absolute_time_diff_us(get_absolute_time(), com_timer) < 0)
     {
-        if (com_callback && com_timeout_ms && absolute_time_diff_us(get_absolute_time(), com_timer) < 0)
-        {
-            com_read_callback_t cc = com_callback;
-            com_callback = NULL;
-            com_binary_buf = NULL;
-            cc(true, NULL, 0);
-        }
+        com_read_callback_t cc = com_callback;
+        com_callback = NULL;
+        com_binary_buf = NULL;
+        cc(true, NULL, 0);
+    }
+    else
+    {
+        int ch;
+        if (cpu_active() && com_callback)
+            ch = cpu_getchar();
         else
+            ch = getchar_timeout_us(0);
+        while (ch != PICO_ERROR_TIMEOUT)
         {
-            int ch;
-            if (cpu_active() && com_callback)
-                ch = cpu_getchar();
-            else
-                ch = getchar_timeout_us(0);
-            while (ch != PICO_ERROR_TIMEOUT)
+            if (com_callback)
             {
-                if (com_callback)
-                {
-                    com_timer = delayed_by_ms(get_absolute_time(), com_timeout_ms);
-                    if (com_binary_buf)
-                        com_binary_rx(ch);
-                    else
-                        com_line_rx(ch);
-                }
-                else if (cpu_active())
-                    cpu_com_rx(ch);
-                if (main_active()) // FIXME: why?
-                    break;
-                ch = getchar_timeout_us(0);
+                com_timer = delayed_by_ms(get_absolute_time(), com_timeout_ms);
+                if (com_binary_buf)
+                    com_binary_rx(ch);
+                else
+                    com_line_rx(ch);
             }
+            else if (cpu_active())
+                cpu_com_rx(ch);
+            ch = getchar_timeout_us(0);
         }
     }
 }

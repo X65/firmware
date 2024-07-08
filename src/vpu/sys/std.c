@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: BSD-3-Clause
  */
 
+#include "pico/stdio/driver.h"
 #include <sys/std.h>
 
 // IN is sourced by USB CDC
@@ -49,8 +50,6 @@ void std_out_write(char ch)
     if (&STD_OUT_BUF(std_out_tail + 1) == &STD_OUT_BUF(std_out_head))
         ++std_out_head;
     STD_OUT_BUF(++std_out_tail) = ch;
-    // OUT is sunk here to stdio
-    putchar_raw(ch);
 }
 
 char std_out_peek(void)
@@ -63,11 +62,27 @@ char std_out_read(void)
     return STD_OUT_BUF(++std_out_head);
 }
 
+static void std_out_chars(const char *buf, int length)
+{
+    for (int i = 0; i < length; i++)
+    {
+        std_out_write(buf[i]);
+    }
+}
+
+static stdio_driver_t std_uart = {
+    .out_chars = std_out_chars,
+#if PICO_STDIO_ENABLE_CRLF_SUPPORT
+    .crlf_enabled = PICO_STDIO_UART_DEFAULT_CRLF
+#endif
+};
+
 void std_init(void)
 {
     gpio_set_function(STD_UART_TX, GPIO_FUNC_UART);
     gpio_set_function(STD_UART_RX, GPIO_FUNC_UART);
     uart_init(STD_UART_INTERFACE, STD_UART_BAUDRATE);
+    stdio_set_driver_enabled(&std_uart, true);
 }
 
 void std_reclock(void)
