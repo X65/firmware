@@ -13,13 +13,17 @@
 #include <stdio.h>
 #include <string.h>
 
+extern const char *GIT_TAG;
+extern const char *GIT_REV;
+extern const char *GIT_BRANCH;
+
 static void sys_print_status(void)
 {
     puts(RP6502_NAME);
-    if (strlen(RP6502_VERSION))
-        puts("RIA Version " RP6502_VERSION);
+    if (strlen(GIT_TAG))
+        printf("RIA %s", GIT_TAG);
     else
-        puts("RIA " __DATE__ " " __TIME__);
+        printf("RIA %s@%s", GIT_REV, GIT_BRANCH);
 }
 
 void sys_mon_reboot(const char *args, size_t len)

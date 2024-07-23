@@ -99,6 +99,7 @@ target_sources(rp6502_ria PRIVATE
     fatfs/ffunicode.c
     littlefs/lfs.c
     littlefs/lfs_util.c
+    ${CMAKE_CURRENT_BINARY_DIR}/version.c
 )
 
 
@@ -132,6 +133,7 @@ target_sources(rp6502_vpu PRIVATE
     vpu/usb/descriptors.c
     vpu/usb/serno.c
     picodvi/software/apps/colour_terminal/tmds_encode_font_2bpp.S
+    ${CMAKE_CURRENT_BINARY_DIR}/version.c
 )
 
 target_link_libraries(rp6502_vpu PRIVATE
@@ -168,7 +170,6 @@ target_compile_definitions(rp6502_vpu PRIVATE
 set_property(TARGET rp6502_ria rp6502_vpu
     APPEND PROPERTY COMPILE_DEFINITIONS
     RP6502_NAME="Picocomputer 65816"
-    RP6502_VERSION=""
     RP6502_CODE_PAGE=850
     RP6502_KEYBOARD=EN_US
     RP6502_MIN_PHI2=500
@@ -176,19 +177,11 @@ set_property(TARGET rp6502_ria rp6502_vpu
     RP6502_EXFAT=0
 )
 
-
-# If no version set, touch the file that provides a dev timestamp for the version.
-
-get_target_property(RP6502_RIA_COMPILE_DEFINITIONS rp6502_ria COMPILE_DEFINITIONS)
-if(RP6502_RIA_COMPILE_DEFINITIONS MATCHES "RP6502_VERSION=\"\"")
-    add_custom_command(TARGET rp6502_ria
-        COMMAND ${CMAKE_COMMAND} -E touch ${CMAKE_CURRENT_LIST_DIR}/ria/sys/sys.c
-    )
-endif()
-
-get_target_property(RP6502_VGA_COMPILE_DEFINITIONS rp6502_vpu COMPILE_DEFINITIONS)
-if(RP6502_VGA_COMPILE_DEFINITIONS MATCHES "RP6502_VERSION=\"\"")
-    add_custom_command(TARGET rp6502_vpu
-        COMMAND ${CMAKE_COMMAND} -E touch ${CMAKE_CURRENT_LIST_DIR}/vpu/sys/ria.c
-    )
-endif()
+# Add a custom command that produces version.c, plus
+# a dummy output that's not actually produced, in order
+# to force version.cmake to always be re-run before the build
+ADD_CUSTOM_COMMAND(
+    OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/version.c
+           ${CMAKE_CURRENT_BINARY_DIR}/_version.c
+    COMMAND ${CMAKE_COMMAND} -P
+            ${CMAKE_CURRENT_SOURCE_DIR}/version.cmake)
