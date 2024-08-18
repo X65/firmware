@@ -1,4 +1,34 @@
 # https://clangd.llvm.org/config.html
 ---
 CompileFlags:
-  Add: [-I/usr/arm-none-eabi/include]
+  Add:
+    - -I/usr/arm-none-eabi/include
+    - -Wall
+    - -Wextra
+    - -Wpedantic
+    - -Wno-gnu-binary-literal
+    - -Wshadow
+    - -Walloca
+    - -Wcast-qual
+    - -Wconversion
+    - -Wno-sign-conversion
+    - -Wformat=2
+    - -Wformat-security
+    - -Wnull-dereference
+    - -Wstack-protector
+    - -Wvla
+    - -Warray-bounds
+    - -Warray-bounds-pointer-arithmetic
+    - -Wimplicit-fallthrough
+    - -Wconditional-uninitialized
+    - -Wloop-analysis
+    - -Wswitch-enum
+    - -Wtautological-constant-in-range-compare
+    - -Wcomma
+    - -Wassign-enum
+    - -Wbad-function-cast
+    - -Wfloat-equal
+    - -Wformat-type-confusion
+    - -Wpointer-arith
+    - -Widiomatic-parentheses
+    - -Wunreachable-code-aggressive
