@@ -37,7 +37,7 @@ SUBSYSTEM=="usb", ATTRS{idVendor}=="2e8a", MODE="0666"
 Debug terminal:
 
 ```
-openocd -f interface/cmsis-dap.cfg -c "adapter speed 5000" -f target/rp2040.cfg -s tcl
+openocd -f interface/cmsis-dap.cfg -c "adapter speed 5000" -f target/rp2350.cfg -s tcl
 ```
 
 Console terminal:

@@ -27,10 +27,10 @@ target_link_libraries(rp6502_ria PRIVATE
     pico_stdlib
     pico_multicore
     pico_rand
+    pico_aon_timer
     hardware_pio
     hardware_dma
     hardware_flash
-    hardware_rtc
     tinyusb_board
     tinyusb_host
 )

@@ -7,8 +7,9 @@
 
 #include "api/clk.h"
 #include "fatfs/ff.h"
-#include "hardware/rtc.h"
 #include "hardware/timer.h"
+#include "pico.h"
+#include "pico/aon_timer.h"
 #include "sys/cfg.h"
 #include <time.h>
 
@@ -18,31 +19,24 @@
 
 void clk_init(void)
 {
-    rtc_init();
-    datetime_t rtc_info = {
-        .year = CLK_EPOCH_UNIX,
-        .month = 1,
-        .day = 1,
-        .dotw = 5,
-        .hour = 0,
-        .min = 0,
-        .sec = 0,
-    };
-    rtc_set_datetime(&rtc_info);
+    const struct timespec ts = {0};
+    aon_timer_start(&ts);
 }
 
 DWORD get_fattime(void)
 {
     DWORD res;
-    datetime_t rtc_time;
-    if (rtc_get_datetime(&rtc_time) && (rtc_time.year >= CLK_EPOCH_FAT))
+    struct timespec ts = {0};
+    aon_timer_get_time(&ts);
+    struct tm *time = localtime(&ts.tv_sec);
+    if (time && (time->tm_year >= CLK_EPOCH_FAT))
     {
-        res = (((DWORD)rtc_time.year - CLK_EPOCH_FAT) << 25) | //
-              ((DWORD)rtc_time.month << 21) |                  //
-              ((DWORD)rtc_time.day << 16) |                    //
-              (WORD)(rtc_time.hour << 11) |                    //
-              (WORD)(rtc_time.min << 5) |                      //
-              (WORD)(rtc_time.sec >> 1);
+        res = (((DWORD)time->tm_year - CLK_EPOCH_FAT) << 25) | //
+              ((DWORD)time->tm_mon << 21) |                    //
+              ((DWORD)time->tm_mday << 16) |                   //
+              (WORD)(time->tm_hour << 11) |                    //
+              (WORD)(time->tm_min << 5) |                      //
+              (WORD)(time->tm_sec >> 1);
     }
     else
     {
