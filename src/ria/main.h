@@ -43,9 +43,10 @@ void main_reclock(void);
  */
 
 #define RIA_LED_PIN 15
+#define RGB_LED_PIN 25
 
-#define CPU_RESB_PIN 26
-#define CPU_IRQB_PIN 10
+#define CPU_RESB_PIN 22
+#define CPU_IRQB_PIN 23
 #define CPU_NMIB_PIN 11
 
 #define MEM_BUS_PIN_BASE  0
@@ -53,26 +54,28 @@ void main_reclock(void);
 #define CPU_VAB_PIN       (MEM_BUS_PIN_BASE + 8)
 #define CPU_RWB_PIN       (MEM_BUS_PIN_BASE + 9)
 #define MEM_BUS_PINS_USED 10
-#define MEM_CTL_PIN_BASE  22
+#define MEM_CTL_PIN_BASE  26
 #define CPU_PHI2_PIN      (MEM_CTL_PIN_BASE + 0)
 #define MEM_BE0_PIN       (MEM_CTL_PIN_BASE + 1) /* BUF0 ENABLE */
 #define MEM_BE1_PIN       (MEM_CTL_PIN_BASE + 2) /* BUF1 ENABLE */
 #define MEM_DATA_DIR_PIN  (MEM_CTL_PIN_BASE + 3) /* BUFFER2 DIR */
 #define MEM_CTL_PINS_USED 4
 
+#define QMI_PSRAM_CS_PIN 19
+
 #define AUD_SPI_PIN_BASE  32
 #define AUD_SPI_CLOCK_PIN 34
 
-#define EXT_I2C_SDA_PIN 20
-#define EXT_I2C_SCL_PIN 21
+#define EXT_I2C_SDA_PIN 16
+#define EXT_I2C_SCL_PIN 17
 
 /* All resource assignments
  */
 
-#define COM_UART           uart0
+#define COM_UART           uart1
 #define COM_UART_BAUD_RATE 115200
-#define COM_UART_TX_PIN    30
-#define COM_UART_RX_PIN    31
+#define COM_UART_TX_PIN    20
+#define COM_UART_RX_PIN    21
 
 // CPU bus handling
 #define MEM_BUS_PIO pio0
