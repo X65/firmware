@@ -1,7 +1,9 @@
 {
   "recommendations": [
-    "ms-vscode.cpptools-extension-pack",
     "marus25.cortex-debug",
+    "ms-vscode.cpptools",
+    "ms-vscode.cpptools-extension-pack",
+    "ms-vscode.vscode-serial-monitor",
     "dan-c-underwood.arm",
     "tlgkccampbell.code-ca65",
     "chris-hock.pioasm",

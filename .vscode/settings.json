@@ -1,25 +1,33 @@
 {
-  "cmake.statusbar.advanced": {
-    "debug": {
-      "visibility": "hidden"
+  "cmake.options.statusBarVisibility": "hidden",
+  "cmake.options.advanced": {
+    "build": {
+      "statusBarVisibility": "hidden"
     },
     "launch": {
-      "visibility": "hidden"
+      "statusBarVisibility": "hidden"
     },
+    "debug": {
+      "statusBarVisibility": "hidden"
+    }
   },
+  "cmake.configureOnEdit": false,
+  "cmake.automaticReconfigure": false,
+  "cmake.configureOnOpen": false,
+  "cmake.generator": "Ninja",
+  "C_Cpp.debugShortcut": false,
   "cmake.buildBeforeRun": true,
   "cmake.exportCompileCommandsFile": true,
   "C_Cpp.default.configurationProvider": "ms-vscode.cmake-tools",
   "files.associations": {
     "*.h": "c"
   },
-  "cortex-debug.registerUseNaturalFormat": true,
   "search.exclude": {
     "src/fatfs": true,
     "src/littlefs": true,
     "src/pico-extras": true,
     "src/pico-sdk": true,
-    "src/tinyusb": true,
+    "src/tinyusb": true
   },
   "editor.formatOnSave": true
 }

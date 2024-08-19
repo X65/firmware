@@ -6,6 +6,7 @@
  */
 
 #include "mem.h"
+#include "hardware/clocks.h"
 #include "hardware/dma.h"
 #include "hardware/gpio.h"
 #include "hardware/pio.h"

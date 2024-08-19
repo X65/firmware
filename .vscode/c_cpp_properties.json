@@ -1,15 +1,17 @@
 {
   "configurations": [
     {
-      "name": "Linux",
-      "includePath": [
-        "${workspaceFolder}/**",
-        "${env:PICO_SDK_PATH}/**"
+      "name": "Pico",
+      "includePath": ["${workspaceFolder}/**", "${env:PICO_SDK_PATH}/**"],
+      "forcedInclude": [
+        "${env:PICO_SDK_PATH}/src/common/pico_base/include/pico.h",
+        "${workspaceFolder}/build/generated/pico_base/pico/config_autogen.h"
       ],
       "defines": [],
       "compilerPath": "/usr/bin/arm-none-eabi-gcc",
-      "cStandard": "gnu11",
-      "cppStandard": "gnu++17",
+      "compileCommands": "${workspaceFolder}/build/compile_commands.json",
+      "cStandard": "c17",
+      "cppStandard": "c++14",
       "intelliSenseMode": "linux-gcc-arm",
       "configurationProvider": "ms-vscode.cmake-tools"
     }
