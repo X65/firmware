@@ -59,13 +59,15 @@ static void mem_bus_pio_init(void)
     sm_config_set_clkdiv_int_frac(&config, MEM_BUS_PIO_CLKDIV_INT, 0); // FIXME: remove?
     sm_config_set_in_shift(&config, true, true, 32);
     sm_config_set_out_shift(&config, true, false, 0);
-    sm_config_set_sideset_pins(&config, CPU_PHI2_PIN);
-    sm_config_set_in_pins(&config, MEM_DATA_PIN_BASE);
+    sm_config_set_sideset_pins(&config, MEM_CTL_PIN_BASE);
+    sm_config_set_in_pins(&config, MEM_BUS_PIN_BASE);
     sm_config_set_out_pins(&config, MEM_DATA_PIN_BASE, 8);
     for (int i = MEM_BUS_PIN_BASE; i < MEM_BUS_PIN_BASE + MEM_BUS_PINS_USED; i++)
         pio_gpio_init(MEM_BUS_PIO, i);
-    pio_sm_set_consecutive_pindirs(MEM_BUS_PIO, MEM_BUS_SM, MEM_DATA_PIN_BASE, 10, false);
-    pio_sm_set_consecutive_pindirs(MEM_BUS_PIO, MEM_BUS_SM, CPU_PHI2_PIN, 4, true);
+    for (int i = MEM_CTL_PIN_BASE; i < MEM_CTL_PIN_BASE + MEM_CTL_PINS_USED; i++)
+        pio_gpio_init(MEM_BUS_PIO, i);
+    pio_sm_set_consecutive_pindirs(MEM_BUS_PIO, MEM_BUS_SM, MEM_BUS_PIN_BASE, MEM_BUS_PINS_USED, false);
+    pio_sm_set_consecutive_pindirs(MEM_BUS_PIO, MEM_BUS_SM, MEM_CTL_PIN_BASE, MEM_CTL_PINS_USED, true);
     gpio_pull_up(CPU_PHI2_PIN);
     pio_sm_init(MEM_BUS_PIO, MEM_BUS_SM, offset, &config);
     pio_sm_set_enabled(MEM_BUS_PIO, MEM_BUS_SM, true);
@@ -111,6 +113,12 @@ void mem_init(void)
 
     // Adjustments for GPIO performance. Important!
     for (int i = MEM_BUS_PIN_BASE; i < MEM_BUS_PIN_BASE + MEM_BUS_PINS_USED; ++i)
+    {
+        gpio_set_pulls(i, true, true);
+        gpio_set_input_hysteresis_enabled(i, false);
+        hw_set_bits(&MEM_BUS_PIO->input_sync_bypass, 1u << i);
+    }
+    for (int i = MEM_CTL_PIN_BASE; i < MEM_CTL_PIN_BASE + MEM_CTL_PINS_USED; ++i)
     {
         gpio_set_pulls(i, true, true);
         gpio_set_input_hysteresis_enabled(i, false);

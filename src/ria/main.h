@@ -42,35 +42,35 @@ void main_reclock(void);
 /* All pin assignments
  */
 
-#define CPU_RESB_PIN 27
-#define CPU_IRQB_PIN 28
+#define CPU_RESB_PIN 26
+#define CPU_IRQB_PIN 10
+#define CPU_NMIB_PIN 11
 
-#define PIX_PIN_BASE 0 /* PIX0-PIX3 */
-#define PIX_CLK_PIN  29
-
-#define MEM_BUS_PIN_BASE  6
+#define MEM_BUS_PIN_BASE  0
 #define MEM_DATA_PIN_BASE (MEM_BUS_PIN_BASE + 0) /* D0-D7 */
 #define CPU_VAB_PIN       (MEM_BUS_PIN_BASE + 8)
 #define CPU_RWB_PIN       (MEM_BUS_PIN_BASE + 9)
-#define CPU_PHI2_PIN      (MEM_BUS_PIN_BASE + 10)
-#define MEM_BE0_PIN       (MEM_BUS_PIN_BASE + 11) /* BUF0 ENABLE */
-#define MEM_BE1_PIN       (MEM_BUS_PIN_BASE + 12) /* BUF1 ENABLE */
-#define MEM_DATA_DIR_PIN  (MEM_BUS_PIN_BASE + 13) /* BUFFER2 DIR */
-#define MEM_BUS_PINS_USED 14
+#define MEM_BUS_PINS_USED 10
+#define MEM_CTL_PIN_BASE  22
+#define CPU_PHI2_PIN      (MEM_CTL_PIN_BASE + 0)
+#define MEM_BE0_PIN       (MEM_CTL_PIN_BASE + 1) /* BUF0 ENABLE */
+#define MEM_BE1_PIN       (MEM_CTL_PIN_BASE + 2) /* BUF1 ENABLE */
+#define MEM_DATA_DIR_PIN  (MEM_CTL_PIN_BASE + 3) /* BUFFER2 DIR */
+#define MEM_CTL_PINS_USED 4
 
-#define AUD_SPI_PIN_BASE  20
-#define AUD_SPI_CLOCK_PIN 31
+#define AUD_SPI_PIN_BASE  32
+#define AUD_SPI_CLOCK_PIN 34
 
-#define EXT_I2C_SDA_PIN 24
-#define EXT_I2C_SCL_PIN 25
+#define EXT_I2C_SDA_PIN 20
+#define EXT_I2C_SCL_PIN 21
 
 /* All resource assignments
  */
 
-#define COM_UART           uart1
+#define COM_UART           uart0
 #define COM_UART_BAUD_RATE 115200
-#define COM_UART_TX_PIN    4
-#define COM_UART_RX_PIN    5
+#define COM_UART_TX_PIN    30
+#define COM_UART_RX_PIN    31
 
 // CPU bus handling
 #define MEM_BUS_PIO pio0
