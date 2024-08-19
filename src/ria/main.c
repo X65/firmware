@@ -13,6 +13,7 @@
 #include "sys/cfg.h"
 #include "sys/com.h"
 #include "sys/cpu.h"
+#include "sys/led.h"
 #include "sys/lfs.h"
 #include "sys/mem.h"
 #include "sys/ria.h"
@@ -51,6 +52,7 @@ static void init(void)
     kbd_init();
     mou_init();
     // rom_init();
+    led_init();
     clk_init();
 
     // TinyUSB
@@ -68,6 +70,7 @@ void main_task(void)
     tuh_task();
     cpu_task();
     mem_task();
+    led_task();
     ria_task();
     kbd_task();
     // vga_task();

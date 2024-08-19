@@ -42,6 +42,8 @@ void main_reclock(void);
 /* All pin assignments
  */
 
+#define RIA_LED_PIN 15
+
 #define CPU_RESB_PIN 26
 #define CPU_IRQB_PIN 10
 #define CPU_NMIB_PIN 11
