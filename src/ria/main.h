@@ -85,4 +85,7 @@ void main_reclock(void);
 
 #define EXT_I2C i2c0
 
+#define RGB_LED_PIO pio0
+#define RGB_LED_SM  2
+
 #endif /* _MAIN_H_ */

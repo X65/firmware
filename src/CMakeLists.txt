@@ -39,6 +39,10 @@ pico_generate_pio_header(rp6502_ria
     ${CMAKE_CURRENT_LIST_DIR}/ria/sys/mem.pio
 )
 
+pico_generate_pio_header(rp6502_ria
+    ${CMAKE_CURRENT_LIST_DIR}/ria/sys/led.pio
+)
+
 target_sources(rp6502_ria PRIVATE
     ria/main.c
     ria/str.c

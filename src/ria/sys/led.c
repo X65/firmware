@@ -24,19 +24,49 @@
  *
  */
 
+#include "hardware/pio.h"
 #include "main.h"
 #include <pico/stdlib.h>
 
+#include "led.pio.h"
+
+#define IS_RGBW false
+
+static inline void put_pixel(uint32_t pixel_grb)
+{
+    pio_sm_put_blocking(RGB_LED_PIO, RGB_LED_SM, pixel_grb << 8u);
+}
+
+static inline uint32_t urgb_u32(uint8_t r, uint8_t g, uint8_t b)
+{
+    return ((uint32_t)(r) << 8) | ((uint32_t)(g) << 16) | (uint32_t)(b);
+}
+
 void led_init(void)
 {
-    gpio_init(RIA_LED_PIN);
-    gpio_set_dir(RIA_LED_PIN, GPIO_OUT);
-    gpio_put(RIA_LED_PIN, 1);
+    // LED
+    // gpio_init(RIA_LED_PIN);
+    // gpio_set_dir(RIA_LED_PIN, GPIO_OUT);
+    // gpio_put(RIA_LED_PIN, 1);
+
+    // RGB LED
+    uint offset = pio_add_program(RGB_LED_PIO, &ws2812_program);
+    ws2812_program_init(RGB_LED_PIO, RGB_LED_SM, offset, RGB_LED_PIN, 800000, IS_RGBW);
 }
 
 void led_task(void)
 {
     // heartbeat
+    static bool was_on = false;
     bool on = (time_us_32() / 100000) % 10 > 8;
-    gpio_put(RIA_LED_PIN, on);
+    if (was_on != on)
+    {
+        // LED
+        // gpio_put(RIA_LED_PIN, on);
+
+        // RGB LED
+        put_pixel(urgb_u32(on ? 0x05 : 0x00, on ? 0x1c : 0x00, on ? 0x26 : 0x00));
+
+        was_on = on;
+    }
 }
