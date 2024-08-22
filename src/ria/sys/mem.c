@@ -6,18 +6,11 @@
  */
 
 #include "mem.h"
-#include "hardware/clocks.h"
 #include "hardware/dma.h"
-#include "hardware/gpio.h"
 #include "hardware/pio.h"
-#include "hardware/vreg.h"
 #include "main.h"
-#include "mem.pio.h"
-#include "pico/stdlib.h"
 #include <stdbool.h>
 #include <stdint.h>
-
-#define MEM_BUS_PIO_CLKDIV_INT 10
 
 #ifdef NDEBUG
 uint8_t ram[0x10000];
@@ -52,28 +45,6 @@ size_t mbuf_len;
 int mem_read_chan;
 int mem_write_chan;
 
-static void mem_bus_pio_init(void)
-{
-    // PIO to manage PHI2 clock and 65816 address/data bus
-    uint offset = pio_add_program(MEM_BUS_PIO, &mem_bus_program);
-    pio_sm_config config = mem_bus_program_get_default_config(offset);
-    sm_config_set_clkdiv_int_frac(&config, MEM_BUS_PIO_CLKDIV_INT, 0); // FIXME: remove?
-    sm_config_set_in_shift(&config, true, true, 32);
-    sm_config_set_out_shift(&config, true, false, 0);
-    sm_config_set_sideset_pins(&config, MEM_CTL_PIN_BASE);
-    sm_config_set_in_pins(&config, MEM_BUS_PIN_BASE);
-    sm_config_set_out_pins(&config, MEM_DATA_PIN_BASE, 8);
-    for (int i = MEM_BUS_PIN_BASE; i < MEM_BUS_PIN_BASE + MEM_BUS_PINS_USED; i++)
-        pio_gpio_init(MEM_BUS_PIO, i);
-    for (int i = MEM_CTL_PIN_BASE; i < MEM_CTL_PIN_BASE + MEM_CTL_PINS_USED; i++)
-        pio_gpio_init(MEM_BUS_PIO, i);
-    pio_sm_set_consecutive_pindirs(MEM_BUS_PIO, MEM_BUS_SM, MEM_BUS_PIN_BASE, MEM_BUS_PINS_USED, false);
-    pio_sm_set_consecutive_pindirs(MEM_BUS_PIO, MEM_BUS_SM, MEM_CTL_PIN_BASE, MEM_CTL_PINS_USED, true);
-    gpio_pull_up(CPU_PHI2_PIN);
-    pio_sm_init(MEM_BUS_PIO, MEM_BUS_SM, offset, &config);
-    pio_sm_set_enabled(MEM_BUS_PIO, MEM_BUS_SM, true);
-}
-
 static void mem_dma_init(void)
 {
     mem_read_chan = dma_claim_unused_channel(true);
@@ -107,27 +78,7 @@ static void mem_dma_init(void)
 
 void mem_init(void)
 {
-    vreg_set_voltage(VREG_VOLTAGE_1_20);
-    sleep_ms(10);
-    set_sys_clock_khz(266000, true);
-    main_reclock();
-
-    // Adjustments for GPIO performance. Important!
-    for (int i = MEM_BUS_PIN_BASE; i < MEM_BUS_PIN_BASE + MEM_BUS_PINS_USED; ++i)
-    {
-        gpio_set_pulls(i, true, true);
-        gpio_set_input_hysteresis_enabled(i, false);
-        hw_set_bits(&MEM_BUS_PIO->input_sync_bypass, 1u << i);
-    }
-    for (int i = MEM_CTL_PIN_BASE; i < MEM_CTL_PIN_BASE + MEM_CTL_PINS_USED; ++i)
-    {
-        gpio_set_pulls(i, true, true);
-        gpio_set_input_hysteresis_enabled(i, false);
-        hw_set_bits(&MEM_BUS_PIO->input_sync_bypass, 1u << i);
-    }
-
     // the inits
-    mem_bus_pio_init();
     mem_dma_init();
 }
 
@@ -141,11 +92,8 @@ void mem_stop(void)
     // TODO: remove above connection
 }
 
-extern void dump_cpu_history(void);
-
 void mem_task(void)
 {
-    // dump_cpu_history();
 }
 
 void mem_read_buf(uint32_t addr)

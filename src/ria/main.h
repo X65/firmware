@@ -42,26 +42,26 @@ void main_reclock(void);
 /* All pin assignments
  */
 
-#define RIA_LED_PIN 15
-#define RGB_LED_PIN 25
-
 #define CPU_RESB_PIN 22
 #define CPU_IRQB_PIN 23
 #define CPU_NMIB_PIN 11
 
-#define MEM_BUS_PIN_BASE  0
-#define MEM_DATA_PIN_BASE (MEM_BUS_PIN_BASE + 0) /* D0-D7 */
-#define CPU_VAB_PIN       (MEM_BUS_PIN_BASE + 8)
-#define CPU_RWB_PIN       (MEM_BUS_PIN_BASE + 9)
-#define MEM_BUS_PINS_USED 10
-#define MEM_CTL_PIN_BASE  26
-#define CPU_PHI2_PIN      (MEM_CTL_PIN_BASE + 0)
-#define MEM_BE0_PIN       (MEM_CTL_PIN_BASE + 1) /* BUF0 ENABLE */
-#define MEM_BE1_PIN       (MEM_CTL_PIN_BASE + 2) /* BUF1 ENABLE */
-#define MEM_DATA_DIR_PIN  (MEM_CTL_PIN_BASE + 3) /* BUFFER2 DIR */
-#define MEM_CTL_PINS_USED 4
+#define BUS_PIN_BASE       0
+#define BUS_DATA_PIN_BASE  (BUS_PIN_BASE + 0) /* D0-D7 */
+#define CPU_VAB_PIN        (BUS_PIN_BASE + 8)
+#define CPU_RWB_PIN        (BUS_PIN_BASE + 9)
+#define BUS_DATA_PINS_USED 10
+#define BUS_CTL_PIN_BASE   26
+#define CPU_PHI2_PIN       (BUS_CTL_PIN_BASE + 0)
+#define BUS_BE0_PIN        (BUS_CTL_PIN_BASE + 1) /* BUF0 ENABLE */
+#define BUS_BE1_PIN        (BUS_CTL_PIN_BASE + 2) /* BUF1 ENABLE */
+#define BUS_DIR_PIN        (BUS_CTL_PIN_BASE + 3) /* BUFFER2 DIR */
+#define BUS_CTL_PINS_USED  4
 
 #define QMI_PSRAM_CS_PIN 19
+
+#define RIA_LED_PIN 15
+#define RGB_LED_PIN 25
 
 #define AUD_SPI_PIN_BASE  32
 #define AUD_SPI_CLOCK_PIN 34

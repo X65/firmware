@@ -36,7 +36,7 @@ target_link_libraries(rp6502_ria PRIVATE
 )
 
 pico_generate_pio_header(rp6502_ria
-    ${CMAKE_CURRENT_LIST_DIR}/ria/sys/mem.pio
+    ${CMAKE_CURRENT_LIST_DIR}/ria/sys/bus.pio
 )
 
 pico_generate_pio_header(rp6502_ria
@@ -53,6 +53,7 @@ target_sources(rp6502_ria PRIVATE
     ria/mon/ram.c
     ria/mon/rom.c
     ria/mon/set.c
+    ria/sys/bus.c
     ria/sys/cfg.c
     ria/sys/com.c
     ria/sys/cpu.c

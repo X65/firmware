@@ -10,6 +10,7 @@
 #include "mon/mon.h"
 #include "mon/ram.h"
 #include "mon/rom.h"
+#include "sys/bus.h"
 #include "sys/cfg.h"
 #include "sys/com.h"
 #include "sys/cpu.h"
@@ -33,8 +34,10 @@
 static void init(void)
 {
     // STDIO not available until after these inits
+
     cpu_init();
     ria_init();
+    bus_init();
     // pix_init();
     // vga_init();
     com_init();
@@ -69,6 +72,7 @@ void main_task(void)
 {
     tuh_task();
     cpu_task();
+    bus_task();
     mem_task();
     led_task();
     ria_task();
@@ -93,7 +97,7 @@ static void run(void)
 {
     // vga_run();
     // api_run();
-    mem_run();
+    bus_run();
     ria_run(); // Must be immediately before cpu
     cpu_run(); // Must be last
 }
