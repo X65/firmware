@@ -12,12 +12,9 @@
 #include <stddef.h>
 #include <stdint.h>
 
-// 64KB CPU RAM
-#ifdef NDEBUG
-extern uint8_t ram[0x10000];
-#else
-extern uint8_t *const ram;
-#endif
+// 16MB of XIP QPI PSRAM interface
+extern uint8_t psram[0x1000000]; // 16 MB of PSRAM address space
+asm(".equ psram, 0x11000000");   // Addressable at 0x11000000 - 0x11ffffff
 
 // RIA registers are located at the bottom of cpu1 stack.
 // cpu1 runs the action loop and uses very little stack.
@@ -32,15 +29,11 @@ asm(".equ regs, 0x20040000");
 extern uint8_t mbuf[];
 extern size_t mbuf_len;
 
-/* DMA channels
- */
-extern int mem_read_chan;
-extern int mem_write_chan;
-
 /* Kernel events
  */
 
 void mem_init(void);
+void mem_reclock(void);
 void mem_task(void);
 void mem_run(void);
 void mem_stop(void);

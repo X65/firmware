@@ -7,7 +7,6 @@
 #include "sys/sys.h"
 #include "hardware/watchdog.h"
 #include "main.h"
-#include "pico/stdlib.h"
 #include "sys/mem.h"
 #include "usb/usb.h"
 #include <stdio.h>
@@ -21,9 +20,9 @@ static void sys_print_status(void)
 {
     puts(RP6502_NAME);
     if (strlen(GIT_TAG))
-        printf("RIA %s", GIT_TAG);
+        printf("RIA %s\n", GIT_TAG);
     else
-        printf("RIA %s@%s", GIT_REV, GIT_BRANCH);
+        printf("RIA %s@%s\n", GIT_REV, GIT_BRANCH);
 }
 
 void sys_mon_reboot(const char *args, size_t len)

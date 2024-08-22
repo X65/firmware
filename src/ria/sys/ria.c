@@ -224,22 +224,13 @@ static __attribute__((optimize("O1"))) void act_loop(void)
                     // normal memory access
                     if (bus_address & CPU_RWB_MASK)
                     { // CPU is reading
-                        // Trigger reading 1 byte from RAM to PIO tx FIFO
-                        dma_channel_set_read_addr(mem_read_chan, &ram[bus_address & 0xFFFF], true);
+                        // Push 1 byte from RAM to PIO tx FIFO
+                        pio_sm_put(MEM_BUS_PIO, MEM_BUS_SM, psram[bus_address & 0xFFFFFF]);
                     }
                     else
                     { // CPU is writing
-                        // Trigger writing 1 byte PIO rx FIFO to RAM
-                        dma_channel_set_write_addr(mem_write_chan, &ram[bus_address & 0xFFFF], true);
-
-                        // NOTE: Memory Write is fire'n'forget. CPU BUS state machine does not wait
-                        // for Write completion, instead proceeds to next cycle, that will READ instruction
-                        // from memory. Above read `if` branch will be triggered by IRQ, to process and enqueue read
-                        // instruction in Memory FIFO, while Write is still in-progress.
-
-                        // The MEM_RAM_READ_SM is still disabled, so the Read will not start until Write finishes.
-                        // CPU BUS SM will stall waiting for Read data is TX FIFO, making a loooong PHI2 HIGH phase.
-                        // FIXME: Above describes setup with external memory - currently we have internal, that works "instantly"
+                        // Pull 1 byte from PIO rx FIFO to RAM
+                        psram[bus_address & 0xFFFFFF] = (uint8_t)pio_sm_get(MEM_BUS_PIO, MEM_BUS_SM);
                     }
                 }
             }

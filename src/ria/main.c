@@ -134,6 +134,7 @@ void main_reclock()
 {
     com_reclock();
     cpu_reclock();
+    mem_reclock();
     // vga_reclock(sys_clk_khz);
     // ria_reclock(clkdiv_int, clkdiv_frac);
     // pix_reclock(clkdiv_int, clkdiv_frac);

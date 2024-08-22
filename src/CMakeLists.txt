@@ -62,6 +62,7 @@ target_sources(rp6502_ria PRIVATE
     ria/sys/mem.c
     ria/sys/ria.c
     ria/sys/sys.c
+    ria/sys/psram.c
     ria/usb/hid_ps4.c
     ria/usb/hid.c
     ria/usb/kbd.c
