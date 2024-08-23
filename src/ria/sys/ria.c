@@ -123,38 +123,32 @@ static __attribute__((optimize("O1"))) void act_loop(void)
                         int ch = cpu_rx_char;
                         if (ch >= 0)
                         {
-                            REGS(0xFFE2) = ch;
-                            REGS(0xFFE0) |= 0b01000000;
+                            REGS(0xFFE1) = (uint8_t)ch;
                             cpu_rx_char = -1;
                         }
                         else
                         {
-                            REGS(0xFFE0) &= ~0b01000000;
-                            REGS(0xFFE2) = 0;
+                            REGS(0xFFE1) = 0;
                         }
+                        MEM_BUS_PIO->txf[MEM_BUS_SM] = REGS(0xFFE1);
                         break;
                     }
                     case CASE_WRIT(0xFFE1): // UART Tx
                         if (com_tx_writable())
                             com_tx_write(bus_data);
-                        if (com_tx_writable())
-                            REGS(0xFFE0) |= 0b10000000;
-                        else
-                            REGS(0xFFE0) &= ~0b10000000;
                         break;
                     case CASE_READ(0xFFE0): // UART Tx/Rx flow control
                     {
                         int ch = cpu_rx_char;
-                        if (!(REGS(0xFFE0) & 0b01000000) && ch >= 0)
-                        {
-                            REGS(0xFFE2) = ch;
+                        if (ch >= 0)
                             REGS(0xFFE0) |= 0b01000000;
-                            cpu_rx_char = -1;
-                        }
+                        else
+                            REGS(0xFFE0) &= ~0b01000000;
                         if (com_tx_writable())
                             REGS(0xFFE0) |= 0b10000000;
                         else
                             REGS(0xFFE0) &= ~0b10000000;
+                        MEM_BUS_PIO->txf[MEM_BUS_SM] = REGS(0xFFE0);
                         break;
                     }
 
