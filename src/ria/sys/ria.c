@@ -217,12 +217,12 @@ static __attribute__((optimize("O1"))) void act_loop(void)
                     if (bus_address & CPU_RWB_MASK)
                     { // CPU is reading
                         // Push 1 byte from RAM to PIO tx FIFO
-                        pio_sm_put(MEM_BUS_PIO, MEM_BUS_SM, psram[bus_address & 0xFFFFFF]);
+                        MEM_BUS_PIO->txf[MEM_BUS_SM] = psram[bus_address & 0xFFFFFF];
                     }
                     else
                     { // CPU is writing
-                        // Pull 1 byte from PIO rx FIFO to RAM
-                        psram[bus_address & 0xFFFFFF] = (uint8_t)pio_sm_get(MEM_BUS_PIO, MEM_BUS_SM);
+                        // Store bus D0-7 to RAM
+                        psram[bus_address & 0xFFFFFF] = bus_data;
                     }
                 }
             }
