@@ -13,17 +13,13 @@
 
 #include <stdbool.h>
 #include <stddef.h>
-#include <stdint.h>
 
 /* Kernel events
  */
 
 void ria_init(void);
 void ria_task(void);
-void ria_run();
-void ria_stop();
-
-// Compute CRC32 of mbuf to match zlib.
-uint32_t ria_buf_crc32();
+void ria_run(void);
+void ria_stop(void);
 
 #endif /* _RIA_H_ */

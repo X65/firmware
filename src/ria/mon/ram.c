@@ -5,45 +5,18 @@
  * SPDX-License-Identifier: BSD-3-Clause
  */
 
-#include "main.h"
 #include "str.h"
 #include "sys/com.h"
 #include "sys/mem.h"
-#include "sys/ria.h"
 #include <stdio.h>
 
 #define TIMEOUT_MS 200
 
-static enum {
-    SYS_IDLE,
-    SYS_READ,
-    SYS_WRITE,
-    SYS_BINARY,
-} cmd_state;
+bool is_active = false;
 
 static uint32_t rw_addr;
 static uint32_t rw_len;
 static uint32_t rw_crc;
-
-static void cmd_ria_read(void)
-{
-    cmd_state = SYS_IDLE;
-    // FIXME: if (ria_print_error_message())
-    //     return;
-    printf("%06lX", rw_addr);
-    for (size_t i = 0; i < mbuf_len; i++)
-        printf(" %02X", mbuf[i]);
-    printf("\n");
-}
-
-static void cmd_ria_write(void)
-{
-    cmd_state = SYS_IDLE;
-    // FIXME: if (ria_print_error_message())
-    //     return;
-    // cmd_state = SYS_VERIFY;
-    // ria_verify_buf(rw_addr);
-}
 
 // Commands that start with a hex address. Read or write memory.
 void ram_mon_address(const char *args, size_t len)
@@ -71,7 +44,10 @@ void ram_mon_address(const char *args, size_t len)
     {
         mbuf_len = (rw_addr | 0xF) - rw_addr + 1;
         mem_read_buf(rw_addr);
-        cmd_state = SYS_READ;
+        printf("%04lX", rw_addr);
+        for (size_t i = 0; i < mbuf_len; i++)
+            printf(" %02X", mbuf[i]);
+        printf("\n");
         return;
     }
     uint32_t data = 0x80000000;
@@ -104,27 +80,26 @@ void ram_mon_address(const char *args, size_t len)
         }
     }
     mem_write_buf(rw_addr);
-    cmd_state = SYS_WRITE;
 }
 
 static void sys_com_rx_mbuf(bool timeout, const char *buf, size_t length)
 {
     (void)buf;
     mbuf_len = length;
-    cmd_state = SYS_IDLE;
+
     if (timeout)
     {
         puts("?timeout");
         return;
     }
-    if (ria_buf_crc32() != rw_crc)
+    if (mbuf_crc32() != rw_crc)
     {
         puts("?CRC does not match");
         return;
     }
 
-    cmd_state = SYS_WRITE;
     mem_write_buf(rw_addr);
+    is_active = false;
 }
 
 void ram_mon_binary(const char *args, size_t len)
@@ -141,37 +116,14 @@ void ram_mon_binary(const char *args, size_t len)
             printf("?invalid length\n");
             return;
         }
+        is_active = true;
         com_read_binary(TIMEOUT_MS, sys_com_rx_mbuf, mbuf, rw_len);
-        cmd_state = SYS_BINARY;
         return;
     }
     printf("?invalid argument\n");
 }
 
-void ram_task(void)
-{
-    if (main_active())
-        return;
-    switch (cmd_state)
-    {
-    case SYS_IDLE:
-    case SYS_BINARY:
-        break;
-    case SYS_READ:
-        cmd_ria_read();
-        break;
-    case SYS_WRITE:
-        cmd_ria_write();
-        break;
-    }
-}
-
 bool ram_active(void)
 {
-    return cmd_state != SYS_IDLE;
-}
-
-void ram_reset(void)
-{
-    cmd_state = SYS_IDLE;
+    return is_active;
 }

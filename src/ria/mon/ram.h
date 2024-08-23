@@ -13,9 +13,7 @@
 /* Kernel events
  */
 
-void ram_task(void);
 bool ram_active(void);
-void ram_reset(void);
 
 /* Monitor commands
  */

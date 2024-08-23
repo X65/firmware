@@ -73,7 +73,6 @@ void main_task(void)
     tuh_task();
     cpu_task();
     bus_task();
-    mem_task();
     led_task();
     ria_task();
     kbd_task();
@@ -87,7 +86,6 @@ static void task(void)
     // api_task();
     com_task();
     mon_task();
-    ram_task();
     // fil_task();
     // rom_task();
 }
@@ -108,7 +106,6 @@ static void stop(void)
     cpu_stop(); // Must be first
     // vga_stop(); // Must be before ria
     ria_stop();
-    mem_stop();
     // pix_stop();
     // std_stop();
     kbd_stop();
@@ -121,7 +118,6 @@ static void reset(void)
     com_reset();
     // fil_reset();
     mon_reset();
-    ram_reset();
     // rom_reset();
     // vga_reset();
 }

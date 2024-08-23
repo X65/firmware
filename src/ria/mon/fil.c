@@ -9,7 +9,6 @@
 #include "str.h"
 #include "sys/com.h"
 #include "sys/mem.h"
-#include "sys/ria.h"
 #include <stdio.h>
 
 #define TIMEOUT_MS 200
@@ -134,15 +133,15 @@ static void fil_command_dispatch(bool timeout, const char *buf, size_t len);
 
 static void fil_com_rx_mbuf(bool timeout, const char *buf, size_t length)
 {
-    (void)buf;
     mbuf_len = length;
+
     FRESULT result = FR_OK;
     if (timeout)
     {
         result = FR_INT_ERR;
         printf("?timeout\n");
     }
-    else if (ria_buf_crc32() != rx_crc)
+    else if (mbuf_crc32() != rx_crc)
     {
         result = FR_INT_ERR;
         puts("?CRC does not match");
@@ -158,7 +157,7 @@ static void fil_com_rx_mbuf(bool timeout, const char *buf, size_t length)
     if (result == FR_OK)
     {
         UINT bytes_written;
-        result = f_write(&fil_fat, mbuf, mbuf_len, &bytes_written);
+        result = f_write(&fil_fat, buf, length, &bytes_written);
         if (result != FR_OK)
             printf("?Unable to write file (%d)\n", result);
     }

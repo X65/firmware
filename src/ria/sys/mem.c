@@ -6,7 +6,7 @@
  */
 
 #include "mem.h"
-#include "hardware/dma.h"
+#include "littlefs/lfs_util.h"
 #include "main.h"
 #include <stdbool.h>
 #include <stdint.h>
@@ -24,6 +24,12 @@ extern void set_psram_timing(void);
 uint8_t mbuf[MBUF_SIZE] __attribute__((aligned(4)));
 size_t mbuf_len;
 
+inline uint32_t mbuf_crc32(void)
+{
+    // use littlefs library
+    return ~lfs_crc(~0, mbuf, mbuf_len);
+}
+
 void mem_init(void)
 {
     psram_size = setup_psram(QMI_PSRAM_CS_PIN);
@@ -32,18 +38,6 @@ void mem_init(void)
 void mem_reclock(void)
 {
     set_psram_timing();
-}
-
-void mem_run(void)
-{
-}
-
-void mem_stop(void)
-{
-}
-
-void mem_task(void)
-{
 }
 
 void mem_read_buf(uint32_t addr)
@@ -57,21 +51,10 @@ void mem_read_buf(uint32_t addr)
     }
     else
     {
-        int dma_chan = dma_claim_unused_channel(true);
-        dma_channel_config dma_chan_config = dma_channel_get_default_config(dma_chan);
-        channel_config_set_transfer_data_size(&dma_chan_config, DMA_SIZE_8);
-        channel_config_set_read_increment(&dma_chan_config, true);
-        channel_config_set_write_increment(&dma_chan_config, true);
-        dma_channel_configure(
-            dma_chan,
-            &dma_chan_config,
-            mbuf,         // Write to buffer
-            &psram[addr], // Read values from "RAM"
-            mbuf_len,     // mbuf_len values to copy
-            true          // Start immediately
-        );
-        dma_channel_wait_for_finish_blocking(dma_chan);
-        dma_channel_unclaim(dma_chan);
+        for (size_t i = 0; i < mbuf_len; ++i)
+        {
+            mbuf[i] = psram[addr++ & 0xFFFFFF];
+        }
     }
 }
 
@@ -86,23 +69,10 @@ void mem_write_buf(uint32_t addr)
     }
     else
     {
-        assert(mbuf_len <= 32); // Memory Write wraps at 32 bytes
-
-        int dma_chan = dma_claim_unused_channel(true);
-        dma_channel_config dma_chan_config = dma_channel_get_default_config(dma_chan);
-        channel_config_set_transfer_data_size(&dma_chan_config, DMA_SIZE_8);
-        channel_config_set_read_increment(&dma_chan_config, true);
-        channel_config_set_write_increment(&dma_chan_config, true);
-        dma_channel_configure(
-            dma_chan,
-            &dma_chan_config,
-            &psram[addr], // Write to "RAM"
-            mbuf,         // Read values from buffer
-            mbuf_len,     // mbuf_len values to copy
-            true          // Start immediately
-        );
-        dma_channel_wait_for_finish_blocking(dma_chan);
-        dma_channel_unclaim(dma_chan);
+        for (size_t i = 0; i < mbuf_len; ++i)
+        {
+            psram[addr++ & 0xFFFFFF] = mbuf[i];
+        }
     }
 }
 

@@ -24,19 +24,19 @@ extern uint8_t regs[0x20];
 asm(".equ regs, 0x20040000");
 
 // Misc memory buffer for moving things around.
-// RIA <-> RAM, USB <-> RAM, UART <-> RAM, etc.
+// FS <-> RAM, USB <-> RAM, UART <-> RAM, etc.
 #define MBUF_SIZE 1024
 extern uint8_t mbuf[];
 extern size_t mbuf_len;
+
+// Compute CRC32 of mbuf to match zlib.
+uint32_t mbuf_crc32(void);
 
 /* Kernel events
  */
 
 void mem_init(void);
 void mem_reclock(void);
-void mem_task(void);
-void mem_run(void);
-void mem_stop(void);
 void mem_print_status(void);
 
 // Move data from the RAM to mbuf.

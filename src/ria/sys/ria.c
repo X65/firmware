@@ -6,16 +6,14 @@
  */
 
 #include "sys/ria.h"
-#include "hardware/dma.h"
 #include "hardware/pio.h"
 #include "hardware/structs/bus_ctrl.h"
-#include "littlefs/lfs_util.h"
 #include "main.h"
 #include "pico/multicore.h"
-#include "pico/stdlib.h"
 #include "sys/com.h"
 #include "sys/cpu.h"
 #include "sys/mem.h"
+#include <stdio.h>
 
 static volatile bool irq_enabled;
 
@@ -23,12 +21,6 @@ void ria_trigger_irq(void)
 {
     if (irq_enabled & 0x01)
         gpio_put(CPU_IRQB_PIN, false);
-}
-
-uint32_t ria_buf_crc32(void)
-{
-    // use littlefs library
-    return ~lfs_crc(~0, mbuf, mbuf_len);
 }
 
 void ria_run(void)

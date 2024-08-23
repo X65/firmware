@@ -121,7 +121,7 @@ static bool rom_read(uint32_t len, uint32_t crc)
         printf("?Unable to read binary data\n");
         return false;
     }
-    if (ria_buf_crc32() != crc)
+    if (mbuf_crc32() != crc)
     {
         printf("?CRC failed\n");
         return false;

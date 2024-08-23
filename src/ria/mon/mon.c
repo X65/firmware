@@ -138,7 +138,7 @@ static bool mon_suspended(void)
            rom_active() ||  //
                             //    vga_active() ||  //
            fil_active()     //||  //
-                            //    std_active()
+                            //    std_active() // FIXME: !!
         ;
 }
 
