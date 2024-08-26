@@ -1,32 +1,32 @@
 add_subdirectory(picodvi/software/libdvi)
 
 # The Pi Pico RIA
-add_executable(rp6502_ria)
-pico_add_extra_outputs(rp6502_ria)
-pico_set_program_name(rp6502_ria "RP65816 RIA")
-# pico_set_program_version(rp6502_ria "0.1")
-pico_set_binary_type(rp6502_ria copy_to_ram)
+add_executable(rp816)
+pico_add_extra_outputs(rp816)
+pico_set_program_name(rp816 "RP816 RIA")
+# pico_set_program_version(rp816 "0.1")
+pico_set_binary_type(rp816 copy_to_ram)
 
 pico_define_boot_stage2(slower_boot2 ${PICO_DEFAULT_BOOT_STAGE2_FILE})
 target_compile_definitions(slower_boot2 PRIVATE PICO_FLASH_SPI_CLKDIV=4)
-pico_set_boot_stage2(rp6502_ria slower_boot2)
+pico_set_boot_stage2(rp816 slower_boot2)
 
-target_include_directories(rp6502_ria PRIVATE
+target_include_directories(rp816 PRIVATE
     ${CMAKE_CURRENT_LIST_DIR}
     ria
 )
 
-target_compile_definitions(rp6502_ria PRIVATE
+target_compile_definitions(rp816 PRIVATE
     PICO_COPY_TO_RAM=1
     LFS_NO_MALLOC=1
     LFS_NAME_MAX=16
 )
 
-target_compile_options(rp6502_ria PRIVATE
+target_compile_options(rp816 PRIVATE
     -Wall -Wextra
 )
 
-target_link_libraries(rp6502_ria PRIVATE
+target_link_libraries(rp816 PRIVATE
     pico_stdlib
     pico_multicore
     pico_rand
@@ -39,15 +39,15 @@ target_link_libraries(rp6502_ria PRIVATE
     libdvi
 )
 
-pico_generate_pio_header(rp6502_ria
+pico_generate_pio_header(rp816
     ${CMAKE_CURRENT_LIST_DIR}/ria/sys/bus.pio
 )
 
-pico_generate_pio_header(rp6502_ria
+pico_generate_pio_header(rp816
     ${CMAKE_CURRENT_LIST_DIR}/ria/sys/led.pio
 )
 
-target_sources(rp6502_ria PRIVATE
+target_sources(rp816 PRIVATE
     ria/main.c
     ria/str.c
     ria/api/clk.c
@@ -82,7 +82,7 @@ target_sources(rp6502_ria PRIVATE
 
 # Please change name for hardware forks.
 # For release, set version string and set code page to 0.
-set_property(TARGET rp6502_ria
+set_property(TARGET rp816
     APPEND PROPERTY COMPILE_DEFINITIONS
     RP6502_NAME="Picocomputer 65816"
     RP6502_CODE_PAGE=850
