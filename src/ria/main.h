@@ -42,32 +42,39 @@ void main_reclock(void);
 /* All pin assignments
  */
 
-#define CPU_RESB_PIN 22
-#define CPU_IRQB_PIN 23
-#define CPU_NMIB_PIN 11
+#define CPU_RESB_PIN 45
+#define CPU_IRQB_PIN 46
+#define CPU_NMIB_PIN 47
 
-#define BUS_PIN_BASE       0
+#define BUS_PIN_BASE       30
 #define BUS_DATA_PIN_BASE  (BUS_PIN_BASE + 0) /* D0-D7 */
 #define CPU_VAB_PIN        (BUS_PIN_BASE + 8)
 #define CPU_RWB_PIN        (BUS_PIN_BASE + 9)
 #define BUS_DATA_PINS_USED 10
-#define BUS_CTL_PIN_BASE   0
+#define BUS_CTL_PIN_BASE   40
 #define CPU_PHI2_PIN       (BUS_CTL_PIN_BASE + 0)
 #define BUS_BE0_PIN        (BUS_CTL_PIN_BASE + 1) /* BUF0 ENABLE */
 #define BUS_BE1_PIN        (BUS_CTL_PIN_BASE + 2) /* BUF1 ENABLE */
 #define BUS_DIR_PIN        (BUS_CTL_PIN_BASE + 3) /* BUFFER2 DIR */
 #define BUS_CTL_PINS_USED  4
 
-#define QMI_PSRAM_CS_PIN 20
+#define QMI_PSRAM_CS_PIN 47
 
 #define RIA_LED_PIN 25
-#define RGB_LED_PIN 26
+#define RGB_LED_PIN 28
 
-#define AUD_SPI_PIN_BASE  32
-#define AUD_SPI_CLOCK_PIN 34
+#define AUD_SPI_PIN_BASE  4
+#define AUD_SPI_RX_PIN    (AUD_SPI_PIN_BASE + 0)
+#define AUD_SPI_CS_PIN    (AUD_SPI_PIN_BASE + 1)
+#define AUD_SPI_SCK_PIN   (AUD_SPI_PIN_BASE + 2)
+#define AUD_SPI_TX_PIN    (AUD_SPI_PIN_BASE + 3)
+#define AUD_SPI_CLOCK_PIN 8
 
 #define EXT_I2C_SDA_PIN 16
 #define EXT_I2C_SCL_PIN 17
+
+#define BUZZ_PWM_A_PIN 26
+#define BUZZ_PWM_B_PIN (BUZZ_PWM_A_PIN + 1)
 
 /* All resource assignments
  */
@@ -87,5 +94,8 @@ void main_reclock(void);
 
 #define RGB_LED_PIO pio1
 #define RGB_LED_SM  2
+
+#define BUZZ_CLICK_FREQUENCY   1500
+#define BUZZ_CLICK_DURATION_MS 10
 
 #endif /* _MAIN_H_ */

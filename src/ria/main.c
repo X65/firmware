@@ -12,6 +12,7 @@
 #include "mon/ram.h"
 #include "mon/rom.h"
 #include "sys/bus.h"
+#include "sys/buz.h"
 #include "sys/cfg.h"
 #include "sys/com.h"
 #include "sys/cpu.h"
@@ -47,6 +48,7 @@ static void init(void)
     out_init();
     term_init();
     com_init();
+    buz_init();
 
     // Print startup message
     sys_init();
@@ -84,6 +86,7 @@ void main_task(void)
     bus_task();
     led_task();
     ria_task();
+    buz_task();
     kbd_task();
     // vga_task();
     // std_task();
@@ -135,7 +138,7 @@ static void reset(void)
 // Divider is used when PHI2 less than 4 MHz to
 // maintain a minimum system clock of 120 MHz.
 // From 4 to 8 MHz increases system clock to 240 MHz.
-void main_reclock()
+void main_reclock(void)
 {
     com_reclock();
     cpu_reclock();
@@ -143,6 +146,7 @@ void main_reclock()
     // vga_reclock(sys_clk_khz);
     // ria_reclock(clkdiv_int, clkdiv_frac);
     // pix_reclock(clkdiv_int, clkdiv_frac);
+    buz_reclock();
 }
 
 // PIX XREG writes to the RIA device will notify here.
