@@ -51,17 +51,17 @@ void main_reclock(void);
 #define CPU_VAB_PIN        (BUS_PIN_BASE + 8)
 #define CPU_RWB_PIN        (BUS_PIN_BASE + 9)
 #define BUS_DATA_PINS_USED 10
-#define BUS_CTL_PIN_BASE   26
+#define BUS_CTL_PIN_BASE   0
 #define CPU_PHI2_PIN       (BUS_CTL_PIN_BASE + 0)
 #define BUS_BE0_PIN        (BUS_CTL_PIN_BASE + 1) /* BUF0 ENABLE */
 #define BUS_BE1_PIN        (BUS_CTL_PIN_BASE + 2) /* BUF1 ENABLE */
 #define BUS_DIR_PIN        (BUS_CTL_PIN_BASE + 3) /* BUFFER2 DIR */
 #define BUS_CTL_PINS_USED  4
 
-#define QMI_PSRAM_CS_PIN 19
+#define QMI_PSRAM_CS_PIN 20
 
-#define RIA_LED_PIN 15
-#define RGB_LED_PIN 25
+#define RIA_LED_PIN 25
+#define RGB_LED_PIN 26
 
 #define AUD_SPI_PIN_BASE  32
 #define AUD_SPI_CLOCK_PIN 34
@@ -72,10 +72,10 @@ void main_reclock(void);
 /* All resource assignments
  */
 
-#define COM_UART           uart1
+#define COM_UART           uart0
 #define COM_UART_BAUD_RATE 115200
-#define COM_UART_TX_PIN    20
-#define COM_UART_RX_PIN    21
+#define COM_UART_TX_PIN    0
+#define COM_UART_RX_PIN    1
 
 // CPU bus handling
 #define MEM_BUS_PIO pio0
