@@ -1,8 +1,6 @@
 #include "hardware/interp.h"
 
-#include "sys/std.h"
 #include <stdint.h>
-#include <stdio.h>
 
 #include "cgia.h"
 #include "cgia_palette.h"
@@ -30,7 +28,7 @@ uint8_t __attribute__((aligned(4))) screen[FRAME_CHARS * 30];
 uint8_t __attribute__((aligned(4))) colour[FRAME_CHARS * 30];
 uint8_t __attribute__((aligned(4))) backgr[FRAME_CHARS * 30];
 
-void init_palette()
+void init_palette(void)
 {
     for (int i = 0; i < CGIA_COLORS_NUM; ++i)
     {
@@ -163,7 +161,7 @@ void cgia_init(void)
 
     registers.sprites_active = 8; // SPRITE_COUNT;
     registers.sprites_address = (uint8_t *)sprites;
-    for (int i = 0; i < SPRITE_COUNT; ++i)
+    for (uint8_t i = 0; i < SPRITE_COUNT; ++i)
     {
         sprites[i].flags |= SPRITE_MASK_ACTIVE;
         sprites[i].flags |= EXAMPLE_SPRITE_WIDTH - 1; // width
@@ -209,21 +207,21 @@ void cgia_core1_init(void)
 
 static inline uint8_t log_2(uint8_t x)
 {
-    if (registers.row_height == 0)
+    if (x == 0)
         return 0; // 1 => *1
-    else if (registers.row_height < 2)
+    else if (x < 2)
         return 1; // 2 => *2
-    else if (registers.row_height < 4)
+    else if (x < 4)
         return 2; // 3-4 => *4
-    else if (registers.row_height < 8)
+    else if (x < 8)
         return 3; // 5-8 => *8
-    else if (registers.row_height < 16)
+    else if (x < 16)
         return 4; // 9-16 => *16
-    else if (registers.row_height < 32)
+    else if (x < 32)
         return 5; // 17-32 => *32
-    else if (registers.row_height < 64)
+    else if (x < 64)
         return 6; // 33-64 => *64
-    else if (registers.row_height < 128)
+    else if (x < 128)
         return 7; // 65-128 => *128
     else
         return 8; // 129-255 => *256

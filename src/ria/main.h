@@ -78,14 +78,14 @@ void main_reclock(void);
 #define COM_UART_RX_PIN    1
 
 // CPU bus handling
-#define MEM_BUS_PIO pio0
+#define MEM_BUS_PIO pio1
 #define MEM_BUS_SM  0
 
 #define AUD_SPI spi0
 
 #define EXT_I2C i2c0
 
-#define RGB_LED_PIO pio0
+#define RGB_LED_PIO pio1
 #define RGB_LED_SM  2
 
 #endif /* _MAIN_H_ */

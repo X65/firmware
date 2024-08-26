@@ -6,6 +6,7 @@
 
 #include "main.h"
 #include "api/clk.h"
+#include "cgia/cgia.h"
 #include "mon/fil.h"
 #include "mon/mon.h"
 #include "mon/ram.h"
@@ -17,8 +18,11 @@
 #include "sys/led.h"
 #include "sys/lfs.h"
 #include "sys/mem.h"
+#include "sys/out.h"
 #include "sys/ria.h"
 #include "sys/sys.h"
+#include "term/font.h"
+#include "term/term.h"
 #include "tusb.h"
 #include "usb/kbd.h"
 #include "usb/mou.h"
@@ -38,8 +42,10 @@ static void init(void)
     cpu_init();
     ria_init();
     bus_init();
-    // pix_init();
-    // vga_init();
+    font_init(); // before out_init (copies data from flash before overclocking)
+    cgia_init();
+    out_init();
+    term_init();
     com_init();
 
     // Print startup message
@@ -70,6 +76,9 @@ static void init(void)
 // Calling FatFs in here may cause undefined behavior.
 void main_task(void)
 {
+    out_task();
+    cgia_task();
+    term_task();
     tuh_task();
     cpu_task();
     bus_task();

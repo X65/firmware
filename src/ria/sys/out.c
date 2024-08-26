@@ -7,17 +7,15 @@
 #include "out.h"
 
 #include "cgia/cgia.h"
+#include "hardware/clocks.h"
 #include "hardware/structs/bus_ctrl.h"
 #include "hardware/sync.h"
 #include "hardware/vreg.h"
 #include "main.h"
 #include "pico/multicore.h"
-#include "pico/stdlib.h"
-#include "term/term.h"
 
 #include "../include/common_dvi_pin_configs.h"
 #include "dvi.h"
-#include "dvi_serialiser.h"
 
 #define __dvi_const(x) __not_in_flash_func(x)
 
@@ -69,7 +67,7 @@ static const struct dvi_timing __dvi_const(dvi_timing_768x480p_60hz_RB) = {
 
 // DVDD 1.2V (1.1V seems ok too)
 #define VREG_VSEL  VREG_VOLTAGE_1_20
-#define DVI_TIMING dvi_timing_768x480p_60hz
+#define DVI_TIMING dvi_timing_768x480p_60hz_RB
 
 struct dvi_inst dvi0;
 

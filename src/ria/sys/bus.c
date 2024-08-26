@@ -40,10 +40,10 @@ static void mem_bus_pio_init(void)
 
 void bus_init(void)
 {
-    vreg_set_voltage(VREG_VOLTAGE_1_20);
-    sleep_ms(10);
-    set_sys_clock_khz(266000, true);
-    main_reclock();
+    // vreg_set_voltage(VREG_VOLTAGE_1_20);
+    // sleep_ms(10);
+    // set_sys_clock_khz(266000, true);
+    // main_reclock();
 
     // Adjustments for GPIO performance. Important!
     for (int i = BUS_PIN_BASE; i < BUS_PIN_BASE + BUS_DATA_PINS_USED; ++i)

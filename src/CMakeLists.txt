@@ -20,6 +20,12 @@ target_compile_definitions(rp816 PRIVATE
     PICO_COPY_TO_RAM=1
     LFS_NO_MALLOC=1
     LFS_NAME_MAX=16
+    DVI_VERTICAL_REPEAT=2
+    DVI_SYMBOLS_PER_WORD=2
+    PICO_CORE1_STACK_SIZE=0x200
+	# DVI_N_TMDS_BUFFERS=8
+    # TMDS_FULLRES_NO_DC_BALANCE=1
+    # TMDS_ENCODE_UNROLL=8
 )
 
 target_compile_options(rp816 PRIVATE
@@ -64,9 +70,14 @@ target_sources(rp816 PRIVATE
     ria/sys/led.c
     ria/sys/lfs.c
     ria/sys/mem.c
+    ria/sys/out.c
     ria/sys/ria.c
     ria/sys/sys.c
     ria/sys/psram.c
+    ria/term/font.c
+    ria/term/term.c
+    ria/cgia/cgia.c
+    ria/cgia/tmds_encode_cgia.S
     ria/usb/hid_ps4.c
     ria/usb/hid.c
     ria/usb/kbd.c
@@ -77,6 +88,7 @@ target_sources(rp816 PRIVATE
     fatfs/ffunicode.c
     littlefs/lfs.c
     littlefs/lfs_util.c
+    picodvi/software/apps/colour_terminal/tmds_encode_font_2bpp.S
     ${CMAKE_CURRENT_BINARY_DIR}/version.c
 )
 

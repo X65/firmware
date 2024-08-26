@@ -226,7 +226,7 @@ static __attribute__((optimize("O1"))) void act_loop(void)
 
 static void ria_act_init(void)
 {
-    multicore_launch_core1(act_loop);
+    // multicore_launch_core1(act_loop);
 }
 
 void ria_init(void)
