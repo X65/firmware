@@ -11,7 +11,6 @@ set(PICO_BOARD pico2 CACHE STRING "Board type")
 
 # Pull in Raspberry Pi Pico SDK (must be before project)
 include(${PICO_SDK_PATH}/pico_sdk_init.cmake)
-add_subdirectory(${PICO_EXTRAS_PATH})
 
 project(RP65816 C CXX ASM)
 

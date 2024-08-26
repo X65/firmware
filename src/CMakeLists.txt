@@ -1,3 +1,5 @@
+add_subdirectory(picodvi/software/libdvi)
+
 # The Pi Pico RIA
 add_executable(rp6502_ria)
 pico_add_extra_outputs(rp6502_ria)
@@ -15,6 +17,7 @@ target_include_directories(rp6502_ria PRIVATE
 )
 
 target_compile_definitions(rp6502_ria PRIVATE
+    PICO_COPY_TO_RAM=1
     LFS_NO_MALLOC=1
     LFS_NAME_MAX=16
 )
@@ -33,6 +36,7 @@ target_link_libraries(rp6502_ria PRIVATE
     hardware_flash
     tinyusb_board
     tinyusb_host
+    libdvi
 )
 
 pico_generate_pio_header(rp6502_ria

@@ -4,9 +4,6 @@
 [submodule "src/pico-sdk"]
 	path = src/pico-sdk
 	url = https://github.com/raspberrypi/pico-sdk.git
-[submodule "src/pico-extras"]
-	path = src/pico-extras
-	url = https://github.com/picocomputer/pico-extras.git
 [submodule "src/picodvi"]
 	path = src/picodvi
 	url = https://github.com/Wren6991/PicoDVI.git
