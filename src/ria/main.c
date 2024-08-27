@@ -11,6 +11,7 @@
 #include "mon/mon.h"
 #include "mon/ram.h"
 #include "mon/rom.h"
+#include "sys/aud.h"
 #include "sys/bus.h"
 #include "sys/buz.h"
 #include "sys/cfg.h"
@@ -49,6 +50,7 @@ static void init(void)
     term_init();
     com_init();
     buz_init();
+    aud_init();
 
     // Print startup message
     sys_init();
@@ -87,6 +89,7 @@ void main_task(void)
     led_task();
     ria_task();
     buz_task();
+    aud_task();
     kbd_task();
     // vga_task();
     // std_task();
@@ -147,6 +150,7 @@ void main_reclock(void)
     // ria_reclock(clkdiv_int, clkdiv_frac);
     // pix_reclock(clkdiv_int, clkdiv_frac);
     buz_reclock();
+    aud_reclock();
 }
 
 // PIX XREG writes to the RIA device will notify here.

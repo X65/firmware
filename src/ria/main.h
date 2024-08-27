@@ -7,9 +7,7 @@
 #ifndef _MAIN_H_
 #define _MAIN_H_
 
-#include "hardware/irq.h"
 #include <stdbool.h>
-#include <stdint.h>
 
 /* This is the main kernel event loop.
  */
@@ -63,18 +61,18 @@ void main_reclock(void);
 #define RIA_LED_PIN 25
 #define RGB_LED_PIN 28
 
-#define AUD_SPI_PIN_BASE  4
-#define AUD_SPI_RX_PIN    (AUD_SPI_PIN_BASE + 0)
-#define AUD_SPI_CS_PIN    (AUD_SPI_PIN_BASE + 1)
-#define AUD_SPI_SCK_PIN   (AUD_SPI_PIN_BASE + 2)
-#define AUD_SPI_TX_PIN    (AUD_SPI_PIN_BASE + 3)
-#define AUD_SPI_CLOCK_PIN 8
+#define AUD_SPI_PIN_BASE 4
+#define AUD_SPI_RX_PIN   (AUD_SPI_PIN_BASE + 0)
+#define AUD_SPI_CS_PIN   (AUD_SPI_PIN_BASE + 1)
+#define AUD_SPI_SCK_PIN  (AUD_SPI_PIN_BASE + 2)
+#define AUD_SPI_TX_PIN   (AUD_SPI_PIN_BASE + 3)
+#define AUD_CLOCK_PIN    21 // CLOCK_GPOUT0
 
-#define EXT_I2C_SDA_PIN 16
-#define EXT_I2C_SCL_PIN 17
+#define EXT_I2C_SDA_PIN 36
+#define EXT_I2C_SCL_PIN 37
 
 #define BUZZ_PWM_A_PIN 26
-#define BUZZ_PWM_B_PIN (BUZZ_PWM_A_PIN + 1)
+#define BUZZ_PWM_B_PIN (BUZZ_PWM_A_PIN + 1) // not used
 
 /* All resource assignments
  */
@@ -88,13 +86,19 @@ void main_reclock(void);
 #define MEM_BUS_PIO pio1
 #define MEM_BUS_SM  0
 
-#define AUD_SPI spi0
+// Audio chip SPI
+#define AUD_SPI                 spi0
+#define AUD_CLOCK_FREQUENCY_KHZ 12288
+#define AUD_BAUDRATE_HZ         1000000
 
+// Extension/External I2C bus (also DVI/HDMI CDC)
 #define EXT_I2C i2c0
 
+// LEDs
 #define RGB_LED_PIO pio1
 #define RGB_LED_SM  2
 
+// on-board buzzer
 #define BUZZ_CLICK_FREQUENCY   1500
 #define BUZZ_CLICK_DURATION_MS 10
 

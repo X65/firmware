@@ -37,8 +37,9 @@ target_link_libraries(rp816 PRIVATE
     pico_multicore
     pico_rand
     pico_aon_timer
-    hardware_pio
     hardware_dma
+    hardware_pio
+    hardware_spi
     hardware_flash
     tinyusb_board
     tinyusb_host
@@ -63,6 +64,7 @@ target_sources(rp816 PRIVATE
     ria/mon/ram.c
     ria/mon/rom.c
     ria/mon/set.c
+    ria/sys/aud.c
     ria/sys/bus.c
     ria/sys/buz.c
     ria/sys/cfg.c
