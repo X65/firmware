@@ -67,6 +67,7 @@ void main_reclock(void);
 #define AUD_SPI_SCK_PIN  (AUD_SPI_PIN_BASE + 2)
 #define AUD_SPI_TX_PIN   (AUD_SPI_PIN_BASE + 3)
 #define AUD_CLOCK_PIN    21 // CLOCK_GPOUT0
+#define AUD_IRQ_N_PIN    20 // audio chip interrupt
 
 #define EXT_I2C_SDA_PIN 36
 #define EXT_I2C_SCL_PIN 37
@@ -90,6 +91,9 @@ void main_reclock(void);
 #define AUD_SPI                 spi0
 #define AUD_CLOCK_FREQUENCY_KHZ 12288
 #define AUD_BAUDRATE_HZ         1000000
+// PWM click
+#define AUD_CLICK_FREQUENCY     1500
+#define AUD_CLICK_DURATION_MS   10
 
 // Extension/External I2C bus (also DVI/HDMI CDC)
 #define EXT_I2C i2c0
@@ -97,9 +101,5 @@ void main_reclock(void);
 // LEDs
 #define RGB_LED_PIO pio1
 #define RGB_LED_SM  2
-
-// on-board buzzer
-#define BUZZ_CLICK_FREQUENCY   1500
-#define BUZZ_CLICK_DURATION_MS 10
 
 #endif /* _MAIN_H_ */

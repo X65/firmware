@@ -13,7 +13,6 @@
 #include "mon/rom.h"
 #include "sys/aud.h"
 #include "sys/bus.h"
-#include "sys/buz.h"
 #include "sys/cfg.h"
 #include "sys/com.h"
 #include "sys/cpu.h"
@@ -49,7 +48,6 @@ static void init(void)
     out_init();
     term_init();
     com_init();
-    buz_init();
     aud_init();
 
     // Print startup message
@@ -88,7 +86,6 @@ void main_task(void)
     bus_task();
     led_task();
     ria_task();
-    buz_task();
     aud_task();
     kbd_task();
     // vga_task();
@@ -149,7 +146,6 @@ void main_reclock(void)
     // vga_reclock(sys_clk_khz);
     // ria_reclock(clkdiv_int, clkdiv_frac);
     // pix_reclock(clkdiv_int, clkdiv_frac);
-    buz_reclock();
     aud_reclock();
 }
 
