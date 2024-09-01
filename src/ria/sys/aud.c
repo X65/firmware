@@ -14,12 +14,18 @@
 #include "main.h"
 #include <stdio.h>
 
+#define ARRAY_SIZE(x) ((sizeof x) / (sizeof *x))
+
 #define READ_BIT 0x80
 
-static uint aud_pwm_a_slice_num;
-static uint aud_pwm_a_channel;
-static uint aud_pwm_b_slice_num;
-static uint aud_pwm_b_channel;
+static struct
+{
+    uint slice_num;
+    uint channel;
+    uint gpio;
+    uint16_t frequency;
+    uint8_t duty;
+} pwm_channels[2];
 
 static inline void aud_fm_select(void)
 {
@@ -82,25 +88,58 @@ static inline void aud_fm_init(void)
     gpio_put(AUD_SPI_CS_PIN, 1);
 }
 
+static void aud_pwm_init_channel(size_t channel, uint gpio)
+{
+    pwm_channels[channel].gpio = gpio;
+    gpio_set_function(gpio, GPIO_FUNC_PWM);
+    pwm_channels[channel].slice_num = pwm_gpio_to_slice_num(gpio);
+    pwm_channels[channel].channel = pwm_gpio_to_channel(gpio);
+    pwm_channels[channel].frequency = 0;
+    pwm_channels[channel].duty = 0;
+
+    pwm_config cfg = pwm_get_default_config();
+    pwm_config_set_clkdiv_mode(&cfg, PWM_DIV_FREE_RUNNING);
+    pwm_config_set_phase_correct(&cfg, true);
+    pwm_init(pwm_channels[channel].slice_num, &cfg, true);
+}
+
+static void aud_pwm_set_channel(size_t channel, uint16_t freq, uint8_t duty)
+{
+    float clock_div = 0;
+    int wrap_shift = 0;
+    if (freq == 0)
+    {
+        duty = 0;
+    }
+    else
+    {
+        float clock_div_base = (float)(clock_get_hz(clk_sys)) / freq;
+        do
+        {
+            clock_div = clock_div_base / (float)((UINT8_MAX + 1) << wrap_shift) / 2;
+        } while (clock_div > 256.f && wrap_shift++ < 9);
+
+        if (wrap_shift > 8)
+        {
+            printf("? cannot handle channel %d frequency: %d\n", channel, freq);
+        }
+    }
+
+    pwm_channels[channel].frequency = freq;
+    pwm_channels[channel].duty = duty;
+    if (clock_div > 0)
+    {
+        pwm_set_clkdiv(pwm_channels[channel].slice_num, clock_div);
+        pwm_set_wrap(pwm_channels[channel].slice_num, (uint16_t)(UINT8_MAX << wrap_shift));
+    }
+    pwm_set_chan_level(pwm_channels[channel].slice_num,
+                       pwm_channels[channel].channel, (uint16_t)(duty << wrap_shift));
+}
+
 static inline void aud_pwm_init(void)
 {
-    gpio_set_function(BUZZ_PWM_A_PIN, GPIO_FUNC_PWM);
-    gpio_set_function(BUZZ_PWM_B_PIN, GPIO_FUNC_PWM);
-
-    aud_pwm_a_slice_num = pwm_gpio_to_slice_num(BUZZ_PWM_A_PIN);
-    aud_pwm_a_channel = pwm_gpio_to_channel(BUZZ_PWM_A_PIN);
-    aud_pwm_b_slice_num = pwm_gpio_to_slice_num(BUZZ_PWM_B_PIN);
-    aud_pwm_b_channel = pwm_gpio_to_channel(BUZZ_PWM_B_PIN);
-
-    // Set the duty cycle to 50%
-    pwm_set_wrap(aud_pwm_a_slice_num, 255);
-    pwm_set_chan_level(aud_pwm_a_slice_num, aud_pwm_a_channel, 127);
-    pwm_set_wrap(aud_pwm_b_slice_num, 255);
-    pwm_set_chan_level(aud_pwm_b_slice_num, aud_pwm_b_channel, 127);
-
-    // Disable channels
-    pwm_set_enabled(aud_pwm_a_slice_num, false);
-    pwm_set_enabled(aud_pwm_b_slice_num, false);
+    aud_pwm_init_channel(0, BUZZ_PWM_A_PIN);
+    aud_pwm_init_channel(1, BUZZ_PWM_B_PIN);
 }
 
 void aud_init(void)
@@ -124,9 +163,10 @@ static inline void aud_fm_reclock(void)
 
 static inline void aud_pwm_reclock(void)
 {
-    float clock_div = ((float)(clock_get_hz(clk_sys))) / AUD_CLICK_FREQUENCY / 256;
-    pwm_set_clkdiv(aud_pwm_a_slice_num, clock_div);
-    pwm_set_clkdiv(aud_pwm_b_slice_num, clock_div);
+    for (size_t i = 0; i < ARRAY_SIZE(pwm_channels); ++i)
+    {
+        aud_pwm_set_channel(i, (uint16_t)pwm_channels[i].channel, pwm_channels[i].duty);
+    }
 }
 
 void aud_reclock(void)
@@ -157,8 +197,7 @@ void aud_task(void)
     bool on = (time_us_32() / 100000) % AUD_CLICK_DURATION_MS > 8;
     if (was_on != on)
     {
-        pwm_set_enabled(aud_pwm_a_slice_num, on);
-
+        aud_pwm_set_channel(0, on ? AUD_CLICK_FREQUENCY : 0, AUD_CLICK_DUTY);
         was_on = on;
     }
 }
