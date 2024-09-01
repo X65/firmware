@@ -92,6 +92,7 @@ void main_reclock(void);
 #define AUD_CLOCK_FREQUENCY_KHZ 12288
 #define AUD_BAUDRATE_HZ         1000000
 // PWM click
+#define AUD_PWM_BASE_FREQUENCY  40000
 #define AUD_CLICK_FREQUENCY     280
 #define AUD_CLICK_DUTY          24
 #define AUD_CLICK_DURATION_MS   10

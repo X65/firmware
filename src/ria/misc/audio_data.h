@@ -1,6 +1,8 @@
 #ifndef AUDIO_DATA_H_
 #define AUDIO_DATA_H_
 
+#define AUDIO_DATA_HZ 8000
+
 const uint8_t audio_data[33133] = {
   255,  0,  0,  0,  1,  1,  2,  1,  2,  1,
   3,  4,  2,  1,  1,  2,  3,  0,  0,  1,

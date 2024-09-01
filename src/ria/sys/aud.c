@@ -16,6 +16,9 @@
 
 #define ARRAY_SIZE(x) ((sizeof x) / (sizeof *x))
 
+#include "../misc/audio_data.h"
+static size_t audio_data_offset = 0;
+
 #define READ_BIT 0x80
 
 static struct
@@ -25,6 +28,7 @@ static struct
     uint gpio;
     uint16_t frequency;
     uint8_t duty;
+    uint8_t wrap_shift;
 } pwm_channels[2];
 
 static inline void aud_fm_select(void)
@@ -127,6 +131,7 @@ static void aud_pwm_set_channel(size_t channel, uint16_t freq, uint8_t duty)
 
     pwm_channels[channel].frequency = freq;
     pwm_channels[channel].duty = duty;
+    pwm_channels[channel].wrap_shift = (uint8_t)wrap_shift;
     if (clock_div > 0)
     {
         pwm_set_clkdiv(pwm_channels[channel].slice_num, clock_div);
@@ -136,10 +141,19 @@ static void aud_pwm_set_channel(size_t channel, uint16_t freq, uint8_t duty)
                        pwm_channels[channel].channel, (uint16_t)(duty << wrap_shift));
 }
 
+static void aud_pwm_set_channel_duty(size_t channel, uint8_t duty)
+{
+    pwm_channels[channel].duty = duty;
+    pwm_set_chan_level(pwm_channels[channel].slice_num,
+                       pwm_channels[channel].channel, (uint16_t)(duty << pwm_channels[channel].wrap_shift));
+}
+
 static inline void aud_pwm_init(void)
 {
     aud_pwm_init_channel(0, BUZZ_PWM_A_PIN);
     aud_pwm_init_channel(1, BUZZ_PWM_B_PIN);
+
+    aud_pwm_set_channel(0, AUD_PWM_BASE_FREQUENCY, 128);
 }
 
 void aud_init(void)
@@ -165,7 +179,7 @@ static inline void aud_pwm_reclock(void)
 {
     for (size_t i = 0; i < ARRAY_SIZE(pwm_channels); ++i)
     {
-        aud_pwm_set_channel(i, (uint16_t)pwm_channels[i].channel, pwm_channels[i].duty);
+        aud_pwm_set_channel(i, (uint16_t)pwm_channels[i].frequency, pwm_channels[i].duty);
     }
 }
 
@@ -192,12 +206,20 @@ void aud_task(void)
         done = true;
     }
 
-    // heartbeat
-    static bool was_on = false;
-    bool on = (time_us_32() / 100000) % AUD_CLICK_DURATION_MS > 8;
-    if (was_on != on)
+    // // heartbeat
+    // static bool was_on = false;
+    // bool on = (time_us_32() / 100000) % AUD_CLICK_DURATION_MS > 8;
+    // if (was_on != on)
+    // {
+    //     aud_pwm_set_channel(0, on ? AUD_CLICK_FREQUENCY : 0, AUD_CLICK_DUTY);
+    //     was_on = on;
+    // }
+    // play sampled music
+    static uint32_t next_time = 0;
+    uint32_t time = time_us_32();
+    if (time > next_time)
     {
-        aud_pwm_set_channel(0, on ? AUD_CLICK_FREQUENCY : 0, AUD_CLICK_DUTY);
-        was_on = on;
+        next_time += clock_get_hz(clk_sys) / (((UINT8_MAX + 1) << pwm_channels[0].wrap_shift) * AUDIO_DATA_HZ);
+        aud_pwm_set_channel_duty(0, audio_data[audio_data_offset++ % ARRAY_SIZE(audio_data)]);
     }
 }
