@@ -40,6 +40,7 @@ target_link_libraries(rp816 PRIVATE
     hardware_dma
     hardware_pio
     hardware_spi
+    hardware_i2c
     hardware_flash
     tinyusb_board
     tinyusb_host

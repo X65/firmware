@@ -69,8 +69,8 @@ void main_reclock(void);
 #define AUD_CLOCK_PIN    21 // CLOCK_GPOUT0
 #define AUD_IRQ_N_PIN    20 // audio chip interrupt
 
-#define EXT_I2C_SDA_PIN 36
-#define EXT_I2C_SCL_PIN 37
+#define EXT_I2C_SDA_PIN 8
+#define EXT_I2C_SCL_PIN 9
 
 #define BUZZ_PWM_A_PIN 26
 #define BUZZ_PWM_B_PIN (BUZZ_PWM_A_PIN + 1) // not used
@@ -98,7 +98,8 @@ void main_reclock(void);
 #define AUD_CLICK_DURATION_MS   10
 
 // Extension/External I2C bus (also DVI/HDMI CDC)
-#define EXT_I2C i2c0
+#define EXT_I2C          i2c0
+#define EXT_I2C_BAUDRATE (400 * 1000)
 
 // LEDs
 #define RGB_LED_PIO pio1

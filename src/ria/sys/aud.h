@@ -12,6 +12,7 @@
 
 void aud_init(void);
 void aud_reclock(void);
+void aud_stop(void);
 void aud_task(void);
 
 #endif /* _AUD_H_ */

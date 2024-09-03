@@ -33,7 +33,6 @@ static void mem_bus_pio_init(void)
         pio_gpio_init(MEM_BUS_PIO, i);
     pio_sm_set_consecutive_pindirs(MEM_BUS_PIO, MEM_BUS_SM, BUS_PIN_BASE, BUS_DATA_PINS_USED, false);
     pio_sm_set_consecutive_pindirs(MEM_BUS_PIO, MEM_BUS_SM, BUS_CTL_PIN_BASE, BUS_CTL_PINS_USED, true);
-    gpio_pull_up(CPU_PHI2_PIN);
     pio_sm_init(MEM_BUS_PIO, MEM_BUS_SM, offset, &config);
     pio_sm_set_enabled(MEM_BUS_PIO, MEM_BUS_SM, true);
 }

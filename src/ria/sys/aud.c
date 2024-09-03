@@ -8,6 +8,7 @@
 
 #include "hardware/clocks.h"
 #include "hardware/gpio.h"
+#include "hardware/i2c.h"
 #include "hardware/pwm.h"
 #include "hardware/spi.h"
 #include "hardware/timer.h"
@@ -19,7 +20,9 @@
 #include "../misc/audio_data.h"
 static size_t audio_data_offset = 0;
 
-#define READ_BIT 0x80
+#define SPI_READ_BIT 0x80 // Read/Write command bit on SD-1 bus
+
+#define I2C_ADDRESS 0x40 // Address of Mixer on I2C bus
 
 static struct
 {
@@ -47,7 +50,7 @@ static inline void aud_fm_deselect(void)
 
 uint8_t aud_read_fm_register(uint8_t reg)
 {
-    reg |= READ_BIT;
+    reg |= SPI_READ_BIT;
     uint8_t ret;
     aud_fm_select();
     spi_write_blocking(spi_default, &reg, 1);
@@ -59,7 +62,7 @@ uint8_t aud_read_fm_register(uint8_t reg)
 void aud_write_fm_register(uint8_t reg, uint8_t data)
 {
     uint8_t buf[2];
-    buf[0] = reg & ~READ_BIT;
+    buf[0] = reg & ~SPI_READ_BIT;
     buf[1] = data;
     aud_fm_select();
     spi_write_blocking(spi_default, buf, 2);
@@ -68,7 +71,7 @@ void aud_write_fm_register(uint8_t reg, uint8_t data)
 
 void aud_write_fm_register_multiple(uint8_t reg, uint8_t *data, uint16_t len)
 {
-    reg &= ~READ_BIT;
+    reg &= ~SPI_READ_BIT;
     aud_fm_select();
     spi_write_blocking(spi_default, &reg, 1);
     spi_write_blocking(spi_default, data, len);
@@ -152,14 +155,37 @@ static inline void aud_pwm_init(void)
 {
     aud_pwm_init_channel(0, BUZZ_PWM_A_PIN);
     aud_pwm_init_channel(1, BUZZ_PWM_B_PIN);
+}
 
-    aud_pwm_set_channel(0, AUD_PWM_BASE_FREQUENCY, 128);
+static void aud_mix_initial_setup(void)
+{
+    uint8_t buf[] = {0x01, 0b00000100};
+    i2c_write_blocking(EXT_I2C, I2C_ADDRESS, buf, 2, false);
+}
+
+static void aud_mix_reset(void)
+{
+    // Two byte reset. First byte register, second byte data
+    uint8_t buf[] = {0xFE, 0b10000001};
+    i2c_write_blocking(EXT_I2C, I2C_ADDRESS, buf, 2, false);
+}
+
+static inline void aud_mix_init(void)
+{
+    i2c_init(EXT_I2C, EXT_I2C_BAUDRATE);
+    gpio_set_function(EXT_I2C_SDA_PIN, GPIO_FUNC_I2C);
+    gpio_set_function(EXT_I2C_SCL_PIN, GPIO_FUNC_I2C);
+    gpio_pull_up(EXT_I2C_SDA_PIN);
+    gpio_pull_up(EXT_I2C_SCL_PIN);
+
+    aud_mix_initial_setup();
 }
 
 void aud_init(void)
 {
     aud_fm_init();
     aud_pwm_init();
+    aud_mix_init();
 
     // Set clocks
     aud_reclock();
@@ -183,10 +209,21 @@ static inline void aud_pwm_reclock(void)
     }
 }
 
+static inline void aud_mix_reclock(void)
+{
+    i2c_set_baudrate(EXT_I2C, EXT_I2C_BAUDRATE);
+}
+
 void aud_reclock(void)
 {
     aud_fm_reclock();
     aud_pwm_reclock();
+    aud_mix_reclock();
+}
+
+void aud_stop(void)
+{
+    aud_mix_reset();
 }
 
 void aud_task(void)
@@ -202,6 +239,13 @@ void aud_task(void)
                 printf("\n[%02d]", i);
             printf(" %02x", aud_read_fm_register(i));
         }
+
+        uint8_t buf[] = {0x30,
+                         // Activate all EXT on all channels and set volume to max (0db)
+                         0b11111100, 0b11111100, 0b11111100, 0b00000000, 0b00000000, 0b00000000};
+        i2c_write_blocking(EXT_I2C, I2C_ADDRESS, buf, 7, false);
+
+        aud_pwm_set_channel(0, AUD_PWM_BASE_FREQUENCY, 128);
 
         done = true;
     }

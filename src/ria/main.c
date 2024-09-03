@@ -118,6 +118,7 @@ static void stop(void)
     cpu_stop(); // Must be first
     // vga_stop(); // Must be before ria
     ria_stop();
+    aud_stop();
     // pix_stop();
     // std_stop();
     kbd_stop();
