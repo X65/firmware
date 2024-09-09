@@ -374,9 +374,9 @@ void aud_task(void)
         was_on = on;
         if (on)
         {
-            static uint16_t do_re_mi_pwm[] = {220, 247, 262, 294, 330, 349, 392};
+            static uint16_t do_re_mi_pwm[] = {392, 349, 493, 523, 698, 587};
             static size_t i = 0;
-            aud_pwm_set_channel(0, do_re_mi_pwm[i++ % 7], 128);
+            aud_pwm_set_channel(0, do_re_mi_pwm[i++ % 6], 128);
 
             // FM do-re-mi
             static uint8_t do_re_mi_fm[] = {
