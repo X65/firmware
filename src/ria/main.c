@@ -18,6 +18,7 @@
 #include "sys/cpu.h"
 #include "sys/led.h"
 #include "sys/lfs.h"
+#include "sys/mdm.h"
 #include "sys/mem.h"
 #include "sys/out.h"
 #include "sys/ria.h"
@@ -49,6 +50,7 @@ static void init(void)
     term_init();
     com_init();
     aud_init();
+    mdm_init();
 
     // Print startup message
     sys_init();
@@ -87,6 +89,7 @@ void main_task(void)
     led_task();
     ria_task();
     aud_task();
+    mdm_task();
     kbd_task();
     // vga_task();
     // std_task();
@@ -128,6 +131,7 @@ static void stop(void)
 // Event for CTRL-ALT-DEL and UART breaks.
 static void reset(void)
 {
+    mdm_reset();
     com_reset();
     // fil_reset();
     mon_reset();
@@ -148,6 +152,7 @@ void main_reclock(void)
     // ria_reclock(clkdiv_int, clkdiv_frac);
     // pix_reclock(clkdiv_int, clkdiv_frac);
     aud_reclock();
+    mdm_reclock();
 }
 
 // PIX XREG writes to the RIA device will notify here.

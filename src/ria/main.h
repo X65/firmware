@@ -69,6 +69,14 @@ void main_reclock(void);
 #define AUD_CLOCK_PIN    21 // CLOCK_GPOUT0
 #define AUD_IRQ_N_PIN    20 // audio chip interrupt
 
+#define ESP_SPI_PIN_BASE 8
+#define ESP_SPI_RX_PIN   (ESP_SPI_PIN_BASE + 0)
+#define ESP_SPI_CS_PIN   (ESP_SPI_PIN_BASE + 1)
+#define ESP_SPI_SCK_PIN  (ESP_SPI_PIN_BASE + 2)
+#define ESP_SPI_TX_PIN   (ESP_SPI_PIN_BASE + 3)
+#define ESP_AT_HS_PIN    22 // SPI HANDSHAKE
+#define ESP_AT_RESET_PIN 38 // ESP CHIP_EN
+
 #define EXT_I2C_SDA_PIN 4
 #define EXT_I2C_SCL_PIN 5
 
@@ -96,6 +104,10 @@ void main_reclock(void);
 #define AUD_CLICK_FREQUENCY     280
 #define AUD_CLICK_DUTY          24
 #define AUD_CLICK_DURATION_MS   10
+
+// ESP-AT modem SPI
+#define ESP_SPI         spi1
+#define ESP_BAUDRATE_HZ 10000000
 
 // Extension/External I2C bus (also DVI/HDMI CDC)
 #define EXT_I2C          i2c0

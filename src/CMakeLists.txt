@@ -59,6 +59,7 @@ target_sources(rp816 PRIVATE
     ria/main.c
     ria/str.c
     ria/api/clk.c
+    ria/mon/at.c
     ria/mon/fil.c
     ria/mon/hlp.c
     ria/mon/mon.c
@@ -72,6 +73,7 @@ target_sources(rp816 PRIVATE
     ria/sys/cpu.c
     ria/sys/led.c
     ria/sys/lfs.c
+    ria/sys/mdm.c
     ria/sys/mem.c
     ria/sys/out.c
     ria/sys/ria.c

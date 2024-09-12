@@ -85,7 +85,6 @@ static inline void aud_fm_init(void)
 
     // Configure SPI communication
     spi_init(AUD_SPI, AUD_BAUDRATE_HZ);
-    spi_set_format(AUD_SPI, 8, SPI_CPOL_0, SPI_CPHA_0, SPI_MSB_FIRST);
     gpio_set_function(AUD_SPI_RX_PIN, GPIO_FUNC_SPI);
     gpio_set_function(AUD_SPI_SCK_PIN, GPIO_FUNC_SPI);
     gpio_set_function(AUD_SPI_TX_PIN, GPIO_FUNC_SPI);
@@ -350,7 +349,7 @@ void aud_task(void)
         aud_fm_set_tone();
         aud_fm_set_ch();
 
-        aud_fm_dump_registers();
+        // aud_fm_dump_registers();
 
         // aud_mix_init_volume
         uint8_t buf[] = {0x28,

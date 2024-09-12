@@ -6,6 +6,7 @@
 
 #include "mon/mon.h"
 #include "main.h"
+#include "mon/at.h"
 #include "mon/fil.h"
 #include "mon/hlp.h"
 #include "mon/ram.h"
@@ -47,6 +48,7 @@ static struct
     {6, "upload", fil_mon_upload},
     {6, "unlink", fil_mon_unlink},
     {6, "binary", ram_mon_binary},
+    {2, "at", at_mon_at},
 };
 static const size_t COMMANDS_COUNT = sizeof COMMANDS / sizeof *COMMANDS;
 
@@ -67,7 +69,7 @@ static mon_function mon_command_lookup(const char **buf, uint8_t buflen)
         uint8_t ch = (*buf)[i];
         if (char_is_hex(ch))
             is_maybe_addr = true;
-        else if (ch == ' ')
+        else if (ch == ' ' || ch == '+')
             break;
         else
             is_not_addr = true;

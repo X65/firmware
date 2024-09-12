@@ -29,6 +29,7 @@ static const char __in_flash("helptext") hlp_text_help[]
       "UPLOAD file         - Write file. Binary chunks follow.\n"
       "UNLINK file|dir     - Delete file or empty directory.\n"
       "BINARY addr len crc - Write memory. Binary data follows.\n"
+      "AT ...              - Send AT+command to WiFi modem.\n"
       "0000 (00 00 ...)    - Read or write memory.";
 
 static const char __in_flash("helptext") hlp_text_set[]
@@ -185,6 +186,13 @@ static const char __in_flash("helptext") hlp_text_code_page[]
       "";
 #endif
 
+static const char __in_flash("helptext") hlp_text_at[]
+    = "AT sends command to WiFi modem and receives the response.\n"
+      "NOTICE: Typing 'AT +XYZ=1' sends 'AT+XYZ=1' command.\n"
+      "The modem is an ESP-AT instance. For full AT commands list, see\n"
+      "ESP-AT documentation at:\n"
+      "https://docs.espressif.com/projects/esp-at/en/release-v3.4.0.0/esp32/AT_Command_Set/";
+
 static struct
 {
     size_t cmd_len;
@@ -222,6 +230,7 @@ static struct
     {6, "upload", hlp_text_upload},
     {6, "unlink", hlp_text_unlink},
     {6, "binary", hlp_text_binary},
+    {2, "at", hlp_text_at},
 };
 static const size_t COMMANDS_COUNT = sizeof COMMANDS / sizeof *COMMANDS;
 
