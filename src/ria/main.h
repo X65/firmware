@@ -59,9 +59,9 @@ void main_reclock(void);
 #define QMI_PSRAM_CS_PIN 47
 
 #define RIA_LED_PIN 25
-#define RGB_LED_PIN 28
+#define RGB_LED_PIN 27
 
-#define AUD_SPI_PIN_BASE 4
+#define AUD_SPI_PIN_BASE 32
 #define AUD_SPI_RX_PIN   (AUD_SPI_PIN_BASE + 0)
 #define AUD_SPI_CS_PIN   (AUD_SPI_PIN_BASE + 1)
 #define AUD_SPI_SCK_PIN  (AUD_SPI_PIN_BASE + 2)
@@ -69,11 +69,11 @@ void main_reclock(void);
 #define AUD_CLOCK_PIN    21 // CLOCK_GPOUT0
 #define AUD_IRQ_N_PIN    20 // audio chip interrupt
 
-#define EXT_I2C_SDA_PIN 8
-#define EXT_I2C_SCL_PIN 9
+#define EXT_I2C_SDA_PIN 4
+#define EXT_I2C_SCL_PIN 5
 
-#define BUZZ_PWM_A_PIN 26
-#define BUZZ_PWM_B_PIN (BUZZ_PWM_A_PIN + 1) // not used
+#define AUD_PWM_1_PIN 26
+#define AUD_PWM_2_PIN 28
 
 /* All resource assignments
  */

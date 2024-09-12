@@ -243,8 +243,8 @@ static void aud_pwm_set_channel_duty(size_t channel, uint8_t duty)
 
 static inline void aud_pwm_init(void)
 {
-    aud_pwm_init_channel(0, BUZZ_PWM_A_PIN);
-    aud_pwm_init_channel(1, BUZZ_PWM_B_PIN);
+    aud_pwm_init_channel(0, AUD_PWM_1_PIN);
+    aud_pwm_init_channel(1, AUD_PWM_2_PIN);
 }
 
 static void aud_mix_initial_setup(void)
