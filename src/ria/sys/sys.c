@@ -7,6 +7,7 @@
 #include "sys/sys.h"
 #include "hardware/watchdog.h"
 #include "main.h"
+#include "sys/ext.h"
 #include "sys/mem.h"
 #include "usb/usb.h"
 #include <stdio.h>
@@ -47,6 +48,8 @@ void sys_mon_status(const char *args, size_t len)
     mem_print_status();
     // vga_print_status();
     usb_print_status();
+    gpx_dump_registers();
+    // ext_bus_scan();
 }
 
 void sys_init(void)

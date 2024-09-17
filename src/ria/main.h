@@ -117,6 +117,7 @@ void main_reclock(void);
 #define EXT_I2C          i2c0
 #define EXT_I2C_BAUDRATE (400 * 1000)
 
+#define IOE_I2C_ADDRESS 0x20 // Address of I/O Extender on I2C bus
 #define MIX_I2C_ADDRESS 0x40 // Address of Mixer on I2C bus
 
 #endif /* _MAIN_H_ */
