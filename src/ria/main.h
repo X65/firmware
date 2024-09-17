@@ -109,12 +109,14 @@ void main_reclock(void);
 #define ESP_SPI         spi1
 #define ESP_BAUDRATE_HZ 10000000
 
+// LEDs
+#define RGB_LED_PIO pio1
+#define RGB_LED_SM  2
+
 // Extension/External I2C bus (also DVI/HDMI CDC)
 #define EXT_I2C          i2c0
 #define EXT_I2C_BAUDRATE (400 * 1000)
 
-// LEDs
-#define RGB_LED_PIO pio1
-#define RGB_LED_SM  2
+#define MIX_I2C_ADDRESS 0x40 // Address of Mixer on I2C bus
 
 #endif /* _MAIN_H_ */

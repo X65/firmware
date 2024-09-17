@@ -16,6 +16,7 @@
 #include "sys/cfg.h"
 #include "sys/com.h"
 #include "sys/cpu.h"
+#include "sys/ext.h"
 #include "sys/led.h"
 #include "sys/lfs.h"
 #include "sys/mdm.h"
@@ -49,6 +50,7 @@ static void init(void)
     out_init();
     term_init();
     com_init();
+    ext_init(); // before aud_init (shared I2C init)
     aud_init();
     mdm_init();
 
@@ -88,6 +90,7 @@ void main_task(void)
     bus_task();
     led_task();
     ria_task();
+    ext_task();
     aud_task();
     mdm_task();
     kbd_task();
@@ -151,6 +154,7 @@ void main_reclock(void)
     // vga_reclock(sys_clk_khz);
     // ria_reclock(clkdiv_int, clkdiv_frac);
     // pix_reclock(clkdiv_int, clkdiv_frac);
+    ext_reclock();
     aud_reclock();
     mdm_reclock();
 }

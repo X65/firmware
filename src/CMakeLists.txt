@@ -71,6 +71,7 @@ target_sources(rp816 PRIVATE
     ria/sys/cfg.c
     ria/sys/com.c
     ria/sys/cpu.c
+    ria/sys/ext.c
     ria/sys/led.c
     ria/sys/lfs.c
     ria/sys/mdm.c

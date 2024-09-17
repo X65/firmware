@@ -22,8 +22,6 @@ static size_t audio_data_offset = 0;
 
 #define SD1_SPI_READ_BIT 0x80 // Read/Write command bit on SD-1 bus
 
-#define MIX_I2C_ADDRESS 0x40 // Address of Mixer on I2C bus
-
 static struct
 {
     uint slice_num;
@@ -246,12 +244,6 @@ static inline void aud_pwm_init(void)
     aud_pwm_init_channel(1, AUD_PWM_2_PIN);
 }
 
-static void aud_mix_initial_setup(void)
-{
-    uint8_t buf[] = {0x01, 0b00000100};
-    i2c_write_blocking(EXT_I2C, MIX_I2C_ADDRESS, buf, 2, false);
-}
-
 static void aud_mix_reset(void)
 {
     // Two byte reset. First byte register, second byte data
@@ -261,13 +253,9 @@ static void aud_mix_reset(void)
 
 static inline void aud_mix_init(void)
 {
-    i2c_init(EXT_I2C, EXT_I2C_BAUDRATE);
-    gpio_set_function(EXT_I2C_SDA_PIN, GPIO_FUNC_I2C);
-    gpio_set_function(EXT_I2C_SCL_PIN, GPIO_FUNC_I2C);
-    gpio_pull_up(EXT_I2C_SDA_PIN);
-    gpio_pull_up(EXT_I2C_SCL_PIN);
-
-    aud_mix_initial_setup();
+    // Init the chip
+    uint8_t buf[] = {0x01, 0b00000100};
+    i2c_write_blocking(EXT_I2C, MIX_I2C_ADDRESS, buf, 2, false);
 }
 
 void aud_init(void)
@@ -300,7 +288,6 @@ static inline void aud_pwm_reclock(void)
 
 static inline void aud_mix_reclock(void)
 {
-    i2c_set_baudrate(EXT_I2C, EXT_I2C_BAUDRATE);
 }
 
 void aud_reclock(void)
