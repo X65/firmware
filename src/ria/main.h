@@ -40,16 +40,16 @@ void main_reclock(void);
 /* All pin assignments
  */
 
-#define CPU_RESB_PIN 45
-#define CPU_IRQB_PIN 46
-#define CPU_NMIB_PIN 47
+#define CPU_RESB_PIN 26
+#define CPU_IRQB_PIN 10
+#define CPU_NMIB_PIN 11
 
-#define BUS_PIN_BASE       30
+#define BUS_PIN_BASE       0
 #define BUS_DATA_PIN_BASE  (BUS_PIN_BASE + 0) /* D0-D7 */
 #define CPU_VAB_PIN        (BUS_PIN_BASE + 8)
 #define CPU_RWB_PIN        (BUS_PIN_BASE + 9)
 #define BUS_DATA_PINS_USED 10
-#define BUS_CTL_PIN_BASE   40
+#define BUS_CTL_PIN_BASE   22
 #define CPU_PHI2_PIN       (BUS_CTL_PIN_BASE + 0)
 #define BUS_BE0_PIN        (BUS_CTL_PIN_BASE + 1) /* BUF0 ENABLE */
 #define BUS_BE1_PIN        (BUS_CTL_PIN_BASE + 2) /* BUF1 ENABLE */
@@ -57,9 +57,10 @@ void main_reclock(void);
 #define BUS_CTL_PINS_USED  4
 
 #define QMI_PSRAM_CS_PIN 47
+#define QMI_PSRAM_BS_PIN 38
 
-#define RIA_LED_PIN 25
-#define RGB_LED_PIN 27
+// #define RIA_LED_PIN 25   // not present on X65 board
+#define RGB_LED_PIN 45
 
 #define AUD_SPI_PIN_BASE 32
 #define AUD_SPI_RX_PIN   (AUD_SPI_PIN_BASE + 0)
@@ -67,29 +68,32 @@ void main_reclock(void);
 #define AUD_SPI_SCK_PIN  (AUD_SPI_PIN_BASE + 2)
 #define AUD_SPI_TX_PIN   (AUD_SPI_PIN_BASE + 3)
 #define AUD_CLOCK_PIN    21 // CLOCK_GPOUT0
-#define AUD_IRQ_N_PIN    20 // audio chip interrupt
 
-#define ESP_SPI_PIN_BASE 8
+#define ESP_SPI_PIN_BASE 40
 #define ESP_SPI_RX_PIN   (ESP_SPI_PIN_BASE + 0)
 #define ESP_SPI_CS_PIN   (ESP_SPI_PIN_BASE + 1)
 #define ESP_SPI_SCK_PIN  (ESP_SPI_PIN_BASE + 2)
 #define ESP_SPI_TX_PIN   (ESP_SPI_PIN_BASE + 3)
-#define ESP_AT_HS_PIN    22 // SPI HANDSHAKE
-#define ESP_AT_RESET_PIN 38 // ESP CHIP_EN
+#define ESP_AT_HS_PIN    39 // SPI HANDSHAKE
 
-#define EXT_I2C_SDA_PIN 4
-#define EXT_I2C_SCL_PIN 5
+#define EXT_I2C_SDA_PIN 36
+#define EXT_I2C_SCL_PIN 37
 
-#define AUD_PWM_1_PIN 26
-#define AUD_PWM_2_PIN 28
+#define AUD_PWM_1_PIN 44 // PWM10_A
+#define AUD_PWM_2_PIN 46 // PWM11_A
+
+#define COM_UART_TX_PIN 28
+#define COM_UART_RX_PIN 29
+
+#define EXT_IO_CS_PIN  27
+#define EXT_IO_BE0_PIN 30
+#define EXT_IO_BE1_PIN 31
 
 /* All resource assignments
  */
 
 #define COM_UART           uart0
 #define COM_UART_BAUD_RATE 115200
-#define COM_UART_TX_PIN    0
-#define COM_UART_RX_PIN    1
 
 // CPU bus handling
 #define MEM_BUS_PIO pio1
@@ -119,5 +123,83 @@ void main_reclock(void);
 
 #define IOE_I2C_ADDRESS 0x20 // Address of I/O Extender on I2C bus
 #define MIX_I2C_ADDRESS 0x40 // Address of Mixer on I2C bus
+
+// #define PIMORONI_PICO_PLUS_2
+
+#if defined(RASPBERRY_PICO_2)
+#undef CPU_RESB_PIN
+#define CPU_RESB_PIN 22
+#undef CPU_IRQB_PIN
+#define CPU_IRQB_PIN 23
+#undef BUS_CTL_PIN_BASE
+#define BUS_CTL_PIN_BASE 0
+#undef QMI_PSRAM_CS_PIN
+#define QMI_PSRAM_CS_PIN 20
+#define RIA_LED_PIN      25
+#undef RGB_LED_PIN
+#define RGB_LED_PIN 26
+#undef AUD_CLOCK_PIN
+#define AUD_CLOCK_PIN 34
+#undef EXT_I2C_SDA_PIN
+#define EXT_I2C_SDA_PIN 16
+#undef EXT_I2C_SCL_PIN
+#define EXT_I2C_SCL_PIN 17
+#undef COM_UART_TX_PIN
+#define COM_UART_TX_PIN 0
+#undef COM_UART_RX_PIN
+#define COM_UART_RX_PIN 1
+#elif defined(SPARKFUN_PRO_MICRO)
+#define RIA_LED_PIN 15
+#undef RGB_LED_PIN
+#define RGB_LED_PIN 25
+#undef CPU_RESB_PIN
+#define CPU_RESB_PIN 22
+#undef CPU_IRQB_PIN
+#define CPU_IRQB_PIN     23
+#define MEM_CTL_PIN_BASE 26
+#undef CPU_PHI2_PIN
+#undef QMI_PSRAM_CS_PIN
+#define QMI_PSRAM_CS_PIN 19
+#undef EXT_I2C_SDA_PIN
+#define EXT_I2C_SDA_PIN 16
+#undef EXT_I2C_SCL_PIN
+#define EXT_I2C_SCL_PIN 17
+#undef COM_UART
+#define COM_UART uart1
+#undef COM_UART_TX_PIN
+#define COM_UART_TX_PIN 20
+#undef COM_UART_RX_PIN
+#define COM_UART_RX_PIN 21
+#elif defined(PIMORONI_PICO_PLUS_2)
+#undef CPU_RESB_PIN
+#define CPU_RESB_PIN 45
+#undef CPU_IRQB_PIN
+#define CPU_IRQB_PIN 46
+#undef CPU_NMIB_PIN
+#define CPU_NMIB_PIN 47
+#undef BUS_PIN_BASE
+#define BUS_PIN_BASE 30
+#undef BUS_CTL_PIN_BASE
+#define BUS_CTL_PIN_BASE 40
+#define RIA_LED_PIN      25
+#undef RGB_LED_PIN
+#define RGB_LED_PIN 27
+#undef ESP_SPI_PIN_BASE
+#define ESP_SPI_PIN_BASE 8
+#undef ESP_AT_HS_PIN
+#define ESP_AT_HS_PIN 22
+#undef EXT_I2C_SDA_PIN
+#define EXT_I2C_SDA_PIN 4
+#undef EXT_I2C_SCL_PIN
+#define EXT_I2C_SCL_PIN 5
+#undef AUD_PWM_1_PIN
+#define AUD_PWM_1_PIN 26
+#undef AUD_PWM_2_PIN
+#define AUD_PWM_2_PIN 28
+#undef COM_UART_TX_PIN
+#define COM_UART_TX_PIN 0
+#undef COM_UART_RX_PIN
+#define COM_UART_RX_PIN 1
+#endif
 
 #endif /* _MAIN_H_ */

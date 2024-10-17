@@ -134,7 +134,6 @@ static void stop(void)
 // Event for CTRL-ALT-DEL and UART breaks.
 static void reset(void)
 {
-    mdm_reset();
     com_reset();
     // fil_reset();
     mon_reset();

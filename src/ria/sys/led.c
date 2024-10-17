@@ -44,10 +44,12 @@ static inline uint32_t urgb_u32(uint8_t r, uint8_t g, uint8_t b)
 
 void led_init(void)
 {
+#ifdef RIA_LED_PIN
     // LED
     gpio_init(RIA_LED_PIN);
     gpio_set_dir(RIA_LED_PIN, GPIO_OUT);
     gpio_put(RIA_LED_PIN, 1);
+#endif
 
     // RGB LED
     uint offset = pio_add_program(RGB_LED_PIO, &ws2812_program);
@@ -61,8 +63,10 @@ void led_task(void)
     bool on = (time_us_32() / 100000) % 10 > 8;
     if (was_on != on)
     {
+#ifdef RIA_LED_PIN
         // LED
         gpio_put(RIA_LED_PIN, on);
+#endif
 
         // RGB LED
         put_pixel(urgb_u32(on ? 0x05 : 0x00, on ? 0x1c : 0x00, on ? 0x26 : 0x00));

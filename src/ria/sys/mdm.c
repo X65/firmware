@@ -258,11 +258,6 @@ int32_t mdm_write_data_to_slave(const uint8_t *data, size_t size)
 
 void mdm_init(void)
 {
-    // GPIO config for the reset line.
-    gpio_init(ESP_AT_RESET_PIN);
-    gpio_set_dir(ESP_AT_RESET_PIN, GPIO_OUT);
-    mdm_reset();
-
     // GPIO config for the handshake line.
     gpio_init(ESP_AT_HS_PIN);
     gpio_pull_up(ESP_AT_HS_PIN);
@@ -306,13 +301,6 @@ void mdm_init(void)
 void mdm_reclock(void)
 {
     spi_set_baudrate(ESP_SPI, ESP_BAUDRATE_HZ);
-}
-
-void mdm_reset(void)
-{
-    gpio_put(ESP_AT_RESET_PIN, 1);
-    sleep_us(50);
-    gpio_put(ESP_AT_RESET_PIN, 1);
 }
 
 void mdm_task(void)
