@@ -96,8 +96,9 @@ void main_reclock(void);
 #define COM_UART_BAUD_RATE 115200
 
 // CPU bus handling
-#define MEM_BUS_PIO pio1
-#define MEM_BUS_SM  0
+#define MEM_BUS_PIO     pio1
+#define MEM_BUS_SM      0
+#define MEM_BUS_PIO_IRQ 1 // IRQ0 is used by DVI
 
 // Audio chip SPI
 #define AUD_SPI                 spi0
@@ -124,7 +125,7 @@ void main_reclock(void);
 #define IOE_I2C_ADDRESS 0x20 // Address of I/O Extender on I2C bus
 #define MIX_I2C_ADDRESS 0x40 // Address of Mixer on I2C bus
 
-// #define PIMORONI_PICO_PLUS_2
+#define SPARKFUN_PRO_MICRO
 
 #if defined(RASPBERRY_PICO_2)
 #undef CPU_RESB_PIN
@@ -149,27 +150,38 @@ void main_reclock(void);
 #undef COM_UART_RX_PIN
 #define COM_UART_RX_PIN 1
 #elif defined(SPARKFUN_PRO_MICRO)
-#define RIA_LED_PIN 15
-#undef RGB_LED_PIN
-#define RGB_LED_PIN 25
 #undef CPU_RESB_PIN
 #define CPU_RESB_PIN 22
 #undef CPU_IRQB_PIN
-#define CPU_IRQB_PIN     23
-#define MEM_CTL_PIN_BASE 26
-#undef CPU_PHI2_PIN
+#define CPU_IRQB_PIN 23
+#undef BUS_CTL_PIN_BASE
+#define BUS_CTL_PIN_BASE 26
 #undef QMI_PSRAM_CS_PIN
 #define QMI_PSRAM_CS_PIN 19
+#undef RGB_LED_PIN
+#define RGB_LED_PIN 25
+#undef AUD_SPI_PIN_BASE
+#define AUD_SPI_PIN_BASE 12
+#undef AUD_CLOCK_PIN
+#define AUD_CLOCK_PIN 13
+#undef ESP_SPI_PIN_BASE
+#define ESP_SPI_PIN_BASE 12
+#undef ESP_AT_HS_PIN
+#define ESP_AT_HS_PIN 18
 #undef EXT_I2C_SDA_PIN
 #define EXT_I2C_SDA_PIN 16
 #undef EXT_I2C_SCL_PIN
 #define EXT_I2C_SCL_PIN 17
-#undef COM_UART
-#define COM_UART uart1
+#undef AUD_PWM_1_PIN
+#define AUD_PWM_1_PIN 18
+#undef AUD_PWM_2_PIN
+#define AUD_PWM_2_PIN 24
 #undef COM_UART_TX_PIN
 #define COM_UART_TX_PIN 20
 #undef COM_UART_RX_PIN
 #define COM_UART_RX_PIN 21
+#undef COM_UART
+#define COM_UART uart1
 #elif defined(PIMORONI_PICO_PLUS_2)
 #undef CPU_RESB_PIN
 #define CPU_RESB_PIN 45

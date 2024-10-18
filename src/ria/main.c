@@ -22,7 +22,6 @@
 #include "sys/mdm.h"
 #include "sys/mem.h"
 #include "sys/out.h"
-#include "sys/ria.h"
 #include "sys/sys.h"
 #include "term/font.h"
 #include "term/term.h"
@@ -43,7 +42,6 @@ static void init(void)
     // STDIO not available until after these inits
 
     cpu_init();
-    ria_init();
     bus_init();
     font_init(); // before out_init (copies data from flash before overclocking)
     cgia_init();
@@ -89,7 +87,6 @@ void main_task(void)
     cpu_task();
     bus_task();
     led_task();
-    ria_task();
     ext_task();
     aud_task();
     mdm_task();
@@ -114,7 +111,6 @@ static void run(void)
     // vga_run();
     // api_run();
     bus_run();
-    ria_run(); // Must be immediately before cpu
     cpu_run(); // Must be last
 }
 
@@ -123,7 +119,7 @@ static void stop(void)
 {
     cpu_stop(); // Must be first
     // vga_stop(); // Must be before ria
-    ria_stop();
+    bus_stop();
     aud_stop();
     // pix_stop();
     // std_stop();

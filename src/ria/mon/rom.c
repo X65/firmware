@@ -12,7 +12,6 @@
 #include "sys/cfg.h"
 #include "sys/lfs.h"
 #include "sys/mem.h"
-#include "sys/ria.h"
 
 static enum {
     ROM_IDLE,
