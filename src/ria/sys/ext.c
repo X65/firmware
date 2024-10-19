@@ -14,7 +14,12 @@
 uint8_t gpx_read(uint8_t reg)
 {
     // i2c_write_blocking(EXT_I2C, IOE_I2C_ADDRESS, &reg, 1, true);
-    i2c_read_blocking(EXT_I2C, IOE_I2C_ADDRESS, &reg, 1, false);
+    absolute_time_t timeout = make_timeout_time_us(10000); // 0.01 second
+    int ret = i2c_read_blocking_until(EXT_I2C, IOE_I2C_ADDRESS, &reg, 1, false, timeout);
+    if (ret != 1)
+    {
+        return (uint8_t)ret;
+    }
     return reg;
 }
 
