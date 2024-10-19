@@ -86,6 +86,7 @@ static void sys_com_rx_mbuf(bool timeout, const char *buf, size_t length)
 {
     (void)buf;
     mbuf_len = length;
+    is_active = false;
 
     if (timeout)
     {
@@ -99,7 +100,6 @@ static void sys_com_rx_mbuf(bool timeout, const char *buf, size_t length)
     }
 
     mem_write_buf(rw_addr);
-    is_active = false;
 }
 
 void ram_mon_binary(const char *args, size_t len)

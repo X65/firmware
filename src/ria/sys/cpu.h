@@ -12,6 +12,7 @@
 #include <stdint.h>
 
 // 1-byte message queue to the RIA action loop.
+// -1 when invalid
 extern volatile int cpu_rx_char;
 
 /* Kernel events
@@ -42,7 +43,7 @@ uint32_t cpu_get_reset_us();
 void cpu_com_rx(uint8_t ch);
 
 // Get char from CPU rx buf
-int cpu_getchar(void);
+uint8_t cpu_getchar(void);
 
 // Readline support for stdin
 void cpu_stdin_request(void);

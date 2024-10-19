@@ -73,7 +73,7 @@ void led_task(void)
         }
         rgb_update = false;
     }
-    else if (hearbeat_enabled)
+    if (hearbeat_enabled)
     {
         // heartbeat
         static bool was_on = false;

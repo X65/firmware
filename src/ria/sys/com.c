@@ -5,10 +5,14 @@
  */
 
 #include "sys/com.h"
+#include "hardware/gpio.h"
+#include "hardware/uart.h"
 #include "main.h"
+#include "pico/stdio.h"
 #include "pico/stdio/driver.h"
-#include "pico/stdlib.h"
+#include "pico/time.h"
 #include "sys/cpu.h"
+#include <stdint.h>
 #include <stdio.h>
 
 #define COM_BUF_SIZE          256
@@ -120,11 +124,14 @@ static void com_line_forward_word(void)
 
 static void com_line_forward(void)
 {
-    uint16_t count = com_csi_param[0];
+    size_t count = com_csi_param[0];
     if (count < 1)
         count = 1;
     if (com_csi_param_count > 1 && !!(com_csi_param[1] - 1))
-        return com_line_forward_word();
+    {
+        com_line_forward_word();
+        return;
+    }
     if (count > com_buflen - com_bufpos)
         count = com_buflen - com_bufpos;
     if (!count)
@@ -158,11 +165,14 @@ static void com_line_backward_word(void)
 
 static void com_line_backward(void)
 {
-    uint16_t count = com_csi_param[0];
+    size_t count = com_csi_param[0];
     if (count < 1)
         count = 1;
     if (com_csi_param_count > 1 && !!(com_csi_param[1] - 1))
-        return com_line_backward_word();
+    {
+        com_line_backward_word();
+        return;
+    }
     if (count > com_bufpos)
         count = com_bufpos;
     if (!count)
@@ -184,7 +194,7 @@ static void com_line_delete(void)
         return;
     printf("\33[P");
     com_buflen--;
-    for (uint8_t i = com_bufpos; i < com_buflen; i++)
+    for (uint8_t i = (uint8_t)com_bufpos; i < com_buflen; i++)
         com_buf[i] = com_buf[i + 1];
 }
 
@@ -194,7 +204,7 @@ static void com_line_backspace(void)
         return;
     printf("\b\33[P");
     com_buflen--;
-    for (uint8_t i = --com_bufpos; i < com_buflen; i++)
+    for (uint8_t i = (uint8_t)(--com_bufpos); i < com_buflen; i++)
         com_buf[i] = com_buf[i + 1];
 }
 
@@ -419,7 +429,6 @@ void com_task(void)
         main_break();
     break_detect = current_break;
 
-    // At all times the FIFO must be emptied to detect breaks.
     if (com_callback && com_timeout_ms && absolute_time_diff_us(get_absolute_time(), com_timer) < 0)
     {
         com_read_callback_t cc = com_callback;
@@ -433,19 +442,19 @@ void com_task(void)
         if (cpu_active() && com_callback)
             ch = cpu_getchar();
         else
-            ch = getchar_timeout_us(0);
+            ch = stdio_getchar_timeout_us(0);
         while (ch != PICO_ERROR_TIMEOUT)
         {
             if (com_callback)
             {
                 com_timer = delayed_by_ms(get_absolute_time(), com_timeout_ms);
                 if (com_binary_buf)
-                    com_binary_rx(ch);
+                    com_binary_rx((uint8_t)ch);
                 else
-                    com_line_rx(ch);
+                    com_line_rx((uint8_t)ch);
             }
             else if (cpu_active())
-                cpu_com_rx(ch);
+                cpu_com_rx((uint8_t)ch);
             ch = getchar_timeout_us(0);
         }
     }

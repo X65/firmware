@@ -5,8 +5,10 @@
  */
 
 #include "sys/cpu.h"
+#include "hardware/gpio.h"
 #include "main.h"
-#include "pico/stdlib.h"
+#include "pico/stdio.h"
+#include "pico/time.h"
 #include "sys/cfg.h"
 #include "sys/com.h"
 #include "sys/mem.h"
@@ -42,7 +44,7 @@ void cpu_reclock(void)
         cpu_resb_timer = delayed_by_us(get_absolute_time(), cpu_get_reset_us());
 }
 
-static int cpu_caps(int ch)
+static uint8_t cpu_caps(uint8_t ch)
 {
     switch (cfg_get_caps())
     {
@@ -52,7 +54,7 @@ static int cpu_caps(int ch)
             ch += 32;
             break;
         }
-        // fall through
+        __attribute__((fallthrough));
     case 2:
         if (ch >= 'a' && ch <= 'z')
             ch -= 32;
@@ -79,10 +81,14 @@ void cpu_task(void)
 
     // Move UART FIFO into action loop
     if (cpu_rx_char < 0)
-        cpu_rx_char = cpu_caps(cpu_getchar_fifo());
+    {
+        cpu_rx_char = cpu_getchar_fifo();
+        if (cpu_rx_char >= 0)
+            cpu_rx_char = cpu_caps((uint8_t)cpu_rx_char);
+    }
 }
 
-static void clear_com_rx_fifo()
+static void clear_com_rx_fifo(void)
 {
     cpu_rx_char = -1;
     cpu_rx_tail = cpu_rx_head = 0;
@@ -136,13 +142,13 @@ void cpu_com_rx(uint8_t ch)
 // Used by std.c to get stdin destined for the CPU.
 // Mixing RIA register input with read() calls isn't perfect.
 // Even with a mutex, nulls may appear from RIA register.
-int cpu_getchar(void)
+uint8_t cpu_getchar(void)
 {
     // Steal char from RIA register
     if (REGS(0xFFE0) & 0b01000000)
     {
         REGS(0xFFE0) &= ~0b01000000;
-        int ch = REGS(0xFFE2);
+        uint8_t ch = REGS(0xFFE2);
         // Replace char with null
         REGS(0xFFE2) = 0;
         return cpu_caps(ch);
@@ -150,7 +156,7 @@ int cpu_getchar(void)
     // Steal char from action loop queue
     if (cpu_rx_char >= 0)
     {
-        int ch = cpu_rx_char;
+        uint8_t ch = (uint8_t)cpu_rx_char;
         cpu_rx_char = -1;
         return cpu_caps(ch);
     }
@@ -159,7 +165,7 @@ int cpu_getchar(void)
     // Get char from UART
     if (ch < 0)
         ch = getchar_timeout_us(0);
-    return cpu_caps(ch);
+    return cpu_caps((uint8_t)ch);
 }
 
 static void cpu_enter(bool timeout, const char *buf, size_t length)

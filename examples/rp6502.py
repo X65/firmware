@@ -33,6 +33,7 @@ class Monitor:
         ''' Send data to memory using BINARY command. '''
         command = f'BINARY ${addr:04X} ${len(data):03X} ${binascii.crc32(data):08X}\r'
         self.serial.write(bytes(command, 'utf-8'))
+        time.sleep(50 / 1000) # give some time to Pico to process command
         self.serial.write(data)
         self.wait_for_prompt(']')
 
