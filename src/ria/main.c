@@ -70,6 +70,8 @@ static void init(void)
 
     // TinyUSB
     tuh_init(TUH_OPT_RHPORT);
+
+    led_set_hartbeat(true);
 }
 
 // Tasks events are repeatedly called by the main kernel loop.

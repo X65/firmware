@@ -24,13 +24,20 @@
  *
  */
 
+#include "led.h"
 #include "hardware/pio.h"
+#include "hardware/timer.h"
 #include "main.h"
-#include <pico/stdlib.h>
 
 #include "led.pio.h"
 
 #define IS_RGBW false
+
+static bool hearbeat_enabled = false;
+
+static bool rgb_update = false;
+#define RGB_LED_COUNT 4
+static uint32_t RGB_LEDS[RGB_LED_COUNT];
 
 static inline void put_pixel(uint32_t pixel_grb)
 {
@@ -50,27 +57,49 @@ void led_init(void)
     gpio_set_dir(RIA_LED_PIN, GPIO_OUT);
     gpio_put(RIA_LED_PIN, 1);
 #endif
-
     // RGB LED
     uint offset = pio_add_program(RGB_LED_PIO, &ws2812_program);
     ws2812_program_init(RGB_LED_PIO, RGB_LED_SM, offset, RGB_LED_PIN, 800000, IS_RGBW);
+    rgb_update = true;
 }
 
 void led_task(void)
 {
-    // heartbeat
-    static bool was_on = false;
-    bool on = (time_us_32() / 100000) % 10 > 8;
-    if (was_on != on)
+    if (rgb_update)
     {
-#ifdef RIA_LED_PIN
-        // LED
-        gpio_put(RIA_LED_PIN, on);
-#endif
-
-        // RGB LED
-        put_pixel(urgb_u32(on ? 0x05 : 0x00, on ? 0x1c : 0x00, on ? 0x26 : 0x00));
-
-        was_on = on;
+        for (size_t i = 0; i < RGB_LED_COUNT; ++i)
+        {
+            put_pixel(RGB_LEDS[i]);
+        }
+        rgb_update = false;
     }
+    else if (hearbeat_enabled)
+    {
+        // heartbeat
+        static bool was_on = false;
+        bool on = (time_us_32() / 100000) % 10 > 8;
+        if (was_on != on)
+        {
+#ifdef RIA_LED_PIN
+            // LED
+            gpio_put(RIA_LED_PIN, on);
+#endif
+            // RGB LED
+            put_pixel(urgb_u32(on ? 0x05 : 0x00, on ? 0x1c : 0x00, on ? 0x26 : 0x00));
+
+            was_on = on;
+        }
+    }
+}
+
+void led_set_hartbeat(bool enabled)
+{
+    hearbeat_enabled = enabled;
+}
+
+void led_set_pixel(size_t index, uint8_t r, uint8_t g, uint8_t b)
+{
+    assert(index < RGB_LED_COUNT);
+    RGB_LEDS[index] = urgb_u32(r, g, b);
+    rgb_update = true;
 }

@@ -26,7 +26,13 @@
 #ifndef LED_H
 #define LED_H
 
+#include <pico/types.h>
+#include <stdbool.h>
+
 void led_init(void);
 void led_task(void);
+
+void led_set_hartbeat(bool enabled);
+void led_set_pixel(size_t index, uint8_t r, uint8_t g, uint8_t b);
 
 #endif
