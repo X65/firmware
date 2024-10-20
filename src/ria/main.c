@@ -93,7 +93,6 @@ void main_task(void)
     aud_task();
     mdm_task();
     kbd_task();
-    // vga_task();
     // std_task();
 }
 
@@ -110,7 +109,6 @@ static void task(void)
 // Event to start running the CPU.
 static void run(void)
 {
-    // vga_run();
     // api_run();
     bus_run();
     cpu_run(); // Must be last
@@ -120,7 +118,6 @@ static void run(void)
 static void stop(void)
 {
     cpu_stop(); // Must be first
-    // vga_stop(); // Must be before ria
     bus_stop();
     aud_stop();
     // pix_stop();
@@ -136,7 +133,6 @@ static void reset(void)
     // fil_reset();
     mon_reset();
     // rom_reset();
-    // vga_reset();
 }
 
 // Triggered once after init then after every PHI2 clock change.
@@ -148,7 +144,6 @@ void main_reclock(void)
     com_reclock();
     cpu_reclock();
     mem_reclock();
-    // vga_reclock(sys_clk_khz);
     // ria_reclock(clkdiv_int, clkdiv_frac);
     // pix_reclock(clkdiv_int, clkdiv_frac);
     ext_reclock();
