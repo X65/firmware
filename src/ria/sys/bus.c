@@ -23,6 +23,7 @@ static volatile bool irq_enabled = false;
 #define MEM_CPU_ADDRESS_BUS_HISTORY_LENGTH 20
 static uint32_t mem_cpu_address_bus_history[MEM_CPU_ADDRESS_BUS_HISTORY_LENGTH];
 static uint8_t mem_cpu_address_bus_history_index = 0;
+static bool cpu_dump_enabled = false;
 
 #define CPU_VAB_MASK    (1 << 24)
 #define CPU_RWB_MASK    (1 << 25)
@@ -46,7 +47,7 @@ mem_bus_pio_irq_handler(void)
 
             if (!(bus_address & CPU_VAB_MASK)) // act only when CPU provides valid address on bus
             {
-                if (main_active() && mem_cpu_address_bus_history_index < MEM_CPU_ADDRESS_BUS_HISTORY_LENGTH)
+                if (cpu_dump_enabled && main_active() && mem_cpu_address_bus_history_index < MEM_CPU_ADDRESS_BUS_HISTORY_LENGTH)
                 {
                     mem_cpu_address_bus_history[mem_cpu_address_bus_history_index++] = bus_address;
                 }
@@ -138,6 +139,9 @@ mem_bus_pio_irq_handler(void)
                         MEM_BUS_PIO->txf[MEM_BUS_SM] = REGS(0xFFE0);
                         break;
                     }
+                    case CASE_WRIT(0xFFE0): // UART Tx/Rx flow control
+                        REGS(0xFFE0) = bus_data;
+                        break;
 
                     case CASE_READ(0xFFE4): // COP_L
                     case CASE_READ(0xFFE5): // COP_H
@@ -158,8 +162,8 @@ mem_bus_pio_irq_handler(void)
                     case CASE_READ(0xFFFC): // RESETB_l
                     case CASE_READ(0xFFFD): // RESETB_H
                     case CASE_READ(0xFFFE): // IRQB/BRK_L
-                                            // case CASE_READ(0xFFFF): // IRQB/BRK_H
-                        MEM_BUS_PIO->txf[MEM_BUS_SM] = REGS(bus_address);
+                    case CASE_READ(0xFFFF): // IRQB/BRK_H
+                        MEM_BUS_PIO->txf[MEM_BUS_SM] = psram[bus_address & 0xFFFFFF];
                         break;
                     case CASE_WRIT(0xFFE4): // COP_L
                     case CASE_WRIT(0xFFE5): // COP_H
@@ -181,7 +185,7 @@ mem_bus_pio_irq_handler(void)
                     case CASE_WRIT(0xFFFD): // RESETB_H
                     case CASE_WRIT(0xFFFE): // IRQB/BRK_L
                     case CASE_WRIT(0xFFFF): // IRQB/BRK_H
-                        REGS(bus_address) = bus_data;
+                        psram[bus_address & 0xFFFFFF] = bus_data;
                         break;
 
                     default:
@@ -299,6 +303,8 @@ void bus_stop(void)
 {
     irq_enabled = false;
     gpio_put(CPU_IRQB_PIN, true);
+    cpu_dump_enabled = false;
+    mem_cpu_address_bus_history_index = 0;
 }
 
 void dump_cpu_history(void)
@@ -317,5 +323,5 @@ void dump_cpu_history(void)
 
 void bus_task(void)
 {
-    // dump_cpu_history();
+    dump_cpu_history();
 }

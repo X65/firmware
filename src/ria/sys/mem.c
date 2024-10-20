@@ -42,16 +42,34 @@ void mem_reclock(void)
 
 void mem_read_buf(uint32_t addr)
 {
-    if ((addr & 0xFFFFE0) == 0x00FFE0)
+    for (size_t i = 0; i < mbuf_len; ++i)
     {
-        for (size_t i = 0; i < mbuf_len; ++i)
+        if ((addr & 0xFFFFE0) == 0x00FFE0
+            && (addr & 0xFF) != 0xE4 // COP_L
+            && (addr & 0xFF) != 0xE5 // COP_H
+            && (addr & 0xFF) != 0xE6 // BRK_L
+            && (addr & 0xFF) != 0xE7 // BRK_H
+            && (addr & 0xFF) != 0xE8 // ABORTB_L
+            && (addr & 0xFF) != 0xE9 // ABORTB_H
+            && (addr & 0xFF) != 0xEA // NMIB_L
+            && (addr & 0xFF) != 0xEB // NMIB_H
+            && (addr & 0xFF) != 0xEE // IRQB_L
+            && (addr & 0xFF) != 0xEF // IRQB_H
+            && (addr & 0xFF) != 0xF4 // COP_L
+            && (addr & 0xFF) != 0xF5 // COP_H
+            && (addr & 0xFF) != 0xF8 // ABORTB_L
+            && (addr & 0xFF) != 0xF9 // ABORTB_H
+            && (addr & 0xFF) != 0xFA // NMIB_L
+            && (addr & 0xFF) != 0xFB // NMIB_H
+            && (addr & 0xFF) != 0xFC // RESETB_l
+            && (addr & 0xFF) != 0xFD // RESETB_H
+            && (addr & 0xFF) != 0xFE // IRQB/BRK_L
+            && (addr & 0xFF) != 0xFF // IRQB/BRK_H
+        )
         {
             mbuf[i] = REGS(addr++);
         }
-    }
-    else
-    {
-        for (size_t i = 0; i < mbuf_len; ++i)
+        else
         {
             mbuf[i] = psram[addr++ & 0xFFFFFF];
         }
@@ -60,16 +78,34 @@ void mem_read_buf(uint32_t addr)
 
 void mem_write_buf(uint32_t addr)
 {
-    if ((addr & 0xFFFFE0) == 0x00FFE0)
+    for (size_t i = 0; i < mbuf_len; ++i)
     {
-        for (size_t i = 0; i < mbuf_len; ++i)
+        if ((addr & 0xFFFFE0) == 0x00FFE0
+            && (addr & 0xFF) != 0xE4 // COP_L
+            && (addr & 0xFF) != 0xE5 // COP_H
+            && (addr & 0xFF) != 0xE6 // BRK_L
+            && (addr & 0xFF) != 0xE7 // BRK_H
+            && (addr & 0xFF) != 0xE8 // ABORTB_L
+            && (addr & 0xFF) != 0xE9 // ABORTB_H
+            && (addr & 0xFF) != 0xEA // NMIB_L
+            && (addr & 0xFF) != 0xEB // NMIB_H
+            && (addr & 0xFF) != 0xEE // IRQB_L
+            && (addr & 0xFF) != 0xEF // IRQB_H
+            && (addr & 0xFF) != 0xF4 // COP_L
+            && (addr & 0xFF) != 0xF5 // COP_H
+            && (addr & 0xFF) != 0xF8 // ABORTB_L
+            && (addr & 0xFF) != 0xF9 // ABORTB_H
+            && (addr & 0xFF) != 0xFA // NMIB_L
+            && (addr & 0xFF) != 0xFB // NMIB_H
+            && (addr & 0xFF) != 0xFC // RESETB_l
+            && (addr & 0xFF) != 0xFD // RESETB_H
+            && (addr & 0xFF) != 0xFE // IRQB/BRK_L
+            && (addr & 0xFF) != 0xFF // IRQB/BRK_H
+        )
         {
             REGS(addr++) = mbuf[i];
         }
-    }
-    else
-    {
-        for (size_t i = 0; i < mbuf_len; ++i)
+        else
         {
             psram[addr++ & 0xFFFFFF] = mbuf[i];
         }
@@ -78,7 +114,6 @@ void mem_write_buf(uint32_t addr)
 
 void mem_print_status(void)
 {
-
     if (psram_size == 0)
     {
         printf("RAM not detected\n");

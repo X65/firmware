@@ -84,7 +84,6 @@ void ram_mon_address(const char *args, size_t len)
 
 static void sys_com_rx_mbuf(bool timeout, const char *buf, size_t length)
 {
-    (void)buf;
     mbuf_len = length;
     is_active = false;
 
@@ -99,7 +98,11 @@ static void sys_com_rx_mbuf(bool timeout, const char *buf, size_t length)
         return;
     }
 
-    mem_write_buf(rw_addr);
+    uint32_t addr = rw_addr;
+    while (length--)
+    {
+        psram[addr++ & 0xFFFFFF] = *(buf++);
+    }
 }
 
 void ram_mon_binary(const char *args, size_t len)
