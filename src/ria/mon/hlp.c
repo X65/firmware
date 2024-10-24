@@ -37,13 +37,12 @@ static const char __in_flash("helptext") hlp_text_set[]
       "HELP SET attr       - Show information about a setting.\n"
       "SET CAPS (0|1|2)    - Invert or force caps while CPU is running.\n"
       "SET RESB (ms)       - Query or set RESB hold time. Set to 0 for auto.\n"
-      "SET BOOT (rom|-)    - Select ROM to boot from cold start. \"-\" for none.\n"
-      "SET CP (cp)         - Query or set code page.";
+      "SET BOOT (rom|-)    - Select ROM to boot from cold start. \"-\" for none.";
 
 static const char __in_flash("helptext") hlp_text_about[]
     = "Picocomputer 65816 - Copyright (c) 2024 Tomasz Sterna\n"
       "                   - Copyright (c) 2023 Rumbledethumps\n"
-      "      Pi Pico SDKs - Copyright (c) 2020 Raspberry Pi (Trading) Ltd\n"
+      "      Pi Pico SDKs - Copyright (c) 2020 Raspberry Pi (Trading) Ltd.\n"
       "       Tiny printf - Copyright (c) 2014-2019 Marco Paland, PALANDesign\n"
       "           TinyUSB - Copyright (c) 2018 hathach (tinyusb.org)\n"
       "             FatFs - Copyright (c) 20xx ChaN\n"
@@ -62,7 +61,7 @@ static const char __in_flash("helptext") hlp_text_system[]
       "a hex address as a command:\n"
       "]0200\n"
       "000200 DA DA DA DA DA DA DA DA DA DA DA DA DA DA DA DA\n"
-      "The 16MB of memory is accessible from $00000 to $FFFFF.\n"
+      "The 16MB of memory is accessible from $000000 to $FFFFFF.\n"
       "You can also set memory. For example, to set the reset vector:\n"
       "]FFFC 00 02\n"
       "This is useful for some light debugging, but the real power is from the other\n"
@@ -120,7 +119,7 @@ static const char __in_flash("helptext") hlp_text_upload[]
       "game and test it. Think \"XMODEM/YMODEM\" but easier to implement with modern\n"
       "scripting languages. The upload is initiated with the BINARY command\n"
       "specifying the file name.\n"
-      "]BINARY filename.bin\n"
+      "]UPLOAD filename.bin\n"
       "The system will respond with a \"}\" prompt or an error message starting with\n"
       "a \"?\". Any error will abort the upload and return you to the monitor.\n"
       "There is no retry as this is not intended to be used on lossy connections.\n"

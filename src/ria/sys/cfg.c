@@ -5,6 +5,7 @@
  */
 
 #include "sys/cfg.h"
+#include "api/oem.h"
 #include "str.h"
 #include "sys/cpu.h"
 #include "sys/lfs.h"
@@ -170,8 +171,7 @@ bool cfg_set_codepage(uint32_t cp)
     if (cp > UINT16_MAX)
         return false;
     uint32_t old_val = cfg_codepage;
-    // FIXME: cfg_codepage = oem_set_codepage(cp);
-    cfg_codepage = cp;
+    cfg_codepage = oem_set_codepage(cp);
     if (old_val != cfg_codepage)
         cfg_save_with_boot_opt(NULL);
     return true;

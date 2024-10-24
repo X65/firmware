@@ -16,6 +16,15 @@
 extern uint8_t psram[0x1000000]; // 16 MB of PSRAM address space
 asm(".equ psram, 0x11000000");   // Addressable at 0x11000000 - 0x11ffffff
 
+// The xstack is:
+// 512 bytes, enough to hold a CC65 stack frame, two strings for a
+// file rename, or a disk sector
+// 1 byte at end+1 always zero for cstring and safety.
+// Using xstack for cstrings doesn't require sending the zero termination.
+#define XSTACK_SIZE 0x200
+extern uint8_t xstack[];
+extern volatile size_t xstack_ptr;
+
 // RIA registers are located at the bottom of cpu1 stack.
 // cpu1 runs the action loop and uses very little stack.
 extern uint8_t regs[0x20];

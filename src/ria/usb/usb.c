@@ -18,7 +18,7 @@ char dev_message[CFG_TUH_DEVICE_MAX][DEV_DESC_SIZE];
 //      fully complete since that's really what we're
 //      interested in here.
 
-void usb_print_status()
+void usb_print_status(void)
 {
     uint8_t count = 0;
     for (uint8_t i = 0; i < CFG_TUH_DEVICE_MAX; i++)

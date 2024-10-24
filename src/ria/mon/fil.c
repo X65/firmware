@@ -191,9 +191,9 @@ static void fil_command_dispatch(bool timeout, const char *buf, size_t len)
         return;
     }
 
-    if (parse_uint32(&args, &len, &rx_len) && //
-        parse_uint32(&args, &len, &rx_crc) && //
-        parse_end(args, len))
+    if (parse_uint32(&args, &len, &rx_len)
+        && parse_uint32(&args, &len, &rx_crc)
+        && parse_end(args, len))
     {
         if (!rx_len || rx_len > MBUF_SIZE)
         {

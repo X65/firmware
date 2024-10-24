@@ -8,6 +8,7 @@
 #define _MAIN_H_
 
 #include <stdbool.h>
+#include <stdint.h>
 
 /* This is the main kernel event loop.
  */
@@ -36,6 +37,7 @@ bool main_active(void);
 
 void main_task(void);
 void main_reclock(void);
+bool main_api(uint8_t operation);
 
 /* All pin assignments
  */
@@ -125,7 +127,7 @@ void main_reclock(void);
 #define IOE_I2C_ADDRESS 0x20 // Address of I/O Extender on I2C bus
 #define MIX_I2C_ADDRESS 0x40 // Address of Mixer on I2C bus
 
-// #define PIMORONI_PICO_PLUS_2
+#define SPARKFUN_PRO_MICRO
 
 #if defined(RASPBERRY_PICO_2)
 #undef CPU_RESB_PIN

@@ -128,10 +128,7 @@ static void com_line_forward(void)
     if (count < 1)
         count = 1;
     if (com_csi_param_count > 1 && !!(com_csi_param[1] - 1))
-    {
-        com_line_forward_word();
-        return;
-    }
+        return com_line_forward_word();
     if (count > com_buflen - com_bufpos)
         count = com_buflen - com_bufpos;
     if (!count)
@@ -165,14 +162,11 @@ static void com_line_backward_word(void)
 
 static void com_line_backward(void)
 {
-    size_t count = com_csi_param[0];
+    uint16_t count = com_csi_param[0];
     if (count < 1)
         count = 1;
     if (com_csi_param_count > 1 && !!(com_csi_param[1] - 1))
-    {
-        com_line_backward_word();
-        return;
-    }
+        return com_line_backward_word();
     if (count > com_bufpos)
         count = com_bufpos;
     if (!count)

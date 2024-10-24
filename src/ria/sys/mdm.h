@@ -15,7 +15,6 @@
 
 void mdm_init(void);
 void mdm_reclock(void);
-void mdm_reset(void);
 void mdm_task(void);
 
 /** API

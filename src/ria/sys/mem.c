@@ -21,6 +21,9 @@ extern size_t setup_psram(uint32_t psram_cs_pin);
 /// @note - updates the PSRAM QSPI timing - call if the system clock is changed after PSRAM is initialized
 extern void set_psram_timing(void);
 
+uint8_t xstack[XSTACK_SIZE + 1];
+size_t volatile xstack_ptr;
+
 uint8_t mbuf[MBUF_SIZE] __attribute__((aligned(4)));
 size_t mbuf_len;
 

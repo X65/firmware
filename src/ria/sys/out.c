@@ -91,10 +91,6 @@ void __not_in_flash_func(out_core1_main)()
     __builtin_unreachable();
 }
 
-void out_task(void)
-{
-}
-
 void out_init(void)
 {
     vreg_set_voltage(VREG_VSEL);

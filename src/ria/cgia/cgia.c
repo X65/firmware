@@ -555,7 +555,3 @@ skip_right_border:
         }
     }
 }
-
-void cgia_task(void)
-{
-}

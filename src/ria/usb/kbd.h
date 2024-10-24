@@ -23,6 +23,6 @@ void kbd_report(uint8_t dev_addr, uint8_t instance, hid_keyboard_report_t const 
 bool kbd_xreg(uint16_t word);
 
 // Send LEDs to keyboards in next task.
-void kbd_hid_leds_dirty();
+void kbd_hid_leds_dirty(void);
 
 #endif /* _KBD_H_ */

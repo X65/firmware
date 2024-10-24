@@ -5,13 +5,16 @@
  */
 
 #include "usb/kbd.h"
+#include "api/api.h"
 #include "fatfs/ff.h"
 #include "main.h"
 #include "pico/stdio/driver.h"
 #include "string.h"
 #include "sys/cfg.h"
+#include "usb/kbd_dan.h"
 #include "usb/kbd_deu.h"
 #include "usb/kbd_eng.h"
+#include "usb/kbd_pol.h"
 #include "usb/kbd_swe.h"
 
 static int kbd_stdio_in_chars(char *buf, int length);
@@ -42,10 +45,10 @@ static uint8_t kbd_xram_keys[32];
 #define HID_KEYCODE_TO_UNICODE_(kb) HID_KEYCODE_TO_UNICODE_##kb
 #define HID_KEYCODE_TO_UNICODE(kb)  HID_KEYCODE_TO_UNICODE_(kb)
 static DWORD const __in_flash("keycode_to_unicode")
-    KEYCODE_TO_UNICODE[128][3]
+    KEYCODE_TO_UNICODE[128][4]
     = {HID_KEYCODE_TO_UNICODE(RP6502_KEYBOARD)};
 
-void kbd_hid_leds_dirty()
+void kbd_hid_leds_dirty(void)
 {
     kdb_hid_leds_need_report = true;
 }
@@ -92,9 +95,9 @@ static void kbd_queue_key(uint8_t modifier, uint8_t keycode, bool initial_press)
     kbd_repeat_timer = delayed_by_us(get_absolute_time(),
                                      initial_press ? KBD_REPEAT_DELAY : KBD_REPEAT_RATE);
     // When not in numlock, and not shifted, remap num pad
-    if (keycode >= HID_KEY_KEYPAD_1 &&       //
-        keycode <= HID_KEY_KEYPAD_DECIMAL && //
-        (!is_numlock || (key_shift && is_numlock)))
+    if (keycode >= HID_KEY_KEYPAD_1
+        && keycode <= HID_KEY_KEYPAD_DECIMAL
+        && (!is_numlock || (key_shift && is_numlock)))
     {
         if (is_numlock)
             key_shift = false;
@@ -137,15 +140,18 @@ static void kbd_queue_key(uint8_t modifier, uint8_t keycode, bool initial_press)
     }
     // Find plain typed or AltGr character
     char ch = 0;
-    if (keycode < 128 && !((modifier & (KEYBOARD_MODIFIER_LEFTALT | //
-                                        KEYBOARD_MODIFIER_LEFTGUI | //
-                                        KEYBOARD_MODIFIER_RIGHTGUI))))
+    if (keycode < 128 && !((modifier & (KEYBOARD_MODIFIER_LEFTALT | KEYBOARD_MODIFIER_LEFTGUI | KEYBOARD_MODIFIER_RIGHTGUI))))
     {
         if (modifier & KEYBOARD_MODIFIER_RIGHTALT)
+        {
             ch = ff_uni2oem(KEYCODE_TO_UNICODE[keycode][2], cfg_get_codepage());
-        else if ((key_shift && !is_capslock) ||        //
-                 (key_shift && keycode > HID_KEY_Z) || //
-                 (!key_shift && is_capslock && keycode <= HID_KEY_Z))
+            if ((key_shift && !is_capslock)
+                || (!key_shift && is_capslock))
+                ch = ff_uni2oem(KEYCODE_TO_UNICODE[keycode][3], cfg_get_codepage());
+        }
+        else if ((key_shift && !is_capslock)
+                 || (key_shift && keycode > HID_KEY_Z)
+                 || (!key_shift && is_capslock && keycode <= HID_KEY_Z))
             ch = ff_uni2oem(KEYCODE_TO_UNICODE[keycode][1], cfg_get_codepage());
         else
             ch = ff_uni2oem(KEYCODE_TO_UNICODE[keycode][0], cfg_get_codepage());
@@ -168,8 +174,8 @@ static void kbd_queue_key(uint8_t modifier, uint8_t keycode, bool initial_press)
         }
         if (ch)
         {
-            if (&KBD_KEY_QUEUE(kbd_key_queue_head + 1) != &KBD_KEY_QUEUE(kbd_key_queue_tail) && //
-                &KBD_KEY_QUEUE(kbd_key_queue_head + 2) != &KBD_KEY_QUEUE(kbd_key_queue_tail))
+            if (&KBD_KEY_QUEUE(kbd_key_queue_head + 1) != &KBD_KEY_QUEUE(kbd_key_queue_tail)
+                && &KBD_KEY_QUEUE(kbd_key_queue_head + 2) != &KBD_KEY_QUEUE(kbd_key_queue_tail))
             {
                 KBD_KEY_QUEUE(++kbd_key_queue_head) = '\33';
                 KBD_KEY_QUEUE(++kbd_key_queue_head) = ch;
@@ -286,7 +292,7 @@ static int kbd_stdio_in_chars(char *buf, int length)
     return i ? i : PICO_ERROR_NO_DATA;
 }
 
-static void kbd_prev_report_to_xram()
+static void kbd_prev_report_to_xram(void)
 {
     // Update xram if configured
     if (kbd_xram != 0xFFFF)
@@ -320,8 +326,8 @@ static void kbd_prev_report_to_xram()
         // CAPSLOCK
         if (kdb_hid_leds & KEYBOARD_LED_CAPSLOCK)
             kbd_xram_keys[0] |= 8;
-        // // Send it to xram
-        // FIXME: memcpy(&xram[kbd_xram], kbd_xram_keys, sizeof(kbd_xram_keys));
+        // Send it to xram
+        memcpy(&psram[kbd_xram], kbd_xram_keys, sizeof(kbd_xram_keys));
     }
 }
 
@@ -330,8 +336,8 @@ void kbd_report(uint8_t dev_addr, uint8_t instance, hid_keyboard_report_t const 
     static uint8_t prev_dev_addr = 0;
     static uint8_t prev_instance = 0;
     // Only support key presses on one keyboard at a time.
-    if (kbd_prev_report.keycode[0] >= HID_KEY_A && //
-        ((prev_dev_addr != dev_addr) || (prev_instance != instance)))
+    if (kbd_prev_report.keycode[0] >= HID_KEY_A
+        && ((prev_dev_addr != dev_addr) || (prev_instance != instance)))
         return;
 
     // Extract presses for queue
@@ -346,8 +352,8 @@ void kbd_report(uint8_t dev_addr, uint8_t instance, hid_keyboard_report_t const 
     for (uint8_t i = 0; i < 6; i++)
     {
         uint8_t keycode = report->keycode[i];
-        if (keycode >= HID_KEY_A && //
-            !(keycode >= HID_KEY_CONTROL_LEFT && keycode <= HID_KEY_GUI_RIGHT))
+        if (keycode >= HID_KEY_A
+            && !(keycode >= HID_KEY_CONTROL_LEFT && keycode <= HID_KEY_GUI_RIGHT))
         {
             bool held = false;
             for (uint8_t j = 0; j < 6; j++)

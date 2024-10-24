@@ -22,14 +22,6 @@ static size_t cpu_rx_head;
 static uint8_t cpu_rx_buf[32];
 #define CPU_RX_BUF(pos) cpu_rx_buf[(pos) & 0x1F]
 
-static bool cpu_readline_active;
-static const char *cpu_readline_buf;
-static bool cpu_readline_needs_nl;
-static size_t cpu_readline_pos;
-static size_t cpu_readline_length;
-static size_t cpu_str_length = 254;
-static uint32_t cpu_ctrl_bits;
-
 void cpu_init(void)
 {
     // drive reset pin
@@ -103,12 +95,6 @@ void cpu_run(void)
 void cpu_stop(void)
 {
     clear_com_rx_fifo();
-    cpu_readline_active = false;
-    cpu_readline_needs_nl = false;
-    cpu_readline_pos = 0;
-    cpu_readline_length = 0;
-    cpu_str_length = 254;
-    cpu_ctrl_bits = 0;
 
     cpu_run_requested = false;
     if (gpio_get(CPU_RESB_PIN))
@@ -166,42 +152,4 @@ uint8_t cpu_getchar(void)
     if (ch < 0)
         ch = getchar_timeout_us(0);
     return cpu_caps((uint8_t)ch);
-}
-
-static void cpu_enter(bool timeout, const char *buf, size_t length)
-{
-    (void)timeout;
-    assert(!timeout);
-    cpu_readline_active = false;
-    cpu_readline_buf = buf;
-    cpu_readline_pos = 0;
-    cpu_readline_length = length;
-    cpu_readline_needs_nl = true;
-}
-
-void cpu_stdin_request(void)
-{
-    if (!cpu_readline_needs_nl)
-    {
-        cpu_readline_active = true;
-        com_read_line(0, cpu_enter, cpu_str_length + 1, cpu_ctrl_bits);
-    }
-}
-
-bool cpu_stdin_ready(void)
-{
-    return !cpu_readline_active;
-}
-
-size_t cpu_stdin_read(uint8_t *buf, size_t count)
-{
-    size_t i;
-    for (i = 0; i < count && cpu_readline_pos < cpu_readline_length; i++)
-        buf[i] = cpu_readline_buf[cpu_readline_pos++];
-    if (i < count && cpu_readline_needs_nl)
-    {
-        buf[i++] = '\n';
-        cpu_readline_needs_nl = false;
-    }
-    return i;
 }

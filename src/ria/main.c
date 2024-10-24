@@ -6,10 +6,10 @@
 
 #include "main.h"
 #include "api/clk.h"
+#include "api/oem.h"
 #include "cgia/cgia.h"
 #include "mon/fil.h"
 #include "mon/mon.h"
-#include "mon/ram.h"
 #include "mon/rom.h"
 #include "sys/aud.h"
 #include "sys/bus.h"
@@ -25,9 +25,9 @@
 #include "sys/sys.h"
 #include "term/font.h"
 #include "term/term.h"
-#include "tusb.h"
 #include "usb/kbd.h"
 #include "usb/mou.h"
+#include "usb/pad.h"
 
 /**************************************/
 /* All kernel modules register below. */
@@ -41,6 +41,7 @@ static void init(void)
 {
     // STDIO not available until after these inits
 
+    mem_init();
     cpu_init();
     bus_init();
     font_init(); // before out_init (copies data from flash before overclocking)
@@ -49,8 +50,6 @@ static void init(void)
     term_init();
     com_init();
     ext_init(); // before aud_init (shared I2C init)
-    aud_init();
-    mdm_init();
 
     // Print startup message
     sys_init();
@@ -60,11 +59,12 @@ static void init(void)
     cfg_init();
 
     // Misc kernel modules, add yours here
-    // oem_init();
-    mem_init();
+    aud_init();
     kbd_init();
     mou_init();
-    // rom_init();
+    pad_init();
+    mdm_init();
+    rom_init();
     led_init();
     clk_init();
 
@@ -82,34 +82,31 @@ static void init(void)
 // Calling FatFs in here may cause undefined behavior.
 void main_task(void)
 {
-    out_task();
-    cgia_task();
-    term_task();
     tuh_task();
     cpu_task();
     bus_task();
-    led_task();
-    ext_task();
+    term_task();
     aud_task();
+    ext_task();
     mdm_task();
     kbd_task();
-    // std_task();
+    pad_task();
+    led_task();
 }
 
 // Tasks that call FatFs should be here instead of main_task().
 static void task(void)
 {
-    // api_task();
     com_task();
     mon_task();
-    // fil_task();
-    // rom_task();
+    fil_task();
+    rom_task();
 }
 
 // Event to start running the CPU.
 static void run(void)
 {
-    // api_run();
+    clk_run();
     bus_run();
     cpu_run(); // Must be last
 }
@@ -120,19 +117,18 @@ static void stop(void)
     cpu_stop(); // Must be first
     bus_stop();
     aud_stop();
-    // pix_stop();
-    // std_stop();
     kbd_stop();
     mou_stop();
+    pad_stop();
 }
 
 // Event for CTRL-ALT-DEL and UART breaks.
 static void reset(void)
 {
     com_reset();
-    // fil_reset();
+    fil_reset();
     mon_reset();
-    // rom_reset();
+    rom_reset();
 }
 
 // Triggered once after init then after every PHI2 clock change.
@@ -144,28 +140,9 @@ void main_reclock(void)
     com_reclock();
     cpu_reclock();
     mem_reclock();
-    // ria_reclock(clkdiv_int, clkdiv_frac);
-    // pix_reclock(clkdiv_int, clkdiv_frac);
     ext_reclock();
     aud_reclock();
     mdm_reclock();
-}
-
-// PIX XREG writes to the RIA device will notify here.
-bool main_pix(uint8_t ch, uint8_t addr, uint16_t word)
-{
-    (void)addr;
-    switch (ch * 256 + addr)
-    {
-    case 0x000:
-        return kbd_xreg(word);
-    case 0x001:
-        return mou_xreg(word);
-    // case 0x100:
-    //     return psg_xreg(word); // FIXME: audio support
-    default:
-        return false;
-    }
 }
 
 // This will repeatedly trigger until API_BUSY is false so
@@ -181,27 +158,27 @@ bool main_api(uint8_t operation)
     // case 0x02:
     //     cpu_api_phi2();
     //     break;
-    // case 0x03:
-    //     oem_api_codepage();
-    //     break;
+    case 0x03:
+        oem_api_codepage();
+        break;
     // case 0x04:
     //     rng_api_lrand();
     //     break;
     // case 0x05:
     //     cpu_api_stdin_opt();
     //     break;
-    // case 0x0F:
-    //     clk_api_clock();
-    //     break;
-    // case 0x10:
-    //     clk_api_get_res();
-    //     break;
-    // case 0x11:
-    //     clk_api_get_time();
-    //     break;
-    // case 0x12:
-    //     clk_api_set_time();
-    //     break;
+    case 0x0F:
+        clk_api_clock();
+        break;
+    case 0x10:
+        clk_api_get_res();
+        break;
+    case 0x11:
+        clk_api_get_time();
+        break;
+    case 0x12:
+        clk_api_set_time();
+        break;
     // case 0x14:
     //     std_api_open();
     //     break;
@@ -288,13 +265,13 @@ int main(void)
         }
         if (main_state == starting)
         {
-            printf("starting\n");
+            // printf("starting\n");
             run();
             main_state = running;
         }
         if (main_state == stopping)
         {
-            printf("stopping\n");
+            // printf("stopping\n");
             stop();
             main_state = stopped;
         }

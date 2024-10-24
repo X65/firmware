@@ -26,8 +26,8 @@ static void set_resb(const char *args, size_t len)
     uint32_t val;
     if (len)
     {
-        if (parse_uint32(&args, &len, &val) && //
-            parse_end(args, len))
+        if (parse_uint32(&args, &len, &val)
+            && parse_end(args, len))
         {
             if (val > 255)
             {
@@ -62,8 +62,8 @@ static void set_boot(const char *args, size_t len)
         {
             cfg_set_boot("");
         }
-        else if (parse_rom_name(&args, &len, lfs_name) && //
-                 parse_end(args, len))
+        else if (parse_rom_name(&args, &len, lfs_name)
+                 && parse_end(args, len))
         {
             struct lfs_info info;
             if (lfs_stat(&lfs_volume, lfs_name, &info) < 0)
@@ -93,8 +93,8 @@ static void set_caps(const char *args, size_t len)
     uint32_t val;
     if (len)
     {
-        if (parse_uint32(&args, &len, &val) && //
-            parse_end(args, len))
+        if (parse_uint32(&args, &len, &val)
+            && parse_end(args, len))
         {
             cfg_set_caps(val);
         }
@@ -107,7 +107,7 @@ static void set_caps(const char *args, size_t len)
     set_print_caps();
 }
 
-static void set_print_code_page()
+static void set_print_code_page(void)
 {
 #if (RP6502_CODE_PAGE)
     printf("CP  : %d (dev)\n", RP6502_CODE_PAGE);
@@ -121,9 +121,7 @@ static void set_code_page(const char *args, size_t len)
     uint32_t val;
     if (len)
     {
-        if (!parse_uint32(&args, &len, &val) || //
-            !parse_end(args, len) ||            //
-            !cfg_set_codepage(val))
+        if (!parse_uint32(&args, &len, &val) || !parse_end(args, len) || !cfg_set_codepage(val))
         {
             printf("?invalid argument\n");
             return;
@@ -170,8 +168,8 @@ void set_mon_set(const char *args, size_t len)
     size_t args_start = i;
     for (i = 0; i < SETTERS_COUNT; i++)
     {
-        if (attr_len == SETTERS[i].attr_len && //
-            !strnicmp(args, SETTERS[i].attr, attr_len))
+        if (attr_len == SETTERS[i].attr_len
+            && !strnicmp(args, SETTERS[i].attr, attr_len))
         {
             SETTERS[i].func(&args[args_start], len - args_start);
             return;

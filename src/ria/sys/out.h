@@ -11,6 +11,5 @@
 #define FRAME_HEIGHT 240
 
 void out_init(void);
-void out_task(void);
 
 #endif /* _OUT_H_ */

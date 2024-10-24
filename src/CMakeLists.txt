@@ -58,7 +58,9 @@ pico_generate_pio_header(rp816
 target_sources(rp816 PRIVATE
     ria/main.c
     ria/str.c
+    ria/api/api.c
     ria/api/clk.c
+    ria/api/oem.c
     ria/mon/at.c
     ria/mon/fil.c
     ria/mon/hlp.c
@@ -88,6 +90,7 @@ target_sources(rp816 PRIVATE
     ria/usb/kbd.c
     ria/usb/mou.c
     ria/usb/msc.c
+    ria/usb/pad.c
     ria/usb/usb.c
     fatfs/ff.c
     fatfs/ffunicode.c

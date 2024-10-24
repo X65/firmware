@@ -9,7 +9,7 @@
 
 #include <stdint.h>
 
-void usb_print_status();
+void usb_print_status(void);
 void usb_set_status(uint8_t dev_addr, const char *format, ...);
 
 #endif /* _DEV_H_ */

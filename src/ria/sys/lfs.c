@@ -53,10 +53,10 @@ static int lfs_read(const struct lfs_config *c, lfs_block_t block,
 {
     (void)(c);
     memcpy(buffer,
-           (void *)XIP_NOCACHE_NOALLOC_BASE +            //
-               (PICO_FLASH_SIZE_BYTES - LFS_DISK_SIZE) + //
-               (block * FLASH_SECTOR_SIZE) +             //
-               off,
+           (void *)XIP_NOCACHE_NOALLOC_BASE
+               + (PICO_FLASH_SIZE_BYTES - LFS_DISK_SIZE)
+               + (block * FLASH_SECTOR_SIZE)
+               + off,
            size);
     return LFS_ERR_OK;
 }
@@ -65,9 +65,9 @@ static int lfs_prog(const struct lfs_config *c, lfs_block_t block,
                     lfs_off_t off, const void *buffer, lfs_size_t size)
 {
     (void)(c);
-    uint32_t flash_offs = (PICO_FLASH_SIZE_BYTES - LFS_DISK_SIZE) + //
-                          (block * FLASH_SECTOR_SIZE) +             //
-                          off;
+    uint32_t flash_offs = (PICO_FLASH_SIZE_BYTES - LFS_DISK_SIZE)
+                          + (block * FLASH_SECTOR_SIZE)
+                          + off;
     flash_range_program(flash_offs, buffer, size);
     return LFS_ERR_OK;
 }
@@ -75,8 +75,8 @@ static int lfs_prog(const struct lfs_config *c, lfs_block_t block,
 static int lfs_erase(const struct lfs_config *c, lfs_block_t block)
 {
     (void)(c);
-    uint32_t flash_offs = (PICO_FLASH_SIZE_BYTES - LFS_DISK_SIZE) + //
-                          (block * FLASH_SECTOR_SIZE);
+    uint32_t flash_offs = (PICO_FLASH_SIZE_BYTES - LFS_DISK_SIZE)
+                          + (block * FLASH_SECTOR_SIZE);
     flash_range_erase(flash_offs, FLASH_SECTOR_SIZE);
     return LFS_ERR_OK;
 }

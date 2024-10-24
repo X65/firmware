@@ -16,9 +16,7 @@
 static enum {
     ROM_IDLE,
     ROM_LOADING,
-    ROM_XRAM_WRITING,
-    ROM_RIA_WRITING,
-    ROM_RIA_VERIFYING,
+    ROM_WRITING,
 } rom_state;
 static uint32_t rom_addr;
 static uint32_t rom_len;
@@ -144,19 +142,18 @@ static bool rom_next_chunk(void)
         }
     uint32_t rom_crc;
     const char *args = (char *)mbuf;
-    if (parse_uint32(&args, &len, &rom_addr) && //
-        parse_uint32(&args, &len, &rom_len) &&  //
-        parse_uint32(&args, &len, &rom_crc) &&  //
-        parse_end(args, len))
+    if (parse_uint32(&args, &len, &rom_addr)
+        && parse_uint32(&args, &len, &rom_len)
+        && parse_uint32(&args, &len, &rom_crc)
+        && parse_end(args, len))
     {
         if (rom_addr > 0x1FFFF)
         {
             printf("?invalid address\n");
             return false;
         }
-        if (!rom_len || rom_len > MBUF_SIZE ||                      //
-            (rom_addr < 0x10000 && rom_addr + rom_len > 0x10000) || //
-            (rom_addr + rom_len > 0x20000))
+        if (!rom_len || rom_len > MBUF_SIZE
+            || (rom_addr + rom_len > 0x1000000))
         {
             printf("?invalid length\n");
             return false;
@@ -189,13 +186,7 @@ static void rom_loading(void)
     }
     if (mbuf_len)
     {
-        if (rom_addr > 0xFFFF)
-            rom_state = ROM_XRAM_WRITING;
-        else
-        {
-            rom_state = ROM_RIA_WRITING;
-            // FIXME: ria_write_buf(rom_addr);
-        }
+        rom_state = ROM_WRITING;
     }
 }
 
@@ -224,9 +215,9 @@ void rom_mon_install(const char *args, size_t len)
         lfs_name_len = 0;
     }
     // Test for system conflicts
-    if (!lfs_name_len ||                              //
-        mon_command_exists(lfs_name, lfs_name_len) || //
-        help_text_lookup(lfs_name, lfs_name_len))
+    if (!lfs_name_len
+        || mon_command_exists(lfs_name, lfs_name_len)
+        || help_text_lookup(lfs_name, lfs_name_len))
     {
         printf("?Invalid ROM name.\n");
         return;
@@ -249,10 +240,9 @@ void rom_mon_install(const char *args, size_t len)
         printf("?Unable to rewind file (%d)\n", fresult);
         return;
     }
-    int lfsresult
-        = lfs_file_opencfg(&lfs_volume, &lfs_file, lfs_name,
-                           LFS_O_WRONLY | LFS_O_CREAT | LFS_O_EXCL,
-                           &lfs_file_config);
+    int lfsresult = lfs_file_opencfg(&lfs_volume, &lfs_file, lfs_name,
+                                     LFS_O_WRONLY | LFS_O_CREAT | LFS_O_EXCL,
+                                     &lfs_file_config);
     if (lfsresult < 0)
     {
         if (lfsresult == LFS_ERR_EXIST)
@@ -297,8 +287,8 @@ void rom_mon_install(const char *args, size_t len)
 void rom_mon_remove(const char *args, size_t len)
 {
     char lfs_name[LFS_NAME_MAX + 1];
-    if (parse_rom_name(&args, &len, lfs_name) && //
-        parse_end(args, len))
+    if (parse_rom_name(&args, &len, lfs_name)
+        && parse_end(args, len))
     {
         const char *boot = cfg_get_boot();
         if (!strcmp(lfs_name, boot))
@@ -327,8 +317,8 @@ void rom_mon_load(const char *args, size_t len)
 bool rom_load(const char *args, size_t len)
 {
     char lfs_name[LFS_NAME_MAX + 1];
-    if (parse_rom_name(&args, &len, lfs_name) && //
-        parse_end(args, len))
+    if (parse_rom_name(&args, &len, lfs_name)
+        && parse_end(args, len))
     {
         struct lfs_info info;
         if (lfs_stat(&lfs_volume, lfs_name, &info) < 0)
@@ -360,8 +350,8 @@ void rom_mon_info(const char *args, size_t len)
 bool rom_help(const char *args, size_t len)
 {
     char lfs_name[LFS_NAME_MAX + 1];
-    if (parse_rom_name(&args, &len, lfs_name) && //
-        parse_end(args, len))
+    if (parse_rom_name(&args, &len, lfs_name)
+        && parse_end(args, len))
     {
         struct lfs_info info;
         if (lfs_stat(&lfs_volume, lfs_name, &info) < 0)
@@ -380,16 +370,14 @@ bool rom_help(const char *args, size_t len)
     return false;
 }
 
-static bool rom_action_is_finished(void)
+static bool rom_psram_writing(void)
 {
-    if (main_active())
-        return false;
-    // FIXME: if (ria_print_error_message())
-    // {
-    //     rom_state = ROM_IDLE;
-    //     return false;
-    // }
-    return true;
+    while (rom_len)
+    {
+        uint32_t addr = rom_addr + --rom_len;
+        psram[addr] = mbuf[rom_len];
+    }
+    return !!rom_len;
 }
 
 void rom_init(void)
@@ -409,19 +397,8 @@ void rom_task(void)
     case ROM_LOADING:
         rom_loading();
         break;
-    case ROM_XRAM_WRITING:
-        // FIXME: if (!rom_xram_writing())
-        //     rom_state = ROM_LOADING;
-        break;
-    case ROM_RIA_WRITING:
-        // FIXME: if (rom_action_is_finished())
-        // {
-        //     rom_state = ROM_RIA_VERIFYING;
-        //     ria_verify_buf(rom_addr);
-        // }
-        break;
-    case ROM_RIA_VERIFYING:
-        if (rom_action_is_finished())
+    case ROM_WRITING:
+        if (!rom_psram_writing())
             rom_state = ROM_LOADING;
         break;
     }
