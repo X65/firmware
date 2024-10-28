@@ -30,6 +30,8 @@ void com_flush(void);
 typedef void (*com_read_callback_t)(bool timeout, const char *buf, size_t length);
 
 // Prepare to receive binary data of a known size.
+// This is one-shot. Data received after the provided known size will be
+// processed by com_read_line().
 void com_read_binary(uint32_t timeout_ms, com_read_callback_t callback, uint8_t *buf, size_t size);
 
 // Prepare the line editor. The com module can read entire lines

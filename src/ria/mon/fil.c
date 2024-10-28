@@ -250,7 +250,7 @@ void fil_task(void)
 
 bool fil_active(void)
 {
-    return fil_state == FIL_COMMAND;
+    return fil_state != FIL_IDLE;
 }
 
 void fil_reset(void)

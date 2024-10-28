@@ -85,7 +85,10 @@ void led_task(void)
             gpio_put(RIA_LED_PIN, on);
 #endif
             // RGB LED
-            put_pixel(urgb_u32(on ? 0x05 : 0x00, on ? 0x1c : 0x00, on ? 0x26 : 0x00));
+            if (on)
+                put_pixel(urgb_u32(0x05, 0x1c, 0x26));
+            else
+                put_pixel(urgb_u32(0x00, 0x00, 0x00));
 
             was_on = on;
         }
