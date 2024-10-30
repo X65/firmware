@@ -5,6 +5,7 @@
  */
 
 #include "sys/lfs.h"
+#include "hardware/sync.h"
 #include "pico/printf.h"
 
 // 1MB for ROM storage, 512K for Pico W
@@ -68,7 +69,9 @@ static int lfs_prog(const struct lfs_config *c, lfs_block_t block,
     uint32_t flash_offs = (PICO_FLASH_SIZE_BYTES - LFS_DISK_SIZE)
                           + (block * FLASH_SECTOR_SIZE)
                           + off;
+    uint32_t interrupt_status = save_and_disable_interrupts();
     flash_range_program(flash_offs, buffer, size);
+    restore_interrupts(interrupt_status);
     return LFS_ERR_OK;
 }
 
@@ -77,7 +80,9 @@ static int lfs_erase(const struct lfs_config *c, lfs_block_t block)
     (void)(c);
     uint32_t flash_offs = (PICO_FLASH_SIZE_BYTES - LFS_DISK_SIZE)
                           + (block * FLASH_SECTOR_SIZE);
+    uint32_t interrupt_status = save_and_disable_interrupts();
     flash_range_erase(flash_offs, FLASH_SECTOR_SIZE);
+    restore_interrupts(interrupt_status);
     return LFS_ERR_OK;
 }
 
