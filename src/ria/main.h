@@ -127,7 +127,7 @@ bool main_api(uint8_t operation);
 #define IOE_I2C_ADDRESS 0x20 // Address of I/O Extender on I2C bus
 #define MIX_I2C_ADDRESS 0x40 // Address of Mixer on I2C bus
 
-#define SPARKFUN_PRO_MICRO
+// #define RASPBERRY_PICO_2
 
 #if defined(RASPBERRY_PICO_2)
 #undef CPU_RESB_PIN
@@ -151,6 +151,8 @@ bool main_api(uint8_t operation);
 #define COM_UART_TX_PIN 0
 #undef COM_UART_RX_PIN
 #define COM_UART_RX_PIN 1
+#undef ESP_AT_HS_PIN
+#define ESP_AT_HS_PIN 11
 #elif defined(SPARKFUN_PRO_MICRO)
 #undef CPU_RESB_PIN
 #define CPU_RESB_PIN 22
