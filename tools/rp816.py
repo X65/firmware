@@ -83,7 +83,7 @@ class Monitor:
     def upload(self, file, name):
         """Upload readable file to remote file "name" """
         self.serial.write(bytes(f"UPLOAD {name}\r", "ascii"))
-        self.wait_for_prompt("}", 10)
+        self.wait_for_prompt("}")
         file.seek(0)
         while True:
             chunk = file.read(1024)
@@ -94,9 +94,9 @@ class Monitor:
             time.sleep(50 / 1000) # give some time to Pico to process command
             print(".", end='', flush=True)
             self.serial.write(chunk)
-            self.wait_for_prompt("}", 10)
+            self.wait_for_prompt("}")
         self.serial.write(b"END\r")
-        self.wait_for_prompt("]", 20)
+        self.wait_for_prompt("]")
         print("_")
 
     def send_rom(self, rom):

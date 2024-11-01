@@ -20,10 +20,17 @@
 
 static volatile bool irq_enabled = false;
 
-#define MEM_CPU_ADDRESS_BUS_HISTORY_LENGTH 20
+#define MEM_CPU_ADDRESS_BUS_HISTORY_LENGTH 50
+// #define MEM_CPU_ADDRESS_BUS_DUMP
+#define ABORT_ON_IRQ_BRK_READ              2
+#ifdef MEM_CPU_ADDRESS_BUS_HISTORY_LENGTH
 static uint32_t mem_cpu_address_bus_history[MEM_CPU_ADDRESS_BUS_HISTORY_LENGTH];
 static uint8_t mem_cpu_address_bus_history_index = 0;
-static bool cpu_dump_enabled = false;
+#ifdef ABORT_ON_IRQ_BRK_READ
+static uint8_t irq_brk_read = 0;
+#endif
+void dump_cpu_history(void);
+#endif
 
 #define CPU_VAB_MASK    (1 << 24)
 #define CPU_RWB_MASK    (1 << 25)
@@ -47,10 +54,12 @@ mem_bus_pio_irq_handler(void)
 
             if (!(bus_address & CPU_VAB_MASK)) // act only when CPU provides valid address on bus
             {
-                if (cpu_dump_enabled && main_active() && mem_cpu_address_bus_history_index < MEM_CPU_ADDRESS_BUS_HISTORY_LENGTH)
+#ifdef MEM_CPU_ADDRESS_BUS_HISTORY_LENGTH
+                if (main_active() && mem_cpu_address_bus_history_index < MEM_CPU_ADDRESS_BUS_HISTORY_LENGTH)
                 {
                     mem_cpu_address_bus_history[mem_cpu_address_bus_history_index++] = bus_address;
                 }
+#endif
 
                 if (bus_address & CPU_RWB_MASK)
                 {
@@ -164,6 +173,18 @@ mem_bus_pio_irq_handler(void)
                     case CASE_READ(0xFFFE): // IRQB/BRK_L
                     case CASE_READ(0xFFFF): // IRQB/BRK_H
                         MEM_BUS_PIO->txf[MEM_BUS_SM] = psram[bus_address & 0xFFFFFF];
+#ifdef ABORT_ON_IRQ_BRK_READ
+                        if ((bus_address & 0xFFFFFF) == 0xFFFF)
+                        {
+                            if (++irq_brk_read >= ABORT_ON_IRQ_BRK_READ)
+                            {
+                                printf("\nIRQ/BRK vector read (%d) - aborting...\n", irq_brk_read);
+                                gpio_put(CPU_RESB_PIN, false);
+                                main_stop();
+                                dump_cpu_history();
+                            }
+                        }
+#endif
                         break;
                     case CASE_WRIT(0xFFE4): // COP_L
                     case CASE_WRIT(0xFFE5): // COP_H
@@ -303,25 +324,34 @@ void bus_stop(void)
 {
     irq_enabled = false;
     gpio_put(CPU_IRQB_PIN, true);
-    cpu_dump_enabled = false;
+#ifdef MEM_CPU_ADDRESS_BUS_HISTORY_LENGTH
     mem_cpu_address_bus_history_index = 0;
+#ifdef ABORT_ON_IRQ_BRK_READ
+    irq_brk_read = 0;
+#endif
+#endif
 }
 
+#ifdef MEM_CPU_ADDRESS_BUS_HISTORY_LENGTH
 void dump_cpu_history(void)
 {
-    if (mem_cpu_address_bus_history_index == MEM_CPU_ADDRESS_BUS_HISTORY_LENGTH)
+    for (size_t i = 0; mem_cpu_address_bus_history_index; i++, mem_cpu_address_bus_history_index--)
     {
-        mem_cpu_address_bus_history_index++;
-        for (int i = 0; i < MEM_CPU_ADDRESS_BUS_HISTORY_LENGTH; i++)
-        {
-            printf("CPU: 0x%06lX %s\n",
-                   mem_cpu_address_bus_history[i] & 0xFFFFFF,
-                   mem_cpu_address_bus_history[i] & CPU_RWB_MASK ? "R" : "w");
-        }
+        printf("CPU: 0x%06lX %s\n",
+               mem_cpu_address_bus_history[i] & 0xFFFFFF,
+               mem_cpu_address_bus_history[i] & CPU_RWB_MASK ? "R" : "w");
     }
 }
+#endif
 
 void bus_task(void)
 {
-    dump_cpu_history();
+#ifdef MEM_CPU_ADDRESS_BUS_HISTORY_LENGTH
+    if (mem_cpu_address_bus_history_index >= MEM_CPU_ADDRESS_BUS_HISTORY_LENGTH)
+#ifdef MEM_CPU_ADDRESS_BUS_DUMP
+        dump_cpu_history();
+#else
+        mem_cpu_address_bus_history_index = 0;
+#endif
+#endif
 }
