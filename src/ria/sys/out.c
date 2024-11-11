@@ -310,7 +310,12 @@ void __not_in_flash_func(out_core1_main)(void)
                 generated_fbline = fbline;
                 linebuffer_idx = (linebuffer_idx + 1) % RGB_LINE_BUFFERS;
                 linebuffer_ptr = (uintptr_t)&linebuffer[linebuffer_idx * MODE_H_ACTIVE_PIXELS];
-                // TODO: fill linebuffer_ptr with data
+                // TODO: call CGIA generator
+                uint32_t *fill = (uint32_t *)linebuffer_ptr;
+                for (unsigned i = 0; i < MODE_H_ACTIVE_PIXELS / FB_H_REPEAT; ++i)
+                {
+                    *fill++ = (i & 0xff) | (fbline & 0xff) << 8 | (((i + fbline) / 2) & 0xff) << 16;
+                }
             }
         }
 
@@ -334,14 +339,6 @@ void out_init(void)
     sleep_ms(10);
     set_sys_clock_khz(MAIN_SYS_CLOCK_KHZ, true);
     main_reclock();
-
-    // TODO: remove this initialization
-    for (unsigned i = 0; i < MODE_H_ACTIVE_PIXELS; ++i)
-    {
-        const unsigned val = i * FB_H_REPEAT;
-        linebuffer[i] = val % 256 + ((val / 256) << 14);
-        linebuffer[i + MODE_H_ACTIVE_PIXELS] = (255 - (val % 256)) << 16;
-    }
 
     multicore_launch_core1(out_core1_main);
 }
