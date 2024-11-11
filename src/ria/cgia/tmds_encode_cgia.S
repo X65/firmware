@@ -13,7 +13,7 @@
 #define INTERP1         (SIO_INTERP1_ACCUM0_OFFSET     - SIO_INTERP0_ACCUM0_OFFSET)
 
 .syntax unified
-.cpu cortex-m0plus
+.cpu cortex-m33
 .thumb
 
 .data
