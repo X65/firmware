@@ -286,11 +286,6 @@ void bus_init(void)
     // safety check for compiler alignment
     assert(!((uintptr_t)regs & 0x1F));
 
-    // vreg_set_voltage(VREG_VOLTAGE_1_20);
-    // sleep_ms(10);
-    // set_sys_clock_khz(266000, true);
-    // main_reclock();
-
     // Lower CPU0 on crossbar by raising others
     bus_ctrl_hw->priority |=              //
         BUSCTRL_BUS_PRIORITY_DMA_R_BITS | //

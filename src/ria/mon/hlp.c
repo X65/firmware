@@ -47,8 +47,7 @@ static const char __in_flash("helptext") hlp_text_about[]
       "           TinyUSB - Copyright (c) 2018 hathach (tinyusb.org)\n"
       "             FatFs - Copyright (c) 20xx ChaN\n"
       "          littlefs - Copyright (c) 2022 The littlefs authors\n"
-      "                     Copyright (c) 2017 Arm Limited\n"
-      "           PicoDVI - Copyright (c) 2021 Luke Wren";
+      "                     Copyright (c) 2017 Arm Limited";
 
 static const char __in_flash("helptext") hlp_text_system[]
     = "The Picocomputer does not use a traditional parallel ROM like a 27C64 or\n"
@@ -56,7 +55,7 @@ static const char __in_flash("helptext") hlp_text_system[]
       "that would normally be on a ROM chip. The CPU is in-reset right now;\n"
       "the RESB line is low. What you are seeing is coming from the Pi Pico RIA.\n"
       "You can return to this monitor at any time by pressing CTRL-ALT-DEL or sending\n"
-      "a break to the console. Since these signals are handled by the Pi Pico RIA,\n"
+      "a break to the serial console. Since these signals are handled by the Pi Pico RIA,\n"
       "they will always stop the CPU. The memory monitor is accessed by typing\n"
       "a hex address as a command:\n"
       "]0200\n"

@@ -140,6 +140,7 @@ void main_reclock(void)
     com_reclock();
     cpu_reclock();
     mem_reclock();
+    out_reclock();
     ext_reclock();
     aud_reclock();
     mdm_reclock();

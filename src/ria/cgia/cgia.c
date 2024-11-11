@@ -11,10 +11,6 @@
 
 #include "sys/out.h"
 
-static const uint32_t __scratch_x("tmds_table") tmds_table[] = {
-#include "tmds_table.h"
-};
-
 #define PALETTE_WORDS 4
 uint32_t __attribute__((aligned(4))) cgia_palette[CGIA_COLORS_NUM * PALETTE_WORDS];
 
@@ -35,11 +31,11 @@ void init_palette(void)
         uint32_t green = (cgia_rgb_palette[i] & 0x00ff00) >> 8;
         uint32_t red = (cgia_rgb_palette[i] & 0xff0000) >> 16;
 
-        // FIXME: these should NOT be cut down to 6 bpp (>> 2) - generate proper symbols!
-        cgia_palette[i * PALETTE_WORDS + 0] = tmds_table[blue >> 2];
-        cgia_palette[i * PALETTE_WORDS + 1] = tmds_table[green >> 2];
-        cgia_palette[i * PALETTE_WORDS + 2] = tmds_table[red >> 2];
-        cgia_palette[i * PALETTE_WORDS + 3] = 0;
+        // // FIXME: these should NOT be cut down to 6 bpp (>> 2) - generate proper symbols!
+        // cgia_palette[i * PALETTE_WORDS + 0] = tmds_table[blue >> 2];
+        // cgia_palette[i * PALETTE_WORDS + 1] = tmds_table[green >> 2];
+        // cgia_palette[i * PALETTE_WORDS + 2] = tmds_table[red >> 2];
+        // cgia_palette[i * PALETTE_WORDS + 3] = 0;
     }
 }
 

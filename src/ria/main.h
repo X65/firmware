@@ -39,6 +39,13 @@ void main_task(void);
 void main_reclock(void);
 bool main_api(uint8_t operation);
 
+/* Overclock
+ */
+
+// DVDD 1.2V (1.1V seems ok too)
+#define MAIN_VREG_VSEL     VREG_VOLTAGE_1_20
+#define MAIN_SYS_CLOCK_KHZ 266000
+
 /* All pin assignments
  */
 

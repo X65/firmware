@@ -1,5 +1,3 @@
-add_subdirectory(picodvi/software/libdvi)
-
 # The Pi Pico RIA
 add_executable(rp816)
 pico_add_extra_outputs(rp816)
@@ -20,12 +18,7 @@ target_compile_definitions(rp816 PRIVATE
     PICO_COPY_TO_RAM=1
     LFS_NO_MALLOC=1
     LFS_NAME_MAX=16
-    DVI_VERTICAL_REPEAT=2
-    DVI_SYMBOLS_PER_WORD=2
     PICO_CORE1_STACK_SIZE=0x200
-	# DVI_N_TMDS_BUFFERS=8
-    # TMDS_FULLRES_NO_DC_BALANCE=1
-    # TMDS_ENCODE_UNROLL=8
 )
 
 target_compile_options(rp816 PRIVATE
@@ -41,10 +34,11 @@ target_link_libraries(rp816 PRIVATE
     hardware_pio
     hardware_spi
     hardware_i2c
+    hardware_pwm
+    hardware_interp
     hardware_flash
     tinyusb_board
     tinyusb_host
-    libdvi
 )
 
 pico_generate_pio_header(rp816
@@ -96,7 +90,6 @@ target_sources(rp816 PRIVATE
     fatfs/ffunicode.c
     littlefs/lfs.c
     littlefs/lfs_util.c
-    picodvi/software/apps/colour_terminal/tmds_encode_font_2bpp.S
     ${CMAKE_CURRENT_BINARY_DIR}/version.c
 )
 

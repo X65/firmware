@@ -18,9 +18,6 @@
 // CSI codes with multiple parameters will need a more complete
 // implementation first.
 
-#include "picodvi/software/apps/colour_terminal/tmds_encode_font_2bpp.h"
-
-#include "picodvi/software/assets/font_8x8.h"
 #define FONT_CHAR_WIDTH  8
 #define FONT_CHAR_HEIGHT 8
 #define FONT_N_CHARS     256
@@ -407,11 +404,11 @@ void term_render(uint y, uint32_t *tmdsbuf)
 
     for (int plane = 0; plane < 3; ++plane)
     {
-        tmds_encode_font_2bpp(
-            (const uint8_t *)&charbuf[line * CHAR_COLS],
-            &colourbuf[line * COLOUR_PLANE_ROW_WORDS + plane * COLOUR_PLANE_SIZE_WORDS],
-            tmdsbuf + plane * (FRAME_WIDTH / DVI_SYMBOLS_PER_WORD),
-            FRAME_WIDTH,
-            (const uint8_t *)&font8[font_line * FONT_N_CHARS] - FONT_FIRST_ASCII);
+        // tmds_encode_font_2bpp(
+        //     (const uint8_t *)&charbuf[line * CHAR_COLS],
+        //     &colourbuf[line * COLOUR_PLANE_ROW_WORDS + plane * COLOUR_PLANE_SIZE_WORDS],
+        //     tmdsbuf + plane * (FRAME_WIDTH / DVI_SYMBOLS_PER_WORD),
+        //     FRAME_WIDTH,
+        //     (const uint8_t *)&font8[font_line * FONT_N_CHARS] - FONT_FIRST_ASCII);
     }
 }
