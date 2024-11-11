@@ -12,5 +12,6 @@
 
 void out_init(void);
 void out_reclock(void);
+void out_print_status(void);
 
 #endif /* _OUT_H_ */

@@ -17,6 +17,8 @@
 #include "main.h"
 #include "out.h"
 
+#include <stdio.h>
+
 /** https://retrocomputing.stackexchange.com/a/13872
 > In standard bitmap mode the C64 outputs 320 pixels in 40µs.
 > The visible portion of a line is ~52µs; in 60Hz regions ~240 lines
@@ -316,4 +318,10 @@ void out_init(void)
     }
 
     multicore_launch_core1(out_core1_main);
+}
+
+void out_print_status(void)
+{
+    printf("CORE: %.1fMHz\n", (float)(clock_get_hz(clk_sys)) / MHZ);
+    printf("DVI: %dx%d@24bpp\n", MODE_H_ACTIVE_PIXELS, MODE_V_ACTIVE_LINES);
 }
