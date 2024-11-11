@@ -6,7 +6,6 @@
 #include "cgia_palette.h"
 #include "tmds_encode_cgia.h"
 
-#include "carrion-One_Zak_And_His_Kracken.h"
 #include "display_lists.h"
 #include "font_8.h"
 
@@ -150,8 +149,8 @@ void cgia_init(void)
 
     // FIXME: these should be initialized by CPU Operating System
     registers.border_color = 145;
-    shared_color[0] = background_color_1;
-    shared_color[1] = background_color_2;
+    shared_color[0] = 100;
+    shared_color[1] = 200;
     registers.row_height = 7;
     registers.display_list = hires_mode_dl;
     registers.memory_scan = screen;
