@@ -15,7 +15,7 @@
 #define CFG_TUH_ENUMERATION_BUFSIZE (256)
 
 #define CFG_TUH_HUB    (1)
-#define CFG_TUH_HID    (4)
+#define CFG_TUH_HID    (8)
 #define CFG_TUH_MSC    (1)
 #define CFG_TUH_VENDOR (0)
 

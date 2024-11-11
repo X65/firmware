@@ -14,19 +14,19 @@
 #include "sys/cpu.h"
 #include "sys/mem.h"
 #include <stdbool.h>
-#include <stdio.h>
 
 #define MEM_BUS_PIO_CLKDIV_INT 10
 
 static volatile bool irq_enabled = false;
 
-#define MEM_CPU_ADDRESS_BUS_HISTORY_LENGTH 50
-// #define MEM_CPU_ADDRESS_BUS_DUMP
-#define ABORT_ON_IRQ_BRK_READ              2
+// #define MEM_CPU_ADDRESS_BUS_HISTORY_LENGTH 50
+// // #define MEM_CPU_ADDRESS_BUS_DUMP
+// #define ABORT_ON_IRQ_BRK_READ              2
 #ifdef MEM_CPU_ADDRESS_BUS_HISTORY_LENGTH
 static uint32_t mem_cpu_address_bus_history[MEM_CPU_ADDRESS_BUS_HISTORY_LENGTH];
 static uint8_t mem_cpu_address_bus_history_index = 0;
 #ifdef ABORT_ON_IRQ_BRK_READ
+#include <stdio.h>
 static uint8_t irq_brk_read = 0;
 #endif
 void dump_cpu_history(void);
