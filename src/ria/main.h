@@ -44,7 +44,7 @@ bool main_api(uint8_t operation);
 
 // DVDD 1.2V (1.1V seems ok too)
 #define MAIN_VREG_VSEL     VREG_VOLTAGE_1_20
-#define MAIN_SYS_CLOCK_KHZ 266000
+#define MAIN_SYS_CLOCK_KHZ 300000
 
 /* All pin assignments
  */

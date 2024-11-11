@@ -17,6 +17,7 @@
 #include "main.h"
 #include "out.h"
 
+#include <limits.h>
 #include <stdio.h>
 
 /** https://retrocomputing.stackexchange.com/a/13872
@@ -61,7 +62,12 @@
 // ----------------------------------------------------------------------------
 // RGB line buffers
 #define RGB_LINE_BUFFERS 2
-uint32_t linebuffer[MODE_H_ACTIVE_PIXELS * RGB_LINE_BUFFERS];
+static uint32_t linebuffer[MODE_H_ACTIVE_PIXELS * RGB_LINE_BUFFERS];
+
+#define FB_H_REPEAT 2
+#define FB_V_REPEAT 2
+static uint8_t linebuffer_idx = 0;
+static io_rw_32 linebuffer_ptr;
 
 // ----------------------------------------------------------------------------
 // DVI constants
@@ -179,9 +185,8 @@ void __scratch_x("") dma_irq_handler(void)
     }
     else
     {
-        const uint scanline = v_scanline - (MODE_V_TOTAL_LINES - MODE_V_ACTIVE_LINES);
-        ch->read_addr = (uintptr_t)&linebuffer[(scanline % RGB_LINE_BUFFERS) * MODE_H_ACTIVE_PIXELS];
-        ch->transfer_count = MODE_H_ACTIVE_PIXELS;
+        ch->read_addr = linebuffer_ptr;
+        ch->transfer_count = MODE_H_ACTIVE_PIXELS / FB_H_REPEAT;
         vactive_cmdlist_posted = false;
     }
 
@@ -203,7 +208,7 @@ void __not_in_flash_func(out_core1_main)(void)
 
     // Pixels (TMDS) come in 3x 8-bit RGB + 1 byte padding.
     // Control symbols (RAW) are an entire 32-bit word.
-    hstx_ctrl_hw->expand_shift = 1 << HSTX_CTRL_EXPAND_SHIFT_ENC_N_SHIFTS_LSB
+    hstx_ctrl_hw->expand_shift = FB_H_REPEAT << HSTX_CTRL_EXPAND_SHIFT_ENC_N_SHIFTS_LSB
                                  | 0 << HSTX_CTRL_EXPAND_SHIFT_ENC_SHIFT_LSB
                                  | 1 << HSTX_CTRL_EXPAND_SHIFT_RAW_N_SHIFTS_LSB
                                  | 0 << HSTX_CTRL_EXPAND_SHIFT_RAW_SHIFT_LSB;
@@ -290,7 +295,27 @@ void __not_in_flash_func(out_core1_main)(void)
     dma_channel_start(DMACH_PING);
 
     while (true)
+    {
+        static uint generated_scanline = UINT_MAX;
+        static int generated_fbline = INT_MAX;
+        if (v_scanline != generated_scanline)
+        {
+            generated_scanline = v_scanline;
+            const int active_scanline = v_scanline - (MODE_V_TOTAL_LINES - MODE_V_ACTIVE_LINES);
+            int fbline = active_scanline / FB_V_REPEAT;
+            if (fbline < 0)
+                fbline = 0;
+            if (fbline != generated_fbline)
+            {
+                generated_fbline = fbline;
+                linebuffer_idx = (linebuffer_idx + 1) % RGB_LINE_BUFFERS;
+                linebuffer_ptr = (uintptr_t)&linebuffer[linebuffer_idx * MODE_H_ACTIVE_PIXELS];
+                // TODO: fill linebuffer_ptr with data
+            }
+        }
+
         __wfi();
+    }
     __builtin_unreachable();
 }
 
@@ -313,8 +338,9 @@ void out_init(void)
     // TODO: remove this initialization
     for (unsigned i = 0; i < MODE_H_ACTIVE_PIXELS; ++i)
     {
-        linebuffer[i] = i % 256 + ((i / 256) << 14);
-        linebuffer[i + MODE_H_ACTIVE_PIXELS] = (255 - (i % 256)) << 16;
+        const unsigned val = i * FB_H_REPEAT;
+        linebuffer[i] = val % 256 + ((val / 256) << 14);
+        linebuffer[i + MODE_H_ACTIVE_PIXELS] = (255 - (val % 256)) << 16;
     }
 
     multicore_launch_core1(out_core1_main);
