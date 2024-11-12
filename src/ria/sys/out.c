@@ -59,15 +59,19 @@
 #define MODE_V_ACTIVE_LINES  480
 #define MODE_BIT_CLK_KHZ     266000
 
+#define FB_H_REPEAT 2
+#define FB_V_REPEAT 2
+
 // ----------------------------------------------------------------------------
 // RGB line buffers
 #define RGB_LINE_BUFFERS 2
 static uint32_t linebuffer[MODE_H_ACTIVE_PIXELS * RGB_LINE_BUFFERS];
 
-#define FB_H_REPEAT 2
-#define FB_V_REPEAT 2
-static uint8_t linebuffer_idx = 0;
-static io_rw_32 linebuffer_ptr;
+static uint a_scanline = 0;
+static uint cur_scanline = UINT_MAX;
+static io_rw_32 cur_line_ptr;
+static uint gen_scanline = UINT_MAX;
+static io_rw_32 gen_line_ptr;
 
 // ----------------------------------------------------------------------------
 // DVI constants
@@ -171,11 +175,15 @@ void __scratch_x("") dma_irq_handler(void)
     {
         ch->read_addr = (uintptr_t)vblank_line_vsync_on;
         ch->transfer_count = count_of(vblank_line_vsync_on);
+
+        a_scanline = 0;
     }
     else if (v_scanline < MODE_V_FRONT_PORCH + MODE_V_SYNC_WIDTH + MODE_V_BACK_PORCH)
     {
         ch->read_addr = (uintptr_t)vblank_line_vsync_off;
         ch->transfer_count = count_of(vblank_line_vsync_off);
+
+        a_scanline = 0;
     }
     else if (!vactive_cmdlist_posted)
     {
@@ -185,9 +193,18 @@ void __scratch_x("") dma_irq_handler(void)
     }
     else
     {
-        ch->read_addr = linebuffer_ptr;
+        if (a_scanline >= gen_scanline && cur_scanline != gen_scanline)
+        {
+            cur_scanline = gen_scanline;
+            io_rw_32 ptr = cur_line_ptr;
+            cur_line_ptr = gen_line_ptr;
+            gen_line_ptr = ptr;
+        }
+        ch->read_addr = cur_line_ptr;
         ch->transfer_count = MODE_H_ACTIVE_PIXELS / FB_H_REPEAT;
         vactive_cmdlist_posted = false;
+
+        ++a_scanline;
     }
 
     if (!vactive_cmdlist_posted)
@@ -294,28 +311,30 @@ void __not_in_flash_func(out_core1_main)(void)
 
     dma_channel_start(DMACH_PING);
 
+    gen_line_ptr = (uintptr_t)(linebuffer);
+    cur_line_ptr = (uintptr_t)(linebuffer + MODE_H_ACTIVE_PIXELS);
+
     while (true)
     {
-        static uint generated_scanline = UINT_MAX;
-        static int generated_fbline = INT_MAX;
-        if (v_scanline != generated_scanline)
+        static uint active_scanline = UINT_MAX;
+        if (a_scanline != active_scanline)
         {
-            generated_scanline = v_scanline;
-            const int active_scanline = v_scanline - (MODE_V_TOTAL_LINES - MODE_V_ACTIVE_LINES);
-            int fbline = active_scanline / FB_V_REPEAT;
-            if (fbline < 0)
-                fbline = 0;
-            if (fbline != generated_fbline)
+            active_scanline = a_scanline;
+
+            uint active_raster = active_scanline / FB_V_REPEAT;
+            uint generated_raster = gen_scanline / FB_V_REPEAT;
+            if (generated_raster != active_raster)
             {
-                generated_fbline = fbline;
-                linebuffer_idx = (linebuffer_idx + 1) % RGB_LINE_BUFFERS;
-                linebuffer_ptr = (uintptr_t)&linebuffer[linebuffer_idx * MODE_H_ACTIVE_PIXELS];
-                // TODO: call CGIA generator
-                uint32_t *fill = (uint32_t *)linebuffer_ptr;
-                for (unsigned i = 0; i < MODE_H_ACTIVE_PIXELS / FB_H_REPEAT; ++i)
+                // TODO: call CGIA generator for active_raster
                 {
-                    *fill++ = (i & 0xff) | (fbline & 0xff) << 8 | (((i + fbline) / 2) & 0xff) << 16;
+                    uint32_t *fill = (uint32_t *)gen_line_ptr;
+                    for (unsigned i = 0; i < MODE_H_ACTIVE_PIXELS / FB_H_REPEAT; ++i)
+                    {
+                        *fill++ = (i & 0xff) | (active_raster & 0xff) << 8 | (((i + active_raster) / 2) & 0xff) << 16;
+                        *((uint32_t *)gen_line_ptr + active_raster) = 0xffffff;
+                    }
                 }
+                gen_scanline = active_raster * FB_V_REPEAT;
             }
         }
 
