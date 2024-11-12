@@ -101,6 +101,11 @@ bool main_api(uint8_t operation);
 /* All resource assignments
  */
 
+// DVI uses DMA in ping-ping setup
+#define DVI_DMACH_PING 0
+#define DVI_DMACH_PONG 1
+
+// monitor console UART (connected to power USB CDC via ESP32)
 #define COM_UART           uart0
 #define COM_UART_BAUD_RATE 115200
 

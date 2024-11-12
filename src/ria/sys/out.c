@@ -133,8 +133,8 @@ static uint32_t vactive_line[] = {
 // ----------------------------------------------------------------------------
 // DMA logic
 
-#define DMACH_PING 0
-#define DMACH_PONG 1
+#define DMACH_PING DVI_DMACH_PING
+#define DMACH_PONG DVI_DMACH_PONG
 
 // First we ping. Then we pong. Then... we ping again.
 static bool dma_pong = false;
