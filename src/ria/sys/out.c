@@ -33,31 +33,17 @@
 // With pixel-doubling this gives 768x480 mode, which has nice 16:10 aspect ratio
 // My TV recognizes this as 480p60 :-D
 // Timings computed using https://tomverbeure.github.io/video_timings_calculator
-// Back porches adjusted to fit 26.6MHz pixel clock
-// #define MODE_H_SYNC_POLARITY 0
-// #define MODE_H_FRONT_PORCH   24
-// #define MODE_H_SYNC_WIDTH    72
-// #define MODE_H_BACK_PORCH    96
-// #define MODE_H_ACTIVE_PIXELS 768
-// #define MODE_V_SYNC_POLARITY 1
-// #define MODE_V_FRONT_PORCH   3
-// #define MODE_V_SYNC_WIDTH    6
-// #define MODE_V_BACK_PORCH    11
-// #define MODE_V_ACTIVE_LINES  480
-// #define MODE_BIT_CLK_KHZ     400000
-
-// Reduced Blanking - Back porches adjusted to fit 26.6MHz pixel clock
-#define MODE_H_SYNC_POLARITY 1
-#define MODE_H_FRONT_PORCH   48
-#define MODE_H_SYNC_WIDTH    32
-#define MODE_H_BACK_PORCH    48
+#define MODE_H_SYNC_POLARITY 0
+#define MODE_H_FRONT_PORCH   24
+#define MODE_H_SYNC_WIDTH    72
+#define MODE_H_BACK_PORCH    96
 #define MODE_H_ACTIVE_PIXELS 768
-#define MODE_V_SYNC_POLARITY 0
+#define MODE_V_SYNC_POLARITY 1
 #define MODE_V_FRONT_PORCH   3
 #define MODE_V_SYNC_WIDTH    6
-#define MODE_V_BACK_PORCH    6
+#define MODE_V_BACK_PORCH    11
 #define MODE_V_ACTIVE_LINES  480
-#define MODE_BIT_CLK_KHZ     266000
+#define MODE_BIT_CLK_KHZ     287500
 
 #define FB_H_REPEAT 2
 #define FB_V_REPEAT 2
