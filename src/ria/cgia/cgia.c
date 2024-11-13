@@ -1,18 +1,18 @@
 #include "hardware/interp.h"
 
 #include <stdint.h>
+#include <stdio.h>
 
 #include "cgia.h"
+#include "cgia_encode.h"
 #include "cgia_palette.h"
-#include "tmds_encode_cgia.h"
 
-#include "display_lists.h"
+#include "example_data.h"
 #include "font_8.h"
+#include "images/carrion-One_Zak_And_His_Kracken.h"
+#include "images/veto-the_mill.h"
 
 #include "sys/out.h"
-
-#define PALETTE_WORDS 4
-uint32_t __attribute__((aligned(4))) cgia_palette[CGIA_COLORS_NUM * PALETTE_WORDS];
 
 #define DISPLAY_WIDTH_PIXELS (FRAME_WIDTH / 2)
 #define MAX_BORDER_COLUMNS   (FRAME_WIDTH / 2 / 8 / 2)
@@ -23,21 +23,33 @@ uint8_t __attribute__((aligned(4))) screen[FRAME_CHARS * 30];
 uint8_t __attribute__((aligned(4))) colour[FRAME_CHARS * 30];
 uint8_t __attribute__((aligned(4))) backgr[FRAME_CHARS * 30];
 
-void init_palette(void)
-{
-    for (int i = 0; i < CGIA_COLORS_NUM; ++i)
-    {
-        uint32_t blue = (cgia_rgb_palette[i] & 0x0000ff) >> 0;
-        uint32_t green = (cgia_rgb_palette[i] & 0x00ff00) >> 8;
-        uint32_t red = (cgia_rgb_palette[i] & 0xff0000) >> 16;
+// /* TEXT MODE */
+// #define EXAMPLE_DISPLAY_LIST text_mode_dl
+// #define EXAMPLE_BORDER_COLOR 145
+// #define EXAMPLE_ROW_HEIGHT   7
+// #define EXAMPLE_MEMORY_SCAN  screen
+// #define EXAMPLE_COLOUR_SCAN  colour
+// #define EXAMPLE_BACKGR_SCAN  backgr
 
-        // // FIXME: these should NOT be cut down to 6 bpp (>> 2) - generate proper symbols!
-        // cgia_palette[i * PALETTE_WORDS + 0] = tmds_table[blue >> 2];
-        // cgia_palette[i * PALETTE_WORDS + 1] = tmds_table[green >> 2];
-        // cgia_palette[i * PALETTE_WORDS + 2] = tmds_table[red >> 2];
-        // cgia_palette[i * PALETTE_WORDS + 3] = 0;
-    }
-}
+/* HiRes mode */
+#define EXAMPLE_DISPLAY_LIST hires_mode_dl
+#define EXAMPLE_BORDER_COLOR 3
+#define EXAMPLE_ROW_HEIGHT   7
+#define EXAMPLE_MEMORY_SCAN  hr_bitmap_data
+#define EXAMPLE_COLOUR_SCAN  hr_colour_data
+#define EXAMPLE_BACKGR_SCAN  hr_background_data
+
+// /* MultiColor mode */
+// #define EXAMPLE_DISPLAY_LIST multi_mode_dl
+// #define EXAMPLE_BORDER_COLOR 0
+// #define EXAMPLE_ROW_HEIGHT   0
+// #define EXAMPLE_MEMORY_SCAN  mt_bitmap_data
+// #define EXAMPLE_COLOUR_SCAN  mt_colour_data
+// #define EXAMPLE_BACKGR_SCAN  mt_background_data
+
+// ---
+#define EXAMPLE_BG_COLOR_1 mt_background_color_1
+#define EXAMPLE_BG_COLOR_2 mt_background_color_2
 
 static struct registers_t
 {
@@ -100,40 +112,6 @@ static struct sprite_t
     uint8_t line_data[4];
 } __attribute__((aligned(4))) sprites[SPRITE_COUNT];
 
-#define EXAMPLE_SPRITE_WIDTH   4
-#define EXAMPLE_SPRITE_HEIGHT  26
-#define EXAMPLE_SPRITE_COLOR_1 0
-#define EXAMPLE_SPRITE_COLOR_2 23
-#define EXAMPLE_SPRITE_COLOR_3 10
-uint8_t __attribute__((aligned(4))) example_sprite_data[EXAMPLE_SPRITE_WIDTH * EXAMPLE_SPRITE_HEIGHT] = {
-    0b00000000, 0b00010101, 0b01000000, 0b00000000, //
-    0b00000000, 0b01011111, 0b11010100, 0b00000000, //
-    0b00000000, 0b01111111, 0b11111101, 0b00000000, //
-    0b00000001, 0b01010101, 0b01111111, 0b01000000, //
-    0b00000101, 0b01010101, 0b01011111, 0b11010000, //
-    0b00000101, 0b10101010, 0b10100101, 0b11010000, //
-    0b00000001, 0b10011001, 0b10101001, 0b01010100, //
-    0b00000001, 0b10011001, 0b10101001, 0b01100100, //
-    0b00000110, 0b10101010, 0b10100101, 0b01101001, //
-    0b00000110, 0b10101010, 0b01101001, 0b10101001, //
-    0b00010101, 0b10100101, 0b01011010, 0b10100100, //
-    0b00000001, 0b01010101, 0b10101010, 0b01010000, //
-    0b00000000, 0b01101010, 0b10100101, 0b01000000, //
-    0b00010100, 0b01010101, 0b01011111, 0b11010000, //
-    0b01101001, 0b01111101, 0b01111111, 0b11110100, //
-    0b01100101, 0b11111101, 0b11010101, 0b11111101, //
-    0b01100111, 0b11110101, 0b01101010, 0b01111101, //
-    0b00010111, 0b11010101, 0b10101010, 0b10011101, //
-    0b00011001, 0b01101001, 0b10101010, 0b10010100, //
-    0b01111101, 0b01101001, 0b01101010, 0b01010000, //
-    0b01111111, 0b01010101, 0b01010101, 0b11110100, //
-    0b01111111, 0b01010101, 0b01010101, 0b01110101, //
-    0b01111111, 0b01010101, 0b01010101, 0b01111101, //
-    0b01011111, 0b01000000, 0b01010101, 0b01111101, //
-    0b00010101, 0b00000000, 0b00000001, 0b01111101, //
-    0b00000000, 0b00000000, 0b00000000, 0b00010100, //
-};
-
 #define SPRITE_MASK_WIDTH        0b00000011
 #define SPRITE_MASK_ACTIVE       0b00000100
 #define SPRITE_MASK_MULTICOLOR   0b00001000
@@ -141,17 +119,15 @@ uint8_t __attribute__((aligned(4))) example_sprite_data[EXAMPLE_SPRITE_WIDTH * E
 
 void cgia_init(void)
 {
-    init_palette();
-
     // FIXME: these should be initialized by CPU Operating System
-    registers.border_color = 145;
-    shared_color[0] = 100;
-    shared_color[1] = 200;
-    registers.row_height = 7;
-    registers.display_list = hires_mode_dl;
-    registers.memory_scan = screen;
-    registers.colour_scan = colour;
-    registers.backgr_scan = backgr;
+    registers.border_color = EXAMPLE_BORDER_COLOR;
+    shared_color[0] = EXAMPLE_BG_COLOR_1;
+    shared_color[1] = EXAMPLE_BG_COLOR_2;
+    registers.row_height = EXAMPLE_ROW_HEIGHT;
+    registers.display_list = EXAMPLE_DISPLAY_LIST;
+    registers.memory_scan = EXAMPLE_MEMORY_SCAN;
+    registers.colour_scan = EXAMPLE_COLOUR_SCAN;
+    registers.backgr_scan = EXAMPLE_BACKGR_SCAN;
     registers.character_generator = font8_data;
 
     registers.sprites_active = 8; // SPRITE_COUNT;
@@ -225,7 +201,7 @@ static inline uint8_t log_2(uint8_t x)
 #define MODE_BIT 0b00001000
 #define DLI_BIT  0b10000000
 
-void __not_in_flash_func(cgia_render)(uint y, uint32_t *tmdsbuf)
+void __not_in_flash_func(cgia_render)(uint y, uint32_t *rgbbuf)
 {
     if (y == FRAME_HEIGHT - 1)
     {
@@ -293,7 +269,7 @@ void __not_in_flash_func(cgia_render)(uint y, uint32_t *tmdsbuf)
     {
         // DL is stopped and waiting for VBL
         // generate full-length border line
-        (void)tmds_encode_border(tmdsbuf, registers.border_color, DISPLAY_WIDTH_PIXELS / 8);
+        (void)cgia_encode_border(rgbbuf, DISPLAY_WIDTH_PIXELS / 8, registers.border_color);
         // and we're done
         return;
     }
@@ -308,7 +284,7 @@ void __not_in_flash_func(cgia_render)(uint y, uint32_t *tmdsbuf)
     uint8_t dl_row_lines = registers.row_height;
 
     // Used for tracking where to blit pixel data
-    uint32_t *p = tmdsbuf;
+    uint32_t *p = rgbbuf;
 
     uint border_columns = registers.border_columns;
     if (border_columns > MAX_BORDER_COLUMNS)
@@ -317,7 +293,7 @@ void __not_in_flash_func(cgia_render)(uint y, uint32_t *tmdsbuf)
 
     // Left border
     if (dl_instr & MODE_BIT && border_columns)
-        p = tmds_encode_border(p, registers.border_color, border_columns);
+        p = cgia_encode_border(p, border_columns, registers.border_color);
 
     // DL mode
     switch (dl_instr & 0b00001111)
@@ -326,20 +302,20 @@ void __not_in_flash_func(cgia_render)(uint y, uint32_t *tmdsbuf)
 
     case 0x0: // INSTR0 - blank lines
         dl_row_lines = dl_instr >> 4;
-        (void)tmds_encode_border(p, registers.border_color, DISPLAY_WIDTH_PIXELS / 8);
+        (void)cgia_encode_border(p, DISPLAY_WIDTH_PIXELS / 8, registers.border_color);
         goto skip_right_border;
 
     case 0x1: // INSTR1 - duplicate lines
         dl_row_lines = dl_instr >> 4;
-        // FIXME: for now leave TMDS buffer as is - will display it again
-        // TODO: store last TMDS buffer pointer at the end of the frame and copy to current one
+        // FIXME: for now leave RGB buffer as is - will display it again
+        // TODO: store last RGB buffer pointer at the end of the frame and copy to current one
         goto skip_right_border;
 
     case 0x2: // INSTR1 - JMP
         // Load DL address
         // registers.display_list = read_memory(registers.display_base << 16 & registers.display_list)
-        registers.display_list = hires_mode_dl; // FIXME: HARDCODED!
-        row_line_count = 0;                     // will start new row
+        registers.display_list = EXAMPLE_DISPLAY_LIST; // FIXME: HARDCODED!
+        row_line_count = 0;                            // will start new row
 
         if (dl_instr & DLI_BIT)
             wait_vbl = true;
@@ -353,28 +329,28 @@ void __not_in_flash_func(cgia_render)(uint y, uint32_t *tmdsbuf)
         { // memory scan
             // TODO:
             // registers.memory_scan = read_memory(registers.display_base << 16 & registers.display_list)
-            registers.memory_scan = screen; // FIXME: HARDCODED!
+            registers.memory_scan = EXAMPLE_MEMORY_SCAN; // FIXME: HARDCODED!
             registers.display_list += 2;
         }
         if (dl_instr & 0b00100000)
         { // color scan
             // TODO:
             // registers.colour_scan = read_memory(registers.display_base << 16 & registers.display_list)
-            registers.colour_scan = colour; // FIXME: HARDCODED!
+            registers.colour_scan = EXAMPLE_COLOUR_SCAN; // FIXME: HARDCODED!
             registers.display_list += 2;
         }
         if (dl_instr & 0b01000000)
         { // background scan
             // TODO:
             // registers.backgr_scan = read_memory(registers.display_base << 16 & registers.display_list)
-            registers.backgr_scan = backgr; // FIXME: HARDCODED!
+            registers.backgr_scan = EXAMPLE_BACKGR_SCAN; // FIXME: HARDCODED!
             registers.display_list += 2;
         }
         return cgia_render(y, p); // process next DL instruction
 
         // ------- Mode Rows --------------
 
-    case (0x2 | MODE_BIT): // MODE2 - text/tile mode
+    case (0x2 | MODE_BIT): // MODE2 (A) - text/tile mode
     {
         interp_set_base(interp0, 0, 1);
         interp_set_accumulator(interp0, 0, (uintptr_t)registers.memory_scan - 1);
@@ -384,12 +360,12 @@ void __not_in_flash_func(cgia_render)(uint y, uint32_t *tmdsbuf)
         {
             uint8_t char_shift = log_2(registers.row_height);
             load_textmode_buffer(scanline_buffer, row_columns, registers.character_generator + row_line_count, char_shift);
-            p = tmds_encode_mode_3_mapped(p, scanline_buffer, row_columns);
+            p = cgia_encode_mode_3_mapped(p, scanline_buffer, row_columns);
         }
     }
     break;
 
-    case (0x3 | MODE_BIT): // MODE3 - bitmap mode
+    case (0x3 | MODE_BIT): // MODE3 (B) - bitmap mode
     {
         const uint8_t row_height = registers.row_height + 1;
         interp_set_base(interp0, 0, row_height);
@@ -401,12 +377,12 @@ void __not_in_flash_func(cgia_render)(uint y, uint32_t *tmdsbuf)
             if (registers.transparent_background)
             {
                 load_scanline_buffer_shared(scanline_buffer, row_columns);
-                p = tmds_encode_mode_3_shared(p, scanline_buffer, row_columns);
+                p = cgia_encode_mode_3_shared(p, scanline_buffer, row_columns);
             }
             else
             {
                 load_scanline_buffer_mapped(scanline_buffer, row_columns);
-                p = tmds_encode_mode_3_mapped(p, scanline_buffer, row_columns);
+                p = cgia_encode_mode_3_mapped(p, scanline_buffer, row_columns);
             }
         }
 
@@ -415,7 +391,7 @@ void __not_in_flash_func(cgia_render)(uint y, uint32_t *tmdsbuf)
     }
     break;
 
-    case (0x4 | MODE_BIT): // MODE4 - multicolor text/tile mode
+    case (0x4 | MODE_BIT): // MODE4 (C) - multicolor text/tile mode
     {
         interp_set_base(interp0, 0, 1);
         interp_set_accumulator(interp0, 0, (uintptr_t)registers.memory_scan - 1);
@@ -426,12 +402,12 @@ void __not_in_flash_func(cgia_render)(uint y, uint32_t *tmdsbuf)
             row_columns <<= 1; // this mode generates 4x8 cells, so requires 2x columns
             uint8_t char_shift = log_2(registers.row_height);
             load_textmode_buffer(scanline_buffer, row_columns, registers.character_generator + row_line_count, char_shift);
-            p = tmds_encode_mode_5(p, scanline_buffer, row_columns);
+            p = cgia_encode_mode_5(p, scanline_buffer, row_columns);
         }
     }
     break;
 
-    case (0x5 | MODE_BIT): // MODE5 - multicolor bitmap mode
+    case (0x5 | MODE_BIT): // MODE5 (D) - multicolor bitmap mode
     {
         const uint8_t row_height = registers.row_height + 1;
         interp_set_base(interp0, 0, row_height);
@@ -442,7 +418,7 @@ void __not_in_flash_func(cgia_render)(uint y, uint32_t *tmdsbuf)
         {
             row_columns <<= 1; // this mode generates 4x8 cells, so requires 2x columns
             load_scanline_buffer_mapped(scanline_buffer, row_columns);
-            p = tmds_encode_mode_5(p, scanline_buffer, row_columns);
+            p = cgia_encode_mode_5(p, scanline_buffer, row_columns);
         }
 
         // next raster line starts with next byte, but color/bg scan stay the same
@@ -450,7 +426,7 @@ void __not_in_flash_func(cgia_render)(uint y, uint32_t *tmdsbuf)
     }
     break;
 
-    case (0x6 | MODE_BIT): // MODE4 - doubled multicolor text/tile mode
+    case (0x6 | MODE_BIT): // MODE6 (E) - doubled multicolor text/tile mode
     {
         interp_set_base(interp0, 0, 1);
         interp_set_accumulator(interp0, 0, (uintptr_t)registers.memory_scan - 1);
@@ -460,12 +436,12 @@ void __not_in_flash_func(cgia_render)(uint y, uint32_t *tmdsbuf)
         {
             uint8_t char_shift = log_2(registers.row_height);
             load_textmode_buffer(scanline_buffer, row_columns, registers.character_generator + row_line_count, char_shift);
-            p = tmds_encode_mode_7(p, scanline_buffer, row_columns);
+            p = cgia_encode_mode_7(p, scanline_buffer, row_columns);
         }
     }
     break;
 
-    case (0x7 | MODE_BIT): // MODE7 - doubled multicolor bitmap mode
+    case (0x7 | MODE_BIT): // MODE7 (F) - doubled multicolor bitmap mode
     {
         const uint8_t row_height = registers.row_height + 1;
         interp_set_base(interp0, 0, row_height);
@@ -475,7 +451,7 @@ void __not_in_flash_func(cgia_render)(uint y, uint32_t *tmdsbuf)
         if (row_columns)
         {
             load_scanline_buffer_mapped(scanline_buffer, row_columns);
-            p = tmds_encode_mode_7(p, scanline_buffer, row_columns);
+            p = cgia_encode_mode_7(p, scanline_buffer, row_columns);
         }
 
         // next raster line starts with next byte, but color/bg scan stay the same
@@ -483,16 +459,16 @@ void __not_in_flash_func(cgia_render)(uint y, uint32_t *tmdsbuf)
     }
     break;
 
-        // ------- UNKNOWN MODE - generate pink line (should not happen)
+    // ------- UNKNOWN MODE - generate pink line (should not happen)
     default:
-        (void)tmds_encode_border(tmdsbuf, 115, DISPLAY_WIDTH_PIXELS / 8);
+        (void)cgia_encode_border(rgbbuf, DISPLAY_WIDTH_PIXELS / 8, 234);
         dl_row_lines = row_line_count; // force moving to next DL instruction
         goto skip_right_border;
     }
 
     // Right border
     if (dl_instr & MODE_BIT && border_columns)
-        p = tmds_encode_border(p, registers.border_color, border_columns);
+        p = cgia_encode_border(p, border_columns, registers.border_color);
 
 skip_right_border:
 
@@ -503,7 +479,7 @@ skip_right_border:
         if (sprite->flags & SPRITE_MASK_ACTIVE)
         {
             int sprite_line = y - sprite->pos_y;
-            if (sprite_line >= 0 && sprite_line <= sprite->lines_y)
+            if (sprite_line >= 0 && sprite_line < sprite->lines_y)
             {
                 int sprite_width = sprite->flags & SPRITE_MASK_WIDTH;
                 int sprite_offset = sprite_line * (sprite_width + 1);
@@ -511,7 +487,7 @@ skip_right_border:
                 {
                     sprite->line_data[j] = example_sprite_data[sprite_offset + j];
                 }
-                tmds_encode_sprite(tmdsbuf, (uint32_t *)sprite, sprite_width);
+                cgia_encode_sprite(rgbbuf, (uint32_t *)sprite, sprite_width);
             }
         }
     }
@@ -522,10 +498,10 @@ skip_right_border:
         // Update scan pointers
         if (dl_instr & MODE_BIT)
         {
-            // update scan pointers to current value
-            registers.memory_scan = (uint8_t *)(uintptr_t)interp_peek_lane_result(interp0, 0);
-            registers.colour_scan = (uint8_t *)(uintptr_t)interp_peek_lane_result(interp1, 0);
-            registers.backgr_scan = (uint8_t *)(uintptr_t)interp_peek_lane_result(interp1, 1);
+            // update scan pointers to next value
+            registers.memory_scan = (uint8_t *)(uintptr_t)interp_get_accumulator(interp0, 0) + 1;
+            registers.colour_scan = (uint8_t *)(uintptr_t)interp_get_accumulator(interp1, 0) + 1;
+            registers.backgr_scan = (uint8_t *)(uintptr_t)interp_get_accumulator(interp1, 1) + 1;
         }
 
         // Reset line counter

@@ -14,7 +14,7 @@
 
 #include "../cgia/cgia_palette.h"
 
-int8_t index2cgia[16] = {
+int index2cgia[16] = {
     -1, -1, -1, -1, //
     -1, -1, -1, -1, //
     -1, -1, -1, -1, //
@@ -28,13 +28,13 @@ int MOD(int x)
     return -x;
 }
 
-int main()
+int main(void)
 {
     uint8_t *data = header_data;
     uint8_t pixel[3];
 
-    int8_t fg[SCREEN_COLUMNS][SCREEN_ROWS];
-    int8_t bg[SCREEN_COLUMNS][SCREEN_ROWS];
+    int fg[SCREEN_COLUMNS][SCREEN_ROWS];
+    int bg[SCREEN_COLUMNS][SCREEN_ROWS];
 
     uint8_t bitmap = 0;
     uint8_t bm[SCREEN_COLUMNS][8];
@@ -49,7 +49,7 @@ int main()
 
             HEADER_PIXEL(data, pixel)
 
-            int8_t current_color = index2cgia[color_index];
+            int current_color = index2cgia[color_index];
             if (current_color < 0)
             {
                 // find closest matching color
@@ -57,9 +57,9 @@ int main()
                 for (int c = 0; c < CGIA_COLORS_NUM; ++c)
                 {
                     uint32_t color = cgia_rgb_palette[c];
-                    uint32_t blue = (color & 0x0000ff) >> 0;
-                    uint32_t green = (color & 0x00ff00) >> 8;
-                    uint32_t red = (color & 0xff0000) >> 16;
+                    uint8_t blue = (color & 0x0000ff) >> 0;
+                    uint8_t green = (color & 0x00ff00) >> 8;
+                    uint8_t red = (color & 0xff0000) >> 16;
 
                     int color_distance = MOD(pixel[0] - red) + MOD(pixel[1] - green) + MOD(pixel[2] - blue);
                     if (color_distance < distance)
@@ -71,7 +71,7 @@ int main()
                 index2cgia[color_index] = current_color;
             }
 
-            uint8_t row = y / 8;
+            int row = y / 8;
 
             if (x == 0 && y % 8 == 0)
             {
@@ -83,20 +83,20 @@ int main()
                 }
             }
 
-            uint8_t column = x / 8;
+            int column = x / 8;
             uint8_t bit = 7 - x % 8;
 
-            int8_t fg_color = fg[column][row];
-            int8_t bg_color = bg[column][row];
+            int fg_color = fg[column][row];
+            int bg_color = bg[column][row];
 
             if (fg_color < 0)
             {
-                fg_color = current_color;
+                fg_color = (uint8_t)current_color;
                 fg[column][row] = fg_color;
             }
             else if (bg_color < 0 && fg_color != current_color)
             {
-                bg_color = current_color;
+                bg_color = (uint8_t)current_color;
                 bg[column][row] = bg_color;
             }
 

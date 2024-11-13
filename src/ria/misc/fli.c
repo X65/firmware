@@ -12,7 +12,7 @@
 
 #include "../cgia/cgia_palette.h"
 
-int8_t index2cgia[128] = {
+int index2cgia[128] = {
     -1, -1, -1, -1, -1, -1, -1, -1, //
     -1, -1, -1, -1, -1, -1, -1, -1, //
     -1, -1, -1, -1, -1, -1, -1, -1, //
@@ -62,7 +62,7 @@ int main()
 
             HEADER_PIXEL(data, pixel)
 
-            int8_t current_color = index2cgia[color_index];
+            int current_color = index2cgia[color_index];
             if (current_color < 0)
             {
                 // find closest matching color
@@ -94,11 +94,11 @@ int main()
                 }
             }
 
-            uint8_t column = x / 4;
+            uint column = x / 4;
             uint8_t bits = 3 - x % 4;
 
-            int8_t fg_color = fg[column][y];
-            int8_t bg_color = bg[column][y];
+            int fg_color = fg[column][y];
+            int bg_color = bg[column][y];
 
             if (current_color != bg1 && current_color != bg2)
             {

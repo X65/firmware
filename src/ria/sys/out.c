@@ -14,6 +14,7 @@
 #include "hardware/vreg.h"
 #include "pico/multicore.h"
 
+#include "cgia/cgia.h"
 #include "main.h"
 #include "out.h"
 
@@ -201,6 +202,9 @@ void __scratch_x("") dma_irq_handler(void)
 
 void __not_in_flash_func(out_core1_main)(void)
 {
+    // CGIA needs to initialize this core interpolators
+    cgia_core1_init();
+
     // Configure HSTX's TMDS encoder for RGB888
     hstx_ctrl_hw->expand_tmds = 7 << HSTX_CTRL_EXPAND_TMDS_L2_NBITS_LSB // R
                                 | 16 << HSTX_CTRL_EXPAND_TMDS_L2_ROT_LSB
@@ -311,16 +315,8 @@ void __not_in_flash_func(out_core1_main)(void)
             uint generated_raster = gen_scanline / FB_V_REPEAT;
             if (generated_raster != active_raster)
             {
-                // TODO: call CGIA generator for active_raster
-                {
-                    uint32_t *fill = (uint32_t *)gen_line_ptr;
-                    for (unsigned i = 0; i < MODE_H_ACTIVE_PIXELS / FB_H_REPEAT; ++i)
-                    {
-                        *fill++ = (i & 0xff) | (active_raster & 0xff) << 8 | (((i + active_raster) / 2) & 0xff) << 16;
-                        *((uint32_t *)gen_line_ptr + active_raster) = 0xffffff;
-                    }
-                }
-                gen_scanline = active_raster * FB_V_REPEAT;
+                cgia_render(active_raster, (uint32_t *)gen_line_ptr);
+                gen_scanline = active_scanline;
             }
         }
 

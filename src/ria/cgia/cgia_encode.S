@@ -1,0 +1,351 @@
+#include "hardware/regs/addressmap.h"
+#include "hardware/regs/sio.h"
+
+// Offsets suitable for ldr/str (must be <= 0x7c):
+#define ACCUM0_OFFS     (SIO_INTERP0_ACCUM0_OFFSET     - SIO_INTERP0_ACCUM0_OFFSET)
+#define ACCUM1_OFFS     (SIO_INTERP0_ACCUM1_OFFSET     - SIO_INTERP0_ACCUM0_OFFSET)
+#define PEEK0_OFFS      (SIO_INTERP0_PEEK_LANE0_OFFSET - SIO_INTERP0_ACCUM0_OFFSET)
+#define PEEK1_OFFS      (SIO_INTERP0_PEEK_LANE1_OFFSET - SIO_INTERP0_ACCUM0_OFFSET)
+#define PEEK2_OFFS      (SIO_INTERP0_PEEK_FULL_OFFSET  - SIO_INTERP0_ACCUM0_OFFSET)
+#define POP0_OFFS       (SIO_INTERP0_POP_LANE0_OFFSET  - SIO_INTERP0_ACCUM0_OFFSET)
+#define POP1_OFFS       (SIO_INTERP0_POP_LANE1_OFFSET  - SIO_INTERP0_ACCUM0_OFFSET)
+#define POP2_OFFS       (SIO_INTERP0_POP_FULL_OFFSET   - SIO_INTERP0_ACCUM0_OFFSET)
+#define INTERP1         (SIO_INTERP1_ACCUM0_OFFSET     - SIO_INTERP0_ACCUM0_OFFSET)
+
+.syntax unified
+.cpu cortex-m33
+.thumb
+
+.data
+cell_colors: .skip 4*4  // Reserve 4 words for the multi color array
+
+
+// Put every function in its own ELF section, to permit linker GC
+.macro decl_func name
+.section .time_critical.\name, "ax"
+.global \name
+.type \name,%function
+.thumb_func
+\name:
+.endm
+
+
+//////////////////// MODE 3 ////////////////////
+
+// r0 is output RGB buffer
+// r1 is scanline data buffer - do not touch!
+// r5 is bitmap (8 MSB)
+// r6 is foreground color index
+// r7 is background color index
+// changes r0,r5
+.macro write_pixel_bmp
+  lsls r5, #1        // shift-out 1 bit
+  bcc 1f
+    // bit is 1 - draw foreground pixel
+  stmia r0!, {r6}
+  b 2f
+1:  // bit is 0 - draw background pixel
+  stmia r0!, {r7}
+2:
+.endm
+
+// r0 is output RGB buffer
+// r1 is scanline data buffer
+// r2 is width in bytes
+.macro cgia_encode_mode_3_shared_or_mapped mapped
+  push {r4-r7, lr}
+
+  ldr r3, =cgia_rgb_palette
+
+3:
+.if \mapped
+  ldmia r1!, {r5-r7}  // load 3 words from scanline buffer
+.else
+  ldmia r1!, {r5-r6}  // load 2 words from scanline buffer
+  ldr r7, =shared_color
+  ldrb r7, [r7]       // and background color memory register
+.endif
+
+  lsls r5, #24        // move LSB to MSB
+  ldr r6, [r3, r6, LSL #2]  // load palette entry
+  ldr r7, [r3, r7, LSL #2]  // load palette entry
+
+  write_pixel_bmp
+  write_pixel_bmp
+  write_pixel_bmp
+  write_pixel_bmp
+  write_pixel_bmp
+  write_pixel_bmp
+  write_pixel_bmp
+  write_pixel_bmp
+
+  subs r2, #1
+  bne 3b
+
+  pop {r4-r7, pc}
+.endm
+
+decl_func cgia_encode_mode_3_shared
+	cgia_encode_mode_3_shared_or_mapped 0
+
+decl_func cgia_encode_mode_3_mapped
+	cgia_encode_mode_3_shared_or_mapped 1
+
+
+//////////////////// MODE 5 ////////////////////
+
+// r0 is output RGB buffer
+// r4 is bitmap (8 LSB)
+// r7 is cell_colors array pointer
+// changes r0,r5-r6
+.macro write_pixel_multi sh_amt doubled
+  mov r5, r4
+  lsrs r5, #\sh_amt
+  ands r5, 3  // 00000011 mask
+  ldr r5, [r7, r5, LSL #2]
+.if \doubled
+  mov r6, r5
+  stmia r0!, {r5-r6}
+.else
+  stmia r0!, {r5}
+.endif
+.endm
+
+// r0 is output RGB buffer
+// r1 is scanline data buffer
+// r2 is width in bytes
+.macro cgia_encode_mode_5_or_7 doubled
+  push {r4-r7, lr}
+
+  ldr r3, =cgia_rgb_palette
+  ldr r7, =cell_colors
+
+  ldr r4, =shared_color+0   // load shared background color 0 memory registers
+  ldrb r4, [r4]
+  ldr r4, [r3, r4, LSL #2]  // load palette entry
+  str r4, [r7, #0]          // store shared color 0
+  
+  ldr r4, =shared_color+1   // load shared background color 1 memory registers
+  ldrb r4, [r4]
+  ldr r4, [r3, r4, LSL #2]  // load palette entry
+  str r4, [r7, #12]         // store shared color 3
+
+3:
+  ldmia r1!, {r4-r6}        // load 3 words from scanline buffer
+  ldr r6, [r3, r6, LSL #2]  // load palette entry
+  str r6, [r7, #4]          // store "off" color (1)
+  ldr r5, [r3, r5, LSL #2]  // load palette entry
+  str r5, [r7, #8]          // store "on" color (2)
+
+.if \doubled
+  write_pixel_multi 6 1
+  write_pixel_multi 4 1
+  write_pixel_multi 2 1
+  write_pixel_multi 0 1
+.else
+  write_pixel_multi 6 0
+  write_pixel_multi 4 0
+  write_pixel_multi 2 0
+  write_pixel_multi 0 0
+.endif
+
+  subs r2, #1
+  bne 3b
+
+  pop {r4-r7, pc}
+.endm
+
+decl_func cgia_encode_mode_5
+	cgia_encode_mode_5_or_7 0
+
+decl_func cgia_encode_mode_7
+	cgia_encode_mode_5_or_7 1
+
+
+//////////////////// SPRITES ////////////////////
+
+#define SPRITE_POS_X_OFFS   0
+#define SPRITE_POS_Y_OFFS   2
+#define SPRITE_LINES_Y_OFFS 3
+#define SPRITE_FLAGS_OFFS   4
+#define SPRITE_COLORS_OFFS  4   // COLOR 0 is not used, so point one byte before color table
+#define SPRITE_COLOR_1_OFFS 5
+#define SPRITE_COLOR_2_OFFS 6
+#define SPRITE_COLOR_3_OFFS 7
+#define SPRITE_DATA_OFFS    12  // data copied from CPU memory by PIO+DMA
+
+#define SPRITE_MASK_WIDTH        0b00000011
+#define SPRITE_MASK_ACTIVE       0b00000100
+#define SPRITE_MASK_MULTICOLOR   0b00001000
+#define SPRITE_MASK_DOUBLE_WIDTH 0b00010000
+
+// r0 is output RGB buffer
+// r1 is sprite color indices array
+// r2 is byte counter - do not touch!
+// r3 is bitmap (8 LSB)
+// r9 is palette begin address
+// changes r0,r4
+.macro write_sprite_multi sh_amt
+  mov r4, r3
+  lsrs r4, #\sh_amt
+  ands r4, 3        // 00000011 mask
+  beq 1f            // do not set 00 pixel
+  ldrb r4, [r1, r4] // load sprite color
+  ldr r4, [r9, r4, LSL #2]  // load palette entry
+  str r4, [r0]
+1:
+  adds r0, #4     // move 1 screen pixel
+.endm
+
+.align 2
+buffer_length: .word 768*4       // 768 px - 4 bytes per pixel (XRGB)
+
+// r0 is output RGB buffer
+// r1 is sprite descriptor address
+// r2 is sprite width
+decl_func cgia_encode_sprite
+  push {r4-r7, lr}
+  mov r4, r8
+  mov r5, r9
+  mov r6, r10
+  push {r4-r6}
+
+  ldr r10, =buffer_length
+  add r10, r0       // r10 - max allowed RGB address
+
+  ldr r9, =cgia_rgb_palette
+
+  ldrh r6, [r1, #SPRITE_POS_X_OFFS]
+  lsls r6, #2   // 4 bytes per pixel (one word of 2px)
+  adds r0, r6   // move RGB buffer pointer to correct position in line
+
+  cmp r0, r10   // check if past RGB buffer
+  bge 4f
+
+  // TODO: implement flags handling
+
+  adds r1, #SPRITE_COLORS_OFFS    // move r1 to point to color data
+
+  adds r2, (SPRITE_DATA_OFFS - SPRITE_COLORS_OFFS)
+  mov ip, r2  // iterate up untill this index
+  movs r2, (SPRITE_DATA_OFFS - SPRITE_COLORS_OFFS)
+
+3:
+  ldrb r3, [r1, r2]  // load bitmap byte
+
+  write_sprite_multi 6
+  cmp r0, r10   // check if past RGB buffer
+  bge 4f
+  write_sprite_multi 4
+  cmp r0, r10   // check if past RGB buffer
+  bge 4f
+  write_sprite_multi 2
+  cmp r0, r10   // check if past RGB buffer
+  bge 4f
+  write_sprite_multi 0
+  cmp r0, r10   // check if past RGB buffer
+  bge 4f
+
+  adds r2, #1
+  cmp r2, ip
+  ble 3b
+
+4:
+  pop {r4-r6}
+  mov r8, r4
+  mov r9, r5
+  mov r10, r6
+  pop {r4-r7, pc}
+
+
+//////////////////// BORDER ////////////////////
+
+// r0 is output RGB buffer
+// r1 is width in columns
+// r2 is background colour
+decl_func cgia_encode_border
+  ldr r3, =cgia_rgb_palette
+  ldr r3, [r3, r2, LSL #2]  // load palette entry
+  mov r2, r3                // copy to r2
+
+1:
+  stmia r0!, {r2-r3}  // write two pixels and move to next
+  stmia r0!, {r2-r3}  // 2 more
+  stmia r0!, {r2-r3}  // 2 more
+  stmia r0!, {r2-r3}  // 2 more => 8 pixels (per column in r1)
+  subs r1, #1         // decrement count
+  bne 1b              // repeat until count is zero
+
+  mov pc, lr      // return with updated r0
+
+
+//////////////////// SCANLINE BUFFER ////////////////////
+
+// r0 - destination scanline buffer
+// r1 - how many columns to load
+.macro load_scanline_buffer_shared_or_mapped mapped
+  push {r4-r7, lr}
+
+  ldr r2, =(SIO_BASE + SIO_INTERP0_ACCUM0_OFFSET)
+
+1:
+.if \mapped
+  ldr r6, [r2, #PEEK1_OFFS + INTERP1]   // load background color pointer
+  ldrb r6, [r6]     // load background color value (index)
+.endif
+
+  ldr r5, [r2, #POP0_OFFS + INTERP1]    // load color pointer
+  ldrb r5, [r5]     // load background color value (index)
+
+  ldr r4, [r2, #POP0_OFFS]    // load bitmap offset
+  ldrb r4, [r4]     // load bitmap data
+
+.if \mapped
+  stmia r0!, {r4-r6}
+.else
+  stmia r0!, {r4-r5}
+.endif
+
+  subs r1, #1
+  bne 1b
+
+  pop {r4-r7, pc}
+.endm
+
+decl_func load_scanline_buffer_shared
+	load_scanline_buffer_shared_or_mapped 0
+
+decl_func load_scanline_buffer_mapped
+	load_scanline_buffer_shared_or_mapped 1
+
+
+// r0 - destination scanline buffer
+// r1 - how many columns to load
+// r2 - character generator address
+// r3 - character length in shift amount
+decl_func load_textmode_buffer
+  push {r4-r7, lr}
+
+  mov ip, r2        // ip - chargen
+
+  ldr r2, =(SIO_BASE + SIO_INTERP0_ACCUM0_OFFSET)
+
+1:
+  ldr r6, [r2, #PEEK1_OFFS + INTERP1]   // load background color pointer
+  ldrb r6, [r6]     // load background color value (index)
+
+  ldr r5, [r2, #POP0_OFFS + INTERP1]    // load color pointer
+  ldrb r5, [r5]     // load background color value (index)
+
+  ldr r4, [r2, #POP0_OFFS]    // load character code offset
+  ldrb r4, [r4]     // load character code
+  lsls r4, r3
+  add r4, ip
+  ldrb r4, [r4]     // load character line bitmap data
+
+  stmia r0!, {r4-r6}
+
+  subs r1, #1
+  bne 1b
+
+  pop {r4-r7, pc}
