@@ -38,14 +38,19 @@ cell_colors: .skip 4*4  // Reserve 4 words for the multi color array
 // r6 is foreground color index
 // r7 is background color index
 // changes r0,r5
-.macro write_pixel_bmp
+.macro write_pixel_bmp mapped
   lsls r5, #1        // shift-out 1 bit
   bcc 1f
     // bit is 1 - draw foreground pixel
   stmia r0!, {r6}
   b 2f
 1:  // bit is 0 - draw background pixel
+.if \mapped
   stmia r0!, {r7}
+.else
+  adds r0, 1  // transparent pixel - move to next
+.endif
+
 2:
 .endm
 
@@ -62,22 +67,20 @@ cell_colors: .skip 4*4  // Reserve 4 words for the multi color array
   ldmia r1!, {r5-r7}  // load 3 words from scanline buffer
 .else
   ldmia r1!, {r5-r6}  // load 2 words from scanline buffer
-  ldr r7, =shared_color
-  ldrb r7, [r7]       // and background color memory register
 .endif
 
   lsls r5, #24        // move LSB to MSB
   ldr r6, [r3, r6, LSL #2]  // load palette entry
   ldr r7, [r3, r7, LSL #2]  // load palette entry
 
-  write_pixel_bmp
-  write_pixel_bmp
-  write_pixel_bmp
-  write_pixel_bmp
-  write_pixel_bmp
-  write_pixel_bmp
-  write_pixel_bmp
-  write_pixel_bmp
+  write_pixel_bmp \mapped
+  write_pixel_bmp \mapped
+  write_pixel_bmp \mapped
+  write_pixel_bmp \mapped
+  write_pixel_bmp \mapped
+  write_pixel_bmp \mapped
+  write_pixel_bmp \mapped
+  write_pixel_bmp \mapped
 
   subs r2, #1
   bne 3b
@@ -114,21 +117,23 @@ decl_func cgia_encode_mode_3_mapped
 // r0 is output RGB buffer
 // r1 is scanline data buffer
 // r2 is width in bytes
+// r3 is shared_colors array [2]
 .macro cgia_encode_mode_5_or_7 doubled
   push {r4-r7, lr}
+
+  mov r4, r3  // shared_colors[0]
+  mov r5, r3
+  adds r5, 4  // shared_colors[1]
 
   ldr r3, =cgia_rgb_palette
   ldr r7, =cell_colors
 
-  ldr r4, =shared_color+0   // load shared background color 0 memory registers
   ldrb r4, [r4]
   ldr r4, [r3, r4, LSL #2]  // load palette entry
   str r4, [r7, #0]          // store shared color 0
-  
-  ldr r4, =shared_color+1   // load shared background color 1 memory registers
-  ldrb r4, [r4]
-  ldr r4, [r3, r4, LSL #2]  // load palette entry
-  str r4, [r7, #12]         // store shared color 3
+  ldrb r5, [r5]
+  ldr r5, [r3, r5, LSL #2]  // load palette entry
+  str r5, [r7, #12]         // store shared color 3
 
 3:
   ldmia r1!, {r4-r6}        // load 3 words from scanline buffer

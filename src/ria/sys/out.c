@@ -60,6 +60,8 @@ static io_rw_32 cur_line_ptr;
 static uint gen_scanline = UINT_MAX;
 static io_rw_32 gen_line_ptr;
 
+static bool trigger_vbl = false;
+
 // ----------------------------------------------------------------------------
 // DVI constants
 
@@ -196,7 +198,16 @@ void __scratch_x("") dma_irq_handler(void)
 
     if (!vactive_cmdlist_posted)
     {
-        v_scanline = (v_scanline + 1) % MODE_V_TOTAL_LINES;
+        v_scanline += 1;
+        if (v_scanline >= MODE_V_TOTAL_LINES)
+        {
+            v_scanline = 0;
+        }
+
+        if (v_scanline == 0)
+        {
+            trigger_vbl = true;
+        }
     }
 }
 
@@ -306,6 +317,12 @@ void __not_in_flash_func(out_core1_main)(void)
 
     while (true)
     {
+        if (trigger_vbl)
+        {
+            cgia_vbl();
+            trigger_vbl = false;
+        }
+
         static uint active_scanline = UINT_MAX;
         if (a_scanline != active_scanline)
         {
@@ -315,7 +332,7 @@ void __not_in_flash_func(out_core1_main)(void)
             uint generated_raster = gen_scanline / FB_V_REPEAT;
             if (generated_raster != active_raster)
             {
-                cgia_render(active_raster, (uint32_t *)gen_line_ptr);
+                cgia_render(active_raster, (uint32_t *)gen_line_ptr, 0);
                 gen_scanline = active_scanline;
             }
         }
