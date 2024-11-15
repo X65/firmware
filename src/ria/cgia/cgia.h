@@ -28,6 +28,8 @@
     7 - doubled multicolor bitmap mode
 */
 
+#define CGIA_COLUMN_PX 8
+
 union cgia_plane_t
 {
     uint16_t offset; // Current DisplayList or SpriteDescriptor table start
@@ -45,10 +47,12 @@ union cgia_plane_t
         struct cgia_sprite_regs
         {
             uint16_t offset;
-            uint8_t active;
+            uint8_t count;
         } sprite;
     } regs;
 };
+
+#define CGIA_PLANES 4
 
 struct cgia_t
 {
@@ -59,35 +63,41 @@ struct cgia_t
 
     uint8_t back_color;
 
-    union cgia_plane_t plane[4];
+    union cgia_plane_t plane[CGIA_PLANES];
 };
 
 extern struct cgia_t CGIA;
 
 struct cgia_sprite_t
 {
-    uint16_t pos_x;
-    uint8_t pos_y;
-    uint8_t lines_y;
+    // --- SPRITE DESCRIPTOR --- (16 bytes) ---
+    int16_t pos_x;
+    int16_t pos_y;
+    int16_t lines_y;
     uint8_t flags;
     uint8_t color[3];
+    uint8_t reserved[2];
     uint16_t data_offset;
-    uint16_t next_offset; // after passing lines_y, reload sprite descriptor data
-                          // this is a built-in sprite multiplexer
-
-    // flags:
-    // 0-1 - width in bytes
-    // 2 - active
-    // 3 - multicolor
-    // 4 - double-width
-    // 5 - mirror X
-    // 6 - mirror Y
-    // 7 ...
-
-    // FIXME: ------- BOOKKEEPING -------
-    // this is not part of the in-memory descriptor
-    uint8_t line_data[4];
+    uint16_t next_dsc_offset; // after passing lines_y, reload sprite descriptor data
+                              // this is a built-in sprite multiplexer
 };
+
+// sprite flags:
+// 0-1 - width in bytes
+// 2 - [RESERVED]
+// 3 - multicolor
+// 4 - double-width
+// 5 - mirror X
+// 6 - mirror Y
+// 7 - active
+#define SPRITE_MASK_WIDTH        0b00000011
+#define SPRITE_MASK_MULTICOLOR   0b00001000
+#define SPRITE_MASK_DOUBLE_WIDTH 0b00010000
+#define SPRITE_MASK_MIRROR_X     0b00100000
+#define SPRITE_MASK_MIRROR_Y     0b01000000
+#define SPRITE_MASK_ACTIVE       0b10000000
+
+#define SPRITE_MAX_WIDTH 4
 
 void cgia_init(void);
 void cgia_core1_init(void);

@@ -15,9 +15,9 @@
 #include "sys/out.h"
 
 #define DISPLAY_WIDTH_PIXELS (FRAME_WIDTH / 2)
-#define MAX_BORDER_COLUMNS   (FRAME_WIDTH / 2 / 8 / 2)
+#define MAX_BORDER_COLUMNS   (DISPLAY_WIDTH_PIXELS / CGIA_COLUMN_PX / 2)
 
-#define FRAME_CHARS (DISPLAY_WIDTH_PIXELS / 8)
+#define FRAME_CHARS (DISPLAY_WIDTH_PIXELS / CGIA_COLUMN_PX)
 
 // --- Globals ---
 struct cgia_t __attribute__((aligned(4))) CGIA
@@ -33,6 +33,8 @@ static struct cgia_plane_internal
 __attribute__((aligned(4))) plane[4]
     = {0};
 
+static uint8_t __attribute__((aligned(4))) sprite_line_data[SPRITE_MAX_WIDTH];
+
 #define EXAMPLE_SPRITE_COUNT 8
 static struct cgia_sprite_t __attribute__((aligned(4))) sprites[EXAMPLE_SPRITE_COUNT]
     = {0};
@@ -43,21 +45,21 @@ uint8_t __attribute__((aligned(4))) screen[FRAME_CHARS * 30];
 uint8_t __attribute__((aligned(4))) colour[FRAME_CHARS * 30];
 uint8_t __attribute__((aligned(4))) bckgnd[FRAME_CHARS * 30];
 
-// /* TEXT MODE */
-// #define EXAMPLE_DISPLAY_LIST text_mode_dl
-// #define EXAMPLE_BORDER_COLOR 145
-// #define EXAMPLE_ROW_HEIGHT   7
-// #define EXAMPLE_MEMORY_SCAN  screen
-// #define EXAMPLE_COLOUR_SCAN  colour
-// #define EXAMPLE_BACKGR_SCAN  bckgnd
-
-/* HiRes mode */
-#define EXAMPLE_DISPLAY_LIST hires_mode_dl
-#define EXAMPLE_BORDER_COLOR 3
+/* TEXT MODE */
+#define EXAMPLE_DISPLAY_LIST text_mode_dl
+#define EXAMPLE_BORDER_COLOR 145
 #define EXAMPLE_ROW_HEIGHT   7
-#define EXAMPLE_MEMORY_SCAN  hr_bitmap_data
-#define EXAMPLE_COLOUR_SCAN  hr_colour_data
-#define EXAMPLE_BACKGR_SCAN  hr_background_data
+#define EXAMPLE_MEMORY_SCAN  screen
+#define EXAMPLE_COLOUR_SCAN  colour
+#define EXAMPLE_BACKGR_SCAN  bckgnd
+
+// /* HiRes mode */
+// #define EXAMPLE_DISPLAY_LIST hires_mode_dl
+// #define EXAMPLE_BORDER_COLOR 3
+// #define EXAMPLE_ROW_HEIGHT   7
+// #define EXAMPLE_MEMORY_SCAN  hr_bitmap_data
+// #define EXAMPLE_COLOUR_SCAN  hr_colour_data
+// #define EXAMPLE_BACKGR_SCAN  hr_background_data
 
 // /* MultiColor mode */
 // #define EXAMPLE_DISPLAY_LIST multi_mode_dl
@@ -76,11 +78,6 @@ uint8_t __attribute__((aligned(4))) bckgnd[FRAME_CHARS * 30];
 // TODO: set when writing CGIA.plane[1].regs.sprite.active
 static bool sprites_need_update = false;
 
-#define SPRITE_MASK_WIDTH        0b00000011
-#define SPRITE_MASK_ACTIVE       0b00000100
-#define SPRITE_MASK_MULTICOLOR   0b00001000
-#define SPRITE_MASK_DOUBLE_WIDTH 0b00010000
-
 void cgia_init(void)
 {
     CGIA.back_color = EXAMPLE_BORDER_COLOR;
@@ -95,18 +92,29 @@ void cgia_init(void)
     plane[0].backgr_scan = EXAMPLE_BACKGR_SCAN;
     plane[0].char_gen = EXAMPLE_CHARGEN;
 
-    CGIA.plane[1].regs.sprite.active = EXAMPLE_SPRITE_COUNT;
+    CGIA.plane[1].regs.sprite.count = EXAMPLE_SPRITE_COUNT;
     for (uint8_t i = 0; i < EXAMPLE_SPRITE_COUNT; ++i)
     {
-        sprites[i].flags |= SPRITE_MASK_ACTIVE;
+        sprites[i].flags = SPRITE_MASK_ACTIVE;
+        sprites[i].flags |= SPRITE_MASK_MULTICOLOR;
         sprites[i].flags |= EXAMPLE_SPRITE_WIDTH - 1; // width
         sprites[i].lines_y = EXAMPLE_SPRITE_HEIGHT;
         sprites[i].color[0] = EXAMPLE_SPRITE_COLOR_1;
         sprites[i].color[1] = EXAMPLE_SPRITE_COLOR_2;
         sprites[i].color[2] = EXAMPLE_SPRITE_COLOR_3;
-        sprites[i].pos_x = 33 * i;
+        sprites[i].pos_x = 54 * i - 5;
         sprites[i].pos_y = 8;
     }
+    sprites[1].pos_y = -10;
+    sprites[2].flags &= ~SPRITE_MASK_MULTICOLOR;
+    sprites[2].flags |= SPRITE_MASK_MIRROR_X;
+    sprites[2].flags |= SPRITE_MASK_MIRROR_Y;
+    // sprites[2].flags |= SPRITE_MASK_DOUBLE_WIDTH;
+    sprites[3].flags |= SPRITE_MASK_DOUBLE_WIDTH;
+    sprites[4].flags |= SPRITE_MASK_MIRROR_X;
+    sprites[5].flags |= SPRITE_MASK_MIRROR_Y;
+    sprites[6].flags &= ~SPRITE_MASK_WIDTH;
+    sprites[6].flags |= 2;
 
     for (int i = 0; i < FRAME_CHARS * 30; ++i)
     {
@@ -174,9 +182,9 @@ void __not_in_flash_func(cgia_render)(uint y, uint32_t *rgbbuf, uint8_t recursio
     {
         // DL is stopped and waiting for VBL
         // generate full-length border line
-        (void)cgia_encode_border(rgbbuf, DISPLAY_WIDTH_PIXELS / 8, CGIA.back_color);
+        (void)cgia_encode_border(rgbbuf, DISPLAY_WIDTH_PIXELS / CGIA_COLUMN_PX, CGIA.back_color);
         // and we're done
-        return;
+        goto sprites;
     }
 
     if (y == 0) // start of frame - reset flags and counters
@@ -224,7 +232,7 @@ void __not_in_flash_func(cgia_render)(uint y, uint32_t *rgbbuf, uint8_t recursio
 
         case 0x0: // INSTR0 - blank lines
             dl_row_lines = dl_instr >> 4;
-            (void)cgia_encode_border(p, DISPLAY_WIDTH_PIXELS / 8, CGIA.back_color);
+            (void)cgia_encode_border(p, DISPLAY_WIDTH_PIXELS / CGIA_COLUMN_PX, CGIA.back_color);
             goto skip_right_border;
 
         case 0x1: // INSTR1 - duplicate lines
@@ -392,7 +400,7 @@ void __not_in_flash_func(cgia_render)(uint y, uint32_t *rgbbuf, uint8_t recursio
 
         // ------- UNKNOWN MODE - generate pink line (should not happen)
         default:
-            (void)cgia_encode_border(rgbbuf, DISPLAY_WIDTH_PIXELS / 8, 234);
+            (void)cgia_encode_border(rgbbuf, DISPLAY_WIDTH_PIXELS / CGIA_COLUMN_PX, 234);
             dl_row_lines = row_line_count; // force moving to next DL instruction
             goto skip_right_border;
         }
@@ -427,39 +435,66 @@ void __not_in_flash_func(cgia_render)(uint y, uint32_t *rgbbuf, uint8_t recursio
         }
     }
 
+sprites:
     // --- SPRITES ---
     {
-        // cgia_encode_sprites(rgbbuf, y, CGIA.plane[1].regs.sprite.active, sprites);
-        for (int i = 0; i < CGIA.plane[1].regs.sprite.active; ++i)
+        size_t count = CGIA.plane[1].regs.sprite.count;
+        struct cgia_sprite_t *sprite = sprites + count;
+        while (count--)
         {
-            struct cgia_sprite_t *sprite = &sprites[i];
+            // render sprites in reverse order
+            // so lower indexed sprites have higher visual priority
+            --sprite;
             if (sprite->flags & SPRITE_MASK_ACTIVE)
             {
-                int sprite_line = y - sprite->pos_y;
+                int sprite_line = (sprite->flags & SPRITE_MASK_MIRROR_Y)
+                                      ? sprite->pos_y + sprite->lines_y - 1 - y
+                                      : y - sprite->pos_y;
                 if (sprite_line >= 0 && sprite_line < sprite->lines_y)
                 {
-                    int sprite_width = sprite->flags & SPRITE_MASK_WIDTH;
-                    int sprite_offset = sprite_line * (sprite_width + 1);
-                    for (int j = 0; j <= sprite_width; ++j)
+                    const uint8_t sprite_width = sprite->flags & SPRITE_MASK_WIDTH;
+                    uint8_t line_bytes = sprite_width + 1;
+                    const uint sprite_offset = sprite_line * line_bytes;
+
+                    uint8_t *dst = sprite_line_data;
+                    uint8_t *src;
+                    if (sprite->flags & SPRITE_MASK_MIRROR_X)
                     {
-                        sprite->line_data[j] = example_sprite_data[sprite_offset + j];
+                        src = example_sprite_data + sprite_offset + sprite_width;
+                        do
+                        {
+                            *dst++ = *src--;
+                        } while (--line_bytes);
                     }
-                    cgia_encode_sprite(rgbbuf, (uint32_t *)sprite, sprite_width);
+                    else
+                    {
+                        src = example_sprite_data + sprite_offset;
+                        do
+                        {
+                            *dst++ = *src++;
+                        } while (--line_bytes);
+                    }
+
+                    cgia_encode_sprite(rgbbuf, (uint32_t *)sprite, sprite_line_data, sprite_width);
                 }
             }
         }
     }
 
-    // last frame
-    if ((wait_vbl && y == FRAME_HEIGHT - 1) || sprites_need_update)
+    if (sprites_need_update)
     {
         sprites_need_update = false;
-        for (uint8_t s = 0; s < CGIA.plane[1].regs.sprite.active; ++s)
+        for (uint8_t s = 0; s < CGIA.plane[1].regs.sprite.count; ++s)
         {
             // TODO: copy memory to sprites[EXAMPLE_SPRITE_COUNT]
+            // NOTE: use DMA controlled blocks transfer
         }
     }
 }
+
+#define SPRITE_PADDING (SPRITE_MAX_WIDTH * CGIA_COLUMN_PX)
+#define MIN_SPRITE_X   (-SPRITE_PADDING)
+#define MIN_SPRITE_Y   (-EXAMPLE_SPRITE_HEIGHT)
 
 void cgia_vbl(void)
 {
@@ -468,37 +503,31 @@ void cgia_vbl(void)
     // REMOVEME: example VBL service routine
     sprites[0].pos_x += 1;
     sprites[0].pos_y += 1;
-    if (sprites[0].pos_x > DISPLAY_WIDTH_PIXELS)
-        sprites[0].pos_x = 0;
     sprites[1].pos_x -= 1;
     sprites[1].pos_y += 1;
-    if (sprites[1].pos_x > DISPLAY_WIDTH_PIXELS)
-        sprites[1].pos_x = DISPLAY_WIDTH_PIXELS;
     sprites[2].pos_x += 1;
     sprites[2].pos_y -= 1;
-    if (sprites[2].pos_x > DISPLAY_WIDTH_PIXELS)
-        sprites[2].pos_x = 0;
     sprites[3].pos_x -= 1;
     sprites[3].pos_y -= 1;
-    if (sprites[3].pos_x > DISPLAY_WIDTH_PIXELS)
-        sprites[3].pos_x = DISPLAY_WIDTH_PIXELS;
-
     sprites[4].pos_x += 1;
     sprites[4].pos_y += 2;
-    if (sprites[4].pos_x > DISPLAY_WIDTH_PIXELS)
-        sprites[4].pos_x = 0;
     sprites[5].pos_x -= 2;
     sprites[5].pos_y += 1;
-    if (sprites[5].pos_x > DISPLAY_WIDTH_PIXELS)
-        sprites[5].pos_x = DISPLAY_WIDTH_PIXELS;
     sprites[6].pos_x += 2;
     sprites[6].pos_y -= 1;
-    if (sprites[6].pos_x > DISPLAY_WIDTH_PIXELS)
-        sprites[6].pos_x = 0;
     sprites[7].pos_x -= 1;
     sprites[7].pos_y -= 2;
-    if (sprites[7].pos_x > DISPLAY_WIDTH_PIXELS)
-        sprites[7].pos_x = DISPLAY_WIDTH_PIXELS;
+    for (uint8_t i = 0; i < EXAMPLE_SPRITE_COUNT; ++i)
+    {
+        if (sprites[i].pos_x > DISPLAY_WIDTH_PIXELS)
+            sprites[i].pos_x = MIN_SPRITE_X;
+        if (sprites[i].pos_x < MIN_SPRITE_X)
+            sprites[i].pos_x = DISPLAY_WIDTH_PIXELS;
+        if (sprites[i].pos_y > FRAME_HEIGHT)
+            sprites[i].pos_y = MIN_SPRITE_Y;
+        if (sprites[i].pos_y < MIN_SPRITE_Y)
+            sprites[i].pos_y = FRAME_HEIGHT;
+    }
 
     static int frame = 0;
     ++frame;

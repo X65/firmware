@@ -50,9 +50,10 @@
 #define FB_V_REPEAT 2
 
 // ----------------------------------------------------------------------------
+#define LINE_BUFFER_PADDING (SPRITE_MAX_WIDTH * CGIA_COLUMN_PX) // maximum sprite width
 // RGB line buffers
-#define RGB_LINE_BUFFERS 2
-static uint32_t linebuffer[MODE_H_ACTIVE_PIXELS * RGB_LINE_BUFFERS];
+#define RGB_LINE_BUFFERS    2
+static uint32_t linebuffer[(MODE_H_ACTIVE_PIXELS + 2 * LINE_BUFFER_PADDING) * RGB_LINE_BUFFERS];
 
 static uint a_scanline = 0;
 static uint cur_scanline = UINT_MAX;
@@ -312,8 +313,8 @@ void __not_in_flash_func(out_core1_main)(void)
 
     dma_channel_start(DMACH_PING);
 
-    gen_line_ptr = (uintptr_t)(linebuffer);
-    cur_line_ptr = (uintptr_t)(linebuffer + MODE_H_ACTIVE_PIXELS);
+    gen_line_ptr = (uintptr_t)(linebuffer + LINE_BUFFER_PADDING);
+    cur_line_ptr = (uintptr_t)(linebuffer + LINE_BUFFER_PADDING + MODE_H_ACTIVE_PIXELS);
 
     while (true)
     {

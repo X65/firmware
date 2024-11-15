@@ -79,6 +79,7 @@ target_sources(rp816 PRIVATE
     ria/term/term.c
     ria/cgia/cgia.c
     ria/cgia/cgia_encode.S
+    ria/cgia/cgia_sprites.S
     ria/usb/hid_ps4.c
     ria/usb/hid.c
     ria/usb/kbd.c

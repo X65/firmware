@@ -50,7 +50,6 @@ cell_colors: .skip 4*4  // Reserve 4 words for the multi color array
 .else
   adds r0, 1  // transparent pixel - move to next
 .endif
-
 2:
 .endm
 
@@ -165,102 +164,6 @@ decl_func cgia_encode_mode_5
 
 decl_func cgia_encode_mode_7
 	cgia_encode_mode_5_or_7 1
-
-
-//////////////////// SPRITES ////////////////////
-
-#define SPRITE_POS_X_OFFS   0
-#define SPRITE_POS_Y_OFFS   2
-#define SPRITE_LINES_Y_OFFS 3
-#define SPRITE_FLAGS_OFFS   4
-#define SPRITE_COLORS_OFFS  4   // COLOR 0 is not used, so point one byte before color table
-#define SPRITE_COLOR_1_OFFS 5
-#define SPRITE_COLOR_2_OFFS 6
-#define SPRITE_COLOR_3_OFFS 7
-#define SPRITE_DATA_OFFS    12  // data copied from CPU memory by PIO+DMA
-
-#define SPRITE_MASK_WIDTH        0b00000011
-#define SPRITE_MASK_ACTIVE       0b00000100
-#define SPRITE_MASK_MULTICOLOR   0b00001000
-#define SPRITE_MASK_DOUBLE_WIDTH 0b00010000
-
-// r0 is output RGB buffer
-// r1 is sprite color indices array
-// r2 is byte counter - do not touch!
-// r3 is bitmap (8 LSB)
-// r9 is palette begin address
-// changes r0,r4
-.macro write_sprite_multi sh_amt
-  mov r4, r3
-  lsrs r4, #\sh_amt
-  ands r4, 3        // 00000011 mask
-  beq 1f            // do not set 00 pixel
-  ldrb r4, [r1, r4] // load sprite color
-  ldr r4, [r9, r4, LSL #2]  // load palette entry
-  str r4, [r0]
-1:
-  adds r0, #4     // move 1 screen pixel
-.endm
-
-.align 2
-buffer_length: .word 768*4       // 768 px - 4 bytes per pixel (XRGB)
-
-// r0 is output RGB buffer
-// r1 is sprite descriptor address
-// r2 is sprite width
-decl_func cgia_encode_sprite
-  push {r4-r7, lr}
-  mov r4, r8
-  mov r5, r9
-  mov r6, r10
-  push {r4-r6}
-
-  ldr r10, =buffer_length
-  add r10, r0       // r10 - max allowed RGB address
-
-  ldr r9, =cgia_rgb_palette
-
-  ldrh r6, [r1, #SPRITE_POS_X_OFFS]
-  lsls r6, #2   // 4 bytes per pixel (one word of 2px)
-  adds r0, r6   // move RGB buffer pointer to correct position in line
-
-  cmp r0, r10   // check if past RGB buffer
-  bge 4f
-
-  // TODO: implement flags handling
-
-  adds r1, #SPRITE_COLORS_OFFS    // move r1 to point to color data
-
-  adds r2, (SPRITE_DATA_OFFS - SPRITE_COLORS_OFFS)
-  mov ip, r2  // iterate up untill this index
-  movs r2, (SPRITE_DATA_OFFS - SPRITE_COLORS_OFFS)
-
-3:
-  ldrb r3, [r1, r2]  // load bitmap byte
-
-  write_sprite_multi 6
-  cmp r0, r10   // check if past RGB buffer
-  bge 4f
-  write_sprite_multi 4
-  cmp r0, r10   // check if past RGB buffer
-  bge 4f
-  write_sprite_multi 2
-  cmp r0, r10   // check if past RGB buffer
-  bge 4f
-  write_sprite_multi 0
-  cmp r0, r10   // check if past RGB buffer
-  bge 4f
-
-  adds r2, #1
-  cmp r2, ip
-  ble 3b
-
-4:
-  pop {r4-r6}
-  mov r8, r4
-  mov r9, r5
-  mov r10, r6
-  pop {r4-r7, pc}
 
 
 //////////////////// BORDER ////////////////////

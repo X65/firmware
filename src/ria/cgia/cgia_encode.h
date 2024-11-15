@@ -42,9 +42,10 @@ uint32_t *__not_in_flash_func(cgia_encode_mode_7)(
     uint32_t columns,
     uint8_t shared_colors[2]);
 
-uint32_t *__not_in_flash_func(cgia_encode_sprite)(
+void __not_in_flash_func(cgia_encode_sprite)(
     uint32_t *rgbbuf,
     uint32_t *descriptor,
+    uint8_t *line_data,
     uint32_t width);
 
 #endif
