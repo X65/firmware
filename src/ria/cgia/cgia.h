@@ -30,7 +30,7 @@
 
 #define CGIA_COLUMN_PX 8
 
-union cgia_plane_t
+struct cgia_plane_t
 {
     uint16_t offset; // Current DisplayList or SpriteDescriptor table start
 
@@ -63,7 +63,7 @@ struct cgia_t
 
     uint8_t back_color;
 
-    union cgia_plane_t plane[CGIA_PLANES];
+    struct cgia_plane_t plane[CGIA_PLANES];
 };
 
 extern struct cgia_t CGIA;
@@ -73,7 +73,7 @@ struct cgia_sprite_t
     // --- SPRITE DESCRIPTOR --- (16 bytes) ---
     int16_t pos_x;
     int16_t pos_y;
-    int16_t lines_y;
+    uint16_t lines_y;
     uint8_t flags;
     uint8_t color[3];
     uint8_t reserved[2];

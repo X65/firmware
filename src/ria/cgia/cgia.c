@@ -1,8 +1,5 @@
 #include "hardware/interp.h"
 
-#include <stdint.h>
-#include <stdio.h>
-
 #include "cgia.h"
 #include "cgia_encode.h"
 #include "cgia_palette.h"
@@ -30,7 +27,7 @@ static struct cgia_plane_internal
     uint8_t *backgr_scan;
     uint8_t *char_gen;
 }
-__attribute__((aligned(4))) plane[4]
+__attribute__((aligned(4))) plane[CGIA_PLANES]
     = {0};
 
 static uint8_t __attribute__((aligned(4))) sprite_line_data[SPRITE_MAX_WIDTH];
@@ -193,7 +190,7 @@ void __not_in_flash_func(cgia_render)(uint y, uint32_t *rgbbuf, uint8_t recursio
         row_line_count = 0;
     }
 
-    // --- BITMAP ---
+    // --- BACKGROUND ---
     {
         uint8_t *bckgnd_bank = EXAMPLE_DISPLAY_LIST; // psram + (CGIA.bckgnd_bank << 16)
         uint8_t dl_row_lines = CGIA.plane[0].regs.bckgnd.row_height;
