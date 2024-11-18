@@ -3,11 +3,6 @@
 
 #include "pico.h"
 
-uint32_t *__not_in_flash_func(cgia_encode_border)(
-    uint32_t *rgbbuf,
-    uint32_t columns,
-    uint32_t color_idx);
-
 void __not_in_flash_func(load_textmode_buffer)(
     uint32_t *scanline_buffer,
     uint32_t columns,

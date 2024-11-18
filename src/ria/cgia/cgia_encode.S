@@ -166,27 +166,6 @@ decl_func cgia_encode_mode_7
 	cgia_encode_mode_5_or_7 1
 
 
-//////////////////// BORDER ////////////////////
-
-// r0 is output RGB buffer
-// r1 is width in columns
-// r2 is background colour
-decl_func cgia_encode_border
-  ldr r3, =cgia_rgb_palette
-  ldr r3, [r3, r2, LSL #2]  // load palette entry
-  mov r2, r3                // copy to r2
-
-1:
-  stmia r0!, {r2-r3}  // write two pixels and move to next
-  stmia r0!, {r2-r3}  // 2 more
-  stmia r0!, {r2-r3}  // 2 more
-  stmia r0!, {r2-r3}  // 2 more => 8 pixels (per column in r1)
-  subs r1, #1         // decrement count
-  bne 1b              // repeat until count is zero
-
-  mov pc, lr      // return with updated r0
-
-
 //////////////////// SCANLINE BUFFER ////////////////////
 
 // r0 - destination scanline buffer

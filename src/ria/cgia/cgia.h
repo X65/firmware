@@ -46,7 +46,6 @@ struct cgia_plane_t
 
         struct cgia_sprite_regs
         {
-            uint16_t offset;
             uint8_t count;
         } sprite;
     } regs;

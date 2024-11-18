@@ -1,3 +1,4 @@
+#include "hardware/dma.h"
 #include "hardware/interp.h"
 
 #include "cgia.h"
@@ -75,9 +76,66 @@ uint8_t __attribute__((aligned(4))) bckgnd[FRAME_CHARS * 30];
 // TODO: set when writing CGIA.plane[1].regs.sprite.active
 static bool sprites_need_update = false;
 
+struct dma_control_block
+{
+    uint8_t *read;
+    uint8_t *write;
+    uint32_t len;
+};
+
+// DMA channels to copy blocks of data
+// ctrl_chan loads control blocks into data_chan, which executes them.
+int ctrl_chan;
+int data_chan;
+
+// DMA channel to fill raster line with background color
+int back_chan;
+
 void cgia_init(void)
 {
-    CGIA.back_color = EXAMPLE_BORDER_COLOR;
+    ctrl_chan = dma_claim_unused_channel(true);
+    data_chan = dma_claim_unused_channel(true);
+
+    dma_channel_config c = dma_channel_get_default_config(ctrl_chan);
+    channel_config_set_transfer_data_size(&c, DMA_SIZE_32);
+    channel_config_set_read_increment(&c, true);
+    channel_config_set_write_increment(&c, true);
+    channel_config_set_ring(&c, true, 3); // 1 << 3 byte boundary on write ptr
+    dma_channel_configure(
+        ctrl_chan,
+        &c,
+        &dma_hw->ch[data_chan].al3_transfer_count, // Initial write address
+        NULL,                                      // Initial read address
+        2,                                         // Halt after each control block
+        false                                      // Don't start yet
+    );
+
+    c = dma_channel_get_default_config(data_chan);
+    channel_config_set_transfer_data_size(&c, DMA_SIZE_8);
+    channel_config_set_chain_to(&c, ctrl_chan);
+    dma_channel_configure(
+        data_chan,
+        &c,
+        NULL,
+        NULL, // Initial read address and transfer count are unimportant;
+        0,    // the control channel will reprogram them each time.
+        false // Don't start yet.
+    );
+
+    back_chan = dma_claim_unused_channel(true);
+    c = dma_channel_get_default_config(back_chan);
+    channel_config_set_transfer_data_size(&c, DMA_SIZE_32);
+    channel_config_set_read_increment(&c, false);
+    channel_config_set_write_increment(&c, true);
+
+    dma_channel_configure(
+        back_chan,
+        &c,
+        NULL,
+        NULL,
+        DISPLAY_WIDTH_PIXELS,
+        false);
+
     // FIXME: these should be initialized by CPU Operating System
     CGIA.back_color = EXAMPLE_BORDER_COLOR;
     CGIA.plane[0].regs.bckgnd.shared_color[0] = EXAMPLE_BG_COLOR_1;
@@ -166,6 +224,19 @@ static inline uint8_t log_2(uint8_t x)
 #define MODE_BIT 0b00001000
 #define DLI_BIT  0b10000000
 
+uint32_t *fill_back(
+    uint32_t *p,
+    uint32_t columns,
+    uint32_t color_idx)
+{
+    dma_channel_wait_for_finish_blocking(back_chan);
+    dma_channel_set_write_addr(back_chan, p, false);
+    dma_channel_set_read_addr(back_chan, &cgia_rgb_palette[color_idx], false);
+    const uint pixels = columns * CGIA_COLUMN_PX;
+    dma_channel_set_trans_count(back_chan, pixels, true);
+    return p + pixels;
+}
+
 void __not_in_flash_func(cgia_render)(uint y, uint32_t *rgbbuf, uint8_t recursion_depth)
 {
     static uint8_t row_line_count = 0;
@@ -179,7 +250,7 @@ void __not_in_flash_func(cgia_render)(uint y, uint32_t *rgbbuf, uint8_t recursio
     {
         // DL is stopped and waiting for VBL
         // generate full-length border line
-        (void)cgia_encode_border(rgbbuf, DISPLAY_WIDTH_PIXELS / CGIA_COLUMN_PX, CGIA.back_color);
+        (void)fill_back(rgbbuf, DISPLAY_WIDTH_PIXELS / CGIA_COLUMN_PX, CGIA.back_color);
         // and we're done
         goto sprites;
     }
@@ -205,22 +276,11 @@ void __not_in_flash_func(cgia_render)(uint y, uint32_t *rgbbuf, uint8_t recursio
 
         uint8_t dl_instr = bckgnd_bank[CGIA.plane[0].offset];
 
-#if 0
-        { // DL debugger
-            static int frame = 0;
-            if (y == 0)
-                ++frame;
-            if (frame == 60 * 5)
-            {
-                printf("%03d: %d => %02x\t%d%s\n\r",
-                       y, CGIA.plane[0].offset, dl_instr, row_line_count,
-                       wait_vbl ? " w" : "");
-            }
-        }
-#endif
         // Left border
-        if (dl_instr & MODE_BIT && border_columns)
-            p = cgia_encode_border(p, border_columns, CGIA.back_color);
+        if (dl_instr // skip if INSTR0
+                & MODE_BIT
+            && border_columns)
+            p = fill_back(p, border_columns, CGIA.back_color);
 
         // DL mode
         switch (dl_instr & 0b00001111)
@@ -229,14 +289,14 @@ void __not_in_flash_func(cgia_render)(uint y, uint32_t *rgbbuf, uint8_t recursio
 
         case 0x0: // INSTR0 - blank lines
             dl_row_lines = dl_instr >> 4;
-            (void)cgia_encode_border(p, DISPLAY_WIDTH_PIXELS / CGIA_COLUMN_PX, CGIA.back_color);
-            goto skip_right_border;
+            (void)fill_back(p, DISPLAY_WIDTH_PIXELS / CGIA_COLUMN_PX, CGIA.back_color);
+            goto plane_epilogue;
 
         case 0x1: // INSTR1 - duplicate lines
             dl_row_lines = dl_instr >> 4;
             // FIXME: for now leave RGB buffer as is - will display it again
             // TODO: store last RGB buffer pointer at the end of the frame and copy to current one
-            goto skip_right_border;
+            goto plane_epilogue;
 
         case 0x2: // INSTR1 - JMP
             // Load DL address
@@ -397,16 +457,16 @@ void __not_in_flash_func(cgia_render)(uint y, uint32_t *rgbbuf, uint8_t recursio
 
         // ------- UNKNOWN MODE - generate pink line (should not happen)
         default:
-            (void)cgia_encode_border(rgbbuf, DISPLAY_WIDTH_PIXELS / CGIA_COLUMN_PX, 234);
+            (void)fill_back(rgbbuf, DISPLAY_WIDTH_PIXELS / CGIA_COLUMN_PX, 234);
             dl_row_lines = row_line_count; // force moving to next DL instruction
-            goto skip_right_border;
+            goto plane_epilogue;
         }
 
         // Right border
         if (dl_instr & MODE_BIT && border_columns)
-            p = cgia_encode_border(p, border_columns, CGIA.back_color);
+            p = fill_back(p, border_columns, CGIA.back_color);
 
-    skip_right_border:
+    plane_epilogue:
         // Should we run a new DL row?
         if (row_line_count == dl_row_lines)
         {
@@ -434,6 +494,8 @@ void __not_in_flash_func(cgia_render)(uint y, uint32_t *rgbbuf, uint8_t recursio
 
 sprites:
     // --- SPRITES ---
+    // wait until back fill is done, as it may overwrite sprites on the right side
+    dma_channel_wait_for_finish_blocking(back_chan);
     {
         size_t count = CGIA.plane[1].regs.sprite.count;
         struct cgia_sprite_t *sprite = sprites + count;
