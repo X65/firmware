@@ -12,6 +12,8 @@
 
 #include "sys/out.h"
 
+#include <string.h>
+
 #define DISPLAY_WIDTH_PIXELS (FRAME_WIDTH / 2)
 #define MAX_BORDER_COLUMNS   (DISPLAY_WIDTH_PIXELS / CGIA_COLUMN_PX / 2)
 
@@ -27,9 +29,11 @@ static struct cgia_plane_internal
     uint8_t *colour_scan;
     uint8_t *backgr_scan;
     uint8_t *char_gen;
-    uint32_t scanline_buffer[FRAME_CHARS * 3];
+    uint8_t row_line_count;
+    bool wait_vbl;
+    uint32_t __attribute__((aligned(4))) scanline_buffer[FRAME_CHARS * 3];
 }
-__attribute__((aligned(4))) plane[CGIA_PLANES]
+__attribute__((aligned(4))) plane_int[CGIA_PLANES]
     = {0};
 
 static uint8_t __attribute__((aligned(4))) sprite_line_data[SPRITE_MAX_WIDTH];
@@ -41,30 +45,9 @@ static struct cgia_sprite_t __attribute__((aligned(4))) sprites[EXAMPLE_SPRITE_C
 // --- temporary WIP ---
 uint8_t __attribute__((aligned(4))) video_bank[256 * 256];
 
-/* TEXT MODE */
-#define EXAMPLE_DISPLAY_LIST text_mode_dl
-#define EXAMPLE_BORDER_COLOR 145
-#define EXAMPLE_ROW_HEIGHT   7
-
-// /* HiRes mode */
-// #define EXAMPLE_DISPLAY_LIST hires_mode_dl
-// #define EXAMPLE_BORDER_COLOR 3
-// #define EXAMPLE_ROW_HEIGHT   7
-// #define EXAMPLE_MEMORY_SCAN  hr_bitmap_data
-// #define EXAMPLE_COLOUR_SCAN  hr_colour_data
-// #define EXAMPLE_BACKGR_SCAN  hr_background_data
-
-// /* MultiColor mode */
-// #define EXAMPLE_DISPLAY_LIST multi_mode_dl
-// #define EXAMPLE_BORDER_COLOR 0
-// #define EXAMPLE_ROW_HEIGHT   0
-// #define EXAMPLE_MEMORY_SCAN  mt_bitmap_data
-// #define EXAMPLE_COLOUR_SCAN  mt_colour_data
-// #define EXAMPLE_BACKGR_SCAN  mt_background_data
-
 // ---
-#define EXAMPLE_BG_COLOR_1 mt_background_color_1
-#define EXAMPLE_BG_COLOR_2 mt_background_color_2
+#define EXAMPLE_BORDER_COLOR 145
+#define EXAMPLE_TEXT_COLOR   150
 
 // TODO: set when writing CGIA.plane[1].regs.sprite.active
 static bool sprites_need_update = false;
@@ -86,6 +69,14 @@ int back_chan;
 
 void cgia_init(void)
 {
+    // All planes should initially wait for VBL
+    for (uint i = 0; i < CGIA_PLANES; ++i)
+    {
+        plane_int[i].wait_vbl = true;
+    }
+
+    // DMA
+
     ctrl_chan = dma_claim_unused_channel(true);
     data_chan = dma_claim_unused_channel(true);
 
@@ -131,12 +122,55 @@ void cgia_init(void)
 
     // FIXME: these should be initialized by CPU Operating System
     CGIA.back_color = EXAMPLE_BORDER_COLOR;
-    CGIA.plane[0].regs.bckgnd.shared_color[0] = EXAMPLE_BG_COLOR_1;
-    CGIA.plane[0].regs.bckgnd.shared_color[1] = EXAMPLE_BG_COLOR_2;
-    CGIA.plane[0].regs.bckgnd.row_height = EXAMPLE_ROW_HEIGHT;
-    CGIA.plane[0].regs.bckgnd.border_columns = 4;
 
-    CGIA.plane[1].regs.sprite.count = EXAMPLE_SPRITE_COUNT;
+    uint8_t p;
+
+    /* TEXT MODE */
+    p = 0;
+    CGIA.planes |= (0x01 << p);
+    CGIA.plane[p].regs.bckgnd.row_height = 7;
+    CGIA.plane[p].regs.bckgnd.border_columns = 4;
+    uint8_t *video = video_bank + text_mode_video_offset;
+    memset(video, 0, FRAME_CHARS * 30);
+    video[0] = 'R';
+    video[1] = 'E';
+    video[2] = 'A';
+    video[3] = 'D';
+    video[4] = 'Y';
+    memset(video_bank + text_mode_color_offset, EXAMPLE_TEXT_COLOR, FRAME_CHARS * 30);
+    memset(video_bank + text_mode_bkgnd_offset, CGIA.back_color, FRAME_CHARS * 30);
+    memcpy(video_bank + text_mode_chrgn_offset, font8_data, sizeof(font8_data));
+    memcpy(video_bank + text_mode_dl_offset, text_mode_dl, sizeof(text_mode_dl));
+    CGIA.plane[p].offset = text_mode_dl_offset;
+
+    /* HiRes mode */
+    p = 2;
+    // CGIA.planes |= (0x01 << p);
+    CGIA.plane[p].regs.bckgnd.row_height = 7;
+    CGIA.plane[p].regs.bckgnd.border_columns = 4;
+    memcpy(video_bank + hires_mode_video_offset, hr_bitmap_data, sizeof(hr_bitmap_data));
+    memcpy(video_bank + hires_mode_color_offset, hr_colour_data, sizeof(hr_colour_data));
+    memcpy(video_bank + hires_mode_bkgnd_offset, hr_background_data, sizeof(hr_background_data));
+    memcpy(video_bank + hires_mode_dl_offset, hires_mode_dl, sizeof(hires_mode_dl));
+    CGIA.plane[p].offset = hires_mode_dl_offset;
+
+    /* MultiColor mode */
+    p = 3;
+    // CGIA.planes |= (0x01 << p);
+    CGIA.plane[p].regs.bckgnd.shared_color[0] = mt_background_color_1;
+    CGIA.plane[p].regs.bckgnd.shared_color[1] = mt_background_color_2;
+    CGIA.plane[p].regs.bckgnd.row_height = 0;
+    CGIA.plane[p].regs.bckgnd.border_columns = 4;
+    memcpy(video_bank + multi_mode_video_offset, mt_bitmap_data, sizeof(mt_bitmap_data));
+    memcpy(video_bank + multi_mode_color_offset, mt_colour_data, sizeof(mt_colour_data));
+    memcpy(video_bank + multi_mode_bkgnd_offset, mt_background_data, sizeof(mt_background_data));
+    memcpy(video_bank + multi_mode_dl_offset, multi_mode_dl, sizeof(multi_mode_dl));
+    CGIA.plane[p].offset = multi_mode_dl_offset;
+
+    /* SPRITES */
+    p = 1;
+    CGIA.planes |= (0x11 << p);
+    CGIA.plane[p].regs.sprite.count = EXAMPLE_SPRITE_COUNT;
     for (uint8_t i = 0; i < EXAMPLE_SPRITE_COUNT; ++i)
     {
         sprites[i].flags = SPRITE_MASK_ACTIVE;
@@ -159,38 +193,6 @@ void cgia_init(void)
     sprites[5].flags |= SPRITE_MASK_MIRROR_Y;
     sprites[6].flags &= ~SPRITE_MASK_WIDTH;
     sprites[6].flags |= 2;
-
-    uint8_t *video = video_bank + text_mode_video_offset;
-    for (int i = 0; i < FRAME_CHARS * 30; ++i)
-    {
-        video[i] = 0; // i & 0xff;
-    }
-    video[0] = 'R';
-    video[1] = 'E';
-    video[2] = 'A';
-    video[3] = 'D';
-    video[4] = 'Y';
-
-    uint8_t *colour = video_bank + text_mode_color_offset;
-    uint8_t *bckgnd = video_bank + text_mode_bkgnd_offset;
-    for (size_t i = 0; i < FRAME_CHARS * 30; ++i)
-    {
-        colour[i] = 150;             // i % CGIA_COLORS_NUM;
-        bckgnd[i] = CGIA.back_color; // ((CGIA_COLORS_NUM - 1) - i) % CGIA_COLORS_NUM;
-    }
-
-    uint8_t *char_gen = video_bank + text_mode_chrgn_offset;
-    for (size_t i = 0; i < sizeof(font8_data); ++i)
-    {
-        char_gen[i] = font8_data[i];
-    }
-
-    uint8_t *dl = video_bank + text_mode_dl_offset;
-    for (size_t i = 0; i < sizeof(EXAMPLE_DISPLAY_LIST); ++i)
-    {
-        dl[i] = EXAMPLE_DISPLAY_LIST[i];
-    }
-    CGIA.plane[0].offset = text_mode_dl_offset;
 }
 
 void cgia_core1_init(void)
@@ -231,322 +233,337 @@ static inline uint8_t log_2(uint8_t x)
 #define DLI_BIT  0b10000000
 
 uint32_t *fill_back(
-    uint32_t *p,
+    uint32_t *buf,
     uint32_t columns,
     uint32_t color_idx)
 {
     dma_channel_wait_for_finish_blocking(back_chan);
-    dma_channel_set_write_addr(back_chan, p, false);
+    dma_channel_set_write_addr(back_chan, buf, false);
     dma_channel_set_read_addr(back_chan, &cgia_rgb_palette[color_idx], false);
     const uint pixels = columns * CGIA_COLUMN_PX;
     dma_channel_set_trans_count(back_chan, pixels, true);
-    return p + pixels;
+    return buf + pixels;
 }
 
 void __not_in_flash_func(cgia_render)(uint y, uint32_t *rgbbuf, uint8_t recursion_depth)
 {
-    static uint8_t row_line_count = 0;
-    static bool wait_vbl = true;
+    static struct cgia_plane_t *plane;
+    static struct cgia_plane_internal *plane_data;
 
     // bail if sequence of commands is too long
     if (++recursion_depth > 8)
         return;
 
-    if (wait_vbl && y != 0)
+    for (uint p = 0; p < CGIA_PLANES; ++p)
     {
-        // DL is stopped and waiting for VBL
-        // generate full-length border line
-        (void)fill_back(rgbbuf, DISPLAY_WIDTH_PIXELS / CGIA_COLUMN_PX, CGIA.back_color);
-        // and we're done
-        goto sprites;
-    }
-
-    if (y == 0) // start of frame - reset flags and counters
-    {
-        wait_vbl = false;
-        row_line_count = 0;
-    }
-
-    // --- BACKGROUND ---
-    {
-        uint8_t *bckgnd_bank = video_bank; // psram + (CGIA.bckgnd_bank << 16)
-        uint8_t dl_row_lines = CGIA.plane[0].regs.bckgnd.row_height;
-
-        // Used for tracking where to blit pixel data
-        uint32_t *p = rgbbuf;
-
-        uint border_columns = CGIA.plane[0].regs.bckgnd.border_columns;
-        if (border_columns > MAX_BORDER_COLUMNS)
-            border_columns = MAX_BORDER_COLUMNS;
-        uint row_columns = FRAME_CHARS - 2 * border_columns;
-
-        uint8_t dl_instr = bckgnd_bank[CGIA.plane[0].offset];
-
-        // Left border
-        if (dl_instr // skip if INSTR0
-                & MODE_BIT
-            && border_columns)
-            p = fill_back(p, border_columns, CGIA.back_color);
-
-        // DL mode
-        switch (dl_instr & 0b00001111)
+        if (CGIA.planes & (0x10u << p))
         {
-            // ------- Instructions --------------
+            /* --- SPRITES --- */
+            if (!(CGIA.planes & (1u << p)))
+                continue; // next if not enabled
 
-        case 0x0: // INSTR0 - blank lines
-            dl_row_lines = dl_instr >> 4;
-            (void)fill_back(p, DISPLAY_WIDTH_PIXELS / CGIA_COLUMN_PX, CGIA.back_color);
-            goto plane_epilogue;
+            plane = CGIA.plane + p;
 
-        case 0x1: // INSTR1 - duplicate lines
-            dl_row_lines = dl_instr >> 4;
-            // FIXME: for now leave RGB buffer as is - will display it again
-            // TODO: store last RGB buffer pointer at the end of the frame and copy to current one
-            goto plane_epilogue;
+            // wait until back fill is done, as it may overwrite sprites on the right side
+            dma_channel_wait_for_finish_blocking(back_chan);
 
-        case 0x2: // INSTR1 - JMP
-            // Load DL address
-            CGIA.plane[0].offset = (uint16_t)((bckgnd_bank[++CGIA.plane[0].offset])
-                                              | (bckgnd_bank[++CGIA.plane[0].offset] << 8));
-            row_line_count = 0; // will start new row
-
-            if (dl_instr & DLI_BIT)
-                wait_vbl = true;
-
-            // .display_list is already pointing to proper instruction
-            return cgia_render(y, p, recursion_depth); // process next DL instruction
-
-        case 0x3: // Load Memory
-            if (dl_instr & 0b00010000)
+            size_t count = plane->regs.sprite.count;
+            struct cgia_sprite_t *sprite = sprites + count;
+            while (count--)
             {
-                plane[0].memory_scan = bckgnd_bank
-                                       + (uint16_t)((bckgnd_bank[++CGIA.plane[0].offset])
-                                                    | (bckgnd_bank[++CGIA.plane[0].offset] << 8));
-            }
-            if (dl_instr & 0b00100000)
-            {
-                plane[0].colour_scan = bckgnd_bank
-                                       + (uint16_t)((bckgnd_bank[++CGIA.plane[0].offset])
-                                                    | (bckgnd_bank[++CGIA.plane[0].offset] << 8));
-            }
-            if (dl_instr & 0b01000000)
-            {
-                plane[0].backgr_scan = bckgnd_bank
-                                       + (uint16_t)((bckgnd_bank[++CGIA.plane[0].offset])
-                                                    | (bckgnd_bank[++CGIA.plane[0].offset] << 8));
-            }
-            if (dl_instr & 0b10000000)
-            {
-                plane[0].char_gen = bckgnd_bank
-                                    + (uint16_t)((bckgnd_bank[++CGIA.plane[0].offset])
-                                                 | (bckgnd_bank[++CGIA.plane[0].offset] << 8));
-            }
-            ++CGIA.plane[0].offset;                    // Move to next DL instruction
-            return cgia_render(y, p, recursion_depth); // process next DL instruction
-
-            // ------- Mode Rows --------------
-
-        case (0x2 | MODE_BIT): // MODE2 (A) - text/tile mode
-        {
-            interp_set_base(interp0, 0, 1);
-            interp_set_accumulator(interp0, 0, (uintptr_t)plane[0].memory_scan - 1);
-            interp_set_accumulator(interp1, 0, (uintptr_t)plane[0].colour_scan - 1);
-            interp_set_accumulator(interp1, 1, (uintptr_t)plane[0].backgr_scan - 1);
-            if (row_columns)
-            {
-                uint8_t char_shift = log_2(CGIA.plane[0].regs.bckgnd.row_height);
-                load_textmode_buffer(plane[0].scanline_buffer, row_columns, plane[0].char_gen + row_line_count, char_shift);
-                p = cgia_encode_mode_3_mapped(p, plane[0].scanline_buffer, row_columns);
-            }
-        }
-        break;
-
-        case (0x3 | MODE_BIT): // MODE3 (B) - bitmap mode
-        {
-            const uint8_t row_height = CGIA.plane[0].regs.bckgnd.row_height + 1;
-            interp_set_base(interp0, 0, row_height);
-            interp_set_accumulator(interp0, 0, (uintptr_t)plane[0].memory_scan - row_height);
-            interp_set_accumulator(interp1, 0, (uintptr_t)plane[0].colour_scan - 1);
-            interp_set_accumulator(interp1, 1, (uintptr_t)plane[0].backgr_scan - 1);
-            if (row_columns)
-            {
-                if (false) // FIXME: fill background using DMA and always use transparency code
+                // render sprites in reverse order
+                // so lower indexed sprites have higher visual priority
+                --sprite;
+                if (sprite->flags & SPRITE_MASK_ACTIVE)
                 {
-                    load_scanline_buffer_shared(plane[0].scanline_buffer, row_columns);
-                    p = cgia_encode_mode_3_shared(p, plane[0].scanline_buffer, row_columns);
-                }
-                else
-                {
-                    load_scanline_buffer_mapped(plane[0].scanline_buffer, row_columns);
-                    p = cgia_encode_mode_3_mapped(p, plane[0].scanline_buffer, row_columns);
+                    int sprite_line = (sprite->flags & SPRITE_MASK_MIRROR_Y)
+                                          ? sprite->pos_y + sprite->lines_y - 1 - y
+                                          : y - sprite->pos_y;
+                    if (sprite_line >= 0 && sprite_line < sprite->lines_y)
+                    {
+                        const uint8_t sprite_width = sprite->flags & SPRITE_MASK_WIDTH;
+                        uint8_t line_bytes = sprite_width + 1;
+                        const uint sprite_offset = sprite_line * line_bytes;
+
+                        uint8_t *dst = sprite_line_data;
+                        uint8_t *src;
+                        if (sprite->flags & SPRITE_MASK_MIRROR_X)
+                        {
+                            src = example_sprite_data + sprite_offset + sprite_width;
+                            do
+                            {
+                                *dst++ = *src--;
+                            } while (--line_bytes);
+                        }
+                        else
+                        {
+                            src = example_sprite_data + sprite_offset;
+                            do
+                            {
+                                *dst++ = *src++;
+                            } while (--line_bytes);
+                        }
+
+                        cgia_encode_sprite(rgbbuf, (uint32_t *)sprite, sprite_line_data, sprite_width);
+                    }
                 }
             }
 
-            // next raster line starts with next byte, but color/bg scan stay the same
-            ++plane[0].memory_scan;
-        }
-        break;
-
-        case (0x4 | MODE_BIT): // MODE4 (C) - multicolor text/tile mode
-        {
-            interp_set_base(interp0, 0, 1);
-            interp_set_accumulator(interp0, 0, (uintptr_t)plane[0].memory_scan - 1);
-            interp_set_accumulator(interp1, 0, (uintptr_t)plane[0].colour_scan - 1);
-            interp_set_accumulator(interp1, 1, (uintptr_t)plane[0].backgr_scan - 1);
-            if (row_columns)
+            if (sprites_need_update)
             {
-                row_columns <<= 1; // this mode generates 4x8 cells, so requires 2x columns
-                uint8_t char_shift = log_2(CGIA.plane[0].regs.bckgnd.row_height);
-                load_textmode_buffer(plane[0].scanline_buffer, row_columns, plane[0].char_gen + row_line_count, char_shift);
-                p = cgia_encode_mode_5(p, plane[0].scanline_buffer, row_columns, CGIA.plane[0].regs.bckgnd.shared_color);
+                sprites_need_update = false;
+                for (uint8_t s = 0; s < plane->regs.sprite.count; ++s)
+                {
+                    // TODO: copy memory to sprites[EXAMPLE_SPRITE_COUNT]
+                    // NOTE: use DMA controlled blocks transfer
+                }
             }
-        }
-        break;
-
-        case (0x5 | MODE_BIT): // MODE5 (D) - multicolor bitmap mode
-        {
-            const uint8_t row_height = CGIA.plane[0].regs.bckgnd.row_height + 1;
-            interp_set_base(interp0, 0, row_height);
-            interp_set_accumulator(interp0, 0, (uintptr_t)plane[0].memory_scan - row_height);
-            interp_set_accumulator(interp1, 0, (uintptr_t)plane[0].colour_scan - 1);
-            interp_set_accumulator(interp1, 1, (uintptr_t)plane[0].backgr_scan - 1);
-            if (row_columns)
-            {
-                row_columns <<= 1; // this mode generates 4x8 cells, so requires 2x columns
-                load_scanline_buffer_mapped(plane[0].scanline_buffer, row_columns);
-                p = cgia_encode_mode_5(p, plane[0].scanline_buffer, row_columns, CGIA.plane[0].regs.bckgnd.shared_color);
-            }
-
-            // next raster line starts with next byte, but color/bg scan stay the same
-            ++plane[0].memory_scan;
-        }
-        break;
-
-        case (0x6 | MODE_BIT): // MODE6 (E) - doubled multicolor text/tile mode
-        {
-            interp_set_base(interp0, 0, 1);
-            interp_set_accumulator(interp0, 0, (uintptr_t)plane[0].memory_scan - 1);
-            interp_set_accumulator(interp1, 0, (uintptr_t)plane[0].colour_scan - 1);
-            interp_set_accumulator(interp1, 1, (uintptr_t)plane[0].backgr_scan - 1);
-            if (row_columns)
-            {
-                uint8_t char_shift = log_2(CGIA.plane[0].regs.bckgnd.row_height);
-                load_textmode_buffer(plane[0].scanline_buffer, row_columns, plane[0].char_gen + row_line_count, char_shift);
-                p = cgia_encode_mode_7(p, plane[0].scanline_buffer, row_columns, CGIA.plane[0].regs.bckgnd.shared_color);
-            }
-        }
-        break;
-
-        case (0x7 | MODE_BIT): // MODE7 (F) - doubled multicolor bitmap mode
-        {
-            const uint8_t row_height = CGIA.plane[0].regs.bckgnd.row_height + 1;
-            interp_set_base(interp0, 0, row_height);
-            interp_set_accumulator(interp0, 0, (uintptr_t)plane[0].memory_scan - row_height);
-            interp_set_accumulator(interp1, 0, (uintptr_t)plane[0].colour_scan - 1);
-            interp_set_accumulator(interp1, 1, (uintptr_t)plane[0].backgr_scan - 1);
-            if (row_columns)
-            {
-                load_scanline_buffer_mapped(plane[0].scanline_buffer, row_columns);
-                p = cgia_encode_mode_7(p, plane[0].scanline_buffer, row_columns, CGIA.plane[0].regs.bckgnd.shared_color);
-            }
-
-            // next raster line starts with next byte, but color/bg scan stay the same
-            ++plane[0].memory_scan;
-        }
-        break;
-
-        // ------- UNKNOWN MODE - generate pink line (should not happen)
-        default:
-            (void)fill_back(rgbbuf, DISPLAY_WIDTH_PIXELS / CGIA_COLUMN_PX, 234);
-            dl_row_lines = row_line_count; // force moving to next DL instruction
-            goto plane_epilogue;
-        }
-
-        // Right border
-        if (dl_instr & MODE_BIT && border_columns)
-            p = fill_back(p, border_columns, CGIA.back_color);
-
-    plane_epilogue:
-        // Should we run a new DL row?
-        if (row_line_count == dl_row_lines)
-        {
-            // Update scan pointers
-            if (dl_instr & MODE_BIT)
-            {
-                // update scan pointers to next value
-                plane[0].memory_scan = (uint8_t *)(uintptr_t)interp_get_accumulator(interp0, 0) + 1;
-                plane[0].colour_scan = (uint8_t *)(uintptr_t)interp_get_accumulator(interp1, 0) + 1;
-                plane[0].backgr_scan = (uint8_t *)(uintptr_t)interp_get_accumulator(interp1, 1) + 1;
-            }
-
-            // Reset line counter
-            row_line_count = 0;
-
-            // Move to next DL instruction
-            ++CGIA.plane[0].offset;
         }
         else
         {
-            // Move to next line of current DL row
-            ++row_line_count;
-        }
-    }
+            /* --- BACKGROUND --- */
+            plane = CGIA.plane + p;
+            plane_data = plane_int + p;
 
-sprites:
-    // --- SPRITES ---
-    // wait until back fill is done, as it may overwrite sprites on the right side
-    dma_channel_wait_for_finish_blocking(back_chan);
-    {
-        size_t count = CGIA.plane[1].regs.sprite.count;
-        struct cgia_sprite_t *sprite = sprites + count;
-        while (count--)
-        {
-            // render sprites in reverse order
-            // so lower indexed sprites have higher visual priority
-            --sprite;
-            if (sprite->flags & SPRITE_MASK_ACTIVE)
+            if (y == 0) // start of frame - reset flags and counters
             {
-                int sprite_line = (sprite->flags & SPRITE_MASK_MIRROR_Y)
-                                      ? sprite->pos_y + sprite->lines_y - 1 - y
-                                      : y - sprite->pos_y;
-                if (sprite_line >= 0 && sprite_line < sprite->lines_y)
-                {
-                    const uint8_t sprite_width = sprite->flags & SPRITE_MASK_WIDTH;
-                    uint8_t line_bytes = sprite_width + 1;
-                    const uint sprite_offset = sprite_line * line_bytes;
+                plane_data->wait_vbl = false;
+                plane_data->row_line_count = 0;
+            }
 
-                    uint8_t *dst = sprite_line_data;
-                    uint8_t *src;
-                    if (sprite->flags & SPRITE_MASK_MIRROR_X)
+            if (!(CGIA.planes & (1u << p)))
+                continue; // next if not enabled
+
+            if (plane_data->wait_vbl && y != 0)
+            {
+                // DL is stopped and waiting for VBL
+                // generate full-length border line
+                (void)fill_back(rgbbuf, DISPLAY_WIDTH_PIXELS / CGIA_COLUMN_PX, CGIA.back_color);
+                // and we're done
+                continue;
+            }
+
+            uint8_t *bckgnd_bank = video_bank; // psram + (CGIA.bckgnd_bank << 16)
+            uint8_t dl_row_lines = plane->regs.bckgnd.row_height;
+
+            // Used for tracking where to blit pixel data
+            uint32_t *buf = rgbbuf;
+
+            uint border_columns = plane->regs.bckgnd.border_columns;
+            if (border_columns > MAX_BORDER_COLUMNS)
+                border_columns = MAX_BORDER_COLUMNS;
+            uint row_columns = FRAME_CHARS - 2 * border_columns;
+
+            uint8_t dl_instr = bckgnd_bank[plane->offset];
+
+            // Left border
+            if (dl_instr // skip if INSTR0
+                    & MODE_BIT
+                && border_columns)
+                buf = fill_back(buf, border_columns, CGIA.back_color);
+
+            // DL mode
+            switch (dl_instr & 0b00001111)
+            {
+                // ------- Instructions --------------
+
+            case 0x0: // INSTR0 - blank lines
+                dl_row_lines = dl_instr >> 4;
+                (void)fill_back(buf, DISPLAY_WIDTH_PIXELS / CGIA_COLUMN_PX, CGIA.back_color);
+                goto plane_epilogue;
+
+            case 0x1: // INSTR1 - duplicate lines
+                dl_row_lines = dl_instr >> 4;
+                // FIXME: for now leave RGB buffer as is - will display it again
+                // TODO: store last RGB buffer pointer at the end of the frame and copy to current one
+                goto plane_epilogue;
+
+            case 0x2: // INSTR1 - JMP
+                // Load DL address
+                plane->offset = (uint16_t)((bckgnd_bank[++plane->offset])
+                                           | (bckgnd_bank[++plane->offset] << 8));
+                plane_data->row_line_count = 0; // will start new row
+
+                if (dl_instr & DLI_BIT)
+                    plane_data->wait_vbl = true;
+
+                // .display_list is already pointing to proper instruction
+                return cgia_render(y, buf, recursion_depth); // process next DL instruction
+
+            case 0x3: // Load Memory
+                if (dl_instr & 0b00010000)
+                {
+                    plane_data->memory_scan = bckgnd_bank
+                                              + (uint16_t)((bckgnd_bank[++plane->offset])
+                                                           | (bckgnd_bank[++plane->offset] << 8));
+                }
+                if (dl_instr & 0b00100000)
+                {
+                    plane_data->colour_scan = bckgnd_bank
+                                              + (uint16_t)((bckgnd_bank[++plane->offset])
+                                                           | (bckgnd_bank[++plane->offset] << 8));
+                }
+                if (dl_instr & 0b01000000)
+                {
+                    plane_data->backgr_scan = bckgnd_bank
+                                              + (uint16_t)((bckgnd_bank[++plane->offset])
+                                                           | (bckgnd_bank[++plane->offset] << 8));
+                }
+                if (dl_instr & 0b10000000)
+                {
+                    plane_data->char_gen = bckgnd_bank
+                                           + (uint16_t)((bckgnd_bank[++plane->offset])
+                                                        | (bckgnd_bank[++plane->offset] << 8));
+                }
+                ++plane->offset;                             // Move to next DL instruction
+                return cgia_render(y, buf, recursion_depth); // process next DL instruction
+
+                // ------- Mode Rows --------------
+
+            case (0x2 | MODE_BIT): // MODE2 (A) - text/tile mode
+            {
+                interp_set_base(interp0, 0, 1);
+                interp_set_accumulator(interp0, 0, (uintptr_t)plane_data->memory_scan - 1);
+                interp_set_accumulator(interp1, 0, (uintptr_t)plane_data->colour_scan - 1);
+                interp_set_accumulator(interp1, 1, (uintptr_t)plane_data->backgr_scan - 1);
+                if (row_columns)
+                {
+                    uint8_t char_shift = log_2(plane->regs.bckgnd.row_height);
+                    load_textmode_buffer(plane_data->scanline_buffer, row_columns, plane_data->char_gen + plane_data->row_line_count, char_shift);
+                    buf = cgia_encode_mode_3_mapped(buf, plane_data->scanline_buffer, row_columns);
+                }
+            }
+            break;
+
+            case (0x3 | MODE_BIT): // MODE3 (B) - bitmap mode
+            {
+                const uint8_t row_height = plane->regs.bckgnd.row_height + 1;
+                interp_set_base(interp0, 0, row_height);
+                interp_set_accumulator(interp0, 0, (uintptr_t)plane_data->memory_scan - row_height);
+                interp_set_accumulator(interp1, 0, (uintptr_t)plane_data->colour_scan - 1);
+                interp_set_accumulator(interp1, 1, (uintptr_t)plane_data->backgr_scan - 1);
+                if (row_columns)
+                {
+                    if (false) // FIXME: fill background using DMA and always use transparency code
                     {
-                        src = example_sprite_data + sprite_offset + sprite_width;
-                        do
-                        {
-                            *dst++ = *src--;
-                        } while (--line_bytes);
+                        load_scanline_buffer_shared(plane_data->scanline_buffer, row_columns);
+                        buf = cgia_encode_mode_3_shared(buf, plane_data->scanline_buffer, row_columns);
                     }
                     else
                     {
-                        src = example_sprite_data + sprite_offset;
-                        do
-                        {
-                            *dst++ = *src++;
-                        } while (--line_bytes);
+                        load_scanline_buffer_mapped(plane_data->scanline_buffer, row_columns);
+                        buf = cgia_encode_mode_3_mapped(buf, plane_data->scanline_buffer, row_columns);
                     }
+                }
 
-                    cgia_encode_sprite(rgbbuf, (uint32_t *)sprite, sprite_line_data, sprite_width);
+                // next raster line starts with next byte, but color/bg scan stay the same
+                ++plane_data->memory_scan;
+            }
+            break;
+
+            case (0x4 | MODE_BIT): // MODE4 (C) - multicolor text/tile mode
+            {
+                interp_set_base(interp0, 0, 1);
+                interp_set_accumulator(interp0, 0, (uintptr_t)plane_data->memory_scan - 1);
+                interp_set_accumulator(interp1, 0, (uintptr_t)plane_data->colour_scan - 1);
+                interp_set_accumulator(interp1, 1, (uintptr_t)plane_data->backgr_scan - 1);
+                if (row_columns)
+                {
+                    row_columns <<= 1; // this mode generates 4x8 cells, so requires 2x columns
+                    uint8_t char_shift = log_2(plane->regs.bckgnd.row_height);
+                    load_textmode_buffer(plane_data->scanline_buffer, row_columns, plane_data->char_gen + plane_data->row_line_count, char_shift);
+                    buf = cgia_encode_mode_5(buf, plane_data->scanline_buffer, row_columns, plane->regs.bckgnd.shared_color);
                 }
             }
-        }
-    }
+            break;
 
-    if (sprites_need_update)
-    {
-        sprites_need_update = false;
-        for (uint8_t s = 0; s < CGIA.plane[1].regs.sprite.count; ++s)
-        {
-            // TODO: copy memory to sprites[EXAMPLE_SPRITE_COUNT]
-            // NOTE: use DMA controlled blocks transfer
+            case (0x5 | MODE_BIT): // MODE5 (D) - multicolor bitmap mode
+            {
+                const uint8_t row_height = plane->regs.bckgnd.row_height + 1;
+                interp_set_base(interp0, 0, row_height);
+                interp_set_accumulator(interp0, 0, (uintptr_t)plane_data->memory_scan - row_height);
+                interp_set_accumulator(interp1, 0, (uintptr_t)plane_data->colour_scan - 1);
+                interp_set_accumulator(interp1, 1, (uintptr_t)plane_data->backgr_scan - 1);
+                if (row_columns)
+                {
+                    row_columns <<= 1; // this mode generates 4x8 cells, so requires 2x columns
+                    load_scanline_buffer_mapped(plane_data->scanline_buffer, row_columns);
+                    buf = cgia_encode_mode_5(buf, plane_data->scanline_buffer, row_columns, plane->regs.bckgnd.shared_color);
+                }
+
+                // next raster line starts with next byte, but color/bg scan stay the same
+                ++plane_data->memory_scan;
+            }
+            break;
+
+            case (0x6 | MODE_BIT): // MODE6 (E) - doubled multicolor text/tile mode
+            {
+                interp_set_base(interp0, 0, 1);
+                interp_set_accumulator(interp0, 0, (uintptr_t)plane_data->memory_scan - 1);
+                interp_set_accumulator(interp1, 0, (uintptr_t)plane_data->colour_scan - 1);
+                interp_set_accumulator(interp1, 1, (uintptr_t)plane_data->backgr_scan - 1);
+                if (row_columns)
+                {
+                    uint8_t char_shift = log_2(plane->regs.bckgnd.row_height);
+                    load_textmode_buffer(plane_data->scanline_buffer, row_columns, plane_data->char_gen + plane_data->row_line_count, char_shift);
+                    buf = cgia_encode_mode_7(buf, plane_data->scanline_buffer, row_columns, plane->regs.bckgnd.shared_color);
+                }
+            }
+            break;
+
+            case (0x7 | MODE_BIT): // MODE7 (F) - doubled multicolor bitmap mode
+            {
+                const uint8_t row_height = plane->regs.bckgnd.row_height + 1;
+                interp_set_base(interp0, 0, row_height);
+                interp_set_accumulator(interp0, 0, (uintptr_t)plane_data->memory_scan - row_height);
+                interp_set_accumulator(interp1, 0, (uintptr_t)plane_data->colour_scan - 1);
+                interp_set_accumulator(interp1, 1, (uintptr_t)plane_data->backgr_scan - 1);
+                if (row_columns)
+                {
+                    load_scanline_buffer_mapped(plane_data->scanline_buffer, row_columns);
+                    buf = cgia_encode_mode_7(buf, plane_data->scanline_buffer, row_columns, plane->regs.bckgnd.shared_color);
+                }
+
+                // next raster line starts with next byte, but color/bg scan stay the same
+                ++plane_data->memory_scan;
+            }
+            break;
+
+            // ------- UNKNOWN MODE - generate pink line (should not happen)
+            default:
+                (void)fill_back(rgbbuf, DISPLAY_WIDTH_PIXELS / CGIA_COLUMN_PX, 234);
+                dl_row_lines = plane_data->row_line_count; // force moving to next DL instruction
+                goto plane_epilogue;
+            }
+
+            // Right border
+            if (dl_instr & MODE_BIT && border_columns)
+                buf = fill_back(buf, border_columns, CGIA.back_color);
+
+        plane_epilogue:
+            // Should we run a new DL row?
+            if (plane_data->row_line_count == dl_row_lines)
+            {
+                // Update scan pointers
+                if (dl_instr & MODE_BIT)
+                {
+                    // update scan pointers to next value
+                    plane_data->memory_scan = (uint8_t *)(uintptr_t)interp_get_accumulator(interp0, 0) + 1;
+                    plane_data->colour_scan = (uint8_t *)(uintptr_t)interp_get_accumulator(interp1, 0) + 1;
+                    plane_data->backgr_scan = (uint8_t *)(uintptr_t)interp_get_accumulator(interp1, 1) + 1;
+                }
+
+                // Reset line counter
+                plane_data->row_line_count = 0;
+
+                // Move to next DL instruction
+                ++plane->offset;
+            }
+            else
+            {
+                // Move to next line of current DL row
+                ++plane_data->row_line_count;
+            }
         }
     }
 }

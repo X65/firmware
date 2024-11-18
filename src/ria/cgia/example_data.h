@@ -5,7 +5,6 @@ static uint16_t text_mode_color_offset = 0x1000;
 static uint16_t text_mode_bkgnd_offset = 0x2000;
 static uint16_t text_mode_chrgn_offset = 0x3000;
 static uint16_t text_mode_dl_offset = 0x3800;
-
 static uint8_t __attribute__((aligned(4))) text_mode_dl[] = {
     0x70, 0x70, 0x30,                                     // 2x 8 + 1x 4 of empty background lines
     0xF3, 0x00, 0x00, 0x00, 0x10, 0x00, 0x20, 0x00, 0x30, // LMS + LFS + LBS + LCG
@@ -16,20 +15,28 @@ static uint8_t __attribute__((aligned(4))) text_mode_dl[] = {
     0x82, 0x00, 0x38                                      // JMP to begin of DL and wait for Vertical BLank
 };
 
+static uint16_t hires_mode_video_offset = 0x4000;
+static uint16_t hires_mode_color_offset = 0x6000;
+static uint16_t hires_mode_bkgnd_offset = 0x6800;
+static uint16_t hires_mode_dl_offset = 0x7000;
 static uint8_t __attribute__((aligned(4))) hires_mode_dl[] = {
     0x70, 0x70, 0x30,                         // 2x 8 + 1x 4 of empty background lines
-    0x73, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // LMS + LFS + LBS
+    0x73, 0x00, 0x40, 0x00, 0x60, 0x00, 0x68, // LMS + LFS + LBS
     0x0B, 0x0B, 0x0B, 0x0B,                   // 4x MODE3
     0x0B, 0x0B, 0x0B, 0x0B,                   // 4x MODE3
     0x0B, 0x0B, 0x0B, 0x0B,                   // 4x MODE3
     0x0B, 0x0B, 0x0B, 0x0B,                   // 4x MODE3
     0x0B, 0x0B, 0x0B, 0x0B,                   // 4x MODE3
     0x0B, 0x0B, 0x0B, 0x0B, 0x0B,             // 5x MODE3 => 25 MODE3 lines
-    0x82, 0x00, 0x00                          // JMP to begin of DL and wait for Vertical BLank
+    0x82, 0x00, 0x70                          // JMP to begin of DL and wait for Vertical BLank
 };
 
+static uint16_t multi_mode_video_offset = 0x8000;
+static uint16_t multi_mode_color_offset = 0xA800;
+static uint16_t multi_mode_bkgnd_offset = 0xD000;
+static uint16_t multi_mode_dl_offset = 0xF800;
 static uint8_t __attribute__((aligned(4))) multi_mode_dl[] = {
-    0x73, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,       // LMS + LFS + LBS
+    0x73, 0x00, 0x80, 0x00, 0xA8, 0x00, 0xD0,       // LMS + LFS + LBS
     0x0F, 0x0F, 0x0F, 0x0F, 0x0F, 0x0F, 0x0F, 0x0F, // 8x MODE7
     0x0F, 0x0F, 0x0F, 0x0F, 0x0F, 0x0F, 0x0F, 0x0F, // 8x MODE7
     0x0F, 0x0F, 0x0F, 0x0F, 0x0F, 0x0F, 0x0F, 0x0F, // 8x MODE7
@@ -60,7 +67,7 @@ static uint8_t __attribute__((aligned(4))) multi_mode_dl[] = {
     0x0F, 0x0F, 0x0F, 0x0F, 0x0F, 0x0F, 0x0F, 0x0F, // 8x MODE7
     0x0F, 0x0F, 0x0F, 0x0F, 0x0F, 0x0F, 0x0F, 0x0F, // 8x MODE7
     0x0F, 0x0F, 0x0F, 0x0F, 0x0F, 0x0F, 0x0F, 0x0F, // 8x MODE7 => 30*8 = 240 lines of MODE7
-    0x82, 0x00, 0x00                                // JMP to begin of DL and wait for Vertical BLank
+    0x82, 0x00, 0xF8                                // JMP to begin of DL and wait for Vertical BLank
 };
 
 #define EXAMPLE_SPRITE_WIDTH   4

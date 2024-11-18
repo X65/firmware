@@ -122,7 +122,7 @@ decl_func cgia_encode_mode_3_mapped
 
   mov r4, r3  // shared_colors[0]
   mov r5, r3
-  adds r5, 4  // shared_colors[1]
+  adds r5, 1  // shared_colors[1]
 
   ldr r3, =cgia_rgb_palette
   ldr r7, =cell_colors
