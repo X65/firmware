@@ -27,6 +27,7 @@ static struct cgia_plane_internal
     uint8_t *colour_scan;
     uint8_t *backgr_scan;
     uint8_t *char_gen;
+    uint32_t scanline_buffer[FRAME_CHARS * 3];
 }
 __attribute__((aligned(4))) plane[CGIA_PLANES]
     = {0};
@@ -38,18 +39,12 @@ static struct cgia_sprite_t __attribute__((aligned(4))) sprites[EXAMPLE_SPRITE_C
     = {0};
 
 // --- temporary WIP ---
-uint32_t __attribute__((aligned(4))) scanline_buffer[FRAME_CHARS * 3];
-uint8_t __attribute__((aligned(4))) screen[FRAME_CHARS * 30];
-uint8_t __attribute__((aligned(4))) colour[FRAME_CHARS * 30];
-uint8_t __attribute__((aligned(4))) bckgnd[FRAME_CHARS * 30];
+uint8_t __attribute__((aligned(4))) video_bank[256 * 256];
 
 /* TEXT MODE */
 #define EXAMPLE_DISPLAY_LIST text_mode_dl
 #define EXAMPLE_BORDER_COLOR 145
 #define EXAMPLE_ROW_HEIGHT   7
-#define EXAMPLE_MEMORY_SCAN  screen
-#define EXAMPLE_COLOUR_SCAN  colour
-#define EXAMPLE_BACKGR_SCAN  bckgnd
 
 // /* HiRes mode */
 // #define EXAMPLE_DISPLAY_LIST hires_mode_dl
@@ -70,8 +65,6 @@ uint8_t __attribute__((aligned(4))) bckgnd[FRAME_CHARS * 30];
 // ---
 #define EXAMPLE_BG_COLOR_1 mt_background_color_1
 #define EXAMPLE_BG_COLOR_2 mt_background_color_2
-
-#define EXAMPLE_CHARGEN font8_data
 
 // TODO: set when writing CGIA.plane[1].regs.sprite.active
 static bool sprites_need_update = false;
@@ -142,10 +135,6 @@ void cgia_init(void)
     CGIA.plane[0].regs.bckgnd.shared_color[1] = EXAMPLE_BG_COLOR_2;
     CGIA.plane[0].regs.bckgnd.row_height = EXAMPLE_ROW_HEIGHT;
     CGIA.plane[0].regs.bckgnd.border_columns = 4;
-    plane[0].memory_scan = EXAMPLE_MEMORY_SCAN;
-    plane[0].colour_scan = EXAMPLE_COLOUR_SCAN;
-    plane[0].backgr_scan = EXAMPLE_BACKGR_SCAN;
-    plane[0].char_gen = EXAMPLE_CHARGEN;
 
     CGIA.plane[1].regs.sprite.count = EXAMPLE_SPRITE_COUNT;
     for (uint8_t i = 0; i < EXAMPLE_SPRITE_COUNT; ++i)
@@ -171,20 +160,37 @@ void cgia_init(void)
     sprites[6].flags &= ~SPRITE_MASK_WIDTH;
     sprites[6].flags |= 2;
 
+    uint8_t *video = video_bank + text_mode_video_offset;
     for (int i = 0; i < FRAME_CHARS * 30; ++i)
     {
-        screen[i] = 0; // i & 0xff;
+        video[i] = 0; // i & 0xff;
     }
-    screen[0] = 'R';
-    screen[1] = 'E';
-    screen[2] = 'A';
-    screen[3] = 'D';
-    screen[4] = 'Y';
-    for (int i = 0; i < FRAME_CHARS * 30; ++i)
+    video[0] = 'R';
+    video[1] = 'E';
+    video[2] = 'A';
+    video[3] = 'D';
+    video[4] = 'Y';
+
+    uint8_t *colour = video_bank + text_mode_color_offset;
+    uint8_t *bckgnd = video_bank + text_mode_bkgnd_offset;
+    for (size_t i = 0; i < FRAME_CHARS * 30; ++i)
     {
         colour[i] = 150;             // i % CGIA_COLORS_NUM;
         bckgnd[i] = CGIA.back_color; // ((CGIA_COLORS_NUM - 1) - i) % CGIA_COLORS_NUM;
     }
+
+    uint8_t *char_gen = video_bank + text_mode_chrgn_offset;
+    for (size_t i = 0; i < sizeof(font8_data); ++i)
+    {
+        char_gen[i] = font8_data[i];
+    }
+
+    uint8_t *dl = video_bank + text_mode_dl_offset;
+    for (size_t i = 0; i < sizeof(EXAMPLE_DISPLAY_LIST); ++i)
+    {
+        dl[i] = EXAMPLE_DISPLAY_LIST[i];
+    }
+    CGIA.plane[0].offset = text_mode_dl_offset;
 }
 
 void cgia_core1_init(void)
@@ -263,7 +269,7 @@ void __not_in_flash_func(cgia_render)(uint y, uint32_t *rgbbuf, uint8_t recursio
 
     // --- BACKGROUND ---
     {
-        uint8_t *bckgnd_bank = EXAMPLE_DISPLAY_LIST; // psram + (CGIA.bckgnd_bank << 16)
+        uint8_t *bckgnd_bank = video_bank; // psram + (CGIA.bckgnd_bank << 16)
         uint8_t dl_row_lines = CGIA.plane[0].regs.bckgnd.row_height;
 
         // Used for tracking where to blit pixel data
@@ -302,8 +308,7 @@ void __not_in_flash_func(cgia_render)(uint y, uint32_t *rgbbuf, uint8_t recursio
             // Load DL address
             CGIA.plane[0].offset = (uint16_t)((bckgnd_bank[++CGIA.plane[0].offset])
                                               | (bckgnd_bank[++CGIA.plane[0].offset] << 8));
-            CGIA.plane[0].offset = 0; // FIXME: HARDCODED!
-            row_line_count = 0;       // will start new row
+            row_line_count = 0; // will start new row
 
             if (dl_instr & DLI_BIT)
                 wait_vbl = true;
@@ -312,36 +317,31 @@ void __not_in_flash_func(cgia_render)(uint y, uint32_t *rgbbuf, uint8_t recursio
             return cgia_render(y, p, recursion_depth); // process next DL instruction
 
         case 0x3: // Load Memory
-
-            ++CGIA.plane[0].offset; // Move to next DL byte
             if (dl_instr & 0b00010000)
             {
                 plane[0].memory_scan = bckgnd_bank
                                        + (uint16_t)((bckgnd_bank[++CGIA.plane[0].offset])
                                                     | (bckgnd_bank[++CGIA.plane[0].offset] << 8));
-                plane[0].memory_scan = EXAMPLE_MEMORY_SCAN; // FIXME: HARDCODED!
             }
             if (dl_instr & 0b00100000)
             {
                 plane[0].colour_scan = bckgnd_bank
                                        + (uint16_t)((bckgnd_bank[++CGIA.plane[0].offset])
                                                     | (bckgnd_bank[++CGIA.plane[0].offset] << 8));
-                plane[0].colour_scan = EXAMPLE_COLOUR_SCAN; // FIXME: HARDCODED!
             }
             if (dl_instr & 0b01000000)
             {
                 plane[0].backgr_scan = bckgnd_bank
                                        + (uint16_t)((bckgnd_bank[++CGIA.plane[0].offset])
                                                     | (bckgnd_bank[++CGIA.plane[0].offset] << 8));
-                plane[0].backgr_scan = EXAMPLE_BACKGR_SCAN; // FIXME: HARDCODED!
             }
             if (dl_instr & 0b10000000)
             {
                 plane[0].char_gen = bckgnd_bank
                                     + (uint16_t)((bckgnd_bank[++CGIA.plane[0].offset])
                                                  | (bckgnd_bank[++CGIA.plane[0].offset] << 8));
-                plane[0].char_gen = EXAMPLE_CHARGEN; // FIXME: HARDCODED!
             }
+            ++CGIA.plane[0].offset;                    // Move to next DL instruction
             return cgia_render(y, p, recursion_depth); // process next DL instruction
 
             // ------- Mode Rows --------------
@@ -355,8 +355,8 @@ void __not_in_flash_func(cgia_render)(uint y, uint32_t *rgbbuf, uint8_t recursio
             if (row_columns)
             {
                 uint8_t char_shift = log_2(CGIA.plane[0].regs.bckgnd.row_height);
-                load_textmode_buffer(scanline_buffer, row_columns, plane[0].char_gen + row_line_count, char_shift);
-                p = cgia_encode_mode_3_mapped(p, scanline_buffer, row_columns);
+                load_textmode_buffer(plane[0].scanline_buffer, row_columns, plane[0].char_gen + row_line_count, char_shift);
+                p = cgia_encode_mode_3_mapped(p, plane[0].scanline_buffer, row_columns);
             }
         }
         break;
@@ -372,13 +372,13 @@ void __not_in_flash_func(cgia_render)(uint y, uint32_t *rgbbuf, uint8_t recursio
             {
                 if (false) // FIXME: fill background using DMA and always use transparency code
                 {
-                    load_scanline_buffer_shared(scanline_buffer, row_columns);
-                    p = cgia_encode_mode_3_shared(p, scanline_buffer, row_columns);
+                    load_scanline_buffer_shared(plane[0].scanline_buffer, row_columns);
+                    p = cgia_encode_mode_3_shared(p, plane[0].scanline_buffer, row_columns);
                 }
                 else
                 {
-                    load_scanline_buffer_mapped(scanline_buffer, row_columns);
-                    p = cgia_encode_mode_3_mapped(p, scanline_buffer, row_columns);
+                    load_scanline_buffer_mapped(plane[0].scanline_buffer, row_columns);
+                    p = cgia_encode_mode_3_mapped(p, plane[0].scanline_buffer, row_columns);
                 }
             }
 
@@ -397,8 +397,8 @@ void __not_in_flash_func(cgia_render)(uint y, uint32_t *rgbbuf, uint8_t recursio
             {
                 row_columns <<= 1; // this mode generates 4x8 cells, so requires 2x columns
                 uint8_t char_shift = log_2(CGIA.plane[0].regs.bckgnd.row_height);
-                load_textmode_buffer(scanline_buffer, row_columns, plane[0].char_gen + row_line_count, char_shift);
-                p = cgia_encode_mode_5(p, scanline_buffer, row_columns, CGIA.plane[0].regs.bckgnd.shared_color);
+                load_textmode_buffer(plane[0].scanline_buffer, row_columns, plane[0].char_gen + row_line_count, char_shift);
+                p = cgia_encode_mode_5(p, plane[0].scanline_buffer, row_columns, CGIA.plane[0].regs.bckgnd.shared_color);
             }
         }
         break;
@@ -413,8 +413,8 @@ void __not_in_flash_func(cgia_render)(uint y, uint32_t *rgbbuf, uint8_t recursio
             if (row_columns)
             {
                 row_columns <<= 1; // this mode generates 4x8 cells, so requires 2x columns
-                load_scanline_buffer_mapped(scanline_buffer, row_columns);
-                p = cgia_encode_mode_5(p, scanline_buffer, row_columns, CGIA.plane[0].regs.bckgnd.shared_color);
+                load_scanline_buffer_mapped(plane[0].scanline_buffer, row_columns);
+                p = cgia_encode_mode_5(p, plane[0].scanline_buffer, row_columns, CGIA.plane[0].regs.bckgnd.shared_color);
             }
 
             // next raster line starts with next byte, but color/bg scan stay the same
@@ -431,8 +431,8 @@ void __not_in_flash_func(cgia_render)(uint y, uint32_t *rgbbuf, uint8_t recursio
             if (row_columns)
             {
                 uint8_t char_shift = log_2(CGIA.plane[0].regs.bckgnd.row_height);
-                load_textmode_buffer(scanline_buffer, row_columns, plane[0].char_gen + row_line_count, char_shift);
-                p = cgia_encode_mode_7(p, scanline_buffer, row_columns, CGIA.plane[0].regs.bckgnd.shared_color);
+                load_textmode_buffer(plane[0].scanline_buffer, row_columns, plane[0].char_gen + row_line_count, char_shift);
+                p = cgia_encode_mode_7(p, plane[0].scanline_buffer, row_columns, CGIA.plane[0].regs.bckgnd.shared_color);
             }
         }
         break;
@@ -446,8 +446,8 @@ void __not_in_flash_func(cgia_render)(uint y, uint32_t *rgbbuf, uint8_t recursio
             interp_set_accumulator(interp1, 1, (uintptr_t)plane[0].backgr_scan - 1);
             if (row_columns)
             {
-                load_scanline_buffer_mapped(scanline_buffer, row_columns);
-                p = cgia_encode_mode_7(p, scanline_buffer, row_columns, CGIA.plane[0].regs.bckgnd.shared_color);
+                load_scanline_buffer_mapped(plane[0].scanline_buffer, row_columns);
+                p = cgia_encode_mode_7(p, plane[0].scanline_buffer, row_columns, CGIA.plane[0].regs.bckgnd.shared_color);
             }
 
             // next raster line starts with next byte, but color/bg scan stay the same
@@ -593,6 +593,8 @@ void cgia_vbl(void)
     if (frame % 60 == 0)
     {
         // blink cursor
+        uint8_t *colour = video_bank + text_mode_color_offset;
+        uint8_t *bckgnd = video_bank + text_mode_bkgnd_offset;
         uint8_t bg = bckgnd[FRAME_CHARS - 2 * CGIA.plane[0].regs.bckgnd.border_columns];
         bckgnd[FRAME_CHARS - 2 * CGIA.plane[0].regs.bckgnd.border_columns] = colour[FRAME_CHARS - 2 * CGIA.plane[0].regs.bckgnd.border_columns];
         colour[FRAME_CHARS - 2 * CGIA.plane[0].regs.bckgnd.border_columns] = bg;
