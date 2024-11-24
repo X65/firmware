@@ -281,9 +281,9 @@ function printPalette() {
   }
 }
 
-const out = Deno.stdout;
+let out = Deno.stdout.writable.getWriter();
 function print(s: string) {
-  out.writeSync(new TextEncoder().encode(s));
+  return out.write(new TextEncoder().encode(s));
 }
 
 const argDef: ScriptDefinition = {
@@ -334,6 +334,12 @@ const argDef: ScriptDefinition = {
       name: "treshold",
       shortName: "b",
       description: `Brightness treshold for color move (Default: ${default_args.treshold})`,
+      required: false,
+    },
+    {
+      name: "out",
+      shortName: "o",
+      description: `Output .h-eader file (Default: stdout)`,
       required: false,
     },
   ],
@@ -626,30 +632,34 @@ if (import.meta.main) {
           switch (args.format) {
             case "fli":
               {
+                // Let's try with most common colors first
+                let shcl1 = row_colors[0][0];
+                let shcl2 = row_colors[1][0];
                 let best_row: [number, number[][], number[][], number, number] =
-                  [Infinity, [], [], -1, -1];
-                let shared_color_1;
-                let shared_color_2;
-                outer: for (
-                  shared_color_1 = 0;
-                  shared_color_1 < row_colors.length;
-                  ++shared_color_1
-                ) {
-                  for (
-                    shared_color_2 = 0;
-                    shared_color_2 < row_colors.length;
-                    ++shared_color_2
-                  ) {
-                    if (shared_color_2 === shared_color_1) continue;
-                    const result = genFLIline(cells_row, [
-                      shared_color_1,
-                      shared_color_2,
-                    ]);
-                    if (result[0] < best_row[0]) {
-                      best_row = [...result, shared_color_1, shared_color_2];
+                  [...genFLIline(cells_row, [shcl1, shcl2]), shcl1, shcl2];
+                if (best_row[0] !== 0) {
+                  // If not match, let's try all other options
+                  outer: for (let idx1 = 0; idx1 < row_colors.length; ++idx1) {
+                    for (let idx2 = 0; idx2 < row_colors.length; ++idx2) {
+                      shcl1 = row_colors[idx1][0];
+                      shcl2 = row_colors[idx2][0];
+                      if (shcl1 === shcl2) continue;
+                      const result = genFLIline(cells_row, [shcl1, shcl2]);
+                      if (result[0] < best_row[0]) {
+                        best_row = [...result, shcl1, shcl2];
+                      }
+                      if (best_row[0] === 0) break outer;
                     }
-                    if (best_row[0] === 0) break outer;
                   }
+                }
+                if (best_row[0] !== 0) {
+                  console.warn(
+                    yellow(
+                      `Row ${Math.floor(
+                        c / args.width
+                      )} fuzzy matched (±${Math.round(best_row[0])})`
+                    )
+                  );
                 }
                 cell_colors.push(...best_row[1]);
                 cell_pixels.push(...best_row[2]);
@@ -663,6 +673,10 @@ if (import.meta.main) {
         }
       }
       // now generate header data
+      if (args.out) {
+        const file = await Deno.create(args.out);
+        out = file.writable.getWriter();
+      }
       switch (args.format) {
         case "fli":
           {
@@ -739,5 +753,9 @@ if (import.meta.main) {
         default:
           abort(`Unknown format: ${args.format}`);
       }
+  }
+
+  if (args.out) {
+    out.close();
   }
 }
