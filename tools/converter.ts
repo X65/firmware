@@ -646,8 +646,9 @@ if (import.meta.main) {
             case "fli":
               {
                 // Let's try with most common colors first
-                let shcl1 = row_colors[0][0];
-                let shcl2 = row_colors[1][0];
+                const row_no = Math.floor(c / args.width);
+                let shcl1 = row_colors[row_no][0];
+                let shcl2 = row_colors[row_no][1];
                 let best_row: [number, number[][], number[][], number, number] =
                   [...genFLIline(cells_row, [shcl1, shcl2]), shcl1, shcl2];
                 if (best_row[0] !== 0) {
@@ -668,9 +669,9 @@ if (import.meta.main) {
                 if (best_row[0] !== 0) {
                   console.warn(
                     yellow(
-                      `Row ${Math.floor(
-                        c / args.width
-                      )} fuzzy matched (Δ${Math.round(best_row[0])})`
+                      `Row ${row_no} fuzzy matched (Δ${Math.round(
+                        best_row[0]
+                      )})`
                     )
                   );
                 }
