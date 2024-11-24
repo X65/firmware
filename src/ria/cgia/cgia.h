@@ -4,6 +4,8 @@
     bit 3 unset (0-7) - instructions:
     Bits 0-2 encode the instruction:
     0 - empty lines filled with fill color
+        bits 6-4 - how many
+        bit 7 - DLI
     1 - duplicate lines - copy last raster line n-times
     2 - JMP Display List (Load DL offset address)
         - DLI bit set - wait for Vertical Blank
@@ -14,18 +16,21 @@
         7 - LCG - character generator address
     4 - Load 8 bit value to Register Offset
     5 - Load 16 bit value to Register Offset
+        bits 7-4 - register index
     ...
 
     bit 3 set (8-F) - generate mode row:
     Bits 0-2 encode the mode:
-    0 - HighRes text (80/96 columns) mode, 1 sprite only
-    1 - HighRes bitmap mode, 2 colors FG+BG, 1 sprite only
+    0 - HighRes text (80/96 columns) mode
+    1 - HighRes bitmap mode, 256 colors
     2 - text/tile mode
     3 - bitmap mode
     4 - multicolor text/tile mode
     5 - multicolor bitmap mode
     6 - doubled multicolor text/tile mode
     7 - doubled multicolor bitmap mode
+
+    bit 7 - trigger DLI - Display List Interrupt
 */
 
 #define CGIA_COLUMN_PX 8
@@ -38,6 +43,7 @@ struct cgia_plane_t
     {
         struct cgia_bckgnd_regs
         {
+            uint8_t flags;
             uint8_t shared_color[2];
             uint8_t border_columns;
             uint8_t row_height;
@@ -52,6 +58,11 @@ struct cgia_plane_t
 };
 
 #define CGIA_PLANES 4
+
+// plane flags:
+// 0 - color 0 is transparent
+// 1-7 - [RESERVED]
+#define PLANE_MASK_TRANSPARENT 0b00000001
 
 struct cgia_t
 {

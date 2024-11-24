@@ -182,7 +182,7 @@ decl_func cgia_encode_mode_7
 .endif
 
   ldr r5, [r2, #POP0_OFFS + INTERP1]    // load color pointer
-  ldrb r5, [r5]     // load background color value (index)
+  ldrb r5, [r5]     // load color value (index)
 
   ldr r4, [r2, #POP0_OFFS]    // load bitmap offset
   ldrb r4, [r4]     // load bitmap data
