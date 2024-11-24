@@ -418,6 +418,13 @@ void __not_in_flash_func(cgia_render)(uint y, uint32_t *rgbbuf, uint8_t recursio
                 ++plane->offset;                             // Move to next DL instruction
                 return cgia_render(y, buf, recursion_depth); // process next DL instruction
 
+            case 0x4: // Set 8-bit register
+            {
+                ((uint8_t *)&plane->regs)[(dl_instr & 0b01110000) >> 4] = bckgnd_bank[++plane->offset];
+            }
+                ++plane->offset;                             // Move to next DL instruction
+                return cgia_render(y, buf, recursion_depth); // process next DL instruction
+
                 // ------- Mode Rows --------------
 
             case (0x2 | MODE_BIT): // MODE2 (A) - text/tile mode

@@ -181,8 +181,8 @@ decl_func cgia_encode_mode_7
   ldrb r6, [r6]     // load background color value (index)
 .endif
 
-  ldr r5, [r2, #POP0_OFFS + INTERP1]    // load color pointer
-  ldrb r5, [r5]     // load color value (index)
+  ldr r5, [r2, #POP0_OFFS + INTERP1]    // load foreground color pointer
+  ldrb r5, [r5]     // load foreground color value (index)
 
   ldr r4, [r2, #POP0_OFFS]    // load bitmap offset
   ldrb r4, [r4]     // load bitmap data
@@ -221,8 +221,8 @@ decl_func load_textmode_buffer
   ldr r6, [r2, #PEEK1_OFFS + INTERP1]   // load background color pointer
   ldrb r6, [r6]     // load background color value (index)
 
-  ldr r5, [r2, #POP0_OFFS + INTERP1]    // load color pointer
-  ldrb r5, [r5]     // load background color value (index)
+  ldr r5, [r2, #POP0_OFFS + INTERP1]    // load foreground color pointer
+  ldrb r5, [r5]     // load foreground color value (index)
 
   ldr r4, [r2, #POP0_OFFS]    // load character code offset
   ldrb r4, [r4]     // load character code

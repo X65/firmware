@@ -16,7 +16,7 @@
         7 - LCG - character generator address
     4 - Load 8 bit value to Register Offset
     5 - Load 16 bit value to Register Offset
-        bits 7-4 - register index
+        bits 6-4 - register index
     ...
 
     bit 3 set (8-F) - generate mode row:
@@ -31,6 +31,14 @@
     7 - doubled multicolor bitmap mode
 
     bit 7 - trigger DLI - Display List Interrupt
+*/
+
+// https://csbruce.com/cbm/hacking/hacking12.txt
+/*
+   00   background color
+   01   same as "off" color in hires mode
+   10   same as "on" color in hires mode
+   11   another "background" color
 */
 
 #define CGIA_COLUMN_PX 8
@@ -48,6 +56,7 @@ struct cgia_plane_t
             uint8_t border_columns;
             uint8_t row_height;
             int8_t scroll;
+            uint8_t reserved[2];
         } bckgnd;
 
         struct cgia_sprite_regs

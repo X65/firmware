@@ -113,7 +113,7 @@ const plus4_palette2_to_cgia: Record<number, number> = {
 };
 Object.freeze(plus4_palette_to_cgia);
 
-type Color = [number, number, number];
+type Color = [number, number, number]; // [R, G, B]
 
 let args = {} as Args;
 
@@ -203,7 +203,7 @@ function closestColor(rgb: Color, alg = args.palette): number {
     case "closest":
       {
         for (let i = 0; i < cgia_rgb_palette.length; ++i) {
-          const [R, G, B] = fromBGR(cgia_rgb_palette[i]);
+          const [R, G, B] = fromRGB(cgia_rgb_palette[i]);
           const d = colorDistance([R, G, B], rgb);
           if (d < distance) {
             idx = i;
@@ -254,8 +254,8 @@ function addColor(cl: Color) {
   addColorToMap(palette_map, idx, cl);
 }
 function getColorIdx(cl: Color) {
-  const idx = Object.values(palette_map).findIndex(
-    (p) => p.toString() === cl.toString()
+  const idx = Object.values(palette_map).findIndex((p) =>
+    p.some((c) => c.toString() === cl.toString())
   );
   assert(idx >= 0);
   return idx;
@@ -364,7 +364,7 @@ function genFLIline(
 ): [number, number[][], number[][]] {
   const cells_colors = Array.from(cells, () => [] as number[]);
   const cells_pixels = Array.from(cells, () => [] as number[]);
-  let max_color_distance = 0;
+  let cumulative_error = 0;
   for (let c = 0; c < cells.length; ++c) {
     const cell = cells[c];
     const cell_colors = cells_colors[c];
@@ -383,12 +383,10 @@ function genFLIline(
           assert(pixel < 3);
         } else {
           if (cell_colors.length >= 2) {
-            const color_distance = colorDistance(
+            cumulative_error += colorDistance(
               fromRGB(cgia_rgb_palette[color]),
               fromRGB(cgia_rgb_palette[shared_colors[1]])
             );
-            if (color_distance > max_color_distance)
-              max_color_distance = color_distance;
             pixel = 3; // 11
           } else {
             cell_colors.push(color);
@@ -399,7 +397,7 @@ function genFLIline(
       cell_pixels.push(pixel);
     }
   }
-  return [max_color_distance, cells_colors, cells_pixels];
+  return [cumulative_error, cells_colors, cells_pixels];
 }
 
 // --- MAIN ---
@@ -657,7 +655,7 @@ if (import.meta.main) {
                     yellow(
                       `Row ${Math.floor(
                         c / args.width
-                      )} fuzzy matched (±${Math.round(best_row[0])})`
+                      )} fuzzy matched (Δ${Math.round(best_row[0])})`
                     )
                   );
                 }
@@ -699,7 +697,7 @@ if (import.meta.main) {
               `static uint8_t __attribute__((aligned(4))) color_data[${cell_colors.length}] = {\n`
             );
             for (let i = 0; i < cell_colors.length; ++i) {
-              print(`0x${toHEX(cell_colors[i][0] || 0)}, `);
+              print(`0x${toHEX(cell_colors[i][1] || 0)}, `);
               if ((i + 1) % args.width === 0)
                 print(`// ${Math.floor(i / args.width)}\n`);
             }
@@ -709,16 +707,16 @@ if (import.meta.main) {
               `static uint8_t __attribute__((aligned(4))) bkgnd_data[${cell_colors.length}] = {\n`
             );
             for (let i = 0; i < cell_colors.length; ++i) {
-              print(`0x${toHEX(cell_colors[i][1] || 0)}, `);
+              print(`0x${toHEX(cell_colors[i][0] || 0)}, `);
               if ((i + 1) % args.width === 0)
                 print(`// ${Math.floor(i / args.width)}\n`);
             }
             print(`};\n\n`);
 
-            print(`static uint16_t video_offset = 0x8000;\n`);
-            print(`static uint16_t color_offset = 0xA800;\n`);
-            print(`static uint16_t bkgnd_offset = 0xD000;\n`);
-            print(`static uint16_t dl_offset = 0xF800;\n`);
+            print(`static const uint16_t video_offset = 0x8000;\n`);
+            print(`static const uint16_t color_offset = 0xA800;\n`);
+            print(`static const uint16_t bkgnd_offset = 0xD000;\n`);
+            print(`static const uint16_t dl_offset = 0xF800;\n`);
             print(
               `static uint8_t __attribute__((aligned(4))) display_list[] = {\n`
             );
