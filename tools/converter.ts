@@ -383,11 +383,24 @@ function genFLIline(
           assert(pixel < 3);
         } else {
           if (cell_colors.length >= 2) {
-            cumulative_error += colorDistance(
-              fromRGB(cgia_rgb_palette[color]),
-              fromRGB(cgia_rgb_palette[shared_colors[1]])
+            // we have to much colors in cell
+            // find the closest color to fit
+            const cl = fromRGB(cgia_rgb_palette[color]);
+            const colors = [
+              [shared_colors[0], 0],
+              [shared_colors[1], 3],
+              [cell_colors[0], 1],
+              [cell_colors[1], 2],
+            ].map(([idx, px]) => [
+              idx,
+              colorDistance(cl, fromRGB(cgia_rgb_palette[idx])),
+              px,
+            ]);
+            colors.sort(([idx1, d1], [idx2, d2]) =>
+              d1 === d2 ? idx1 - idx2 : d1 - d2
             );
-            pixel = 3; // 11
+            cumulative_error += colors[0][1];
+            pixel = colors[0][2];
           } else {
             cell_colors.push(color);
             pixel = cell_colors.length;
@@ -567,7 +580,9 @@ if (import.meta.main) {
                 (f_idx < idx && f_d < max_d_l) || (f_idx > idx && f_d < max_d_h)
               );
             })
-            .sort((a, b) => a[1] - b[1]);
+            .sort(([_c1, d1, i1], [_c2, d2, i2]) =>
+              d1 === d2 ? i1 - i2 : d1 - d2
+            );
           if (distances.length > 0) {
             const [moved_cl, _moved_d, moved_idx] = distances.shift()!;
             palette_map[idx] = palette_map[idx].filter(
