@@ -10,7 +10,7 @@ const default_args = {
   cell: 8,
   width: 40,
   height: 25,
-  transparent: true,
+  transparent: false,
   palette: "closest",
   format: "multicolor",
   treshold: 33.3,
@@ -18,7 +18,7 @@ const default_args = {
 };
 
 const supported_palettes = ["closest", "plus4", "plus4-2"];
-const supported_formats = ["hires", "multicolor", "fli"];
+const supported_formats = ["hires", "multicolor"];
 
 // prettier-ignore
 const cgia_rgb_palette = [
@@ -358,9 +358,9 @@ function abort(msg: string): never {
 // 01 - attribute foreground color (1)
 // 10 - attribute background color (0)
 // 11 - shared color 1
-function genFLIline(
+function genMultiColorLine(
   cells: number[][],
-  shared_colors: [number, number]
+  shared_colors: [number | undefined, number | undefined]
 ): [number, number[][], number[][]] {
   const cells_colors = Array.from(cells, () => [] as number[]);
   const cells_pixels = Array.from(cells, () => [] as number[]);
@@ -372,7 +372,7 @@ function genFLIline(
     for (let i = 0; i < cell.length; i += 2) {
       const color = cell[i];
       let pixel;
-      if (color === shared_colors[0]) {
+      if (args.transparent ? color < 0 : color === shared_colors[0]) {
         pixel = 0; // 00
       } else if (color === shared_colors[1]) {
         pixel = 3; // 11
@@ -386,14 +386,16 @@ function genFLIline(
             // we have to much colors in cell
             // find the closest color to fit
             const cl = fromRGB(cgia_rgb_palette[color]);
-            const colors = [
-              [shared_colors[0], 0],
-              [shared_colors[1], 3],
-              [cell_colors[0], 1],
-              [cell_colors[1], 2],
-            ].map(([idx, px]) => [
+            const colors = (
+              [
+                [shared_colors[0], 0],
+                [shared_colors[1], 3],
+                [cell_colors[0], 1],
+                [cell_colors[1], 2],
+              ].filter(([idx]) => idx! >= 0) as [number, number][]
+            ).map(([idx, px]) => [
               idx,
-              colorDistance(cl, fromRGB(cgia_rgb_palette[idx])),
+              colorDistance(cl, fromRGB(cgia_rgb_palette[idx!])),
               px,
             ]);
             colors.sort(([idx1, d1], [idx2, d2]) =>
@@ -604,8 +606,16 @@ if (import.meta.main) {
   // first, distribute pixels among cells
   for (let y = 0; y < picture_height; ++y) {
     for (let x = 0; x < picture_width; ++x) {
-      const pixel_color = fromBGR(getPixelXY(x, y));
-      const color_no = getColorIdx(pixel_color);
+      const pixel = getPixelXY(x, y);
+      let color_no: number;
+      if (pixel < 0) {
+        if (!args.transparent)
+          abort(`Transparency (@${x},${y}) allowed only in --transparent mode`);
+        color_no = -1;
+      } else {
+        const pixel_color = fromBGR(pixel);
+        color_no = getColorIdx(pixel_color);
+      }
       const cell_idx =
         Math.floor(x / 8) + Math.floor(y / args.cell) * args.width;
       cells[cell_idx].push(color_no);
@@ -622,6 +632,7 @@ if (import.meta.main) {
     const row = Math.floor(i / args.width);
     const colors = row_colors_histogram[row];
     for (const cl of cell) {
+      if (cl < 0) continue;
       const color_counter = colors.find(([c, _n]) => c === cl);
       if (color_counter) color_counter[1] += 1;
       else colors.push([cl, 1]);
@@ -637,136 +648,156 @@ if (import.meta.main) {
   const cell_colors: number[][] = [];
   const cell_pixels: number[][] = [];
   const shared_colors: number[][] = [];
-  switch (args.format) {
-    case "fli":
-      {
-        for (let c = 0; c < cells.length; c += args.width) {
-          const cells_row = cells.slice(c, c + args.width);
-          switch (args.format) {
-            case "fli":
-              {
-                // Let's try with most common colors first
-                const row_no = Math.floor(c / args.width);
-                let shcl1 = row_colors[row_no][0];
-                let shcl2 = row_colors[row_no][1];
-                let best_row: [number, number[][], number[][], number, number] =
-                  [...genFLIline(cells_row, [shcl1, shcl2]), shcl1, shcl2];
-                if (best_row[0] !== 0) {
-                  // If not match, let's try all other options
-                  outer: for (let idx1 = 0; idx1 < row_colors.length; ++idx1) {
-                    for (let idx2 = 0; idx2 < row_colors.length; ++idx2) {
-                      shcl1 = row_colors[idx1][0];
-                      shcl2 = row_colors[idx2][0];
-                      if (shcl1 === shcl2) continue;
-                      const result = genFLIline(cells_row, [shcl1, shcl2]);
-                      if (result[0] < best_row[0]) {
-                        best_row = [...result, shcl1, shcl2];
-                      }
-                      if (best_row[0] === 0) break outer;
-                    }
-                  }
-                }
-                if (best_row[0] !== 0) {
-                  console.warn(
-                    yellow(
-                      `Row ${row_no} fuzzy matched (Δ${Math.round(
-                        best_row[0]
-                      )})`
-                    )
-                  );
-                }
-                cell_colors.push(...best_row[1]);
-                cell_pixels.push(...best_row[2]);
-                assert(best_row[3] !== best_row[4]);
-                shared_colors.push([best_row[3] || 0, best_row[4] || 0]);
-              }
-              break;
-            default:
-              abort(`Unknown format: ${args.format}`);
+
+  for (let c = 0; c < cells.length; c += args.width) {
+    const cells_row = cells.slice(c, c + args.width);
+    switch (args.format) {
+      case "multicolor":
+        {
+          // Let's try with most common colors first
+          const row_no = Math.floor(c / args.width);
+          let shcl1: number | undefined;
+          let shcl2: number | undefined;
+          if (args.transparent) {
+            shcl2 = row_colors[row_no][0];
+          } else {
+            shcl1 = row_colors[row_no][0];
+            shcl2 = row_colors[row_no][1];
           }
+          let best_row: [
+            number,
+            number[][],
+            number[][],
+            number | undefined,
+            number | undefined
+          ] = [...genMultiColorLine(cells_row, [shcl1, shcl2]), shcl1, shcl2];
+          if (best_row[0] !== 0) {
+            // If not match, let's try all other options
+            outer: for (let idx1 = 0; idx1 < row_colors.length; ++idx1) {
+              for (let idx2 = 0; idx2 < row_colors.length; ++idx2) {
+                if (args.transparent) {
+                  shcl2 = row_colors[idx1][0];
+                } else {
+                  shcl1 = row_colors[idx1][0];
+                  shcl2 = row_colors[idx2][1];
+                }
+                if (shcl1 === shcl2) continue;
+                const result = genMultiColorLine(cells_row, [shcl1, shcl2]);
+                if (result[0] < best_row[0]) {
+                  best_row = [...result, shcl1, shcl2];
+                }
+                if (best_row[0] === 0) break outer;
+              }
+            }
+          }
+          if (best_row[0] !== 0) {
+            console.warn(
+              yellow(
+                `Row ${row_no} fuzzy matched (Δ${Math.round(best_row[0])})`
+              )
+            );
+          }
+          cell_colors.push(...best_row[1]);
+          cell_pixels.push(...best_row[2]);
+          assert(
+            (best_row[3] === undefined && best_row[4] === undefined) ||
+              best_row[3] !== best_row[4]
+          );
+          assert(!(args.transparent && best_row[3] !== undefined));
+          shared_colors.push([best_row[3] || 0, best_row[4] || 0]);
         }
-      }
-      // now generate header data
-      if (args.out) {
-        const file = await Deno.create(args.out);
-        out = file.writable.getWriter();
-      }
-      switch (args.format) {
-        case "fli":
-          {
-            print(
-              `static uint8_t __attribute__((aligned(4))) bitmap_data[${cell_pixels.length}] = {\n`
-            );
-            for (let i = 0; i < cell_pixels.length; ++i) {
-              const data =
-                (cell_pixels[i][0] << 6) +
-                (cell_pixels[i][1] << 4) +
-                (cell_pixels[i][2] << 2) +
-                cell_pixels[i][3];
-              print(`0x${toHEX(data)}, `);
-              if ((i + 1) % args.width === 0)
-                print(`// ${Math.floor(i / args.width)}\n`);
-            }
-            print(`};\n\n`);
+        break;
+      default:
+        abort(`Unknown format: ${args.format}`);
+    }
+  }
 
-            print(
-              `static uint8_t __attribute__((aligned(4))) color_data[${cell_colors.length}] = {\n`
-            );
-            for (let i = 0; i < cell_colors.length; ++i) {
-              print(`0x${toHEX(cell_colors[i][1] || 0)}, `);
-              if ((i + 1) % args.width === 0)
-                print(`// ${Math.floor(i / args.width)}\n`);
-            }
-            print(`};\n\n`);
-
-            print(
-              `static uint8_t __attribute__((aligned(4))) bkgnd_data[${cell_colors.length}] = {\n`
-            );
-            for (let i = 0; i < cell_colors.length; ++i) {
-              print(`0x${toHEX(cell_colors[i][0] || 0)}, `);
-              if ((i + 1) % args.width === 0)
-                print(`// ${Math.floor(i / args.width)}\n`);
-            }
-            print(`};\n\n`);
-
-            print(`static const uint16_t video_offset = 0x8000;\n`);
-            print(`static const uint16_t color_offset = 0xA800;\n`);
-            print(`static const uint16_t bkgnd_offset = 0xD000;\n`);
-            print(`static const uint16_t dl_offset = 0xF800;\n`);
-            print(
-              `static uint8_t __attribute__((aligned(4))) display_list[] = {\n`
-            );
-            print(
-              `0x73, (video_offset & 0xFF), ((video_offset >> 8) & 0xFF),  // LMS\n`
-            );
-            print(
-              `(color_offset & 0xFF), ((color_offset >> 8) & 0xFF),        // LFS\n`
-            );
-            print(
-              `(bkgnd_offset & 0xFF), ((bkgnd_offset >> 8) & 0xFF),        // LBS\n`
-            );
-            let sh_0 = -1;
-            let sh_1 = -1;
-            for (let i = 0; i < shared_colors.length; ++i) {
-              if (sh_0 !== (shared_colors[i][0] || 0)) {
-                sh_0 = shared_colors[i][0] || 0;
-                print(`0x14, 0x${toHEX(sh_0).toUpperCase()}, `);
-              }
-              if (sh_1 !== (shared_colors[i][1] || 0)) {
-                sh_1 = shared_colors[i][1] || 0;
-                print(`0x24, 0x${toHEX(sh_1).toUpperCase()}, `);
-              }
-              print(`0x0F, // MODE7\n`);
-            }
-            print(
-              `0x82, (dl_offset & 0xFF), ((dl_offset >> 8) & 0xFF)  // JMP to begin of DL and wait for Vertical BLank\n`
-            );
-            print(`};\n\n`);
+  // now generate header data
+  console.log("Writing picture data...");
+  if (args.out) {
+    const file = await Deno.create(args.out);
+    out = file.writable.getWriter();
+  }
+  switch (args.format) {
+    case "multicolor":
+      {
+        print(
+          `static uint8_t __attribute__((aligned(4))) bitmap_data[${
+            cell_pixels.length * args.cell
+          }] = {\n`
+        );
+        for (let i = 0; i < cell_pixels.length; ++i) {
+          const cell_pixels_cell = cell_pixels[i];
+          for (let p = 0; p < cell_pixels_cell.length; p += 4) {
+            const data =
+              (cell_pixels_cell[p + 0] << 6) +
+              (cell_pixels_cell[p + 1] << 4) +
+              (cell_pixels_cell[p + 2] << 2) +
+              cell_pixels_cell[p + 3];
+            print(`0x${toHEX(data)}, `);
           }
-          break;
-        default:
-          abort(`Unknown format: ${args.format}`);
+          if ((i + 1) % args.width === 0)
+            print(`// ${Math.floor(i / args.width)}\n`);
+        }
+        print(`};\n\n`);
+
+        print(
+          `static uint8_t __attribute__((aligned(4))) color_data[${cell_colors.length}] = {\n`
+        );
+        for (let i = 0; i < cell_colors.length; ++i) {
+          print(`0x${toHEX(cell_colors[i][1] || 0)}, `);
+          if ((i + 1) % args.width === 0)
+            print(`// ${Math.floor(i / args.width)}\n`);
+        }
+        print(`};\n\n`);
+
+        print(
+          `static uint8_t __attribute__((aligned(4))) bkgnd_data[${cell_colors.length}] = {\n`
+        );
+        for (let i = 0; i < cell_colors.length; ++i) {
+          print(`0x${toHEX(cell_colors[i][0] || 0)}, `);
+          if ((i + 1) % args.width === 0)
+            print(`// ${Math.floor(i / args.width)}\n`);
+        }
+        print(`};\n\n`);
+
+        print(`static const uint16_t video_offset = 0x8000;\n`);
+        print(`static const uint16_t color_offset = 0xA800;\n`);
+        print(`static const uint16_t bkgnd_offset = 0xD000;\n`);
+        print(`static const uint16_t dl_offset = 0xF800;\n`);
+        print(
+          `static uint8_t __attribute__((aligned(4))) display_list[] = {\n`
+        );
+        print(
+          `0x73, (video_offset & 0xFF), ((video_offset >> 8) & 0xFF),  // LMS\n`
+        );
+        print(
+          `(color_offset & 0xFF), ((color_offset >> 8) & 0xFF),        // LFS\n`
+        );
+        print(
+          `(bkgnd_offset & 0xFF), ((bkgnd_offset >> 8) & 0xFF),        // LBS\n`
+        );
+        let sh_0 = -1;
+        let sh_1 = -1;
+        for (let i = 0; i < shared_colors.length; ++i) {
+          if (sh_0 !== (shared_colors[i][0] || 0)) {
+            sh_0 = shared_colors[i][0] || 0;
+            print(`0x14, 0x${toHEX(sh_0).toUpperCase()}, `);
+          }
+          if (sh_1 !== (shared_colors[i][1] || 0)) {
+            sh_1 = shared_colors[i][1] || 0;
+            print(`0x24, 0x${toHEX(sh_1).toUpperCase()}, `);
+          }
+          print(`0x0F, // MODE7\n`);
+        }
+        print(
+          `0x82, (dl_offset & 0xFF), ((dl_offset >> 8) & 0xFF)  // JMP to begin of DL and wait for Vertical BLank\n`
+        );
+        print(`};\n\n`);
       }
+      break;
+    default:
+      abort(`Unknown format: ${args.format}`);
   }
 
   if (args.out) {
