@@ -218,10 +218,9 @@ static int8_t offset_fence_12 = 0;
 
 void fake_dli_handler(uint y)
 {
-    switch (y)
+    switch (y - 20) // subtract top border size
     {
     case 0:
-        CGIA.back_color = 0x8b;
         CGIA.plane[0].regs.bckgnd.scroll = scroll_moon;
         CGIA.plane[0].regs.bckgnd.offset = offset_moon;
         CGIA.plane[1].regs.bckgnd.scroll = scroll_clouds_01;
@@ -448,7 +447,6 @@ void __not_in_flash_func(cgia_render)(uint y, uint32_t *rgbbuf)
             if (!(CGIA.planes & (1u << p)))
                 continue; // next if not enabled
 
-        process_instruction:
             if (plane_data->wait_vbl && y != 0)
             {
                 // DL is stopped and waiting for VBL
@@ -460,8 +458,16 @@ void __not_in_flash_func(cgia_render)(uint y, uint32_t *rgbbuf)
 
             uint8_t *bckgnd_bank = video_bank; // psram + (CGIA.bckgnd_bank << 16)
 
+        process_instruction:
             uint8_t dl_instr = bckgnd_bank[plane->offset];
             uint8_t instr_code = dl_instr & 0b00001111;
+
+            // If it is a blank line (INSTR0) or first plane is transparent
+            // fill the whole line with background color
+            if (instr_code == 0 || (!line_background_filled && plane->regs.bckgnd.flags & PLANE_MASK_TRANSPARENT))
+            {
+                (void)fill_back(rgbbuf, DISPLAY_WIDTH_PIXELS / CGIA_COLUMN_PX, CGIA.back_color);
+            }
 
             uint8_t dl_row_lines = plane->regs.bckgnd.row_height;
 
@@ -490,7 +496,10 @@ void __not_in_flash_func(cgia_render)(uint y, uint32_t *rgbbuf)
                     plane_data->row_line_count = 0; // will start new row
 
                     if (dl_instr & DLI_BIT)
+                    {
                         plane_data->wait_vbl = true;
+                        continue;
+                    }
 
                     // .display_list is already pointing to proper instruction
                     goto process_instruction;
@@ -539,13 +548,6 @@ void __not_in_flash_func(cgia_render)(uint y, uint32_t *rgbbuf)
             }
             else
             {
-                // If it is a blank line (INSTR0) or first plane is transparent
-                // fill the whole line with background color
-                if (instr_code == 0 || (!line_background_filled && plane->regs.bckgnd.flags & PLANE_MASK_TRANSPARENT))
-                {
-                    (void)fill_back(rgbbuf, DISPLAY_WIDTH_PIXELS / CGIA_COLUMN_PX, CGIA.back_color);
-                }
-
                 uint8_t border_columns = plane->regs.bckgnd.border_columns;
                 if (border_columns > MAX_BORDER_COLUMNS)
                     border_columns = MAX_BORDER_COLUMNS;
@@ -764,6 +766,9 @@ void __not_in_flash_func(cgia_render)(uint y, uint32_t *rgbbuf)
 void cgia_vbl(void)
 {
     // TODO: trigger CPU NMI
+
+    // ------- fake VBL --- FIXME: remove this
+    CGIA.back_color = 0x8b;
 
     scroll += 2;
     if (scroll >= SCROLL_MAX)

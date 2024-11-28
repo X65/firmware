@@ -87,6 +87,7 @@ static const uint16_t color_offset_2 = 0xD000;
 static const uint16_t bkgnd_offset_2 = 0xD800;
 static const uint16_t dl_offset_2 = 0xF400;
 static uint8_t __attribute__((aligned(4))) display_list_2[] = {
+0x70, 0x70, 0x30,                                     // 2x 8 + 1x 4 of empty background lines
 0x73, (video_offset_2 & 0xFF), ((video_offset_2 >> 8) & 0xFF),  // LMS
 (color_offset_2 & 0xFF), ((color_offset_2 >> 8) & 0xFF),        // LFS
 (bkgnd_offset_2 & 0xFF), ((bkgnd_offset_2 >> 8) & 0xFF),        // LBS
