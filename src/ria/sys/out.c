@@ -333,7 +333,7 @@ void __not_in_flash_func(out_core1_main)(void)
             uint generated_raster = gen_scanline / FB_V_REPEAT;
             if (generated_raster != active_raster)
             {
-                cgia_render(active_raster, (uint32_t *)gen_line_ptr, 0);
+                cgia_render(active_raster, (uint32_t *)gen_line_ptr);
                 gen_scanline = active_scanline;
             }
         }

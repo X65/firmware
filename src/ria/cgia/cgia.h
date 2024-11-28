@@ -121,5 +121,5 @@ struct cgia_sprite_t
 
 void cgia_init(void);
 void cgia_core1_init(void);
-void cgia_render(uint y, uint32_t *rgbbuf, uint8_t recursion_depth);
+void cgia_render(uint y, uint32_t *rgbbuf);
 void cgia_vbl(void);
