@@ -7,6 +7,7 @@
 
 #include "images/sotb-1.h"
 #include "images/sotb-2.h"
+#include "images/sotb-3.h"
 
 #include "sys/out.h"
 
@@ -163,34 +164,57 @@ void cgia_init(void)
     }
     memcpy(video_bank + dl_offset_2, display_list_2, sizeof(display_list_2));
     CGIA.plane[p].offset = dl_offset_2;
+
+    p = 3;
+    CGIA.planes |= (0x01 << p);
+    CGIA.plane[p].regs.bckgnd.flags = PLANE_MASK_TRANSPARENT;
+    CGIA.plane[p].regs.bckgnd.shared_color[0] = 0;
+    CGIA.plane[p].regs.bckgnd.shared_color[1] = 0;
+    CGIA.plane[p].regs.bckgnd.row_height = 7;
+    CGIA.plane[p].regs.bckgnd.border_columns = 4;
+    CGIA.plane[p].regs.bckgnd.scroll = 0;
+    CGIA.plane[p].regs.bckgnd.offset = 0;
+    CGIA.plane[p].regs.bckgnd.stride = 80;
+    for (uint i = 0; i < 25; ++i)
+    {
+        memcpy(video_bank + video_offset_3 + i * 640, bitmap_data_3 + i * 320, 320);
+        memcpy(video_bank + video_offset_3 + i * 640 + 320, bitmap_data_3 + i * 320, 320);
+        memcpy(video_bank + color_offset_3 + i * 80, color_data_3 + i * 40, 40);
+        memcpy(video_bank + color_offset_3 + i * 80 + 40, color_data_3 + i * 40, 40);
+        memcpy(video_bank + bkgnd_offset_3 + i * 80, bkgnd_data_3 + i * 40, 40);
+        memcpy(video_bank + bkgnd_offset_3 + i * 80 + 40, bkgnd_data_3 + i * 40, 40);
+    }
+    memcpy(video_bank + dl_offset_3, display_list_3, sizeof(display_list_3));
+    CGIA.plane[p].offset = dl_offset_3;
 }
 
 static uint scroll = 0;
 static int8_t scroll_moon = 0;
 static int8_t offset_moon = 0;
-static int8_t scroll_clouds_01 = 0; // 21
-static int8_t offset_clouds_01 = 0; // 21
-static int8_t scroll_clouds_02 = 0; // 40
-static int8_t offset_clouds_02 = 0; // 40
-static int8_t scroll_clouds_03 = 0; // 19
-static int8_t offset_clouds_03 = 0; // 19
-static int8_t scroll_clouds_04 = 0; // 9
-static int8_t offset_clouds_04 = 0; // 9
-static int8_t scroll_clouds_05 = 0; // 6
-static int8_t offset_clouds_05 = 0; // 6
-static int8_t scroll_hills_06 = 0;  // 73
+static int8_t scroll_clouds_01 = 0;
+static int8_t offset_clouds_01 = 0;
+static int8_t scroll_clouds_02 = 0;
+static int8_t offset_clouds_02 = 0;
+static int8_t scroll_clouds_03 = 0;
+static int8_t offset_clouds_03 = 0;
+static int8_t scroll_clouds_04 = 0;
+static int8_t offset_clouds_04 = 0;
+static int8_t scroll_clouds_05 = 0;
+static int8_t offset_clouds_05 = 0;
+static int8_t scroll_hills_06 = 0;
 static int8_t offset_hills_06 = 0;
-static int8_t scroll_grass_07 = 0; // 200
-static int8_t offset_grass_07 = 0; // 200
-static int8_t scroll_trees_08 = 0; // 175
-static int8_t scroll_grass_09 = 0; // 25
-static int8_t offset_grass_09 = 0; // 25
-static int8_t scroll_grass_10 = 0; // 18
-static int8_t offset_grass_10 = 0; // 18
-static int8_t scroll_grass_11 = 0; // 11
-static int8_t offset_grass_11 = 0; // 11
-static int8_t scroll_fence_12 = 0; // 22
-static int8_t offset_fence_12 = 0; // 22
+static int8_t scroll_grass_07 = 0;
+static int8_t offset_grass_07 = 0;
+static int8_t scroll_trees_08 = 0;
+static int8_t offset_trees_08 = 0;
+static int8_t scroll_grass_09 = 0;
+static int8_t offset_grass_09 = 0;
+static int8_t scroll_grass_10 = 0;
+static int8_t offset_grass_10 = 0;
+static int8_t scroll_grass_11 = 0;
+static int8_t offset_grass_11 = 0;
+static int8_t scroll_fence_12 = 0;
+static int8_t offset_fence_12 = 0;
 
 void fake_dli_handler(uint y)
 {
@@ -202,6 +226,8 @@ void fake_dli_handler(uint y)
         CGIA.plane[0].regs.bckgnd.offset = offset_moon;
         CGIA.plane[1].regs.bckgnd.scroll = scroll_clouds_01;
         CGIA.plane[1].regs.bckgnd.offset = offset_clouds_01;
+        CGIA.plane[3].regs.bckgnd.scroll = scroll_trees_08;
+        CGIA.plane[3].regs.bckgnd.offset = offset_trees_08;
         break;
     case 21:
         CGIA.plane[1].regs.bckgnd.scroll = scroll_clouds_02;
@@ -772,6 +798,9 @@ void cgia_vbl(void)
     scroll_grass_07 = -(scroll_07 % 32);
     offset_grass_07 = (int8_t)(scroll_07 / 32) * 32 / CGIA_COLUMN_PX;
     // 08: 4500
+    const uint scroll_08 = (scroll * 4480 / SCROLL_MAX) % 320;
+    scroll_trees_08 = -(scroll_08 % 32);
+    offset_trees_08 = (int8_t)(scroll_08 / 32) * 32 / CGIA_COLUMN_PX;
     // 09: 5400
     const uint scroll_09 = (scroll * 5440 / SCROLL_MAX) % 320;
     scroll_grass_09 = -(scroll_09 % 32);
