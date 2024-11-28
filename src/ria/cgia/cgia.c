@@ -171,12 +171,40 @@ void fake_dli_handler(uint y)
     switch (y)
     {
     case 0:
+        CGIA.back_color = 0x8b;
         CGIA.plane[0].regs.bckgnd.scroll = scroll_moon;
         CGIA.plane[0].regs.bckgnd.offset = offset_moon;
         break;
     case 72:
         CGIA.plane[0].regs.bckgnd.scroll = scroll_hills_06;
         CGIA.plane[0].regs.bckgnd.offset = offset_hills_06;
+        break;
+    case 76:
+        CGIA.back_color = 0x9b;
+        break;
+    case 103:
+        CGIA.back_color = 0xa4;
+        break;
+    case 117:
+        CGIA.back_color = 0xb4;
+        break;
+    case 127:
+        CGIA.back_color = 0xc4;
+        break;
+    case 135:
+        CGIA.back_color = 0xcd;
+        break;
+    case 142:
+        CGIA.back_color = 0xdd;
+        break;
+    case 148:
+        CGIA.back_color = 0xed;
+        break;
+    case 154:
+        CGIA.back_color = 0xf6;
+        break;
+    case 158:
+        CGIA.back_color = 0x0e;
         break;
     case 175:
         CGIA.plane[0].regs.bckgnd.scroll = scroll_grass_09;
@@ -652,7 +680,7 @@ void __not_in_flash_func(cgia_render)(uint y, uint32_t *rgbbuf, uint8_t recursio
         }
     }
 
-    fake_dli_handler(y); // FIXME: remove me
+    fake_dli_handler((y + 1) % FRAME_HEIGHT); // FIXME: remove me
 }
 
 #define SCROLL_MAX 9600
