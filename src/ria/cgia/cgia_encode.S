@@ -48,7 +48,7 @@ cell_colors: .skip 4*4  // Reserve 4 words for the multi color array
 .if \mapped
   stmia r0!, {r7}
 .else
-  adds r0, 1  // transparent pixel - move to next
+  adds r0, 4  // transparent pixel - move to next
 .endif
 2:
 .endm
@@ -100,10 +100,13 @@ decl_func cgia_encode_mode_3_mapped
 // r4 is bitmap (8 LSB)
 // r7 is cell_colors array pointer
 // changes r0,r5-r6
-.macro write_pixel_multi sh_amt doubled
+.macro write_pixel_multi sh_amt doubled mapped
   mov r5, r4
   lsrs r5, #\sh_amt
   ands r5, 3  // 00000011 mask
+.if !\mapped
+  beq 1f
+.endif
   ldr r5, [r7, r5, LSL #2]
 .if \doubled
   mov r6, r5
@@ -111,13 +114,21 @@ decl_func cgia_encode_mode_3_mapped
 .else
   stmia r0!, {r5}
 .endif
+  b 2f
+1:
+.if \doubled
+  adds r0, 8  // transparent pixel - skip 2
+.else
+  adds r0, 4  // transparent pixel - move to next
+.endif
+2:
 .endm
 
 // r0 is output RGB buffer
 // r1 is scanline data buffer
 // r2 is width in bytes
 // r3 is shared_colors array [2]
-.macro cgia_encode_mode_5_or_7 doubled
+.macro cgia_encode_mode_5_or_7 doubled mapped
   push {r4-r7, lr}
 
   mov r4, r3  // shared_colors[0]
@@ -127,9 +138,11 @@ decl_func cgia_encode_mode_3_mapped
   ldr r3, =cgia_rgb_palette
   ldr r7, =cell_colors
 
+.if \mapped
   ldrb r4, [r4]
   ldr r4, [r3, r4, LSL #2]  // load palette entry
   str r4, [r7, #0]          // store shared color 0
+.endif
   ldrb r5, [r5]
   ldr r5, [r3, r5, LSL #2]  // load palette entry
   str r5, [r7, #12]         // store shared color 3
@@ -142,15 +155,15 @@ decl_func cgia_encode_mode_3_mapped
   str r5, [r7, #8]          // store "on" color (2)
 
 .if \doubled
-  write_pixel_multi 6 1
-  write_pixel_multi 4 1
-  write_pixel_multi 2 1
-  write_pixel_multi 0 1
+  write_pixel_multi 6 1 \mapped
+  write_pixel_multi 4 1 \mapped
+  write_pixel_multi 2 1 \mapped
+  write_pixel_multi 0 1 \mapped
 .else
-  write_pixel_multi 6 0
-  write_pixel_multi 4 0
-  write_pixel_multi 2 0
-  write_pixel_multi 0 0
+  write_pixel_multi 6 0 \mapped
+  write_pixel_multi 4 0 \mapped
+  write_pixel_multi 2 0 \mapped
+  write_pixel_multi 0 0 \mapped
 .endif
 
   subs r2, #1
@@ -159,11 +172,17 @@ decl_func cgia_encode_mode_3_mapped
   pop {r4-r7, pc}
 .endm
 
-decl_func cgia_encode_mode_5
-	cgia_encode_mode_5_or_7 0
+decl_func cgia_encode_mode_5_shared
+	cgia_encode_mode_5_or_7 0 0
 
-decl_func cgia_encode_mode_7
-	cgia_encode_mode_5_or_7 1
+decl_func cgia_encode_mode_5_mapped
+	cgia_encode_mode_5_or_7 0 1
+
+decl_func cgia_encode_mode_7_shared
+	cgia_encode_mode_5_or_7 1 0
+
+decl_func cgia_encode_mode_7_mapped
+	cgia_encode_mode_5_or_7 1 1
 
 
 //////////////////// SCANLINE BUFFER ////////////////////

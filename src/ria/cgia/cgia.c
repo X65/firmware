@@ -5,10 +5,7 @@
 #include "cgia_encode.h"
 #include "cgia_palette.h"
 
-#include "example_data.h"
-#include "font_8.h"
-#include "images/carrion-One_Zak_And_His_Kracken.h"
-#include "images/veto-the_mill.h"
+#include "images/sotb-1.h"
 
 #include "sys/out.h"
 
@@ -38,12 +35,9 @@ __attribute__((aligned(4))) plane_int[CGIA_PLANES]
 
 static uint8_t __attribute__((aligned(4))) sprite_line_data[SPRITE_MAX_WIDTH];
 
-#define EXAMPLE_SPRITE_COUNT 8
-static struct cgia_sprite_t __attribute__((aligned(4))) sprites[EXAMPLE_SPRITE_COUNT]
-    = {0};
-
 // --- temporary WIP ---
 uint8_t __attribute__((aligned(4))) video_bank[256 * 256];
+uint8_t __attribute__((aligned(4))) spr_bank[256 * 256];
 
 // ---
 #define EXAMPLE_BORDER_COLOR 145
@@ -125,74 +119,18 @@ void cgia_init(void)
 
     uint8_t p;
 
-    /* TEXT MODE */
     p = 0;
     CGIA.planes |= (0x01 << p);
+    CGIA.plane[p].regs.bckgnd.flags = PLANE_MASK_TRANSPARENT;
+    CGIA.plane[p].regs.bckgnd.shared_color[0] = 0;
+    CGIA.plane[p].regs.bckgnd.shared_color[1] = 0;
     CGIA.plane[p].regs.bckgnd.row_height = 7;
     CGIA.plane[p].regs.bckgnd.border_columns = 4;
-    uint8_t *video = video_bank + text_mode_video_offset;
-    memset(video, 0, FRAME_CHARS * 30);
-    video[0] = 'R';
-    video[1] = 'E';
-    video[2] = 'A';
-    video[3] = 'D';
-    video[4] = 'Y';
-    memset(video_bank + text_mode_color_offset, EXAMPLE_TEXT_COLOR, FRAME_CHARS * 30);
-    memset(video_bank + text_mode_bkgnd_offset, CGIA.back_color, FRAME_CHARS * 30);
-    memcpy(video_bank + text_mode_chrgn_offset, font8_data, sizeof(font8_data));
-    memcpy(video_bank + text_mode_dl_offset, text_mode_dl, sizeof(text_mode_dl));
-    CGIA.plane[p].offset = text_mode_dl_offset;
-
-    /* HiRes mode */
-    p = 2;
-    // CGIA.planes |= (0x01 << p);
-    CGIA.plane[p].regs.bckgnd.row_height = 7;
-    CGIA.plane[p].regs.bckgnd.border_columns = 4;
-    memcpy(video_bank + hires_mode_video_offset, hr_bitmap_data, sizeof(hr_bitmap_data));
-    memcpy(video_bank + hires_mode_color_offset, hr_colour_data, sizeof(hr_colour_data));
-    memcpy(video_bank + hires_mode_bkgnd_offset, hr_background_data, sizeof(hr_background_data));
-    memcpy(video_bank + hires_mode_dl_offset, hires_mode_dl, sizeof(hires_mode_dl));
-    CGIA.plane[p].offset = hires_mode_dl_offset;
-
-    /* MultiColor mode */
-    p = 3;
-    // CGIA.planes |= (0x01 << p);
-    CGIA.plane[p].regs.bckgnd.shared_color[0] = mt_background_color_1;
-    CGIA.plane[p].regs.bckgnd.shared_color[1] = mt_background_color_2;
-    CGIA.plane[p].regs.bckgnd.row_height = 0;
-    CGIA.plane[p].regs.bckgnd.border_columns = 4;
-    memcpy(video_bank + multi_mode_video_offset, mt_bitmap_data, sizeof(mt_bitmap_data));
-    memcpy(video_bank + multi_mode_color_offset, mt_colour_data, sizeof(mt_colour_data));
-    memcpy(video_bank + multi_mode_bkgnd_offset, mt_background_data, sizeof(mt_background_data));
-    memcpy(video_bank + multi_mode_dl_offset, multi_mode_dl, sizeof(multi_mode_dl));
-    CGIA.plane[p].offset = multi_mode_dl_offset;
-
-    /* SPRITES */
-    p = 1;
-    CGIA.planes |= (0x11 << p);
-    CGIA.plane[p].regs.sprite.count = EXAMPLE_SPRITE_COUNT;
-    for (uint8_t i = 0; i < EXAMPLE_SPRITE_COUNT; ++i)
-    {
-        sprites[i].flags = SPRITE_MASK_ACTIVE;
-        sprites[i].flags |= SPRITE_MASK_MULTICOLOR;
-        sprites[i].flags |= EXAMPLE_SPRITE_WIDTH - 1; // width
-        sprites[i].lines_y = EXAMPLE_SPRITE_HEIGHT;
-        sprites[i].color[0] = EXAMPLE_SPRITE_COLOR_1;
-        sprites[i].color[1] = EXAMPLE_SPRITE_COLOR_2;
-        sprites[i].color[2] = EXAMPLE_SPRITE_COLOR_3;
-        sprites[i].pos_x = 54 * i - 5;
-        sprites[i].pos_y = 8;
-    }
-    sprites[1].pos_y = -10;
-    sprites[2].flags &= ~SPRITE_MASK_MULTICOLOR;
-    sprites[2].flags |= SPRITE_MASK_MIRROR_X;
-    sprites[2].flags |= SPRITE_MASK_MIRROR_Y;
-    // sprites[2].flags |= SPRITE_MASK_DOUBLE_WIDTH;
-    sprites[3].flags |= SPRITE_MASK_DOUBLE_WIDTH;
-    sprites[4].flags |= SPRITE_MASK_MIRROR_X;
-    sprites[5].flags |= SPRITE_MASK_MIRROR_Y;
-    sprites[6].flags &= ~SPRITE_MASK_WIDTH;
-    sprites[6].flags |= 2;
+    memcpy(video_bank + video_offset, bitmap_data, sizeof(bitmap_data));
+    memcpy(video_bank + color_offset, color_data, sizeof(color_data));
+    memcpy(video_bank + bkgnd_offset, bkgnd_data, sizeof(bkgnd_data));
+    memcpy(video_bank + dl_offset, display_list, sizeof(display_list));
+    CGIA.plane[p].offset = dl_offset;
 }
 
 void cgia_core1_init(void)
@@ -264,6 +202,9 @@ void __not_in_flash_func(cgia_render)(uint y, uint32_t *rgbbuf, uint8_t recursio
 
             plane = CGIA.plane + p;
 
+            uint8_t *sprite_bank = spr_bank; // psram + (CGIA.sprite_bank << 16)
+            struct cgia_sprite_t *sprites = (struct cgia_sprite_t *)(sprite_bank + plane->offset);
+
             // wait until back fill is done, as it may overwrite sprites on the right side
             dma_channel_wait_for_finish_blocking(back_chan);
 
@@ -286,10 +227,10 @@ void __not_in_flash_func(cgia_render)(uint y, uint32_t *rgbbuf, uint8_t recursio
                         const uint sprite_offset = sprite_line * line_bytes;
 
                         uint8_t *dst = sprite_line_data;
-                        uint8_t *src;
+                        uint8_t *src = sprite_bank + sprite->data_offset;
                         if (sprite->flags & SPRITE_MASK_MIRROR_X)
                         {
-                            src = example_sprite_data + sprite_offset + sprite_width;
+                            src += sprite_offset + sprite_width;
                             do
                             {
                                 *dst++ = *src--;
@@ -297,7 +238,7 @@ void __not_in_flash_func(cgia_render)(uint y, uint32_t *rgbbuf, uint8_t recursio
                         }
                         else
                         {
-                            src = example_sprite_data + sprite_offset;
+                            src += sprite_offset;
                             do
                             {
                                 *dst++ = *src++;
@@ -451,7 +392,7 @@ void __not_in_flash_func(cgia_render)(uint y, uint32_t *rgbbuf, uint8_t recursio
                 interp_set_accumulator(interp1, 1, (uintptr_t)plane_data->backgr_scan - 1);
                 if (row_columns)
                 {
-                    if (false) // FIXME: fill background using DMA and always use transparency code
+                    if (plane->regs.bckgnd.flags & PLANE_MASK_TRANSPARENT)
                     {
                         load_scanline_buffer_shared(plane_data->scanline_buffer, row_columns);
                         buf = cgia_encode_mode_3_shared(buf, plane_data->scanline_buffer, row_columns);
@@ -479,7 +420,14 @@ void __not_in_flash_func(cgia_render)(uint y, uint32_t *rgbbuf, uint8_t recursio
                     row_columns <<= 1; // this mode generates 4x8 cells, so requires 2x columns
                     uint8_t char_shift = log_2(plane->regs.bckgnd.row_height);
                     load_textmode_buffer(plane_data->scanline_buffer, row_columns, plane_data->char_gen + plane_data->row_line_count, char_shift);
-                    buf = cgia_encode_mode_5(buf, plane_data->scanline_buffer, row_columns, plane->regs.bckgnd.shared_color);
+                    if (plane->regs.bckgnd.flags & PLANE_MASK_TRANSPARENT)
+                    {
+                        buf = cgia_encode_mode_5_shared(buf, plane_data->scanline_buffer, row_columns, plane->regs.bckgnd.shared_color);
+                    }
+                    else
+                    {
+                        buf = cgia_encode_mode_5_mapped(buf, plane_data->scanline_buffer, row_columns, plane->regs.bckgnd.shared_color);
+                    }
                 }
             }
             break;
@@ -495,7 +443,14 @@ void __not_in_flash_func(cgia_render)(uint y, uint32_t *rgbbuf, uint8_t recursio
                 {
                     row_columns <<= 1; // this mode generates 4x8 cells, so requires 2x columns
                     load_scanline_buffer_mapped(plane_data->scanline_buffer, row_columns);
-                    buf = cgia_encode_mode_5(buf, plane_data->scanline_buffer, row_columns, plane->regs.bckgnd.shared_color);
+                    if (plane->regs.bckgnd.flags & PLANE_MASK_TRANSPARENT)
+                    {
+                        buf = cgia_encode_mode_5_shared(buf, plane_data->scanline_buffer, row_columns, plane->regs.bckgnd.shared_color);
+                    }
+                    else
+                    {
+                        buf = cgia_encode_mode_5_mapped(buf, plane_data->scanline_buffer, row_columns, plane->regs.bckgnd.shared_color);
+                    }
                 }
 
                 // next raster line starts with next byte, but color/bg scan stay the same
@@ -513,7 +468,14 @@ void __not_in_flash_func(cgia_render)(uint y, uint32_t *rgbbuf, uint8_t recursio
                 {
                     uint8_t char_shift = log_2(plane->regs.bckgnd.row_height);
                     load_textmode_buffer(plane_data->scanline_buffer, row_columns, plane_data->char_gen + plane_data->row_line_count, char_shift);
-                    buf = cgia_encode_mode_7(buf, plane_data->scanline_buffer, row_columns, plane->regs.bckgnd.shared_color);
+                    if (plane->regs.bckgnd.flags & PLANE_MASK_TRANSPARENT)
+                    {
+                        buf = cgia_encode_mode_7_shared(buf, plane_data->scanline_buffer, row_columns, plane->regs.bckgnd.shared_color);
+                    }
+                    else
+                    {
+                        buf = cgia_encode_mode_7_mapped(buf, plane_data->scanline_buffer, row_columns, plane->regs.bckgnd.shared_color);
+                    }
                 }
             }
             break;
@@ -528,7 +490,14 @@ void __not_in_flash_func(cgia_render)(uint y, uint32_t *rgbbuf, uint8_t recursio
                 if (row_columns)
                 {
                     load_scanline_buffer_mapped(plane_data->scanline_buffer, row_columns);
-                    buf = cgia_encode_mode_7(buf, plane_data->scanline_buffer, row_columns, plane->regs.bckgnd.shared_color);
+                    if (plane->regs.bckgnd.flags & PLANE_MASK_TRANSPARENT)
+                    {
+                        buf = cgia_encode_mode_7_shared(buf, plane_data->scanline_buffer, row_columns, plane->regs.bckgnd.shared_color);
+                    }
+                    else
+                    {
+                        buf = cgia_encode_mode_7_mapped(buf, plane_data->scanline_buffer, row_columns, plane->regs.bckgnd.shared_color);
+                    }
                 }
 
                 // next raster line starts with next byte, but color/bg scan stay the same
@@ -582,45 +551,4 @@ void __not_in_flash_func(cgia_render)(uint y, uint32_t *rgbbuf, uint8_t recursio
 void cgia_vbl(void)
 {
     // TODO: trigger CPU NMI
-
-    // REMOVEME: example VBL service routine
-    sprites[0].pos_x += 1;
-    sprites[0].pos_y += 1;
-    sprites[1].pos_x -= 1;
-    sprites[1].pos_y += 1;
-    sprites[2].pos_x += 1;
-    sprites[2].pos_y -= 1;
-    sprites[3].pos_x -= 1;
-    sprites[3].pos_y -= 1;
-    sprites[4].pos_x += 1;
-    sprites[4].pos_y += 2;
-    sprites[5].pos_x -= 2;
-    sprites[5].pos_y += 1;
-    sprites[6].pos_x += 2;
-    sprites[6].pos_y -= 1;
-    sprites[7].pos_x -= 1;
-    sprites[7].pos_y -= 2;
-    for (uint8_t i = 0; i < EXAMPLE_SPRITE_COUNT; ++i)
-    {
-        if (sprites[i].pos_x > DISPLAY_WIDTH_PIXELS)
-            sprites[i].pos_x = MIN_SPRITE_X;
-        if (sprites[i].pos_x < MIN_SPRITE_X)
-            sprites[i].pos_x = DISPLAY_WIDTH_PIXELS;
-        if (sprites[i].pos_y > FRAME_HEIGHT)
-            sprites[i].pos_y = MIN_SPRITE_Y;
-        if (sprites[i].pos_y < MIN_SPRITE_Y)
-            sprites[i].pos_y = FRAME_HEIGHT;
-    }
-
-    static int frame = 0;
-    ++frame;
-    if (frame % 60 == 0)
-    {
-        // blink cursor
-        uint8_t *colour = video_bank + text_mode_color_offset;
-        uint8_t *bckgnd = video_bank + text_mode_bkgnd_offset;
-        uint8_t bg = bckgnd[FRAME_CHARS - 2 * CGIA.plane[0].regs.bckgnd.border_columns];
-        bckgnd[FRAME_CHARS - 2 * CGIA.plane[0].regs.bckgnd.border_columns] = colour[FRAME_CHARS - 2 * CGIA.plane[0].regs.bckgnd.border_columns];
-        colour[FRAME_CHARS - 2 * CGIA.plane[0].regs.bckgnd.border_columns] = bg;
-    }
 }

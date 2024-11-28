@@ -25,13 +25,25 @@ uint32_t *__not_in_flash_func(cgia_encode_mode_3_mapped)(
     uint32_t *scanline_buffer,
     uint32_t columns);
 
-uint32_t *__not_in_flash_func(cgia_encode_mode_5)(
+uint32_t *__not_in_flash_func(cgia_encode_mode_5_shared)(
     uint32_t *rgbbuf,
     uint32_t *scanline_buffer,
     uint32_t columns,
     uint8_t shared_colors[2]);
 
-uint32_t *__not_in_flash_func(cgia_encode_mode_7)(
+uint32_t *__not_in_flash_func(cgia_encode_mode_5_mapped)(
+    uint32_t *rgbbuf,
+    uint32_t *scanline_buffer,
+    uint32_t columns,
+    uint8_t shared_colors[2]);
+
+uint32_t *__not_in_flash_func(cgia_encode_mode_7_shared)(
+    uint32_t *rgbbuf,
+    uint32_t *scanline_buffer,
+    uint32_t columns,
+    uint8_t shared_colors[2]);
+
+uint32_t *__not_in_flash_func(cgia_encode_mode_7_mapped)(
     uint32_t *rgbbuf,
     uint32_t *scanline_buffer,
     uint32_t columns,
