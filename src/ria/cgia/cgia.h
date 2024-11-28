@@ -56,7 +56,8 @@ struct cgia_plane_t
             uint8_t border_columns;
             uint8_t row_height;
             int8_t scroll;
-            uint8_t reserved[2];
+            int8_t offset;
+            uint8_t stride;
         } bckgnd;
 
         struct cgia_sprite_regs

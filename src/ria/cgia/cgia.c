@@ -127,11 +127,70 @@ void cgia_init(void)
     CGIA.plane[p].regs.bckgnd.row_height = 7;
     CGIA.plane[p].regs.bckgnd.border_columns = 4;
     CGIA.plane[p].regs.bckgnd.scroll = 0;
-    memcpy(video_bank + video_offset, bitmap_data, sizeof(bitmap_data));
-    memcpy(video_bank + color_offset, color_data, sizeof(color_data));
-    memcpy(video_bank + bkgnd_offset, bkgnd_data, sizeof(bkgnd_data));
+    CGIA.plane[p].regs.bckgnd.offset = 0;
+    CGIA.plane[p].regs.bckgnd.stride = 80;
+    for (uint i = 0; i < 25; ++i)
+    {
+        memcpy(video_bank + video_offset + i * 640, bitmap_data + i * 320, 320);
+        memcpy(video_bank + video_offset + i * 640 + 320, bitmap_data + i * 320, 320);
+        memcpy(video_bank + color_offset + i * 80, color_data + i * 40, 40);
+        memcpy(video_bank + color_offset + i * 80 + 40, color_data + i * 40, 40);
+        memcpy(video_bank + bkgnd_offset + i * 80, bkgnd_data + i * 40, 40);
+        memcpy(video_bank + bkgnd_offset + i * 80 + 40, bkgnd_data + i * 40, 40);
+    }
+    // memcpy(video_bank + video_offset, bitmap_data, sizeof(bitmap_data));
+    // memcpy(video_bank + color_offset, color_data, sizeof(color_data));
+    // memcpy(video_bank + bkgnd_offset, bkgnd_data, sizeof(bkgnd_data));
+
     memcpy(video_bank + dl_offset, display_list, sizeof(display_list));
     CGIA.plane[p].offset = dl_offset;
+}
+
+static uint scroll = 0;
+static int8_t scroll_moon = 0;
+static int8_t offset_moon = 0;
+static int8_t scroll_clouds_01 = 0; // 21
+static int8_t scroll_clouds_02 = 0; // 40
+static int8_t scroll_clouds_03 = 0; // 19
+static int8_t scroll_clouds_04 = 0; // 9
+static int8_t scroll_clouds_05 = 0; // 6
+static int8_t scroll_hills_06 = 0;  // 73
+static int8_t offset_hills_06 = 0;
+static int8_t scroll_grass_07 = 0; // 200
+static int8_t scroll_trees_08 = 0; // 175
+static int8_t scroll_grass_09 = 0; // 25
+static int8_t offset_grass_09 = 0; // 25
+static int8_t scroll_grass_10 = 0; // 18
+static int8_t offset_grass_10 = 0; // 18
+static int8_t scroll_grass_11 = 0; // 11
+static int8_t offset_grass_11 = 0; // 11
+static int8_t scroll_fence_12 = 0; // 22
+
+void fake_dli_handler(uint y)
+{
+    switch (y)
+    {
+    case 0:
+        CGIA.plane[0].regs.bckgnd.scroll = scroll_moon;
+        CGIA.plane[0].regs.bckgnd.offset = offset_moon;
+        break;
+    case 72:
+        CGIA.plane[0].regs.bckgnd.scroll = scroll_hills_06;
+        CGIA.plane[0].regs.bckgnd.offset = offset_hills_06;
+        break;
+    case 175:
+        CGIA.plane[0].regs.bckgnd.scroll = scroll_grass_09;
+        CGIA.plane[0].regs.bckgnd.offset = offset_grass_09;
+        break;
+    case 182:
+        CGIA.plane[0].regs.bckgnd.scroll = scroll_grass_10;
+        CGIA.plane[0].regs.bckgnd.offset = offset_grass_10;
+        break;
+    case 189:
+        CGIA.plane[0].regs.bckgnd.scroll = scroll_grass_11;
+        CGIA.plane[0].regs.bckgnd.offset = offset_grass_11;
+        break;
+    }
 }
 
 void cgia_core1_init(void)
@@ -383,10 +442,10 @@ void __not_in_flash_func(cgia_render)(uint y, uint32_t *rgbbuf, uint8_t recursio
                     (void)fill_back(rgbbuf, DISPLAY_WIDTH_PIXELS / CGIA_COLUMN_PX, CGIA.back_color);
                 }
 
-                uint border_columns = plane->regs.bckgnd.border_columns;
+                uint8_t border_columns = plane->regs.bckgnd.border_columns;
                 if (border_columns > MAX_BORDER_COLUMNS)
                     border_columns = MAX_BORDER_COLUMNS;
-                uint row_columns = FRAME_CHARS - 2 * border_columns;
+                uint8_t row_columns = FRAME_CHARS - 2 * border_columns;
 
                 // Used for tracking where to blit pixel data
                 uint32_t *buf = rgbbuf + border_columns * CGIA_COLUMN_PX + plane->regs.bckgnd.scroll;
@@ -510,20 +569,25 @@ void __not_in_flash_func(cgia_render)(uint y, uint32_t *rgbbuf, uint8_t recursio
                 case (0x7 | MODE_BIT): // MODE7 (F) - doubled multicolor bitmap mode
                 {
                     const uint8_t row_height = plane->regs.bckgnd.row_height + 1;
+                    const uint8_t offset = plane->regs.bckgnd.offset;
                     interp_set_base(interp0, 0, row_height);
-                    interp_set_accumulator(interp0, 0, (uintptr_t)plane_data->memory_scan - row_height);
-                    interp_set_accumulator(interp1, 0, (uintptr_t)plane_data->colour_scan - 1);
-                    interp_set_accumulator(interp1, 1, (uintptr_t)plane_data->backgr_scan - 1);
+                    interp_set_accumulator(interp0, 0, (uintptr_t)plane_data->memory_scan - row_height + offset * row_height);
+                    interp_set_accumulator(interp1, 0, (uintptr_t)plane_data->colour_scan - 1 + offset);
+                    interp_set_accumulator(interp1, 1, (uintptr_t)plane_data->backgr_scan - 1 + offset);
                     if (row_columns)
                     {
-                        load_scanline_buffer_mapped(plane_data->scanline_buffer, row_columns);
+                        int8_t scr_delta = plane->regs.bckgnd.scroll;
+                        if (scr_delta < 0)
+                            scr_delta -= 7;
+                        const uint8_t encode_columns = (uint8_t)(row_columns - scr_delta / CGIA_COLUMN_PX);
+                        load_scanline_buffer_mapped(plane_data->scanline_buffer, encode_columns);
                         if (plane->regs.bckgnd.flags & PLANE_MASK_TRANSPARENT)
                         {
-                            buf = cgia_encode_mode_7_shared(buf, plane_data->scanline_buffer, row_columns, plane->regs.bckgnd.shared_color);
+                            buf = cgia_encode_mode_7_shared(buf, plane_data->scanline_buffer, encode_columns, plane->regs.bckgnd.shared_color);
                         }
                         else
                         {
-                            buf = cgia_encode_mode_7_mapped(buf, plane_data->scanline_buffer, row_columns, plane->regs.bckgnd.shared_color);
+                            buf = cgia_encode_mode_7_mapped(buf, plane_data->scanline_buffer, encode_columns, plane->regs.bckgnd.shared_color);
                         }
                     }
 
@@ -559,9 +623,19 @@ void __not_in_flash_func(cgia_render)(uint y, uint32_t *rgbbuf, uint8_t recursio
                 if (dl_instr & MODE_BIT)
                 {
                     // update scan pointers to next value
-                    plane_data->memory_scan = (uint8_t *)(uintptr_t)interp_get_accumulator(interp0, 0) + 1;
-                    plane_data->colour_scan = (uint8_t *)(uintptr_t)interp_get_accumulator(interp1, 0) + 1;
-                    plane_data->backgr_scan = (uint8_t *)(uintptr_t)interp_get_accumulator(interp1, 1) + 1;
+                    uint8_t stride = plane->regs.bckgnd.stride;
+                    if (stride)
+                    {
+                        plane_data->colour_scan += stride;
+                        plane_data->backgr_scan += stride;
+                        plane_data->memory_scan += --stride * (plane->regs.bckgnd.row_height + 1);
+                    }
+                    else
+                    {
+                        plane_data->memory_scan = (uint8_t *)(uintptr_t)interp_get_accumulator(interp0, 0) + 1;
+                        plane_data->colour_scan = (uint8_t *)(uintptr_t)interp_get_accumulator(interp1, 0) + 1;
+                        plane_data->backgr_scan = (uint8_t *)(uintptr_t)interp_get_accumulator(interp1, 1) + 1;
+                    }
                 }
 
                 // Reset line counter
@@ -577,15 +651,42 @@ void __not_in_flash_func(cgia_render)(uint y, uint32_t *rgbbuf, uint8_t recursio
             }
         }
     }
+
+    fake_dli_handler(y); // FIXME: remove me
 }
 
-#define SPRITE_PADDING (SPRITE_MAX_WIDTH * CGIA_COLUMN_PX)
-#define MIN_SPRITE_X   (-SPRITE_PADDING)
-#define MIN_SPRITE_Y   (-EXAMPLE_SPRITE_HEIGHT)
+#define SCROLL_MAX 9600
 
 void cgia_vbl(void)
 {
     // TODO: trigger CPU NMI
 
-    CGIA.plane[0].regs.bckgnd.scroll++;
+    ++scroll;
+    if (scroll >= SCROLL_MAX)
+        scroll = 0;
+
+    // 01: 3300px
+    // 02: 2700px
+    // 03: 2500
+    // 04: 2200
+    // 05: 2000
+    // 06: 2700
+    const uint scroll_06 = (scroll * 2560 / SCROLL_MAX) % 320;
+    scroll_hills_06 = -(scroll_06 % 32);
+    offset_hills_06 = (int8_t)(scroll_06 / 32) * 32 / CGIA_COLUMN_PX;
+    // 07: 3400
+    // 08: 4500
+    // 09: 5400
+    const uint scroll_09 = (scroll * 5440 / SCROLL_MAX) % 320;
+    scroll_grass_09 = -(scroll_09 % 32);
+    offset_grass_09 = (int8_t)(scroll_09 / 32) * 32 / CGIA_COLUMN_PX;
+    // 10: 6800
+    const uint scroll_10 = (scroll * 6720 / SCROLL_MAX) % 320;
+    scroll_grass_10 = -(scroll_10 % 32);
+    offset_grass_10 = (int8_t)(scroll_10 / 32) * 32 / CGIA_COLUMN_PX;
+    // 11: 8200
+    const uint scroll_11 = (scroll * 8320 / SCROLL_MAX) % 320;
+    scroll_grass_11 = -(scroll_11 % 32);
+    offset_grass_11 = (int8_t)(scroll_11 / 32) * 32 / CGIA_COLUMN_PX;
+    // 12: 9600
 }

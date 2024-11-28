@@ -83,7 +83,7 @@ static uint8_t __attribute__((aligned(4))) bkgnd_data[1000] = {
 };
 
 static const uint16_t video_offset = 0x8000;
-static const uint16_t color_offset = 0xA800;
+static const uint16_t color_offset = 0xC000;
 static const uint16_t bkgnd_offset = 0xD000;
 static const uint16_t dl_offset = 0xF800;
 static uint8_t __attribute__((aligned(4))) display_list[] = {
