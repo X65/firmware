@@ -126,6 +126,7 @@ void cgia_init(void)
     CGIA.plane[p].regs.bckgnd.shared_color[1] = 0;
     CGIA.plane[p].regs.bckgnd.row_height = 7;
     CGIA.plane[p].regs.bckgnd.border_columns = 4;
+    CGIA.plane[p].regs.bckgnd.scroll = 0;
     memcpy(video_bank + video_offset, bitmap_data, sizeof(bitmap_data));
     memcpy(video_bank + color_offset, color_data, sizeof(color_data));
     memcpy(video_bank + bkgnd_offset, bkgnd_data, sizeof(bkgnd_data));
@@ -541,8 +542,9 @@ void __not_in_flash_func(cgia_render)(uint y, uint32_t *rgbbuf, uint8_t recursio
                 // borders
                 if (dl_instr & MODE_BIT && border_columns)
                 {
+                    buf = fill_back(rgbbuf, border_columns, CGIA.back_color);
+                    buf += row_columns * CGIA_COLUMN_PX;
                     fill_back(buf, border_columns, CGIA.back_color);
-                    fill_back(rgbbuf, border_columns, CGIA.back_color);
                 }
             }
 
@@ -584,4 +586,6 @@ void __not_in_flash_func(cgia_render)(uint y, uint32_t *rgbbuf, uint8_t recursio
 void cgia_vbl(void)
 {
     // TODO: trigger CPU NMI
+
+    CGIA.plane[0].regs.bckgnd.scroll++;
 }

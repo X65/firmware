@@ -50,7 +50,7 @@
 #define FB_V_REPEAT 2
 
 // ----------------------------------------------------------------------------
-#define LINE_BUFFER_PADDING (SPRITE_MAX_WIDTH * CGIA_COLUMN_PX) // maximum sprite width
+#define LINE_BUFFER_PADDING (-SCHAR_MIN) // maximum scroll of signed 8 bit
 // RGB line buffers
 #define RGB_LINE_BUFFERS    2
 static uint32_t linebuffer[(MODE_H_ACTIVE_PIXELS + 2 * LINE_BUFFER_PADDING) * RGB_LINE_BUFFERS];
