@@ -776,50 +776,50 @@ void cgia_vbl(void)
 
     // 01: 3300px
     const uint scroll_01 = (scroll * 3520 / SCROLL_MAX) % 320;
-    scroll_clouds_01 = -(scroll_01 % 32);
-    offset_clouds_01 = (int8_t)(scroll_01 / 32) * 32 / CGIA_COLUMN_PX;
+    scroll_clouds_01 = -(scroll_01 % 8);
+    offset_clouds_01 = (int8_t)(scroll_01 / 8);
     // 02: 2700px
     const uint scroll_02 = (scroll * 2880 / SCROLL_MAX) % 320;
-    scroll_clouds_02 = -(scroll_02 % 32);
-    offset_clouds_02 = (int8_t)(scroll_02 / 32) * 32 / CGIA_COLUMN_PX;
+    scroll_clouds_02 = -(scroll_02 % 8);
+    offset_clouds_02 = (int8_t)(scroll_02 / 8);
     // 03: 2500
     const uint scroll_03 = (scroll * 2560 / SCROLL_MAX) % 320;
-    scroll_clouds_03 = -(scroll_03 % 32);
-    offset_clouds_03 = (int8_t)(scroll_03 / 32) * 32 / CGIA_COLUMN_PX;
+    scroll_clouds_03 = -(scroll_03 % 8);
+    offset_clouds_03 = (int8_t)(scroll_03 / 8);
     // 04: 2200
     const uint scroll_04 = (scroll * 2240 / SCROLL_MAX) % 320;
-    scroll_clouds_04 = -(scroll_04 % 32);
-    offset_clouds_04 = (int8_t)(scroll_04 / 32) * 32 / CGIA_COLUMN_PX;
+    scroll_clouds_04 = -(scroll_04 % 8);
+    offset_clouds_04 = (int8_t)(scroll_04 / 8);
     // 05: 2000
     const uint scroll_05 = (scroll * 1920 / SCROLL_MAX) % 320;
-    scroll_clouds_05 = -(scroll_05 % 32);
-    offset_clouds_05 = (int8_t)(scroll_05 / 32) * 32 / CGIA_COLUMN_PX;
+    scroll_clouds_05 = -(scroll_05 % 8);
+    offset_clouds_05 = (int8_t)(scroll_05 / 8);
     // 06: 2700
     const uint scroll_06 = (scroll * 2880 / SCROLL_MAX) % 320;
-    scroll_hills_06 = -(scroll_06 % 32);
-    offset_hills_06 = (int8_t)(scroll_06 / 32) * 32 / CGIA_COLUMN_PX;
+    scroll_hills_06 = -(scroll_06 % 8);
+    offset_hills_06 = (int8_t)(scroll_06 / 8);
     // 07: 3400
     const uint scroll_07 = (scroll * 3520 / SCROLL_MAX) % 320;
-    scroll_grass_07 = -(scroll_07 % 32);
-    offset_grass_07 = (int8_t)(scroll_07 / 32) * 32 / CGIA_COLUMN_PX;
+    scroll_grass_07 = -(scroll_07 % 8);
+    offset_grass_07 = (int8_t)(scroll_07 / 8);
     // 08: 4500
     const uint scroll_08 = (scroll * 4480 / SCROLL_MAX) % 320;
-    scroll_trees_08 = -(scroll_08 % 32);
-    offset_trees_08 = (int8_t)(scroll_08 / 32) * 32 / CGIA_COLUMN_PX;
+    scroll_trees_08 = -(scroll_08 % 8);
+    offset_trees_08 = (int8_t)(scroll_08 / 8);
     // 09: 5400
     const uint scroll_09 = (scroll * 5440 / SCROLL_MAX) % 320;
-    scroll_grass_09 = -(scroll_09 % 32);
-    offset_grass_09 = (int8_t)(scroll_09 / 32) * 32 / CGIA_COLUMN_PX;
+    scroll_grass_09 = -(scroll_09 % 8);
+    offset_grass_09 = (int8_t)(scroll_09 / 8);
     // 10: 6800
     const uint scroll_10 = (scroll * 6720 / SCROLL_MAX) % 320;
-    scroll_grass_10 = -(scroll_10 % 32);
-    offset_grass_10 = (int8_t)(scroll_10 / 32) * 32 / CGIA_COLUMN_PX;
+    scroll_grass_10 = -(scroll_10 % 8);
+    offset_grass_10 = (int8_t)(scroll_10 / 8);
     // 11: 8200
     const uint scroll_11 = (scroll * 8320 / SCROLL_MAX) % 320;
-    scroll_grass_11 = -(scroll_11 % 32);
-    offset_grass_11 = (int8_t)(scroll_11 / 32) * 32 / CGIA_COLUMN_PX;
+    scroll_grass_11 = -(scroll_11 % 8);
+    offset_grass_11 = (int8_t)(scroll_11 / 8);
     // 12: 9600
     const uint scroll_12 = (scroll * 9600 / SCROLL_MAX) % 320;
-    scroll_fence_12 = -(scroll_12 % 32);
-    offset_fence_12 = (int8_t)(scroll_12 / 32) * 32 / CGIA_COLUMN_PX;
+    scroll_fence_12 = -(scroll_12 % 8);
+    offset_fence_12 = (int8_t)(scroll_12 / 8);
 }
