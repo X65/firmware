@@ -13,7 +13,8 @@ const default_args = {
   transparent: false,
   palette: "closest",
   format: "multicolor",
-  treshold: 33.3,
+  double: false,
+  threshold: 33.3,
   greys: true,
 };
 
@@ -111,7 +112,7 @@ const plus4_palette2_to_cgia: Record<number, number> = {
   0x00306d: 152, 0x03508d: 153, 0x2370ac: 154, 0x4390cc: 155, 0x63afec: 156, 0x82cfff: 157, 0xa2efff: 158,
   0x3e016d: 208, 0x5e218d: 209, 0x7e41ac: 210, 0x9e61cc: 211, 0xbe81ec: 212, 0xdea1ff: 213, 0xfec1ff: 214, 0xffe1ff: 215,
 };
-Object.freeze(plus4_palette_to_cgia);
+Object.freeze(plus4_palette2_to_cgia);
 
 type Color = [number, number, number]; // [R, G, B]
 
@@ -295,6 +296,12 @@ const argDef: ScriptDefinition = {
       required: false,
     },
     {
+      name: "double",
+      shortName: "d",
+      description: `Horizontal pixel doubling (Default: ${default_args.double})`,
+      required: false,
+    },
+    {
       name: "width",
       shortName: "w",
       description: `Row width in bytes (Default: ${default_args.width})`,
@@ -331,9 +338,9 @@ const argDef: ScriptDefinition = {
       required: false,
     },
     {
-      name: "treshold",
+      name: "threshold",
       shortName: "b",
-      description: `Brightness treshold for color move (Default: ${default_args.treshold})`,
+      description: `Brightness threshold for color move (Default: ${default_args.threshold})`,
       required: false,
     },
     {
@@ -369,7 +376,7 @@ function genMultiColorLine(
     const cell = cells[c];
     const cell_colors = cells_colors[c];
     const cell_pixels = cells_pixels[c];
-    for (let i = 0; i < cell.length; i += 2) {
+    for (let i = 0; i < cell.length; i += args.double ? 2 : 1) {
       const color = cell[i];
       let pixel;
       if (args.transparent ? color < 0 : color === shared_colors[0]) {
@@ -470,7 +477,7 @@ if (import.meta.main) {
   const columns = Number(args.width);
   const rows = Number(args.height);
 
-  const picture_width = columns * 8;
+  const picture_width = columns * (args.double ? 8 : 4);
   if (width != picture_width) {
     abort(red(`${file_name} width should be: ${picture_width}px `));
   }
@@ -559,7 +566,7 @@ if (import.meta.main) {
               const l_src = sRGBtoLstar(f_cl);
               const l_dst = sRGBtoLstar(fromRGB(cgia_rgb_palette[f_idx]));
               const l_delta = Math.abs(l_src - l_dst);
-              if (l_delta < args.treshold) {
+              if (l_delta < args.threshold) {
                 return true;
               }
               if (f_idx < idx && f_d < max_d_l) max_d_l = f_d;
@@ -617,7 +624,8 @@ if (import.meta.main) {
         color_no = getColorIdx(pixel_color);
       }
       const cell_idx =
-        Math.floor(x / 8) + Math.floor(y / args.cell) * args.width;
+        Math.floor(x / (args.double ? 8 : 4)) +
+        Math.floor(y / args.cell) * args.width;
       cells[cell_idx].push(color_no);
     }
   }
@@ -761,10 +769,10 @@ if (import.meta.main) {
         }
         print(`};\n\n`);
 
-        print(`static const uint16_t video_offset = 0x8000;\n`);
-        print(`static const uint16_t color_offset = 0xA800;\n`);
-        print(`static const uint16_t bkgnd_offset = 0xD000;\n`);
-        print(`static const uint16_t dl_offset = 0xF800;\n`);
+        print(`static const uint16_t video_offset = 0x0000;\n`);
+        print(`static const uint16_t color_offset = 0x5000;\n`);
+        print(`static const uint16_t bkgnd_offset = 0xA000;\n`);
+        print(`static const uint16_t dl_offset = 0xF000;\n`);
         print(
           `static uint8_t __attribute__((aligned(4))) display_list[] = {\n`
         );
@@ -788,7 +796,7 @@ if (import.meta.main) {
             sh_1 = shared_colors[i][1] || 0;
             print(`0x24, 0x${toHEX(sh_1).toUpperCase()}, `);
           }
-          print(`0x0F, // MODE7\n`);
+          print(`0x0D, // MODE5\n`);
         }
         print(
           `0x82, (dl_offset & 0xFF), ((dl_offset >> 8) & 0xFF)  // JMP to begin of DL and wait for Vertical BLank\n`
