@@ -638,9 +638,9 @@ if (import.meta.main) {
       else colors.push([cl, 1]);
     }
   }
-  // sort on occurrences
+  // sort on occurrences, most occurring first
   for (const row of row_colors_histogram)
-    row.sort(([c1, n1], [c2, n2]) => (n1 === n2 ? c1 - c2 : n1 - n2));
+    row.sort(([c1, n1], [c2, n2]) => (n1 === n2 ? c1 - c2 : n1 - n2)).reverse();
   const row_colors = row_colors_histogram.map((row) => row.map(([cl]) => cl));
 
   // next iterate cells and generate picture data
@@ -704,7 +704,7 @@ if (import.meta.main) {
               best_row[3] !== best_row[4]
           );
           assert(!(args.transparent && best_row[3] !== undefined));
-          shared_colors.push([best_row[3] || 0, best_row[4] || 0]);
+          shared_colors.push([best_row[3] ?? 0xff, best_row[4] ?? 0xff]);
         }
         break;
       default:
