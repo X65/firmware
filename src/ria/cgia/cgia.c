@@ -310,27 +310,40 @@ void cgia_core1_init(void)
     interp_set_base(interp1, 1, 1);
 }
 
-static inline uint8_t log_2(uint8_t x)
-{
-    if (x == 0)
-        return 0; // 1 => *1
-    else if (x < 2)
-        return 1; // 2 => *2
-    else if (x < 4)
-        return 2; // 3-4 => *4
-    else if (x < 8)
-        return 3; // 5-8 => *8
-    else if (x < 16)
-        return 4; // 9-16 => *16
-    else if (x < 32)
-        return 5; // 17-32 => *32
-    else if (x < 64)
-        return 6; // 33-64 => *64
-    else if (x < 128)
-        return 7; // 65-128 => *128
-    else
-        return 8; // 129-255 => *256
-}
+static uint8_t __attribute__((aligned(4))) log2[256] = {
+    0x00, 0x01, 0x02, 0x02, 0x03, 0x03, 0x03, 0x03, //
+    0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, //
+    0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05, //
+    0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05, //
+    0x06, 0x06, 0x06, 0x06, 0x06, 0x06, 0x06, 0x06, //
+    0x06, 0x06, 0x06, 0x06, 0x06, 0x06, 0x06, 0x06, //
+    0x06, 0x06, 0x06, 0x06, 0x06, 0x06, 0x06, 0x06, //
+    0x06, 0x06, 0x06, 0x06, 0x06, 0x06, 0x06, 0x06, //
+    0x07, 0x07, 0x07, 0x07, 0x07, 0x07, 0x07, 0x07, //
+    0x07, 0x07, 0x07, 0x07, 0x07, 0x07, 0x07, 0x07, //
+    0x07, 0x07, 0x07, 0x07, 0x07, 0x07, 0x07, 0x07, //
+    0x07, 0x07, 0x07, 0x07, 0x07, 0x07, 0x07, 0x07, //
+    0x07, 0x07, 0x07, 0x07, 0x07, 0x07, 0x07, 0x07, //
+    0x07, 0x07, 0x07, 0x07, 0x07, 0x07, 0x07, 0x07, //
+    0x07, 0x07, 0x07, 0x07, 0x07, 0x07, 0x07, 0x07, //
+    0x07, 0x07, 0x07, 0x07, 0x07, 0x07, 0x07, 0x07, //
+    0x08, 0x08, 0x08, 0x08, 0x08, 0x08, 0x08, 0x08, //
+    0x08, 0x08, 0x08, 0x08, 0x08, 0x08, 0x08, 0x08, //
+    0x08, 0x08, 0x08, 0x08, 0x08, 0x08, 0x08, 0x08, //
+    0x08, 0x08, 0x08, 0x08, 0x08, 0x08, 0x08, 0x08, //
+    0x08, 0x08, 0x08, 0x08, 0x08, 0x08, 0x08, 0x08, //
+    0x08, 0x08, 0x08, 0x08, 0x08, 0x08, 0x08, 0x08, //
+    0x08, 0x08, 0x08, 0x08, 0x08, 0x08, 0x08, 0x08, //
+    0x08, 0x08, 0x08, 0x08, 0x08, 0x08, 0x08, 0x08, //
+    0x08, 0x08, 0x08, 0x08, 0x08, 0x08, 0x08, 0x08, //
+    0x08, 0x08, 0x08, 0x08, 0x08, 0x08, 0x08, 0x08, //
+    0x08, 0x08, 0x08, 0x08, 0x08, 0x08, 0x08, 0x08, //
+    0x08, 0x08, 0x08, 0x08, 0x08, 0x08, 0x08, 0x08, //
+    0x08, 0x08, 0x08, 0x08, 0x08, 0x08, 0x08, 0x08, //
+    0x08, 0x08, 0x08, 0x08, 0x08, 0x08, 0x08, 0x08, //
+    0x08, 0x08, 0x08, 0x08, 0x08, 0x08, 0x08, 0x08, //
+    0x08, 0x08, 0x08, 0x08, 0x08, 0x08, 0x08, 0x08, //
+};
 
 #define MODE_BIT 0b00001000
 #define DLI_BIT  0b10000000
@@ -568,7 +581,7 @@ void __not_in_flash_func(cgia_render)(uint y, uint32_t *rgbbuf)
                     interp_set_accumulator(interp1, 1, (uintptr_t)plane_data->backgr_scan - 1);
                     if (row_columns)
                     {
-                        uint8_t char_shift = log_2(plane->regs.bckgnd.row_height);
+                        uint8_t char_shift = log2[plane->regs.bckgnd.row_height];
                         load_textmode_buffer(plane_data->scanline_buffer, row_columns, plane_data->char_gen + plane_data->row_line_count, char_shift);
                         buf = cgia_encode_mode_3_mapped(buf, plane_data->scanline_buffer, row_columns);
                     }
@@ -610,7 +623,7 @@ void __not_in_flash_func(cgia_render)(uint y, uint32_t *rgbbuf)
                     if (row_columns)
                     {
                         row_columns <<= 1; // this mode generates 4x8 cells, so requires 2x columns
-                        uint8_t char_shift = log_2(plane->regs.bckgnd.row_height);
+                        uint8_t char_shift = log2[plane->regs.bckgnd.row_height];
                         load_textmode_buffer(plane_data->scanline_buffer, row_columns, plane_data->char_gen + plane_data->row_line_count, char_shift);
                         if (plane->regs.bckgnd.flags & PLANE_MASK_TRANSPARENT)
                         {
@@ -658,7 +671,7 @@ void __not_in_flash_func(cgia_render)(uint y, uint32_t *rgbbuf)
                     interp_set_accumulator(interp1, 1, (uintptr_t)plane_data->backgr_scan - 1);
                     if (row_columns)
                     {
-                        uint8_t char_shift = log_2(plane->regs.bckgnd.row_height);
+                        uint8_t char_shift = log2[plane->regs.bckgnd.row_height];
                         load_textmode_buffer(plane_data->scanline_buffer, row_columns, plane_data->char_gen + plane_data->row_line_count, char_shift);
                         if (plane->regs.bckgnd.flags & PLANE_MASK_TRANSPARENT)
                         {
@@ -674,12 +687,15 @@ void __not_in_flash_func(cgia_render)(uint y, uint32_t *rgbbuf)
 
                 case (0x7 | MODE_BIT): // MODE7 (F) - doubled multicolor bitmap mode
                 {
-                    const uint8_t row_height = plane->regs.bckgnd.row_height + 1;
-                    const uint8_t offset = plane->regs.bckgnd.offset;
-                    interp_set_base(interp0, 0, row_height);
-                    interp_set_accumulator(interp0, 0, (uintptr_t)plane_data->memory_scan - row_height + offset * row_height);
-                    interp_set_accumulator(interp1, 0, (uintptr_t)plane_data->colour_scan - 1 + offset);
-                    interp_set_accumulator(interp1, 1, (uintptr_t)plane_data->backgr_scan - 1 + offset);
+                    {
+                        int offset_delta = plane->regs.bckgnd.offset - 1;
+                        interp_set_accumulator(interp1, 0, (uintptr_t)plane_data->colour_scan + offset_delta);
+                        interp_set_accumulator(interp1, 1, (uintptr_t)plane_data->backgr_scan + offset_delta);
+                        uint8_t row_height = plane->regs.bckgnd.row_height;
+                        offset_delta <<= log2[row_height];
+                        interp_set_accumulator(interp0, 0, (uintptr_t)plane_data->memory_scan + offset_delta);
+                        interp_set_base(interp0, 0, ++row_height);
+                    }
                     if (row_columns)
                     {
                         int8_t scr_delta = plane->regs.bckgnd.scroll;

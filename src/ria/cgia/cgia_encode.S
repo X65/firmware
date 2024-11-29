@@ -245,9 +245,8 @@ decl_func load_textmode_buffer
 
   ldr r4, [r2, #POP0_OFFS]    // load character code offset
   ldrb r4, [r4]     // load character code
-  lsls r4, r3
-  add r4, ip
-  ldrb r4, [r4]     // load character line bitmap data
+  lsls r4, r3       // multiply by character height
+  ldrb r4, [ip, r4]     // load character line bitmap data
 
   stmia r0!, {r4-r6}
 
