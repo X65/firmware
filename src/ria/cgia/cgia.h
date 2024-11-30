@@ -103,14 +103,13 @@ struct cgia_sprite_t
 };
 
 // sprite flags:
-// 0-1 - width in bytes
-// 2 - [RESERVED]
+// 0-2 - width in bytes
 // 3 - multicolor
 // 4 - double-width
 // 5 - mirror X
 // 6 - mirror Y
 // 7 - active
-#define SPRITE_MASK_WIDTH        0b00000011
+#define SPRITE_MASK_WIDTH        0b00000111
 #define SPRITE_MASK_MULTICOLOR   0b00001000
 #define SPRITE_MASK_DOUBLE_WIDTH 0b00010000
 #define SPRITE_MASK_MIRROR_X     0b00100000

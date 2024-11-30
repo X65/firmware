@@ -18,7 +18,12 @@ const default_args = {
   greys: true,
 };
 
-const supported_palettes = ["closest", "plus4", "plus4-2"];
+const supported_palettes = [
+  "closest",
+  "plus4",
+  "plus4-2",
+  "fixed([00,]11,22,33)",
+];
 const supported_formats = ["hires", "multicolor"];
 
 // prettier-ignore
@@ -118,6 +123,8 @@ type Color = [number, number, number]; // [R, G, B]
 
 let args = {} as Args;
 
+let fixed_palette: number[] = [];
+
 function fromBGR(pixel: number): Color {
   assert(pixel >= 0);
   return [pixel & 0xff, (pixel >> 8) & 0xff, (pixel >> 16) & 0xff];
@@ -208,6 +215,19 @@ function closestColor(rgb: Color, alg = args.palette): number {
           const d = colorDistance([R, G, B], rgb);
           if (d < distance) {
             idx = i;
+            distance = d;
+          }
+        }
+      }
+      break;
+    case "fixed":
+      {
+        for (let i = 0; i < fixed_palette.length; ++i) {
+          const color = fixed_palette[i];
+          const [R, G, B] = fromRGB(cgia_rgb_palette[color]);
+          const d = colorDistance([R, G, B], rgb);
+          if (d < distance) {
+            idx = color;
             distance = d;
           }
         }
@@ -376,6 +396,12 @@ function genMultiColorLine(
     const cell = cells[c];
     const cell_colors = cells_colors[c];
     const cell_pixels = cells_pixels[c];
+    if (args.palette === "fixed") {
+      shared_colors[0] = fixed_palette[0];
+      shared_colors[1] = fixed_palette[3];
+      cell_colors[0] = fixed_palette[1];
+      cell_colors[1] = fixed_palette[2];
+    }
     for (let i = 0; i < cell.length; i += args.double ? 2 : 1) {
       const color = cell[i];
       let pixel;
@@ -445,6 +471,12 @@ if (import.meta.main) {
   if (!file_name || args._.length > 0) {
     console.error(red("Requires one input file."));
     Deno.exit(1);
+  }
+
+  if (args.palette.includes(",")) {
+    fixed_palette = args.palette.split(",").map(Number);
+    args.palette = "fixed";
+    if (args.transparent) fixed_palette.unshift(0xff);
   }
 
   // console.debug(args);
