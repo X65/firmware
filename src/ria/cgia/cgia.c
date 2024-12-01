@@ -32,11 +32,13 @@ static struct cgia_plane_internal
     uint8_t *char_gen;
     uint8_t row_line_count;
     bool wait_vbl;
+    bool sprites_need_update; // TODO: set when writing CGIA.plane[1].regs.sprite.active
     uint32_t __attribute__((aligned(4))) scanline_buffer[FRAME_CHARS * 3];
 }
 __attribute__((aligned(4))) plane_int[CGIA_PLANES]
     = {0};
 
+static uint16_t __attribute__((aligned(4))) sprite_dsc_offsets[CGIA_PLANES][CGIA_SPRITES] = {0};
 static uint8_t __attribute__((aligned(4))) sprite_line_data[SPRITE_MAX_WIDTH];
 
 // --- temporary WIP ---
@@ -46,9 +48,6 @@ uint8_t __attribute__((aligned(4))) spr_bank[256 * 256];
 // ---
 #define EXAMPLE_BORDER_COLOR 145
 #define EXAMPLE_TEXT_COLOR   150
-
-// TODO: set when writing CGIA.plane[1].regs.sprite.active
-static bool sprites_need_update = false;
 
 struct dma_control_block
 {
@@ -204,6 +203,7 @@ void cgia_init(void)
         sprites[i].color[2] = 0x9B;
         sprites[i].pos_x = 180;
         sprites[i].pos_y = 125 + 20;
+        sprites[i].next_dsc_offset = spr_desc_offset + i * 16; // point back to self
     }
     sprites[0].color[0] = 0x0A;
     sprites[0].color[1] = 0x6A;
@@ -394,6 +394,7 @@ void __not_in_flash_func(cgia_render)(uint y, uint32_t *rgbbuf)
 {
     static struct cgia_plane_t *plane;
     static struct cgia_plane_internal *plane_data;
+    static uint16_t(*sprite_dscs)[CGIA_SPRITES];
 
     // track whether we need to fill line with background color
     // for transparent or sprite planes
@@ -414,22 +415,45 @@ void __not_in_flash_func(cgia_render)(uint y, uint32_t *rgbbuf)
             }
 
             plane = CGIA.plane + p;
-
+            plane_data = plane_int + p;
+            sprite_dscs = &sprite_dsc_offsets[p];
             uint8_t *sprite_bank = spr_bank; // psram + (CGIA.sprite_bank << 16)
-            struct cgia_sprite_t *sprites = (struct cgia_sprite_t *)(sprite_bank + plane->offset);
 
-            struct cgia_sprite_t *sprite = sprites + (CGIA_SPRITES - 1);
+            if (y == 0 // start of frame - reload descriptors
+                || plane_data->sprites_need_update)
+            {
+                uint16_t offs = plane->offset;
+                (*sprite_dscs)[0] = offs;
+                offs += 16;
+                (*sprite_dscs)[1] = offs;
+                offs += 16;
+                (*sprite_dscs)[2] = offs;
+                offs += 16;
+                (*sprite_dscs)[3] = offs;
+                offs += 16;
+                (*sprite_dscs)[4] = offs;
+                offs += 16;
+                (*sprite_dscs)[5] = offs;
+                offs += 16;
+                (*sprite_dscs)[6] = offs;
+                offs += 16;
+                (*sprite_dscs)[7] = offs;
+            }
+
+            // render sprites in reverse order
+            // so lower indexed sprites have higher visual priority
+            uint8_t sprite_index = 7;
             uint8_t mask = 0b10000000;
 
             // wait until back fill is done, as it may overwrite sprites on the right side
             dma_channel_wait_for_finish_blocking(back_chan);
 
-            // render sprites in reverse order
-            // so lower indexed sprites have higher visual priority
             while (mask)
             {
                 if (plane->regs.sprite.active & mask)
                 {
+                    struct cgia_sprite_t *sprite = (struct cgia_sprite_t *)(sprite_bank + (*sprite_dscs)[sprite_index]);
+
                     int sprite_line = (sprite->flags & SPRITE_MASK_MIRROR_Y)
                                           ? sprite->pos_y + sprite->lines_y - 1 - y
                                           : y - sprite->pos_y;
@@ -459,20 +483,16 @@ void __not_in_flash_func(cgia_render)(uint y, uint32_t *rgbbuf)
                         }
 
                         cgia_encode_sprite(rgbbuf, (uint32_t *)sprite, sprite_line_data, sprite_width);
+
+                        // if this was the last line of sprite, load the next offset
+                        if (sprite->pos_y + sprite->lines_y == (int)y + 1)
+                        {
+                            (*sprite_dscs)[sprite_index] = sprite->next_dsc_offset;
+                        }
                     }
                 }
-                --sprite;
+                --sprite_index;
                 mask >>= 1;
-            }
-
-            if (sprites_need_update)
-            {
-                sprites_need_update = false;
-                for (uint8_t s = 0; s < CGIA_SPRITES; ++s)
-                {
-                    // TODO: copy memory to sprites[EXAMPLE_SPRITE_COUNT]
-                    // NOTE: use DMA controlled blocks transfer
-                }
             }
         }
         else
