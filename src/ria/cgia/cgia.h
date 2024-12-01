@@ -62,7 +62,7 @@ struct cgia_plane_t
 
         struct cgia_sprite_regs
         {
-            uint8_t count;
+            uint8_t active; // bitmask for active sprites
         } sprite;
     } regs;
 };
@@ -105,21 +105,22 @@ struct cgia_sprite_t
                               // this is a built-in sprite multiplexer
 };
 
+#define CGIA_SPRITES 8
+
+#define SPRITE_MAX_WIDTH 8
+
 // sprite flags:
 // 0-2 - width in bytes
 // 3 - multicolor
 // 4 - double-width
 // 5 - mirror X
 // 6 - mirror Y
-// 7 - active
+// 7 - [RESERVED]
 #define SPRITE_MASK_WIDTH        0b00000111
 #define SPRITE_MASK_MULTICOLOR   0b00001000
 #define SPRITE_MASK_DOUBLE_WIDTH 0b00010000
 #define SPRITE_MASK_MIRROR_X     0b00100000
 #define SPRITE_MASK_MIRROR_Y     0b01000000
-#define SPRITE_MASK_ACTIVE       0b10000000
-
-#define SPRITE_MAX_WIDTH 4
 
 void cgia_init(void);
 void cgia_core1_init(void);
