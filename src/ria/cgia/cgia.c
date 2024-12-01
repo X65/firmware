@@ -125,7 +125,7 @@ void cgia_init(void)
 
     p = 0;
     CGIA.planes |= (0x01 << p);
-    CGIA.plane[p].regs.bckgnd.flags = PLANE_MASK_TRANSPARENT;
+    CGIA.plane[p].regs.bckgnd.flags = PLANE_MASK_TRANSPARENT | PLANE_MASK_DOUBLE_WIDTH;
     CGIA.plane[p].regs.bckgnd.shared_color[0] = 0;
     CGIA.plane[p].regs.bckgnd.shared_color[1] = 0;
     CGIA.plane[p].regs.bckgnd.row_height = 7;
@@ -147,7 +147,7 @@ void cgia_init(void)
 
     p = 1;
     CGIA.planes |= (0x01 << p);
-    CGIA.plane[p].regs.bckgnd.flags = PLANE_MASK_TRANSPARENT;
+    CGIA.plane[p].regs.bckgnd.flags = PLANE_MASK_TRANSPARENT | PLANE_MASK_DOUBLE_WIDTH;
     CGIA.plane[p].regs.bckgnd.shared_color[0] = 0;
     CGIA.plane[p].regs.bckgnd.shared_color[1] = 0;
     CGIA.plane[p].regs.bckgnd.row_height = 7;
@@ -169,7 +169,7 @@ void cgia_init(void)
 
     p = 2;
     CGIA.planes |= (0x01 << p);
-    CGIA.plane[p].regs.bckgnd.flags = PLANE_MASK_TRANSPARENT;
+    CGIA.plane[p].regs.bckgnd.flags = PLANE_MASK_TRANSPARENT | PLANE_MASK_DOUBLE_WIDTH;
     CGIA.plane[p].regs.bckgnd.shared_color[0] = 0;
     CGIA.plane[p].regs.bckgnd.shared_color[1] = 0;
     CGIA.plane[p].regs.bckgnd.row_height = 7;
@@ -653,70 +653,27 @@ void __not_in_flash_func(cgia_render)(uint y, uint32_t *rgbbuf)
                     interp_set_accumulator(interp1, 1, (uintptr_t)plane_data->backgr_scan - 1);
                     if (row_columns)
                     {
-                        row_columns <<= 1; // this mode generates 4x8 cells, so requires 2x columns
                         uint8_t char_shift = log2[plane->regs.bckgnd.row_height];
                         load_textmode_buffer(plane_data->scanline_buffer, row_columns, plane_data->char_gen + plane_data->row_line_count, char_shift);
                         if (plane->regs.bckgnd.flags & PLANE_MASK_TRANSPARENT)
                         {
-                            buf = cgia_encode_mode_5_shared(buf, plane_data->scanline_buffer, row_columns, plane->regs.bckgnd.shared_color);
+                            if (plane->regs.bckgnd.flags & PLANE_MASK_DOUBLE_WIDTH)
+                                buf = cgia_encode_mode_5_doubled_shared(buf, plane_data->scanline_buffer, row_columns, plane->regs.bckgnd.shared_color);
+                            else
+                                buf = cgia_encode_mode_5_shared(buf, plane_data->scanline_buffer, row_columns, plane->regs.bckgnd.shared_color);
                         }
                         else
                         {
-                            buf = cgia_encode_mode_5_mapped(buf, plane_data->scanline_buffer, row_columns, plane->regs.bckgnd.shared_color);
+                            if (plane->regs.bckgnd.flags & PLANE_MASK_DOUBLE_WIDTH)
+                                buf = cgia_encode_mode_5_doubled_mapped(buf, plane_data->scanline_buffer, row_columns, plane->regs.bckgnd.shared_color);
+                            else
+                                buf = cgia_encode_mode_5_mapped(buf, plane_data->scanline_buffer, row_columns, plane->regs.bckgnd.shared_color);
                         }
                     }
                 }
                 break;
 
                 case (0x5 | MODE_BIT): // MODE5 (D) - multicolor bitmap mode
-                {
-                    const uint8_t row_height = plane->regs.bckgnd.row_height + 1;
-                    interp_set_base(interp0, 0, row_height);
-                    interp_set_accumulator(interp0, 0, (uintptr_t)plane_data->memory_scan - row_height);
-                    interp_set_accumulator(interp1, 0, (uintptr_t)plane_data->colour_scan - 1);
-                    interp_set_accumulator(interp1, 1, (uintptr_t)plane_data->backgr_scan - 1);
-                    if (row_columns)
-                    {
-                        row_columns <<= 1; // this mode generates 4x8 cells, so requires 2x columns
-                        load_scanline_buffer_mapped(plane_data->scanline_buffer, row_columns);
-                        if (plane->regs.bckgnd.flags & PLANE_MASK_TRANSPARENT)
-                        {
-                            buf = cgia_encode_mode_5_shared(buf, plane_data->scanline_buffer, row_columns, plane->regs.bckgnd.shared_color);
-                        }
-                        else
-                        {
-                            buf = cgia_encode_mode_5_mapped(buf, plane_data->scanline_buffer, row_columns, plane->regs.bckgnd.shared_color);
-                        }
-                    }
-
-                    // next raster line starts with next byte, but color/bg scan stay the same
-                    ++plane_data->memory_scan;
-                }
-                break;
-
-                case (0x6 | MODE_BIT): // MODE6 (E) - doubled multicolor text/tile mode
-                {
-                    interp_set_base(interp0, 0, 1);
-                    interp_set_accumulator(interp0, 0, (uintptr_t)plane_data->memory_scan - 1);
-                    interp_set_accumulator(interp1, 0, (uintptr_t)plane_data->colour_scan - 1);
-                    interp_set_accumulator(interp1, 1, (uintptr_t)plane_data->backgr_scan - 1);
-                    if (row_columns)
-                    {
-                        uint8_t char_shift = log2[plane->regs.bckgnd.row_height];
-                        load_textmode_buffer(plane_data->scanline_buffer, row_columns, plane_data->char_gen + plane_data->row_line_count, char_shift);
-                        if (plane->regs.bckgnd.flags & PLANE_MASK_TRANSPARENT)
-                        {
-                            buf = cgia_encode_mode_7_shared(buf, plane_data->scanline_buffer, row_columns, plane->regs.bckgnd.shared_color);
-                        }
-                        else
-                        {
-                            buf = cgia_encode_mode_7_mapped(buf, plane_data->scanline_buffer, row_columns, plane->regs.bckgnd.shared_color);
-                        }
-                    }
-                }
-                break;
-
-                case (0x7 | MODE_BIT): // MODE7 (F) - doubled multicolor bitmap mode
                 {
                     {
                         int offset_delta = plane->regs.bckgnd.offset - 1;
@@ -736,11 +693,17 @@ void __not_in_flash_func(cgia_render)(uint y, uint32_t *rgbbuf)
                         load_scanline_buffer_mapped(plane_data->scanline_buffer, encode_columns);
                         if (plane->regs.bckgnd.flags & PLANE_MASK_TRANSPARENT)
                         {
-                            buf = cgia_encode_mode_7_shared(buf, plane_data->scanline_buffer, encode_columns, plane->regs.bckgnd.shared_color);
+                            if (plane->regs.bckgnd.flags & PLANE_MASK_DOUBLE_WIDTH)
+                                buf = cgia_encode_mode_5_doubled_shared(buf, plane_data->scanline_buffer, encode_columns, plane->regs.bckgnd.shared_color);
+                            else
+                                buf = cgia_encode_mode_5_shared(buf, plane_data->scanline_buffer, encode_columns, plane->regs.bckgnd.shared_color);
                         }
                         else
                         {
-                            buf = cgia_encode_mode_7_mapped(buf, plane_data->scanline_buffer, encode_columns, plane->regs.bckgnd.shared_color);
+                            if (plane->regs.bckgnd.flags & PLANE_MASK_DOUBLE_WIDTH)
+                                buf = cgia_encode_mode_5_doubled_mapped(buf, plane_data->scanline_buffer, encode_columns, plane->regs.bckgnd.shared_color);
+                            else
+                                buf = cgia_encode_mode_5_mapped(buf, plane_data->scanline_buffer, encode_columns, plane->regs.bckgnd.shared_color);
                         }
                     }
 

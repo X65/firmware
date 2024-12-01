@@ -27,8 +27,8 @@
     3 - bitmap mode
     4 - multicolor text/tile mode
     5 - multicolor bitmap mode
-    6 - doubled multicolor text/tile mode
-    7 - doubled multicolor bitmap mode
+    6 - [RESERVED]
+    7 - affine transform chunky, 256 colors
 
     bit 7 - trigger DLI - Display List Interrupt
 */
@@ -71,8 +71,11 @@ struct cgia_plane_t
 
 // plane flags:
 // 0 - color 0 is transparent
-// 1-7 - [RESERVED]
-#define PLANE_MASK_TRANSPARENT 0b00000001
+// 1-3 - [RESERVED]
+// 4 - double-width pixel
+// 5-7 - [RESERVED]
+#define PLANE_MASK_TRANSPARENT  0b00000001
+#define PLANE_MASK_DOUBLE_WIDTH 0b00010000
 
 struct cgia_t
 {

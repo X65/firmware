@@ -128,7 +128,7 @@ decl_func cgia_encode_mode_3_mapped
 // r1 is scanline data buffer
 // r2 is width in bytes
 // r3 is shared_colors array [2]
-.macro cgia_encode_mode_5_or_7 doubled mapped
+.macro cgia_encode_mode_5 doubled mapped
   push {r4-r7, lr}
 
   mov r4, r3  // shared_colors[0]
@@ -173,16 +173,16 @@ decl_func cgia_encode_mode_3_mapped
 .endm
 
 decl_func cgia_encode_mode_5_shared
-	cgia_encode_mode_5_or_7 0 0
+	cgia_encode_mode_5 0 0
 
 decl_func cgia_encode_mode_5_mapped
-	cgia_encode_mode_5_or_7 0 1
+	cgia_encode_mode_5 0 1
 
-decl_func cgia_encode_mode_7_shared
-	cgia_encode_mode_5_or_7 1 0
+decl_func cgia_encode_mode_5_doubled_shared
+	cgia_encode_mode_5 1 0
 
-decl_func cgia_encode_mode_7_mapped
-	cgia_encode_mode_5_or_7 1 1
+decl_func cgia_encode_mode_5_doubled_mapped
+	cgia_encode_mode_5 1 1
 
 
 //////////////////// SCANLINE BUFFER ////////////////////
