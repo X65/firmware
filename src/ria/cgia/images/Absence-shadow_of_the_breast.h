@@ -931,3 +931,4 @@ static uint8_t __attribute__((aligned(4))) display_list[] = {
 0x82, (dl_offset & 0xFF), ((dl_offset >> 8) & 0xFF)  // JMP to begin of DL and wait for Vertical BLank
 };
 
+static const uint8_t border_columns = 5;

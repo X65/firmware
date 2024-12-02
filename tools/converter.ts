@@ -8,8 +8,6 @@ import { getPixels } from "jsr:@unpic/pixels";
 
 const default_args = {
   cell: 8,
-  width: 40,
-  height: 25,
   transparent: false,
   palette: "closest",
   format: "multicolor",
@@ -24,7 +22,7 @@ const supported_palettes = [
   "plus4-2",
   "fixed([00,]11,22,33)",
 ];
-const supported_formats = ["hires", "multicolor"];
+const supported_formats = ["hires", "multicolor", "chunky"];
 
 // prettier-ignore
 const cgia_rgb_palette = [
@@ -322,18 +320,6 @@ const argDef: ScriptDefinition = {
       required: false,
     },
     {
-      name: "width",
-      shortName: "w",
-      description: `Row width in bytes (Default: ${default_args.width})`,
-      required: false,
-    },
-    {
-      name: "height",
-      shortName: "h",
-      description: `Number of rows (Default: ${default_args.height})`,
-      required: false,
-    },
-    {
       name: "cell",
       shortName: "c",
       description: `Row cell height (Default: ${default_args.cell})`,
@@ -360,7 +346,7 @@ const argDef: ScriptDefinition = {
     {
       name: "threshold",
       shortName: "b",
-      description: `Brightness threshold for color move (Default: ${default_args.threshold})`,
+      description: `Brightness threshold for color mapping (Default: ${default_args.threshold})`,
       required: false,
     },
     {
@@ -489,12 +475,13 @@ if (import.meta.main) {
   }
 
   const { width, height, data } = await getPixels(file);
+  const BYTES_PER_SAMPLE = 4;
 
   const getPixelN = (idx: number): number => {
-    assert(Math.round(idx / 4) == idx / 4);
+    assert(Math.round(idx / BYTES_PER_SAMPLE) == idx / BYTES_PER_SAMPLE);
     const A = data[idx + 3];
     if (A !== 0 && A !== 255) {
-      abort(`Unsupported alpha value ${A} @${idx / 4}`);
+      abort(`Unsupported alpha value ${A} @${idx / BYTES_PER_SAMPLE}`);
     }
     const R = data[idx + 0];
     const G = data[idx + 1];
@@ -503,24 +490,38 @@ if (import.meta.main) {
     return A ? R + G * 256 + B * 256 * 256 : -1;
   };
   const getPixelXY = (x: number, y: number): number => {
-    return getPixelN((picture_width * y + x) * 4);
+    return getPixelN((width * y + x) * BYTES_PER_SAMPLE);
   };
 
-  const columns = Number(args.width);
-  const rows = Number(args.height);
+  let column_width: number = args.double ? 8 : 4;
+  let cell_height: number = Number(args.cell);
 
-  const picture_width = columns * (args.double ? 8 : 4);
-  if (width != picture_width) {
-    abort(red(`${file_name} width should be: ${picture_width}px `));
+  if (args.format === "chunky") {
+    column_width = 1;
+    cell_height = 1;
   }
 
-  const picture_height = rows * args.cell;
-  if (height != picture_height) {
-    abort(red(`${file_name} height should be: ${picture_height}px`));
+  const columns = width / column_width;
+  const rows = height / cell_height;
+
+  if (columns != Math.floor(columns)) {
+    abort(
+      red(
+        `${file_name} width (${width}px) should be divisible by: ${column_width}`
+      )
+    );
+  }
+
+  if (rows != Math.floor(rows)) {
+    abort(
+      red(
+        `${file_name} height (${height}px) should be divisible by: ${cell_height}`
+      )
+    );
   }
 
   // statistics gathering
-  for (let i = 0; i < data.length; i += 4) {
+  for (let i = 0; i < data.length; i += BYTES_PER_SAMPLE) {
     const color = getPixelN(i);
     if (color >= 0) {
       addColor(fromBGR(color));
@@ -643,8 +644,8 @@ if (import.meta.main) {
   const cells = Array.from({ length: rows * columns }, () => [] as number[]);
 
   // first, distribute pixels among cells
-  for (let y = 0; y < picture_height; ++y) {
-    for (let x = 0; x < picture_width; ++x) {
+  for (let y = 0; y < height; ++y) {
+    for (let x = 0; x < width; ++x) {
       const pixel = getPixelXY(x, y);
       let color_no: number;
       if (pixel < 0) {
@@ -656,8 +657,7 @@ if (import.meta.main) {
         color_no = getColorIdx(pixel_color);
       }
       const cell_idx =
-        Math.floor(x / (args.double ? 8 : 4)) +
-        Math.floor(y / args.cell) * args.width;
+        Math.floor(x / column_width) + Math.floor(y / cell_height) * columns;
       cells[cell_idx].push(color_no);
     }
   }
@@ -669,7 +669,7 @@ if (import.meta.main) {
   );
   for (let i = 0; i < cells.length; ++i) {
     const cell = cells[i];
-    const row = Math.floor(i / args.width);
+    const row = Math.floor(i / columns);
     const colors = row_colors_histogram[row];
     for (const cl of cell) {
       if (cl < 0) continue;
@@ -689,13 +689,13 @@ if (import.meta.main) {
   const cell_pixels: number[][] = [];
   const shared_colors: number[][] = [];
 
-  for (let c = 0; c < cells.length; c += args.width) {
-    const cells_row = cells.slice(c, c + args.width);
+  for (let c = 0; c < cells.length; c += columns) {
+    const cells_row = cells.slice(c, c + columns);
     switch (args.format) {
       case "multicolor":
         {
           // Let's try with most common colors first
-          const row_no = Math.floor(c / args.width);
+          const row_no = Math.floor(c / columns);
           let shcl1: number | undefined;
           let shcl2: number | undefined;
           if (args.transparent) {
@@ -747,6 +747,9 @@ if (import.meta.main) {
           shared_colors.push([best_row[3] ?? 0xff, best_row[4] ?? 0xff]);
         }
         break;
+      case "chunky":
+        // No need to mangle pixels
+        break;
       default:
         abort(`Unknown format: ${args.format}`);
     }
@@ -776,8 +779,7 @@ if (import.meta.main) {
               cell_pixels_cell[p + 3];
             print(`0x${toHEX(data)}, `);
           }
-          if ((i + 1) % args.width === 0)
-            print(`// ${Math.floor(i / args.width)}\n`);
+          if ((i + 1) % columns === 0) print(`// ${Math.floor(i / columns)}\n`);
         }
         print(`};\n\n`);
 
@@ -786,8 +788,7 @@ if (import.meta.main) {
         );
         for (let i = 0; i < cell_colors.length; ++i) {
           print(`0x${toHEX(cell_colors[i][1] || 0)}, `);
-          if ((i + 1) % args.width === 0)
-            print(`// ${Math.floor(i / args.width)}\n`);
+          if ((i + 1) % columns === 0) print(`// ${Math.floor(i / columns)}\n`);
         }
         print(`};\n\n`);
 
@@ -796,8 +797,7 @@ if (import.meta.main) {
         );
         for (let i = 0; i < cell_colors.length; ++i) {
           print(`0x${toHEX(cell_colors[i][0] || 0)}, `);
-          if ((i + 1) % args.width === 0)
-            print(`// ${Math.floor(i / args.width)}\n`);
+          if ((i + 1) % columns === 0) print(`// ${Math.floor(i / columns)}\n`);
         }
         print(`};\n\n`);
 
@@ -834,6 +834,31 @@ if (import.meta.main) {
           `0x82, (dl_offset & 0xFF), ((dl_offset >> 8) & 0xFF)  // JMP to begin of DL and wait for Vertical BLank\n`
         );
         print(`};\n\n`);
+        print(
+          `static const uint8_t border_columns = ${
+            (384 - columns * column_width) / 16
+          };\n`
+        );
+      }
+      break;
+    case "chunky":
+      {
+        print(
+          `static uint8_t __attribute__((aligned(4))) pixel_data[${
+            data.length / BYTES_PER_SAMPLE
+          }] = {\n`
+        );
+        for (let i = 0; i < data.length; i += BYTES_PER_SAMPLE) {
+          const pixel = getPixelN(i);
+          const pixel_color = fromBGR(pixel);
+          const color_no = getColorIdx(pixel_color);
+          print(`0x${toHEX(color_no)}, `);
+          if ((i / BYTES_PER_SAMPLE + 1) % width === 0)
+            print(`// ${Math.floor(i / BYTES_PER_SAMPLE / width)}\n`);
+        }
+        print(`};\n\n`);
+        print(`static const uint8_t pixel_width = ${width};\n`);
+        print(`static const uint8_t pixel_height = ${height};\n`);
       }
       break;
     default:
