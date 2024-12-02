@@ -315,6 +315,7 @@ void __not_in_flash_func(cgia_render)(uint y, uint32_t *rgbbuf)
             if (!(CGIA.planes & (1u << p)))
                 continue; // next if not enabled
 
+        process_instruction:
             if (plane_data->wait_vbl && y != 0)
             {
                 // DL is stopped and waiting for VBL
@@ -325,8 +326,6 @@ void __not_in_flash_func(cgia_render)(uint y, uint32_t *rgbbuf)
             }
 
             uint8_t *bckgnd_bank = vdo_bank; // psram + (CGIA.bckgnd_bank << 16)
-
-        process_instruction:
             uint8_t dl_instr = bckgnd_bank[plane->offset];
             uint8_t instr_code = dl_instr & 0b00001111;
 
@@ -365,8 +364,8 @@ void __not_in_flash_func(cgia_render)(uint y, uint32_t *rgbbuf)
 
                     if (dl_instr & DLI_BIT)
                     {
+                        // if DLI set, wait for VBL
                         plane_data->wait_vbl = true;
-                        continue;
                     }
 
                     // .display_list is already pointing to proper instruction
