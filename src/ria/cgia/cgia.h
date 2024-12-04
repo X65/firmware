@@ -52,13 +52,26 @@ struct cgia_plane_t
         struct cgia_bckgnd_regs
         {
             uint8_t flags;
-            uint8_t shared_color[2];
             uint8_t border_columns;
             uint8_t row_height;
+            uint8_t shared_color[2];
             int8_t scroll;
             int8_t offset;
             uint8_t stride;
         } bckgnd;
+
+        struct cgia_affine_regs
+        {
+            uint8_t flags; // 2-0 texture_width_bits, 6-4 texture_height_bits
+            uint8_t border_columns;
+            uint8_t row_height;
+            int16_t u;
+            int16_t v;
+            int16_t du;
+            int16_t dv;
+            int16_t dx;
+            int16_t dy;
+        } affine;
 
         struct cgia_sprite_regs
         {
@@ -67,7 +80,8 @@ struct cgia_plane_t
     } regs;
 };
 
-#define CGIA_PLANES 4
+#define CGIA_PLANES                 4
+#define CGIA_AFFINE_FRACTIONAL_BITS 8
 
 // plane flags:
 // 0 - color 0 is transparent

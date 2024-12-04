@@ -5,10 +5,12 @@
 #include "cgia_encode.h"
 #include "cgia_palette.h"
 
-#include "images/carrion-One_Zak_And_His_Kracken.h"
+#include "example_data.h"
+#include "images/mascot_bg.h"
 
 #include "sys/out.h"
 
+#include <math.h>
 #include <string.h>
 
 #define DISPLAY_WIDTH_PIXELS (FRAME_WIDTH / 2)
@@ -59,6 +61,9 @@ int data_chan;
 
 // DMA channel to fill raster line with background color
 int back_chan;
+
+int16_t __attribute__((aligned(4))) sin_tab[256];
+int16_t __attribute__((aligned(4))) cos_tab[256];
 
 void cgia_init(void)
 {
@@ -118,18 +123,26 @@ void cgia_init(void)
 
     uint8_t p;
 
+    for (int i = 0; i < 256; ++i)
+    {
+        sin_tab[i] = (int16_t)(sin(i * (M_PI / 128)) * 256.);
+        cos_tab[i] = (int16_t)(cos(i * (M_PI / 128)) * 256.);
+    }
+
     p = 0;
     CGIA.planes |= (0x01 << p);
-    CGIA.plane[p].regs.bckgnd.flags = PLANE_MASK_DOUBLE_WIDTH;
-    CGIA.plane[p].regs.bckgnd.shared_color[0] = 0;
-    CGIA.plane[p].regs.bckgnd.shared_color[1] = 0;
-    CGIA.plane[p].regs.bckgnd.row_height = 0;
-    CGIA.plane[p].regs.bckgnd.border_columns = border_columns;
-    memcpy(vdo_bank + video_offset, bitmap_data, sizeof(bitmap_data));
-    memcpy(vdo_bank + color_offset, color_data, sizeof(color_data));
-    memcpy(vdo_bank + bkgnd_offset, bkgnd_data, sizeof(bkgnd_data));
-    memcpy(vdo_bank + dl_offset, display_list, sizeof(display_list));
-    CGIA.plane[p].offset = dl_offset;
+    CGIA.plane[p].regs.affine.flags = (7 << 4) | 7;
+    CGIA.plane[p].regs.affine.row_height = 119;
+    CGIA.plane[p].regs.affine.border_columns = 0;
+    CGIA.plane[p].regs.affine.u = 0 * 256;
+    CGIA.plane[p].regs.affine.v = 0 * 256;
+    CGIA.plane[p].regs.affine.du = 0 * 256;
+    CGIA.plane[p].regs.affine.dv = 1 * 256;
+    CGIA.plane[p].regs.affine.dx = 1 * 256;
+    CGIA.plane[p].regs.affine.dy = 0 * 256;
+    memcpy(vdo_bank + affine_mode_video_offset, pixel_data, sizeof(pixel_data));
+    memcpy(vdo_bank + affine_mode_dl_offset, affine_mode_dl, sizeof(affine_mode_dl));
+    CGIA.plane[p].offset = affine_mode_dl_offset;
 }
 
 void cgia_core1_init(void)
@@ -144,7 +157,7 @@ void cgia_core1_init(void)
     interp_set_base(interp1, 1, 1);
 }
 
-static uint8_t __attribute__((aligned(4))) log2[256] = {
+static uint8_t __attribute__((aligned(4))) log2_tab[256] = {
     0x00, 0x01, 0x02, 0x02, 0x03, 0x03, 0x03, 0x03, //
     0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, //
     0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05, //
@@ -421,7 +434,11 @@ void __not_in_flash_func(cgia_render)(uint y, uint32_t *rgbbuf)
                 uint8_t row_columns = FRAME_CHARS - 2 * border_columns;
 
                 // Used for tracking where to blit pixel data
-                uint32_t *buf = rgbbuf + border_columns * CGIA_COLUMN_PX + plane->regs.bckgnd.scroll;
+                uint32_t *buf = rgbbuf + border_columns * CGIA_COLUMN_PX;
+                if (instr_code != (0x7 | MODE_BIT))
+                {
+                    buf += plane->regs.bckgnd.scroll;
+                }
 
                 // ------- Mode Rows --------------
                 switch (instr_code)
@@ -435,7 +452,7 @@ void __not_in_flash_func(cgia_render)(uint y, uint32_t *rgbbuf)
                     interp_set_accumulator(interp1, 1, (uintptr_t)plane_data->backgr_scan - 1);
                     if (row_columns)
                     {
-                        uint8_t char_shift = log2[plane->regs.bckgnd.row_height];
+                        uint8_t char_shift = log2_tab[plane->regs.bckgnd.row_height];
                         load_textmode_buffer(plane_data->scanline_buffer, row_columns, plane_data->char_gen + plane_data->row_line_count, char_shift);
                         buf = cgia_encode_mode_3_mapped(buf, plane_data->scanline_buffer, row_columns);
                     }
@@ -461,10 +478,10 @@ void __not_in_flash_func(cgia_render)(uint y, uint32_t *rgbbuf)
                             load_scanline_buffer_mapped(plane_data->scanline_buffer, row_columns);
                             buf = cgia_encode_mode_3_mapped(buf, plane_data->scanline_buffer, row_columns);
                         }
-                    }
 
-                    // next raster line starts with next byte, but color/bg scan stay the same
-                    ++plane_data->memory_scan;
+                        // next raster line starts with next byte, but color/bg scan stay the same
+                        ++plane_data->memory_scan;
+                    }
                 }
                 break;
 
@@ -476,7 +493,7 @@ void __not_in_flash_func(cgia_render)(uint y, uint32_t *rgbbuf)
                     interp_set_accumulator(interp1, 1, (uintptr_t)plane_data->backgr_scan - 1);
                     if (row_columns)
                     {
-                        uint8_t char_shift = log2[plane->regs.bckgnd.row_height];
+                        uint8_t char_shift = log2_tab[plane->regs.bckgnd.row_height];
                         load_textmode_buffer(plane_data->scanline_buffer, row_columns, plane_data->char_gen + plane_data->row_line_count, char_shift);
                         if (plane->regs.bckgnd.flags & PLANE_MASK_TRANSPARENT)
                         {
@@ -503,7 +520,7 @@ void __not_in_flash_func(cgia_render)(uint y, uint32_t *rgbbuf)
                         interp_set_accumulator(interp1, 0, (uintptr_t)plane_data->colour_scan + offset_delta);
                         interp_set_accumulator(interp1, 1, (uintptr_t)plane_data->backgr_scan + offset_delta);
                         uint8_t row_height = plane->regs.bckgnd.row_height;
-                        offset_delta <<= log2[row_height];
+                        offset_delta <<= log2_tab[row_height];
                         interp_set_accumulator(interp0, 0, (uintptr_t)plane_data->memory_scan + offset_delta);
                         interp_set_base(interp0, 0, ++row_height);
                     }
@@ -533,10 +550,56 @@ void __not_in_flash_func(cgia_render)(uint y, uint32_t *rgbbuf)
                             else
                                 buf = cgia_encode_mode_5_mapped(buf, plane_data->scanline_buffer, encode_columns, plane->regs.bckgnd.shared_color);
                         }
-                    }
 
-                    // next raster line starts with next byte, but color/bg scan stay the same
-                    ++plane_data->memory_scan;
+                        // next raster line starts with next byte, but color/bg scan stay the same
+                        ++plane_data->memory_scan;
+                    }
+                }
+                break;
+
+                case (0x7 | MODE_BIT): // MODE7 (F) - affine transform mode
+                {
+                    if (row_columns)
+                    {
+                        if (plane_data->row_line_count == 0)
+                        {
+                            interp_config cfg = interp_default_config();
+                            interp_config_set_add_raw(&cfg, true);
+
+                            // interp0 will scan texture row
+                            // interp1 will scan row begin address
+                            const uint texture_width_bits = plane->regs.affine.flags & 0b0111;
+                            interp_config_set_shift(&cfg, CGIA_AFFINE_FRACTIONAL_BITS);
+                            interp_config_set_mask(&cfg, 0, texture_width_bits - 1);
+                            interp_set_config(interp0, 0, &cfg);
+                            const uint texture_height_bits = (plane->regs.affine.flags >> 4) & 0b0111;
+                            interp_config_set_shift(&cfg, CGIA_AFFINE_FRACTIONAL_BITS - texture_width_bits);
+                            interp_config_set_mask(&cfg, texture_width_bits, texture_width_bits + texture_height_bits - 1);
+                            interp_set_config(interp0, 1, &cfg);
+
+                            // interp1 will scan row begin address
+                            interp_config_set_shift(&cfg, CGIA_AFFINE_FRACTIONAL_BITS);
+                            interp_config_set_mask(&cfg, 0, texture_width_bits - 1);
+                            interp_set_config(interp1, 0, &cfg);
+                            interp_config_set_shift(&cfg, 0);
+                            interp_config_set_mask(&cfg, CGIA_AFFINE_FRACTIONAL_BITS, CGIA_AFFINE_FRACTIONAL_BITS + texture_height_bits - 1);
+                            interp_set_config(interp1, 1, &cfg);
+                            interp1->accum[0] = plane->regs.affine.u;
+                            interp1->base[0] = plane->regs.affine.dx;
+                            interp1->accum[1] = plane->regs.affine.v;
+                            interp1->base[1] = plane->regs.affine.dy;
+                            interp1->base[2] = 0;
+                        }
+
+                        interp0->base[2] = (uintptr_t)plane_data->memory_scan;
+                        const uint32_t xy = interp1->pop[2];
+                        interp0->accum[0] = (xy & 0x00FF) << CGIA_AFFINE_FRACTIONAL_BITS;
+                        interp0->base[0] = plane->regs.affine.du;
+                        interp0->accum[1] = (xy & 0xFF00);
+                        interp0->base[1] = plane->regs.affine.dv;
+
+                        buf = cgia_encode_mode_7(buf, row_columns);
+                    }
                 }
                 break;
 
@@ -564,7 +627,7 @@ void __not_in_flash_func(cgia_render)(uint y, uint32_t *rgbbuf)
             if (plane_data->row_line_count == dl_row_lines)
             {
                 // Update scan pointers
-                if (dl_instr & MODE_BIT)
+                if (dl_instr & MODE_BIT && instr_code != (0x7 | MODE_BIT))
                 {
                     // update scan pointers to next value
                     uint8_t stride = plane->regs.bckgnd.stride;
@@ -597,9 +660,17 @@ void __not_in_flash_func(cgia_render)(uint y, uint32_t *rgbbuf)
     }
 }
 
-#define SCROLL_MAX 9600
-
+static uint frame = 0;
 void cgia_vbl(void)
 {
-    // // TODO: trigger CPU NMI
+    // TODO: trigger CPU NMI
+
+    CGIA.plane[0].regs.affine.u += 256;
+    CGIA.plane[0].regs.affine.v += 256;
+    CGIA.plane[0].regs.affine.du = cos_tab[frame & 0xFF];
+    CGIA.plane[0].regs.affine.dv = sin_tab[frame & 0xFF];
+    CGIA.plane[0].regs.affine.dx = cos_tab[(frame + 256 / 4) & 0xFF];
+    CGIA.plane[0].regs.affine.dy = sin_tab[(frame + 256 / 4) & 0xFF];
+
+    ++frame;
 }

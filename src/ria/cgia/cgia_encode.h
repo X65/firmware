@@ -49,6 +49,10 @@ uint32_t *__not_in_flash_func(cgia_encode_mode_5_doubled_mapped)(
     uint32_t columns,
     uint8_t shared_colors[2]);
 
+uint32_t *__not_in_flash_func(cgia_encode_mode_7)(
+    uint32_t *rgbbuf,
+    uint32_t columns);
+
 void __not_in_flash_func(cgia_encode_sprite)(
     uint32_t *rgbbuf,
     uint32_t *descriptor,

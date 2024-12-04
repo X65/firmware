@@ -185,6 +185,51 @@ decl_func cgia_encode_mode_5_doubled_mapped
 	cgia_encode_mode_5 1 1
 
 
+//////////////////// MODE 5 ////////////////////
+
+// r0 is output RGB buffer
+// r1 is width in bytes
+decl_func cgia_encode_mode_7
+  push {r4-r7, lr}
+
+  ldr r2, =(SIO_BASE + SIO_INTERP0_ACCUM0_OFFSET)
+  ldr r3, =cgia_rgb_palette
+
+1:
+  ldr r4, [r2, #POP2_OFFS]  // load texture address
+  ldrb r4, [r4]             // load color index
+  ldr r4, [r3, r4, LSL #2]  // load palette entry
+  ldr r5, [r2, #POP2_OFFS]
+  ldrb r5, [r5]
+  ldr r5, [r3, r5, LSL #2]
+  ldr r6, [r2, #POP2_OFFS]
+  ldrb r6, [r6]
+  ldr r6, [r3, r6, LSL #2]
+  ldr r7, [r2, #POP2_OFFS]
+  ldrb r7, [r7]
+  ldr r7, [r3, r7, LSL #2]
+  stmia r0!, {r4-r7}        // write 4 color values
+  ldr r4, [r2, #POP2_OFFS]
+  ldrb r4, [r4]
+  ldr r4, [r3, r4, LSL #2]
+  ldr r5, [r2, #POP2_OFFS]
+  ldrb r5, [r5]
+  ldr r5, [r3, r5, LSL #2]
+  ldr r6, [r2, #POP2_OFFS]
+  ldrb r6, [r6]
+  ldr r6, [r3, r6, LSL #2]
+  ldr r7, [r2, #POP2_OFFS]
+  ldrb r7, [r7]
+  ldr r7, [r3, r7, LSL #2]
+  stmia r0!, {r4-r7}        // write next 4 color values
+
+  subs r1, #1
+  bne 1b
+
+  pop {r4-r7, pc}
+.endm
+
+
 //////////////////// SCANLINE BUFFER ////////////////////
 
 // r0 - destination scanline buffer
