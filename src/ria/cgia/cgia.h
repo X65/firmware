@@ -54,10 +54,10 @@ struct cgia_plane_t
             uint8_t flags;
             uint8_t border_columns;
             uint8_t row_height;
+            uint8_t stride;
             uint8_t shared_color[2];
             int8_t scroll;
             int8_t offset;
-            uint8_t stride;
         } bckgnd;
 
         struct cgia_affine_regs
@@ -65,6 +65,7 @@ struct cgia_plane_t
             uint8_t flags; // 2-0 texture_width_bits, 6-4 texture_height_bits
             uint8_t border_columns;
             uint8_t row_height;
+            uint8_t reserved;
             int16_t u;
             int16_t v;
             int16_t du;
@@ -88,8 +89,9 @@ struct cgia_plane_t
 // 1-3 - [RESERVED]
 // 4 - double-width pixel
 // 5-7 - [RESERVED]
-#define PLANE_MASK_TRANSPARENT  0b00000001
-#define PLANE_MASK_DOUBLE_WIDTH 0b00010000
+#define PLANE_MASK_TRANSPARENT        0b00000001
+#define PLANE_MASK_BORDER_TRANSPARENT 0b00001000
+#define PLANE_MASK_DOUBLE_WIDTH       0b00010000
 
 struct cgia_t
 {

@@ -356,7 +356,7 @@ const argDef: ScriptDefinition = {
       required: false,
     },
   ],
-  scriptDescription: "Converts .png file to X65 data in .h-eader format",
+  scriptDescription: "Converts .png files into X65 data in .h-eader format.",
   helpFlags: ["help", "?"],
 };
 
@@ -822,11 +822,11 @@ if (import.meta.main) {
         for (let i = 0; i < shared_colors.length; ++i) {
           if (sh_0 !== (shared_colors[i][0] || 0)) {
             sh_0 = shared_colors[i][0] || 0;
-            print(`0x14, 0x${toHEX(sh_0).toUpperCase()}, `);
+            print(`0x44, 0x${toHEX(sh_0).toUpperCase()}, `);
           }
           if (sh_1 !== (shared_colors[i][1] || 0)) {
             sh_1 = shared_colors[i][1] || 0;
-            print(`0x24, 0x${toHEX(sh_1).toUpperCase()}, `);
+            print(`0x54, 0x${toHEX(sh_1).toUpperCase()}, `);
           }
           print(`0x0D, // MODE5\n`);
         }
