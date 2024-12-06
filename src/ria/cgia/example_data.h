@@ -14,6 +14,18 @@ static const uint8_t __attribute__((aligned(4))) text_mode_dl[] = {
     0x0A,                                                 // 1x MODE2
     0x82, 0x00, 0x38                                      // JMP to begin of DL and wait for Vertical BLank
 };
+static const uint8_t __attribute__((aligned(4))) text80_mode_dl[] = {
+    0xF3,                                                                    // LMS + LFS + LBS + LCG
+    (text_mode_video_offset & 0xFF), ((text_mode_video_offset >> 8) & 0xFF), // LMS
+    (text_mode_color_offset & 0xFF), ((text_mode_color_offset >> 8) & 0xFF), // LFS
+    (text_mode_bkgnd_offset & 0xFF), ((text_mode_bkgnd_offset >> 8) & 0xFF), // LBS
+    (text_mode_chrgn_offset & 0xFF), ((text_mode_chrgn_offset >> 8) & 0xFF), // LCG
+    0x08, 0x08, 0x08, 0x08, 0x08, 0x08, 0x08, 0x08,                          // 8x MODE0
+    0x08, 0x08, 0x08, 0x08, 0x08, 0x08, 0x08, 0x08,                          // 8x MODE0
+    0x08, 0x08, 0x08, 0x08, 0x08, 0x08, 0x08, 0x08,                          // 8x MODE0
+    0x08, 0x08, 0x08, 0x08, 0x08, 0x08,                                      // 6x MODE0
+    0x82, 0x00, 0x38                                                         // JMP to begin of DL and wait for Vertical BLank
+};
 
 static const uint16_t hires_mode_video_offset = 0x4000;
 static const uint16_t hires_mode_color_offset = 0x6000;

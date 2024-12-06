@@ -46,7 +46,7 @@
 #define MODE_V_ACTIVE_LINES  480
 #define MODE_BIT_CLK_KHZ     287500
 
-#define FB_H_REPEAT 2
+#define FB_H_REPEAT 1
 #define FB_V_REPEAT 2
 
 // ----------------------------------------------------------------------------
