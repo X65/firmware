@@ -214,9 +214,6 @@ void __scratch_x("") dma_irq_handler(void)
 
 void __not_in_flash_func(out_core1_main)(void)
 {
-    // CGIA needs to initialize this core interpolators
-    cgia_core1_init();
-
     // Configure HSTX's TMDS encoder for RGB888
     hstx_ctrl_hw->expand_tmds = 7 << HSTX_CTRL_EXPAND_TMDS_L2_NBITS_LSB // R
                                 | 16 << HSTX_CTRL_EXPAND_TMDS_L2_ROT_LSB
@@ -338,7 +335,7 @@ void __not_in_flash_func(out_core1_main)(void)
             }
         }
 
-        __wfi();
+        __wfi(); // wait for interrupt
     }
     __builtin_unreachable();
 }

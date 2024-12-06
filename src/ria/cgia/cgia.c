@@ -163,18 +163,6 @@ void cgia_init(void)
     CGIA.plane[p].offset = dl_offset;
 }
 
-void cgia_core1_init(void)
-{
-    interp_config cfg = interp_default_config();
-    interp_config_set_add_raw(&cfg, true);
-    interp_set_config(interp0, 0, &cfg);
-    interp_set_config(interp0, 1, &cfg);
-    interp_set_config(interp1, 0, &cfg);
-    interp_set_config(interp1, 1, &cfg);
-    interp_set_base(interp1, 0, 1);
-    interp_set_base(interp1, 1, 1);
-}
-
 static uint8_t __attribute__((aligned(4))) log2_tab[256] = {
     0x00, 0x01, 0x02, 0x02, 0x03, 0x03, 0x03, 0x03, //
     0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, //

@@ -139,6 +139,5 @@ struct cgia_sprite_t
 #define SPRITE_MASK_MIRROR_Y     0b01000000
 
 void cgia_init(void);
-void cgia_core1_init(void);
 void cgia_render(uint y, uint32_t *rgbbuf);
 void cgia_vbl(void);
