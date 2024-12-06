@@ -141,13 +141,14 @@ void cgia_init(void)
     CGIA.plane[p].regs.bckgnd.border_columns = 0;
     for (int i = 0; i < 96 * 30; ++i)
     {
-        (vdo_bank + text_mode_video_offset)[i] = i % 256;         // 0;
-        (vdo_bank + text_mode_color_offset)[i] = i % 256;         // 6;
-        (vdo_bank + text_mode_bkgnd_offset)[i] = 255 - (i % 256); // 1;
+        (vdo_bank + text_mode_video_offset)[i] = 0;
+        (vdo_bank + text_mode_color_offset)[i] = 6;
+        (vdo_bank + text_mode_bkgnd_offset)[i] = 1;
     }
     memcpy(vdo_bank + text_mode_chrgn_offset, font8_data, sizeof(font8_data));
     memcpy(vdo_bank + text_mode_dl_offset, text80_mode_dl, sizeof(text80_mode_dl));
-    // sprintf((char *)(vdo_bank + text_mode_video_offset), "READY");
+    sprintf((char *)(vdo_bank + text_mode_video_offset), "READY");
+    sprintf((char *)(vdo_bank + text_mode_video_offset + 96 * 10 + 2), "Lorem ipsum dolor sit amet, consectetur adipiscing elt, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.");
     CGIA.plane[p].offset = text_mode_dl_offset;
 }
 
@@ -714,10 +715,10 @@ void cgia_vbl(void)
     if (frame % 60 == 0)
     {
         // blink cursor
-        // uint16_t cursor_offset = (FRAME_CHARS - 2 * CGIA.plane[0].regs.bckgnd.border_columns) * 2;
-        // uint8_t bg = (vdo_bank + text_mode_bkgnd_offset)[cursor_offset];
-        // (vdo_bank + text_mode_bkgnd_offset)[cursor_offset] = (vdo_bank + text_mode_color_offset)[cursor_offset];
-        // (vdo_bank + text_mode_color_offset)[cursor_offset] = bg;
+        uint16_t cursor_offset = (FRAME_CHARS - 2 * CGIA.plane[0].regs.bckgnd.border_columns) * 2;
+        uint8_t bg = (vdo_bank + text_mode_bkgnd_offset)[cursor_offset];
+        (vdo_bank + text_mode_bkgnd_offset)[cursor_offset] = (vdo_bank + text_mode_color_offset)[cursor_offset];
+        (vdo_bank + text_mode_color_offset)[cursor_offset] = bg;
     }
 
     ++frame;
