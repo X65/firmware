@@ -9,6 +9,7 @@
 #include "font_8.h"
 #include "images/swboy_tiles.h"
 
+#include "sys/mem.h"
 #include "sys/out.h"
 
 // #include <math.h>
@@ -46,14 +47,6 @@ __attribute__((aligned(4))) plane_int[CGIA_PLANES]
 static uint16_t __attribute__((aligned(4))) sprite_dsc_offsets[CGIA_PLANES][CGIA_SPRITES] = {0};
 static uint8_t __attribute__((aligned(4))) sprite_line_data[SPRITE_MAX_WIDTH];
 
-// --- temporary WIP ---
-uint8_t __attribute__((aligned(4))) vdo_bank[256 * 256];
-uint8_t __attribute__((aligned(4))) spr_bank[256 * 256];
-
-// ---
-#define EXAMPLE_BORDER_COLOR 145
-#define EXAMPLE_TEXT_COLOR   150
-
 struct dma_control_block
 {
     uint8_t *read;
@@ -68,9 +61,6 @@ int data_chan;
 
 // DMA channel to fill raster line with background color
 int back_chan;
-
-int16_t __attribute__((aligned(4))) sin_tab[256];
-int16_t __attribute__((aligned(4))) cos_tab[256];
 
 void cgia_init(void)
 {
@@ -124,33 +114,6 @@ void cgia_init(void)
         NULL,
         DISPLAY_WIDTH_PIXELS,
         false);
-
-    // FIXME: these should be initialized by CPU Operating System
-    CGIA.back_color = 0;
-
-    uint8_t p;
-
-    // for (int i = 0; i < 256; ++i)
-    // {
-    //     sin_tab[i] = (int16_t)(sin(i * (M_PI / 128)) * 256.);
-    //     cos_tab[i] = (int16_t)(cos(i * (M_PI / 128)) * 256.);
-    // }
-
-    p = 0;
-    CGIA.planes |= (0x01 << p);
-    CGIA.plane[p].regs.bckgnd.flags = PLANE_MASK_DOUBLE_WIDTH;
-    CGIA.plane[p].regs.bckgnd.row_height = 7;
-    CGIA.plane[p].regs.bckgnd.border_columns = 0;
-    for (int i = 0; i < 48 * 20; ++i)
-    {
-        const uint8_t tile_no = tile_map[i];
-        (vdo_bank + video_offset)[i] = tile_no;
-        (vdo_bank + color_offset)[i] = color_data[tile_no];
-        (vdo_bank + bkgnd_offset)[i] = bkgnd_data[tile_no];
-    }
-    memcpy(vdo_bank + chrgn_offset, bitmap_data, sizeof(bitmap_data));
-    memcpy(vdo_bank + dl_offset, display_list, sizeof(display_list));
-    CGIA.plane[p].offset = dl_offset;
 }
 
 static uint8_t __attribute__((aligned(4))) log2_tab[256] = {
@@ -231,7 +194,7 @@ void __not_in_flash_func(cgia_render)(uint y, uint32_t *rgbbuf)
             plane = CGIA.plane + p;
             plane_data = plane_int + p;
             sprite_dscs = &sprite_dsc_offsets[p];
-            uint8_t *sprite_bank = spr_bank; // psram + (CGIA.sprite_bank << 16)
+            uint8_t *sprite_bank = psram + (CGIA.sprite_bank << 16);
 
             if (y == 0 // start of frame - reload descriptors
                 || plane_data->sprites_need_update)
@@ -343,7 +306,7 @@ void __not_in_flash_func(cgia_render)(uint y, uint32_t *rgbbuf)
                 goto next_plane;
             }
 
-            uint8_t *bckgnd_bank = vdo_bank; // psram + (CGIA.bckgnd_bank << 16)
+            uint8_t *bckgnd_bank = psram + (CGIA.bckgnd_bank << 16);
             uint8_t dl_instr = bckgnd_bank[plane->offset];
             uint8_t instr_code = dl_instr & 0b00001111;
 
@@ -715,15 +678,50 @@ static uint frame = 0;
 void cgia_vbl(void)
 {
     // TODO: trigger CPU NMI
+    ++frame;
 
-    // if (frame % 60 == 0)
+    if (frame == 100)
+    {
+        // init again after memtest is done
+        cgia_data_init();
+    }
+}
+
+// ---
+#define EXAMPLE_BORDER_COLOR 145
+#define EXAMPLE_TEXT_COLOR   150
+
+// FIXME: these should be initialized by CPU Operating System
+void cgia_data_init(void)
+{
+    CGIA.back_color = EXAMPLE_BORDER_COLOR;
+    CGIA.bckgnd_bank = 0;
+    CGIA.sprite_bank = 1;
+
+    uint8_t *vdo_bank = psram + (CGIA.bckgnd_bank << 16);
+    uint8_t *spr_bank = psram + (CGIA.sprite_bank << 16);
+
+    uint8_t p;
+
+    // for (int i = 0; i < 256; ++i)
     // {
-    //     // blink cursor
-    //     uint16_t cursor_offset = (FRAME_CHARS - 2 * CGIA.plane[0].regs.bckgnd.border_columns) * 2;
-    //     uint8_t bg = (vdo_bank + bkgnd_offset)[cursor_offset];
-    //     (vdo_bank + bkgnd_offset)[cursor_offset] = (vdo_bank + color_offset)[cursor_offset];
-    //     (vdo_bank + color_offset)[cursor_offset] = bg;
+    //     sin_tab[i] = (int16_t)(sin(i * (M_PI / 128)) * 256.);
+    //     cos_tab[i] = (int16_t)(cos(i * (M_PI / 128)) * 256.);
     // }
 
-    ++frame;
+    p = 0;
+    CGIA.planes |= (0x01 << p);
+    CGIA.plane[p].regs.bckgnd.flags = PLANE_MASK_DOUBLE_WIDTH;
+    CGIA.plane[p].regs.bckgnd.row_height = 7;
+    CGIA.plane[p].regs.bckgnd.border_columns = 0;
+    for (int i = 0; i < 48 * 20; ++i)
+    {
+        const uint8_t tile_no = tile_map[i];
+        (vdo_bank + video_offset)[i] = tile_no;
+        (vdo_bank + color_offset)[i] = color_data[tile_no];
+        (vdo_bank + bkgnd_offset)[i] = bkgnd_data[tile_no];
+    }
+    memcpy(vdo_bank + chrgn_offset, bitmap_data, sizeof(bitmap_data));
+    memcpy(vdo_bank + dl_offset, display_list, sizeof(display_list));
+    CGIA.plane[p].offset = dl_offset;
 }
