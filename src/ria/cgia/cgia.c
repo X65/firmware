@@ -6,7 +6,8 @@
 #include "cgia_palette.h"
 
 #include "example_data.h"
-#include "images/carrion-One_Zak_And_His_Kracken.h"
+#include "font_8.h"
+#include "images/swboy_tiles.h"
 
 #include "sys/out.h"
 
@@ -125,7 +126,7 @@ void cgia_init(void)
         false);
 
     // FIXME: these should be initialized by CPU Operating System
-    CGIA.back_color = EXAMPLE_BORDER_COLOR;
+    CGIA.back_color = 0;
 
     uint8_t p;
 
@@ -138,13 +139,16 @@ void cgia_init(void)
     p = 0;
     CGIA.planes |= (0x01 << p);
     CGIA.plane[p].regs.bckgnd.flags = PLANE_MASK_DOUBLE_WIDTH;
-    CGIA.plane[p].regs.bckgnd.shared_color[0] = 0;
-    CGIA.plane[p].regs.bckgnd.shared_color[1] = 0;
-    CGIA.plane[p].regs.bckgnd.row_height = 0;
-    CGIA.plane[p].regs.bckgnd.border_columns = border_columns;
-    memcpy(vdo_bank + video_offset, bitmap_data, sizeof(bitmap_data));
-    memcpy(vdo_bank + color_offset, color_data, sizeof(color_data));
-    memcpy(vdo_bank + bkgnd_offset, bkgnd_data, sizeof(bkgnd_data));
+    CGIA.plane[p].regs.bckgnd.row_height = 7;
+    CGIA.plane[p].regs.bckgnd.border_columns = 0;
+    for (int i = 0; i < 48 * 20; ++i)
+    {
+        const uint8_t tile_no = tile_map[i];
+        (vdo_bank + video_offset)[i] = tile_no;
+        (vdo_bank + color_offset)[i] = color_data[tile_no];
+        (vdo_bank + bkgnd_offset)[i] = bkgnd_data[tile_no];
+    }
+    memcpy(vdo_bank + chrgn_offset, bitmap_data, sizeof(bitmap_data));
     memcpy(vdo_bank + dl_offset, display_list, sizeof(display_list));
     CGIA.plane[p].offset = dl_offset;
 }
@@ -718,9 +722,9 @@ void cgia_vbl(void)
     // {
     //     // blink cursor
     //     uint16_t cursor_offset = (FRAME_CHARS - 2 * CGIA.plane[0].regs.bckgnd.border_columns) * 2;
-    //     uint8_t bg = (vdo_bank + text_mode_bkgnd_offset)[cursor_offset];
-    //     (vdo_bank + text_mode_bkgnd_offset)[cursor_offset] = (vdo_bank + text_mode_color_offset)[cursor_offset];
-    //     (vdo_bank + text_mode_color_offset)[cursor_offset] = bg;
+    //     uint8_t bg = (vdo_bank + bkgnd_offset)[cursor_offset];
+    //     (vdo_bank + bkgnd_offset)[cursor_offset] = (vdo_bank + color_offset)[cursor_offset];
+    //     (vdo_bank + color_offset)[cursor_offset] = bg;
     // }
 
     ++frame;
