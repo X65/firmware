@@ -145,7 +145,7 @@ decl_func cgia_encode_mode_3_mapped
 	cgia_encode_mode_3_shared_or_mapped 1
 
 
-//////////////////// MODE 5 ////////////////////
+//////////////////// MODE 4 ////////////////////
 
 // r0 is output RGB buffer
 // r4 is bitmap (8 LSB)
@@ -179,7 +179,7 @@ decl_func cgia_encode_mode_3_mapped
 // r1 is scanline data buffer
 // r2 is width in bytes
 // r3 is shared_colors array [2]
-.macro cgia_encode_mode_5 doubled mapped
+.macro cgia_encode_mode_4 doubled mapped
   push {r4-r7, lr}
 
   mov r4, r3  // shared_colors[0]
@@ -223,6 +223,79 @@ decl_func cgia_encode_mode_3_mapped
   pop {r4-r7, pc}
 .endm
 
+decl_func cgia_encode_mode_4_shared
+	cgia_encode_mode_4 0 0
+
+decl_func cgia_encode_mode_4_mapped
+	cgia_encode_mode_4 0 1
+
+decl_func cgia_encode_mode_4_doubled_shared
+	cgia_encode_mode_4 1 0
+
+decl_func cgia_encode_mode_4_doubled_mapped
+	cgia_encode_mode_4 1 1
+
+
+//////////////////// MODE 5 ////////////////////
+
+// r0 is output RGB buffer
+// r1 is width in bytes
+// r2 is shared_colors array [2]
+.macro cgia_encode_mode_5 doubled mapped
+  push {r4-r7, lr}
+
+  ldr r3, =cgia_rgb_palette
+  ldr r7, =cell_colors
+
+.if \mapped
+  mov r4, r2  // shared_colors[0]
+  ldrb r4, [r4]
+  ldr r4, [r3, r4, LSL #2]  // load palette entry
+  str r4, [r7, #0]          // store shared color 0
+.endif
+  mov r5, r2
+  adds r5, 1  // shared_colors[1]
+  ldrb r5, [r5]
+  ldr r5, [r3, r5, LSL #2]  // load palette entry
+  str r5, [r7, #12]         // store shared color 3
+
+  ldr r2, =(SIO_BASE + SIO_INTERP0_ACCUM0_OFFSET)
+
+3:
+.if \mapped
+  ldr r6, [r2, #PEEK1_OFFS + INTERP1]   // load background color pointer
+  ldrb r6, [r6]     // load background color value (index)
+.endif
+
+  ldr r5, [r2, #POP0_OFFS + INTERP1]    // load foreground color pointer
+  ldrb r5, [r5]     // load foreground color value (index)
+
+  ldr r4, [r2, #POP0_OFFS]    // load bitmap offset
+  ldrb r4, [r4]     // load bitmap data
+
+  ldr r6, [r3, r6, LSL #2]  // load palette entry
+  str r6, [r7, #4]          // store "off" color (1)
+  ldr r5, [r3, r5, LSL #2]  // load palette entry
+  str r5, [r7, #8]          // store "on" color (2)
+
+.if \doubled
+  write_pixel_multi 6 1 \mapped
+  write_pixel_multi 4 1 \mapped
+  write_pixel_multi 2 1 \mapped
+  write_pixel_multi 0 1 \mapped
+.else
+  write_pixel_multi 6 0 \mapped
+  write_pixel_multi 4 0 \mapped
+  write_pixel_multi 2 0 \mapped
+  write_pixel_multi 0 0 \mapped
+.endif
+
+  subs r1, #1
+  bne 3b
+
+  pop {r4-r7, pc}
+.endm
+
 decl_func cgia_encode_mode_5_shared
 	cgia_encode_mode_5 0 0
 
@@ -236,7 +309,7 @@ decl_func cgia_encode_mode_5_doubled_mapped
 	cgia_encode_mode_5 1 1
 
 
-//////////////////// MODE 5 ////////////////////
+//////////////////// MODE 7 ////////////////////
 
 // r0 is output RGB buffer
 // r1 is width in bytes
