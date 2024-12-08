@@ -30,7 +30,7 @@ cell_colors: .skip 4*4  // Reserve 4 words for the multi color array
 .endm
 
 
-//////////////////// MODE 3 ////////////////////
+//////////////////// MODE 2 ////////////////////
 
 // r0 is output RGB buffer
 // r1 is scanline data buffer - do not touch!
@@ -52,6 +52,57 @@ cell_colors: .skip 4*4  // Reserve 4 words for the multi color array
 .endif
 2:
 .endm
+
+// r0 is output RGB buffer
+// r1 is width in bytes
+// r2 - character generator address
+// r3 - character length in shift amount
+.macro cgia_encode_mode_2_shared_or_mapped mapped
+  push {r4-r7, lr}
+
+  ldr r4, =cgia_rgb_palette
+  ldr ip, =(SIO_BASE + SIO_INTERP0_ACCUM0_OFFSET)
+
+3:
+.if \mapped
+  ldr r7, [ip, #PEEK1_OFFS + INTERP1]   // load background color pointer
+  ldrb r7, [r7]     // load background color value (index)
+  ldr r7, [r4, r7, LSL #2]  // load palette entry
+.endif
+  ldr r6, [ip, #POP0_OFFS + INTERP1]    // load foreground color pointer
+  ldrb r6, [r6]     // load foreground color value (index)
+  ldr r6, [r4, r6, LSL #2]  // load palette entry
+
+  ldr r5, [ip, #POP0_OFFS]    // load character code offset
+  ldrb r5, [r5]     // load character code
+  lsls r5, r3       // multiply by character height
+  ldrb r5, [r2, r5]     // load character line bitmap data
+
+  lsls r5, #24        // move LSB to MSB
+
+  write_pixel_bmp \mapped
+  write_pixel_bmp \mapped
+  write_pixel_bmp \mapped
+  write_pixel_bmp \mapped
+  write_pixel_bmp \mapped
+  write_pixel_bmp \mapped
+  write_pixel_bmp \mapped
+  write_pixel_bmp \mapped
+
+  subs r1, #1
+  bne 3b
+
+  pop {r4-r7, pc}
+.endm
+
+decl_func cgia_encode_mode_2_shared
+	cgia_encode_mode_2_shared_or_mapped 0
+
+decl_func cgia_encode_mode_2_mapped
+	cgia_encode_mode_2_shared_or_mapped 1
+
+
+//////////////////// MODE 3 ////////////////////
 
 // r0 is output RGB buffer
 // r1 is scanline data buffer

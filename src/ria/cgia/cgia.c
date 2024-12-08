@@ -33,6 +33,7 @@ static struct cgia_plane_internal
     interp_hw_save_t interpolator[2];
     bool wait_vbl;
     bool sprites_need_update; // TODO: set when writing CGIA.plane[1].regs.sprite.active
+
     // work buffer for scanline - used to prepare data for rasterizer
     // bitmap,fg,bg ; *2 because of hires mode
     // TODO: remove it - pull data directly from interpolators
@@ -143,7 +144,7 @@ void cgia_init(void)
     {
         (vdo_bank + text_mode_video_offset)[i] = 0;
         (vdo_bank + text_mode_color_offset)[i] = 6;
-        (vdo_bank + text_mode_bkgnd_offset)[i] = 1;
+        (vdo_bank + text_mode_bkgnd_offset)[i] = 0;
     }
     memcpy(vdo_bank + text_mode_chrgn_offset, font8_data, sizeof(font8_data));
     memcpy(vdo_bank + text_mode_dl_offset, text80_mode_dl, sizeof(text80_mode_dl));
@@ -492,8 +493,14 @@ void __not_in_flash_func(cgia_render)(uint y, uint32_t *rgbbuf)
                     if (row_columns)
                     {
                         uint8_t char_shift = log2_tab[plane->regs.bckgnd.row_height];
-                        load_textmode_buffer(plane_data->scanline_buffer, row_columns, plane_data->char_gen + plane_data->row_line_count, char_shift);
-                        buf = cgia_encode_mode_3_mapped(buf, plane_data->scanline_buffer, row_columns);
+                        if (plane->regs.bckgnd.flags & PLANE_MASK_TRANSPARENT)
+                        {
+                            buf = cgia_encode_mode_2_shared(buf, row_columns, plane_data->char_gen + plane_data->row_line_count, char_shift);
+                        }
+                        else
+                        {
+                            buf = cgia_encode_mode_2_mapped(buf, row_columns, plane_data->char_gen + plane_data->row_line_count, char_shift);
+                        }
                     }
                 }
                 break;
@@ -611,11 +618,11 @@ void __not_in_flash_func(cgia_render)(uint y, uint32_t *rgbbuf)
 
                             // interp0 will scan texture row
                             // interp1 will scan row begin address
-                            const uint texture_width_bits = plane->regs.affine.flags & 0b0111;
+                            const uint texture_width_bits = plane->regs.affine.texture_bits & 0b0111;
                             interp_config_set_shift(&cfg, CGIA_AFFINE_FRACTIONAL_BITS);
                             interp_config_set_mask(&cfg, 0, texture_width_bits - 1);
                             interp_set_config(interp0, 0, &cfg);
-                            const uint texture_height_bits = (plane->regs.affine.flags >> 4) & 0b0111;
+                            const uint texture_height_bits = (plane->regs.affine.texture_bits >> 4) & 0b0111;
                             interp_config_set_shift(&cfg, CGIA_AFFINE_FRACTIONAL_BITS - texture_width_bits);
                             interp_config_set_mask(&cfg, texture_width_bits, texture_width_bits + texture_height_bits - 1);
                             interp_set_config(interp0, 1, &cfg);

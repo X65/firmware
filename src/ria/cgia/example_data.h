@@ -131,6 +131,7 @@ static const uint8_t __attribute__((aligned(4))) mixed_mode_dl[] = {
     0x13, 0x00, 0x00,                                                // LMS
     0x14, 0x00,                                                      // border_columns = 0
     0x24, 0x9f,                                                      // row_height = 159
+    0x34, (7 << 4) | 7,                                              // texture_bits = 7,7
     0x0F,                                                            // MODE7
     0x70,                                                            // 8x empty lines
     0xF3,                                                            // LMS + LFS + LBS + LCG
@@ -140,6 +141,7 @@ static const uint8_t __attribute__((aligned(4))) mixed_mode_dl[] = {
     (mixed_chrgn_offset & 0xFF), ((mixed_chrgn_offset >> 8) & 0xFF), // LCG
     0x14, 0x04,                                                      // border_columns = 4
     0x24, 0x07,                                                      // row_height = 7
+    0x34, 0x00,                                                      // stride = 0
     0x0A, 0x0A, 0x0A, 0x0A, 0x0A, 0x0A, 0x0A, 0x0A,                  // 8x MODE2
     0x82, 0x00, 0xF8                                                 // JMP to begin of DL and wait for Vertical BLank
 };

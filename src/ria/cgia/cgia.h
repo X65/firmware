@@ -62,10 +62,10 @@ struct cgia_plane_t
 
         struct cgia_affine_regs
         {
-            uint8_t flags; // 2-0 texture_width_bits, 6-4 texture_height_bits
+            uint8_t flags;
             uint8_t border_columns;
             uint8_t row_height;
-            uint8_t reserved;
+            uint8_t texture_bits; // 2-0 texture_width_bits, 6-4 texture_height_bits
             int16_t u;
             int16_t v;
             int16_t du;
