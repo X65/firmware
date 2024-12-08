@@ -3,12 +3,6 @@
 
 #include "pico.h"
 
-void __not_in_flash_func(load_textmode_buffer)(
-    uint32_t *scanline_buffer,
-    uint32_t columns,
-    uint8_t *character_generator,
-    uint32_t char_shift);
-
 void __not_in_flash_func(load_scanline_buffer_shared)(
     uint32_t *scanline_buffer,
     uint32_t columns);
@@ -38,26 +32,30 @@ uint32_t *__not_in_flash_func(cgia_encode_mode_3_mapped)(
 
 uint32_t *__not_in_flash_func(cgia_encode_mode_4_shared)(
     uint32_t *rgbbuf,
-    uint32_t *scanline_buffer,
     uint32_t columns,
+    uint8_t *character_generator,
+    uint32_t char_shift,
     uint8_t shared_colors[2]);
 
 uint32_t *__not_in_flash_func(cgia_encode_mode_4_mapped)(
     uint32_t *rgbbuf,
-    uint32_t *scanline_buffer,
     uint32_t columns,
+    uint8_t *character_generator,
+    uint32_t char_shift,
     uint8_t shared_colors[2]);
 
 uint32_t *__not_in_flash_func(cgia_encode_mode_4_doubled_shared)(
     uint32_t *rgbbuf,
-    uint32_t *scanline_buffer,
     uint32_t columns,
+    uint8_t *character_generator,
+    uint32_t char_shift,
     uint8_t shared_colors[2]);
 
 uint32_t *__not_in_flash_func(cgia_encode_mode_4_doubled_mapped)(
     uint32_t *rgbbuf,
-    uint32_t *scanline_buffer,
     uint32_t columns,
+    uint8_t *character_generator,
+    uint32_t char_shift,
     uint8_t shared_colors[2]);
 
 uint32_t *__not_in_flash_func(cgia_encode_mode_5_shared)(

@@ -176,34 +176,44 @@ decl_func cgia_encode_mode_3_mapped
 .endm
 
 // r0 is output RGB buffer
-// r1 is scanline data buffer
-// r2 is width in bytes
-// r3 is shared_colors array [2]
+// r1 is width in bytes
+// r2 - character generator address
+// r3 - character length in shift amount
+// First stack argument is shared_colors[2] array
 .macro cgia_encode_mode_4 doubled mapped
-  push {r4-r7, lr}
+  push {r4-r8, lr}
 
-  mov r4, r3  // shared_colors[0]
-  mov r5, r3
-  adds r5, 1  // shared_colors[1]
-
-  ldr r3, =cgia_rgb_palette
+  ldr r8, =cgia_rgb_palette
   ldr r7, =cell_colors
+  ldr ip, [sp, #24] // 6 words saved, so 24-byte offset to first stack argument
 
 .if \mapped
-  ldrb r4, [r4]
-  ldr r4, [r3, r4, LSL #2]  // load palette entry
+  ldrb r4, [ip]   // shared_colors[0]
+  ldr r4, [r8, r4, LSL #2]  // load palette entry
   str r4, [r7, #0]          // store shared color 0
 .endif
-  ldrb r5, [r5]
-  ldr r5, [r3, r5, LSL #2]  // load palette entry
+  adds ip, 1  // shared_colors[1]
+  ldrb r5, [ip]
+  ldr r5, [r8, r5, LSL #2]  // load palette entry
   str r5, [r7, #12]         // store shared color 3
 
+  ldr ip, =(SIO_BASE + SIO_INTERP0_ACCUM0_OFFSET)
+
 3:
-  ldmia r1!, {r4-r6}        // load 3 words from scanline buffer
-  ldr r6, [r3, r6, LSL #2]  // load palette entry
+  ldr r6, [ip, #PEEK1_OFFS + INTERP1]   // load background color pointer
+  ldrb r6, [r6]     // load background color value (index)
+  ldr r6, [r8, r6, LSL #2]  // load palette entry
   str r6, [r7, #4]          // store "off" color (1)
-  ldr r5, [r3, r5, LSL #2]  // load palette entry
+
+  ldr r5, [ip, #POP0_OFFS + INTERP1]    // load foreground color pointer
+  ldrb r5, [r5]     // load foreground color value (index)
+  ldr r5, [r8, r5, LSL #2]  // load palette entry
   str r5, [r7, #8]          // store "on" color (2)
+
+  ldr r4, [ip, #POP0_OFFS]    // load character code offset
+  ldrb r4, [r4]     // load character code
+  lsls r4, r3       // multiply by character height
+  ldrb r4, [r2, r4]     // load character line bitmap data
 
 .if \doubled
   write_pixel_multi 6 1 \mapped
@@ -217,10 +227,10 @@ decl_func cgia_encode_mode_3_mapped
   write_pixel_multi 0 0 \mapped
 .endif
 
-  subs r2, #1
+  subs r1, #1
   bne 3b
 
-  pop {r4-r7, pc}
+  pop {r4-r8, pc}
 .endm
 
 decl_func cgia_encode_mode_4_shared
@@ -248,14 +258,12 @@ decl_func cgia_encode_mode_4_doubled_mapped
   ldr r7, =cell_colors
 
 .if \mapped
-  mov r4, r2  // shared_colors[0]
-  ldrb r4, [r4]
+  ldrb r4, [r2]   // shared_colors[0]
   ldr r4, [r3, r4, LSL #2]  // load palette entry
   str r4, [r7, #0]          // store shared color 0
 .endif
-  mov r5, r2
-  adds r5, 1  // shared_colors[1]
-  ldrb r5, [r5]
+  adds r2, 1  // shared_colors[1]
+  ldrb r5, [r2]
   ldr r5, [r3, r5, LSL #2]  // load palette entry
   str r5, [r7, #12]         // store shared color 3
 
@@ -392,34 +400,3 @@ decl_func load_scanline_buffer_shared
 
 decl_func load_scanline_buffer_mapped
 	load_scanline_buffer_shared_or_mapped 1
-
-
-// r0 - destination scanline buffer
-// r1 - how many columns to load
-// r2 - character generator address
-// r3 - character length in shift amount
-decl_func load_textmode_buffer
-  push {r4-r7, lr}
-
-  mov ip, r2        // ip - chargen
-
-  ldr r2, =(SIO_BASE + SIO_INTERP0_ACCUM0_OFFSET)
-
-1:
-  ldr r6, [r2, #PEEK1_OFFS + INTERP1]   // load background color pointer
-  ldrb r6, [r6]     // load background color value (index)
-
-  ldr r5, [r2, #POP0_OFFS + INTERP1]    // load foreground color pointer
-  ldrb r5, [r5]     // load foreground color value (index)
-
-  ldr r4, [r2, #POP0_OFFS]    // load character code offset
-  ldrb r4, [r4]     // load character code
-  lsls r4, r3       // multiply by character height
-  ldrb r4, [ip, r4]     // load character line bitmap data
-
-  stmia r0!, {r4-r6}
-
-  subs r1, #1
-  bne 1b
-
-  pop {r4-r7, pc}

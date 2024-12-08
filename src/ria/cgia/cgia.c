@@ -478,8 +478,7 @@ void __not_in_flash_func(cgia_render)(uint y, uint32_t *rgbbuf)
                     {
                         uint8_t encode_columns = (uint8_t)(row_columns << 1);
                         uint8_t char_shift = log2_tab[plane->regs.bckgnd.row_height];
-                        load_textmode_buffer(plane_data->scanline_buffer, encode_columns, plane_data->char_gen + plane_data->row_line_count, char_shift);
-                        buf = cgia_encode_mode_3_mapped(buf, plane_data->scanline_buffer, encode_columns);
+                        buf = cgia_encode_mode_2_mapped(buf, encode_columns, plane_data->char_gen + plane_data->row_line_count, char_shift);
                     }
                 }
                 break;
@@ -540,20 +539,19 @@ void __not_in_flash_func(cgia_render)(uint y, uint32_t *rgbbuf)
                     if (row_columns)
                     {
                         uint8_t char_shift = log2_tab[plane->regs.bckgnd.row_height];
-                        load_textmode_buffer(plane_data->scanline_buffer, row_columns, plane_data->char_gen + plane_data->row_line_count, char_shift);
                         if (plane->regs.bckgnd.flags & PLANE_MASK_TRANSPARENT)
                         {
                             if (plane->regs.bckgnd.flags & PLANE_MASK_DOUBLE_WIDTH)
-                                buf = cgia_encode_mode_4_doubled_shared(buf, plane_data->scanline_buffer, row_columns, plane->regs.bckgnd.shared_color);
+                                buf = cgia_encode_mode_4_doubled_shared(buf, row_columns, plane_data->char_gen + plane_data->row_line_count, char_shift, plane->regs.bckgnd.shared_color);
                             else
-                                buf = cgia_encode_mode_4_shared(buf, plane_data->scanline_buffer, row_columns, plane->regs.bckgnd.shared_color);
+                                buf = cgia_encode_mode_4_shared(buf, row_columns, plane_data->char_gen + plane_data->row_line_count, char_shift, plane->regs.bckgnd.shared_color);
                         }
                         else
                         {
                             if (plane->regs.bckgnd.flags & PLANE_MASK_DOUBLE_WIDTH)
-                                buf = cgia_encode_mode_4_doubled_mapped(buf, plane_data->scanline_buffer, row_columns, plane->regs.bckgnd.shared_color);
+                                buf = cgia_encode_mode_4_doubled_mapped(buf, row_columns, plane_data->char_gen + plane_data->row_line_count, char_shift, plane->regs.bckgnd.shared_color);
                             else
-                                buf = cgia_encode_mode_4_mapped(buf, plane_data->scanline_buffer, row_columns, plane->regs.bckgnd.shared_color);
+                                buf = cgia_encode_mode_4_mapped(buf, row_columns, plane_data->char_gen + plane_data->row_line_count, char_shift, plane->regs.bckgnd.shared_color);
                         }
                     }
                 }
