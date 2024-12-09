@@ -433,6 +433,51 @@ function genMultiColorLine(
   }
   return [cumulative_error, cells_colors, cells_pixels];
 }
+function genHiresLine(cells: number[][]): [number, number[][], number[][]] {
+  const cells_colors = Array.from(cells, () => [] as number[]);
+  const cells_pixels = Array.from(cells, () => [] as number[]);
+  let cumulative_error = 0;
+  for (let c = 0; c < cells.length; ++c) {
+    const cell = cells[c];
+    const cell_colors = cells_colors[c];
+    const cell_pixels = cells_pixels[c];
+    for (let i = 0; i < cell.length; i += args.double ? 2 : 1) {
+      const color = cell[i];
+      let pixel;
+      const cell_color = cell_colors.indexOf(color);
+      if (cell_color >= 0) {
+        pixel = cell_color;
+      } else {
+        if (cell_colors.length >= 2) {
+          // we have to much colors in cell
+          // find the closest color to fit
+          const cl = fromRGB(cgia_rgb_palette[color]);
+          const colors = (
+            [
+              [cell_colors[0], 0],
+              [cell_colors[1], 1],
+            ].filter(([idx]) => idx! >= 0) as [number, number][]
+          ).map(([idx, px]) => [
+            idx,
+            colorDistance(cl, fromRGB(cgia_rgb_palette[idx!])),
+            px,
+          ]);
+          colors.sort(([idx1, d1], [idx2, d2]) =>
+            d1 === d2 ? idx1 - idx2 : d1 - d2
+          );
+          cumulative_error += colors[0][1];
+          pixel = colors[0][2];
+        } else {
+          pixel = cell_colors.length;
+          cell_colors.push(color);
+        }
+      }
+      assert(pixel < 2);
+      cell_pixels.push(pixel);
+    }
+  }
+  return [cumulative_error, cells_colors, cells_pixels];
+}
 
 // --- MAIN ---
 if (import.meta.main) {
@@ -493,7 +538,8 @@ if (import.meta.main) {
     return getPixelN((width * y + x) * BYTES_PER_SAMPLE);
   };
 
-  let column_width: number = args.double ? 8 : 4;
+  let column_width: number =
+    args.format === "hires" ? (args.double ? 16 : 8) : args.double ? 8 : 4;
   let cell_height: number = Number(args.cell);
 
   if (args.format === "chunky") {
@@ -747,6 +793,13 @@ if (import.meta.main) {
           shared_colors.push([best_row[3] ?? 0xff, best_row[4] ?? 0xff]);
         }
         break;
+      case "hires":
+        {
+          const row: [number, number[][], number[][]] = genHiresLine(cells_row);
+          cell_colors.push(...row[1]);
+          cell_pixels.push(...row[2]);
+        }
+        break;
       case "chunky":
         // No need to mangle pixels
         break;
@@ -829,6 +882,79 @@ if (import.meta.main) {
             print(`0x54, 0x${toHEX(sh_1).toUpperCase()}, `);
           }
           print(`0x0D, // MODE5\n`);
+        }
+        print(
+          `0x82, (dl_offset & 0xFF), ((dl_offset >> 8) & 0xFF)  // JMP to begin of DL and wait for Vertical BLank\n`
+        );
+        print(`};\n\n`);
+        print(
+          `static const uint8_t border_columns = ${
+            (384 - columns * column_width) / 16
+          };\n`
+        );
+      }
+      break;
+    case "hires":
+      {
+        print(
+          `static uint8_t __attribute__((aligned(4))) bitmap_data[${
+            cell_pixels.length * args.cell
+          }] = {\n`
+        );
+        for (let i = 0; i < cell_pixels.length; ++i) {
+          const cell_pixels_cell = cell_pixels[i];
+          for (let p = 0; p < cell_pixels_cell.length; p += 8) {
+            const data =
+              (cell_pixels_cell[p + 0] << 7) +
+              (cell_pixels_cell[p + 1] << 6) +
+              (cell_pixels_cell[p + 2] << 5) +
+              (cell_pixels_cell[p + 3] << 4) +
+              (cell_pixels_cell[p + 4] << 3) +
+              (cell_pixels_cell[p + 5] << 2) +
+              (cell_pixels_cell[p + 6] << 1) +
+              cell_pixels_cell[p + 7];
+            print(`0x${toHEX(data)}, `);
+          }
+          if ((i + 1) % columns === 0) print(`// ${Math.floor(i / columns)}\n`);
+        }
+        print(`};\n\n`);
+
+        print(
+          `static uint8_t __attribute__((aligned(4))) color_data[${cell_colors.length}] = {\n`
+        );
+        for (let i = 0; i < cell_colors.length; ++i) {
+          print(`0x${toHEX(cell_colors[i][1] || 0)}, `);
+          if ((i + 1) % columns === 0) print(`// ${Math.floor(i / columns)}\n`);
+        }
+        print(`};\n\n`);
+
+        print(
+          `static uint8_t __attribute__((aligned(4))) bkgnd_data[${cell_colors.length}] = {\n`
+        );
+        for (let i = 0; i < cell_colors.length; ++i) {
+          print(`0x${toHEX(cell_colors[i][0] || 0)}, `);
+          if ((i + 1) % columns === 0) print(`// ${Math.floor(i / columns)}\n`);
+        }
+        print(`};\n\n`);
+
+        print(`static const uint16_t video_offset = 0x0000;\n`);
+        print(`static const uint16_t color_offset = 0x5000;\n`);
+        print(`static const uint16_t bkgnd_offset = 0xA000;\n`);
+        print(`static const uint16_t dl_offset = 0xF000;\n`);
+        print(
+          `static uint8_t __attribute__((aligned(4))) display_list[] = {\n`
+        );
+        print(
+          `0x73, (video_offset & 0xFF), ((video_offset >> 8) & 0xFF),  // LMS\n`
+        );
+        print(
+          `(color_offset & 0xFF), ((color_offset >> 8) & 0xFF),        // LFS\n`
+        );
+        print(
+          `(bkgnd_offset & 0xFF), ((bkgnd_offset >> 8) & 0xFF),        // LBS\n`
+        );
+        for (let i = 0; i < rows; ++i) {
+          print(`0x0B, // MODE3\n`);
         }
         print(
           `0x82, (dl_offset & 0xFF), ((dl_offset >> 8) & 0xFF)  // JMP to begin of DL and wait for Vertical BLank\n`

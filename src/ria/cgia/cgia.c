@@ -5,7 +5,7 @@
 #include "cgia_encode.h"
 #include "cgia_palette.h"
 
-#include "images/carrion-One_Zak_And_His_Kracken.h"
+#include "images/veto-the_mill.h"
 
 // #include "sys/mem.h"
 #include "sys/out.h"
@@ -99,10 +99,10 @@ static void cgia_data_init(void)
 
     p = 0;
     CGIA.planes |= (0x01 << p);
-    CGIA.plane[p].regs.bckgnd.flags = PLANE_MASK_DOUBLE_WIDTH;
+    CGIA.plane[p].regs.bckgnd.flags = 0;
     CGIA.plane[p].regs.bckgnd.shared_color[0] = 0;
     CGIA.plane[p].regs.bckgnd.shared_color[1] = 0;
-    CGIA.plane[p].regs.bckgnd.row_height = 0;
+    CGIA.plane[p].regs.bckgnd.row_height = 7;
     CGIA.plane[p].regs.bckgnd.border_columns = border_columns;
     memcpy(vdo_bank + video_offset, bitmap_data, sizeof(bitmap_data));
     memcpy(vdo_bank + color_offset, color_data, sizeof(color_data));
