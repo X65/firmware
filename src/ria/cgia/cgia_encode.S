@@ -22,7 +22,7 @@ cell_colors: .skip 4*4  // Reserve 4 words for the multi color array
 
 // Put every function in its own ELF section, to permit linker GC
 .macro decl_func name
-.section .time_critical.\name, "ax"
+.section .scratch_y.\name, "ax"
 .global \name
 .type \name,%function
 .thumb_func

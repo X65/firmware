@@ -144,5 +144,3 @@ struct cgia_sprite_t
 void cgia_init(void);
 void cgia_render(uint y, uint32_t *rgbbuf);
 void cgia_vbl(void);
-
-void cgia_data_init(void);

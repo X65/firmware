@@ -38,7 +38,7 @@ void dump_cpu_history(void);
 #define CASE_READ(addr) (CPU_RWB_MASK | (addr & CPU_IODEV_MASK))
 #define CASE_WRIT(addr) (addr & CPU_IODEV_MASK)
 
-static void __attribute__((optimize("O1")))
+static void __isr __attribute__((optimize("O1")))
 mem_bus_pio_irq_handler(void)
 {
     uint32_t bus_address;

@@ -72,7 +72,6 @@ static void init(void)
     tuh_init(TUH_OPT_RHPORT);
 
     led_set_hartbeat(true);
-    cgia_data_init();
 }
 
 // Tasks events are repeatedly called by the main kernel loop.

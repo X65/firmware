@@ -152,7 +152,7 @@ static uint v_scanline = 2;
 // post the command list, and another to post the pixels.
 static bool vactive_cmdlist_posted = false;
 
-void __scratch_x("") dma_irq_handler(void)
+void __isr __scratch_x("") dma_irq_handler(void)
 {
     // dma_pong indicates the channel that just finished, which is the one
     // we're about to reload.
