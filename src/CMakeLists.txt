@@ -5,10 +5,6 @@ pico_set_program_name(rp816 "RP816 RIA")
 # pico_set_program_version(rp816 "0.1")
 pico_set_binary_type(rp816 copy_to_ram)
 
-pico_define_boot_stage2(slower_boot2 ${PICO_DEFAULT_BOOT_STAGE2_FILE})
-target_compile_definitions(slower_boot2 PRIVATE PICO_FLASH_SPI_CLKDIV=4)
-pico_set_boot_stage2(rp816 slower_boot2)
-
 target_include_directories(rp816 PRIVATE
     ${CMAKE_CURRENT_LIST_DIR}
     ria

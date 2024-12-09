@@ -343,8 +343,8 @@ void __not_in_flash_func(out_core1_main)(void)
 void out_reclock(void)
 {
     clock_configure(clk_hstx,
-                    CLOCKS_CLK_HSTX_CTRL_AUXSRC_VALUE_CLK_SYS,
                     0,
+                    CLOCKS_CLK_HSTX_CTRL_AUXSRC_VALUE_CLK_SYS,
                     clock_get_hz(clk_sys),
                     MODE_BIT_CLK_KHZ * KHZ / 2 /*DDR*/);
 }

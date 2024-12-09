@@ -176,7 +176,7 @@ void __no_inline_not_in_flash_func(set_psram_timing)(void)
 
     qmi_hw->m[1].timing = QMI_M1_TIMING_PAGEBREAK_VALUE_1024 << QMI_M1_TIMING_PAGEBREAK_LSB | // Break between pages.
                           3 << QMI_M1_TIMING_SELECT_HOLD_LSB |                                // Delay releasing CS for 3 extra system cycles.
-                          1 << QMI_M1_TIMING_COOLDOWN_LSB | 1 << QMI_M1_TIMING_RXDELAY_LSB | maxSelect << QMI_M1_TIMING_MAX_SELECT_LSB | minDeselect << QMI_M1_TIMING_MIN_DESELECT_LSB | clockDivider << QMI_M1_TIMING_CLKDIV_LSB;
+                          1 << QMI_M1_TIMING_COOLDOWN_LSB | 2 << QMI_M1_TIMING_RXDELAY_LSB | maxSelect << QMI_M1_TIMING_MAX_SELECT_LSB | minDeselect << QMI_M1_TIMING_MIN_DESELECT_LSB | clockDivider << QMI_M1_TIMING_CLKDIV_LSB;
 
     restore_interrupts(intr_stash);
 }
