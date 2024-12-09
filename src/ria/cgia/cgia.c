@@ -7,7 +7,7 @@
 
 #include "images/carrion-One_Zak_And_His_Kracken.h"
 
-#include "sys/mem.h"
+// #include "sys/mem.h"
 #include "sys/out.h"
 
 #include <stdio.h>
@@ -54,6 +54,19 @@ static uint8_t
     __scratch_y("")
         sprite_line_data[SPRITE_MAX_WIDTH];
 
+// two "banks" to mirror PSRAM content for fast CGIA access
+// let's assume we do not use such high memory
+// (we might need to actually create linker script to reserve it)
+extern uint8_t vram_cache[2][256 * 256];
+asm(".equ vram_cache, 0x20060000"); // Addressable at 0x20060000 - 0x2007ffff
+
+// store which PSRAM bank is currently mirrored in cache
+static uint8_t
+    __attribute__((aligned(4)))
+    __scratch_y("")
+        vram_cache_bank[2]
+    = {0, 0};
+
 struct dma_control_block
 {
     uint8_t *read;
@@ -79,8 +92,8 @@ static void cgia_data_init(void)
     CGIA.bckgnd_bank = 0;
     CGIA.sprite_bank = 1;
 
-    uint8_t *vdo_bank = psram + (CGIA.bckgnd_bank << 16);
-    uint8_t *spr_bank = psram + (CGIA.sprite_bank << 16);
+    uint8_t *vdo_bank = vram_cache[0];
+    uint8_t *spr_bank = vram_cache[1];
 
     uint8_t p;
 
@@ -233,7 +246,7 @@ void __scratch_x("") cgia_render(uint y, uint32_t *rgbbuf)
             plane = CGIA.plane + p;
             plane_data = plane_int + p;
             sprite_dscs = &sprite_dsc_offsets[p];
-            uint8_t *sprite_bank = psram + (CGIA.sprite_bank << 16);
+            uint8_t *sprite_bank = vram_cache[1];
 
             if (y == 0 // start of frame - reload descriptors
                 || plane_data->sprites_need_update)
@@ -345,7 +358,7 @@ void __scratch_x("") cgia_render(uint y, uint32_t *rgbbuf)
                 goto next_plane;
             }
 
-            uint8_t *bckgnd_bank = psram + (CGIA.bckgnd_bank << 16);
+            uint8_t *bckgnd_bank = vram_cache[0];
             uint8_t dl_instr = bckgnd_bank[plane->offset];
             uint8_t instr_code = dl_instr & 0b00001111;
 
