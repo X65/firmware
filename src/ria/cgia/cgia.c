@@ -12,7 +12,6 @@
 #include "sys/mem.h"
 #include "sys/out.h"
 
-// #include <math.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -150,9 +149,6 @@ static uint8_t __attribute__((aligned(4))) log2_tab[256] = {
     0x08, 0x08, 0x08, 0x08, 0x08, 0x08, 0x08, 0x08, //
     0x08, 0x08, 0x08, 0x08, 0x08, 0x08, 0x08, 0x08, //
 };
-
-#define MODE_BIT 0b00001000
-#define DLI_BIT  0b10000000
 
 uint32_t *fill_back(
     uint32_t *buf,
@@ -320,7 +316,7 @@ void __not_in_flash_func(cgia_render)(uint y, uint32_t *rgbbuf)
             uint8_t dl_row_lines = plane->regs.bckgnd.row_height;
 
             // first process instructions - they need less preparation and can be shortcutted
-            if (!(dl_instr & MODE_BIT))
+            if (!(dl_instr & CGIA_MODE_BIT))
             {
                 switch (instr_code)
                 {
@@ -343,7 +339,7 @@ void __not_in_flash_func(cgia_render)(uint y, uint32_t *rgbbuf)
                                                | (bckgnd_bank[++plane->offset] << 8));
                     plane_data->row_line_count = 0; // will start new row
 
-                    if (dl_instr & DLI_BIT)
+                    if (dl_instr & CGIA_DLI_BIT)
                     {
                         // if DLI set, wait for VBL
                         plane_data->wait_vbl = true;
@@ -412,7 +408,7 @@ void __not_in_flash_func(cgia_render)(uint y, uint32_t *rgbbuf)
 
                 // Used for tracking where to blit pixel data
                 uint32_t *buf = rgbbuf + border_columns * CGIA_COLUMN_PX;
-                if (instr_code != (0x7 | MODE_BIT))
+                if (instr_code != (0x7 | CGIA_MODE_BIT))
                 {
                     buf += plane->regs.bckgnd.scroll;
 
@@ -431,7 +427,7 @@ void __not_in_flash_func(cgia_render)(uint y, uint32_t *rgbbuf)
                 // ------- Mode Rows --------------
                 switch (instr_code)
                 {
-                case (0x0 | MODE_BIT): // MODE0 (8) - text80 mode
+                case (0x0 | CGIA_MODE_BIT): // MODE0 (8) - text80 mode
                 {
                     interp_set_base(interp0, 0, 1);
                     interp_set_accumulator(interp0, 0, (uintptr_t)plane_data->memory_scan - 1);
@@ -446,7 +442,7 @@ void __not_in_flash_func(cgia_render)(uint y, uint32_t *rgbbuf)
                 }
                 break;
 
-                case (0x2 | MODE_BIT): // MODE2 (A) - text/tile mode
+                case (0x2 | CGIA_MODE_BIT): // MODE2 (A) - text/tile mode
                 {
                     interp_set_base(interp0, 0, 1);
                     interp_set_accumulator(interp0, 0, (uintptr_t)plane_data->memory_scan - 1);
@@ -467,7 +463,7 @@ void __not_in_flash_func(cgia_render)(uint y, uint32_t *rgbbuf)
                 }
                 break;
 
-                case (0x3 | MODE_BIT): // MODE3 (B) - bitmap mode
+                case (0x3 | CGIA_MODE_BIT): // MODE3 (B) - bitmap mode
                 {
                     const uint8_t row_height = plane->regs.bckgnd.row_height + 1;
                     interp_set_base(interp0, 0, row_height);
@@ -493,7 +489,7 @@ void __not_in_flash_func(cgia_render)(uint y, uint32_t *rgbbuf)
                 }
                 break;
 
-                case (0x4 | MODE_BIT): // MODE4 (C) - multicolor text/tile mode
+                case (0x4 | CGIA_MODE_BIT): // MODE4 (C) - multicolor text/tile mode
                 {
                     interp_set_base(interp0, 0, 1);
                     interp_set_accumulator(interp0, 0, (uintptr_t)plane_data->memory_scan - 1);
@@ -520,7 +516,7 @@ void __not_in_flash_func(cgia_render)(uint y, uint32_t *rgbbuf)
                 }
                 break;
 
-                case (0x5 | MODE_BIT): // MODE5 (D) - multicolor bitmap mode
+                case (0x5 | CGIA_MODE_BIT): // MODE5 (D) - multicolor bitmap mode
                 {
                     {
                         int offset_delta = plane->regs.bckgnd.offset - 1;
@@ -567,7 +563,7 @@ void __not_in_flash_func(cgia_render)(uint y, uint32_t *rgbbuf)
                 }
                 break;
 
-                case (0x7 | MODE_BIT): // MODE7 (F) - affine transform mode
+                case (0x7 | CGIA_MODE_BIT): // MODE7 (F) - affine transform mode
                 {
                     if (row_columns)
                     {
@@ -621,7 +617,7 @@ void __not_in_flash_func(cgia_render)(uint y, uint32_t *rgbbuf)
                 }
 
                 // borders
-                if ((dl_instr & MODE_BIT) && border_columns && !(plane->regs.bckgnd.flags & PLANE_MASK_BORDER_TRANSPARENT))
+                if ((dl_instr & CGIA_MODE_BIT) && border_columns && !(plane->regs.bckgnd.flags & PLANE_MASK_BORDER_TRANSPARENT))
                 {
                     buf = fill_back(rgbbuf, border_columns, CGIA.back_color);
                     buf += row_columns * CGIA_COLUMN_PX;
@@ -637,7 +633,7 @@ void __not_in_flash_func(cgia_render)(uint y, uint32_t *rgbbuf)
             if (plane_data->row_line_count == dl_row_lines)
             {
                 // Update scan pointers
-                if (dl_instr & MODE_BIT && instr_code != (0x7 | MODE_BIT))
+                if (dl_instr & CGIA_MODE_BIT && instr_code != (0x7 | CGIA_MODE_BIT))
                 {
                     // update scan pointers to next value
                     uint8_t stride = plane->regs.bckgnd.stride;
@@ -702,12 +698,6 @@ void cgia_data_init(void)
     uint8_t *spr_bank = psram + (CGIA.sprite_bank << 16);
 
     uint8_t p;
-
-    // for (int i = 0; i < 256; ++i)
-    // {
-    //     sin_tab[i] = (int16_t)(sin(i * (M_PI / 128)) * 256.);
-    //     cos_tab[i] = (int16_t)(cos(i * (M_PI / 128)) * 256.);
-    // }
 
     p = 0;
     CGIA.planes |= (0x01 << p);
