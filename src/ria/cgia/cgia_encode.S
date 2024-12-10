@@ -274,21 +274,19 @@ decl_func cgia_encode_mode_4_doubled_mapped
   ldr r2, =(SIO_BASE + SIO_INTERP0_ACCUM0_OFFSET)
 
 3:
-.if \mapped
   ldr r6, [r2, #PEEK1_OFFS + INTERP1]   // load background color pointer
   ldrb r6, [r6]     // load background color value (index)
-.endif
+  ldr r6, [r3, r6, LSL #2]  // load palette entry
+  str r6, [r7, #4]          // store "off" color (1)
 
   ldr r5, [r2, #POP0_OFFS + INTERP1]    // load foreground color pointer
   ldrb r5, [r5]     // load foreground color value (index)
+  ldr r5, [r3, r5, LSL #2]  // load palette entry
+  str r5, [r7, #8]          // store "on" color (2)
 
   ldr r4, [r2, #POP0_OFFS]    // load bitmap offset
   ldrb r4, [r4]     // load bitmap data
 
-  ldr r6, [r3, r6, LSL #2]  // load palette entry
-  str r6, [r7, #4]          // store "off" color (1)
-  ldr r5, [r3, r5, LSL #2]  // load palette entry
-  str r5, [r7, #8]          // store "on" color (2)
 
 .if \doubled
   write_pixel_multi 6 1 \mapped

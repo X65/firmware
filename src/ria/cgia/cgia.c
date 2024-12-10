@@ -589,24 +589,31 @@ void __scratch_x("") cgia_render(uint y, uint32_t *rgbbuf)
                                 scr_delta -= 7;
                             encode_columns = (uint8_t)(encode_columns - scr_delta / CGIA_COLUMN_PX);
                         }
-                        if (!(plane->regs.bckgnd.flags & PLANE_MASK_DOUBLE_WIDTH))
-                        {
-                            // this mode generates 4x8 cells, so requires 2x columns
-                            encode_columns <<= 1;
-                        }
                         if (plane->regs.bckgnd.flags & PLANE_MASK_TRANSPARENT)
                         {
                             if (plane->regs.bckgnd.flags & PLANE_MASK_DOUBLE_WIDTH)
+                            {
                                 buf = cgia_encode_mode_5_doubled_shared(buf, encode_columns, plane->regs.bckgnd.shared_color);
+                            }
                             else
+                            {
+                                // this mode generates 4x8 cells, so requires 2x columns
+                                encode_columns <<= 1;
                                 buf = cgia_encode_mode_5_shared(buf, encode_columns, plane->regs.bckgnd.shared_color);
+                            }
                         }
                         else
                         {
                             if (plane->regs.bckgnd.flags & PLANE_MASK_DOUBLE_WIDTH)
+                            {
                                 buf = cgia_encode_mode_5_doubled_mapped(buf, encode_columns, plane->regs.bckgnd.shared_color);
+                            }
                             else
+                            {
+                                // this mode generates 4x8 cells, so requires 2x columns
+                                encode_columns <<= 1;
                                 buf = cgia_encode_mode_5_mapped(buf, encode_columns, plane->regs.bckgnd.shared_color);
+                            }
                         }
 
                         // next raster line starts with next byte, but color/bg scan stay the same
