@@ -24,7 +24,7 @@ struct cgia_t
     __scratch_y("") CGIA
     = {0};
 
-static struct cgia_plane_internal
+struct cgia_plane_internal
 {
     uint8_t *memory_scan;
     uint8_t *colour_scan;
@@ -34,14 +34,11 @@ static struct cgia_plane_internal
     interp_hw_save_t interpolator[2];
     bool wait_vbl;
     bool sprites_need_update; // TODO: set when writing CGIA.plane[1].regs.sprite.active
-
-    // work buffer for scanline - used to prepare data for rasterizer
-    // bitmap,fg,bg ; *2 because of hires mode
-    // TODO: remove it - pull data directly from interpolators
-    uint32_t __attribute__((aligned(4))) scanline_buffer[FRAME_CHARS * 3 * 2];
-}
-__attribute__((aligned(4)))
-plane_int[CGIA_PLANES]
+};
+static struct cgia_plane_internal
+    __attribute__((aligned(4)))
+    __scratch_y("")
+        plane_int[CGIA_PLANES]
     = {0};
 
 static uint16_t
