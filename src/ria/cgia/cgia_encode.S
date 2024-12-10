@@ -105,23 +105,27 @@ decl_func cgia_encode_mode_2_mapped
 //////////////////// MODE 3 ////////////////////
 
 // r0 is output RGB buffer
-// r1 is scanline data buffer
-// r2 is width in bytes
+// r1 is width in bytes
 .macro cgia_encode_mode_3_shared_or_mapped mapped
   push {r4-r7, lr}
 
+  ldr r2, =(SIO_BASE + SIO_INTERP0_ACCUM0_OFFSET)
   ldr r3, =cgia_rgb_palette
 
 3:
 .if \mapped
-  ldmia r1!, {r5-r7}  // load 3 words from scanline buffer
-.else
-  ldmia r1!, {r5-r6}  // load 2 words from scanline buffer
+  ldr r7, [r2, #PEEK1_OFFS + INTERP1]   // load background color pointer
+  ldrb r7, [r7]     // load background color value (index)
+  ldr r7, [r3, r7, LSL #2]  // load palette entry
 .endif
 
-  lsls r5, #24        // move LSB to MSB
+  ldr r6, [r2, #POP0_OFFS + INTERP1]    // load foreground color pointer
+  ldrb r6, [r6]     // load foreground color value (index)
   ldr r6, [r3, r6, LSL #2]  // load palette entry
-  ldr r7, [r3, r7, LSL #2]  // load palette entry
+
+  ldr r5, [r2, #POP0_OFFS]    // load bitmap offset
+  ldrb r5, [r5]     // load bitmap data
+  lsls r5, #24        // move LSB to MSB
 
   write_pixel_bmp \mapped
   write_pixel_bmp \mapped
@@ -132,7 +136,7 @@ decl_func cgia_encode_mode_2_mapped
   write_pixel_bmp \mapped
   write_pixel_bmp \mapped
 
-  subs r2, #1
+  subs r1, #1
   bne 3b
 
   pop {r4-r7, pc}
@@ -361,42 +365,3 @@ decl_func cgia_encode_mode_7
   pop {r4-r7, pc}
 .endm
 
-
-//////////////////// SCANLINE BUFFER ////////////////////
-
-// r0 - destination scanline buffer
-// r1 - how many columns to load
-.macro load_scanline_buffer_shared_or_mapped mapped
-  push {r4-r7, lr}
-
-  ldr r2, =(SIO_BASE + SIO_INTERP0_ACCUM0_OFFSET)
-
-1:
-.if \mapped
-  ldr r6, [r2, #PEEK1_OFFS + INTERP1]   // load background color pointer
-  ldrb r6, [r6]     // load background color value (index)
-.endif
-
-  ldr r5, [r2, #POP0_OFFS + INTERP1]    // load foreground color pointer
-  ldrb r5, [r5]     // load foreground color value (index)
-
-  ldr r4, [r2, #POP0_OFFS]    // load bitmap offset
-  ldrb r4, [r4]     // load bitmap data
-
-.if \mapped
-  stmia r0!, {r4-r6}
-.else
-  stmia r0!, {r4-r5}
-.endif
-
-  subs r1, #1
-  bne 1b
-
-  pop {r4-r7, pc}
-.endm
-
-decl_func load_scanline_buffer_shared
-	load_scanline_buffer_shared_or_mapped 0
-
-decl_func load_scanline_buffer_mapped
-	load_scanline_buffer_shared_or_mapped 1

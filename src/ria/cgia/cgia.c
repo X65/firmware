@@ -528,15 +528,14 @@ void __scratch_x("") cgia_render(uint y, uint32_t *rgbbuf)
                     interp_set_accumulator(interp1, 1, (uintptr_t)plane_data->backgr_scan - 1);
                     if (row_columns)
                     {
+                        // TODO: double size
                         if (plane->regs.bckgnd.flags & PLANE_MASK_TRANSPARENT)
                         {
-                            load_scanline_buffer_shared(plane_data->scanline_buffer, row_columns);
-                            buf = cgia_encode_mode_3_shared(buf, plane_data->scanline_buffer, row_columns);
+                            buf = cgia_encode_mode_3_shared(buf, row_columns);
                         }
                         else
                         {
-                            load_scanline_buffer_mapped(plane_data->scanline_buffer, row_columns);
-                            buf = cgia_encode_mode_3_mapped(buf, plane_data->scanline_buffer, row_columns);
+                            buf = cgia_encode_mode_3_mapped(buf, row_columns);
                         }
 
                         // next raster line starts with next byte, but color/bg scan stay the same
