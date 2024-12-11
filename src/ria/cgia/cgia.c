@@ -352,6 +352,9 @@ static void __attribute__((optimize("O3"))) fake_dli_handler(uint y)
     case 158:
         CGIA.back_color = 0x0e;
         break;
+    case 170:
+        CGIA.back_color = 0x41;
+        break;
     case 175:
         CGIA.plane[0].regs.bckgnd.scroll = scroll_grass_09;
         CGIA.plane[0].regs.bckgnd.offset = offset_grass_09;
@@ -363,6 +366,9 @@ static void __attribute__((optimize("O3"))) fake_dli_handler(uint y)
     case 182:
         CGIA.plane[0].regs.bckgnd.scroll = scroll_grass_10;
         CGIA.plane[0].regs.bckgnd.offset = offset_grass_10;
+        break;
+    case 185:
+        CGIA.back_color = 0x40;
         break;
     case 189:
         CGIA.plane[0].regs.bckgnd.scroll = scroll_grass_11;
