@@ -5,12 +5,6 @@
 #include "cgia_encode.h"
 #include "cgia_palette.h"
 
-#include "images/beast-1.h"
-#include "images/beast-2.h"
-#include "images/sotb-1.h"
-#include "images/sotb-2.h"
-#include "images/sotb-3.h"
-
 // #include "sys/mem.h"
 #include "sys/out.h"
 
@@ -83,298 +77,9 @@ int data_chan;
 // DMA channel to fill raster line with background color
 int back_chan;
 
-// ---
-#define EXAMPLE_BORDER_COLOR 145
-#define EXAMPLE_TEXT_COLOR   150
 // FIXME: these should be initialized by CPU Operating System
 static void cgia_data_init(void)
 {
-    CGIA.back_color = EXAMPLE_BORDER_COLOR;
-    CGIA.bckgnd_bank = 0;
-    CGIA.sprite_bank = 1;
-
-    uint8_t *vdo_bank = vram_cache[0];
-    uint8_t *spr_bank = vram_cache[1];
-
-    uint8_t p;
-
-    p = 0;
-    CGIA.planes |= (0x01 << p);
-    CGIA.plane[p].regs.bckgnd.flags = PLANE_MASK_DOUBLE_WIDTH | PLANE_MASK_TRANSPARENT | PLANE_MASK_BORDER_TRANSPARENT;
-    CGIA.plane[p].regs.bckgnd.shared_color[0] = 0;
-    CGIA.plane[p].regs.bckgnd.shared_color[1] = 0;
-    CGIA.plane[p].regs.bckgnd.row_height = 7;
-    CGIA.plane[p].regs.bckgnd.border_columns = border_columns_1;
-    CGIA.plane[p].regs.bckgnd.scroll = 0;
-    CGIA.plane[p].regs.bckgnd.offset = 0;
-    CGIA.plane[p].regs.bckgnd.stride = 80;
-    for (uint i = 0; i < 25; ++i)
-    {
-        memcpy(vdo_bank + video_offset_1 + i * 640, bitmap_data_1 + i * 320, 320);
-        memcpy(vdo_bank + video_offset_1 + i * 640 + 320, bitmap_data_1 + i * 320, 320);
-        memcpy(vdo_bank + color_offset_1 + i * 80, color_data_1 + i * 40, 40);
-        memcpy(vdo_bank + color_offset_1 + i * 80 + 40, color_data_1 + i * 40, 40);
-        memcpy(vdo_bank + bkgnd_offset_1 + i * 80, bkgnd_data_1 + i * 40, 40);
-        memcpy(vdo_bank + bkgnd_offset_1 + i * 80 + 40, bkgnd_data_1 + i * 40, 40);
-    }
-    memcpy(vdo_bank + dl_offset_1, display_list_1, sizeof(display_list_1));
-    CGIA.plane[p].offset = dl_offset_1;
-
-    p = 1;
-    CGIA.planes |= (0x01 << p);
-    CGIA.plane[p].regs.bckgnd.flags = PLANE_MASK_DOUBLE_WIDTH | PLANE_MASK_TRANSPARENT | PLANE_MASK_BORDER_TRANSPARENT;
-    CGIA.plane[p].regs.bckgnd.shared_color[0] = 0;
-    CGIA.plane[p].regs.bckgnd.shared_color[1] = 0;
-    CGIA.plane[p].regs.bckgnd.row_height = 7;
-    CGIA.plane[p].regs.bckgnd.border_columns = border_columns_2;
-    CGIA.plane[p].regs.bckgnd.scroll = 0;
-    CGIA.plane[p].regs.bckgnd.offset = 0;
-    CGIA.plane[p].regs.bckgnd.stride = 80;
-    for (uint i = 0; i < 25; ++i)
-    {
-        memcpy(vdo_bank + video_offset_2 + i * 640, bitmap_data_2 + i * 320, 320);
-        memcpy(vdo_bank + video_offset_2 + i * 640 + 320, bitmap_data_2 + i * 320, 320);
-        memcpy(vdo_bank + color_offset_2 + i * 80, color_data_2 + i * 40, 40);
-        memcpy(vdo_bank + color_offset_2 + i * 80 + 40, color_data_2 + i * 40, 40);
-        memcpy(vdo_bank + bkgnd_offset_2 + i * 80, bkgnd_data_2 + i * 40, 40);
-        memcpy(vdo_bank + bkgnd_offset_2 + i * 80 + 40, bkgnd_data_2 + i * 40, 40);
-    }
-    memcpy(vdo_bank + dl_offset_2, display_list_2, sizeof(display_list_2));
-    CGIA.plane[p].offset = dl_offset_2;
-
-    p = 2;
-    CGIA.planes |= (0x01 << p);
-    CGIA.plane[p].regs.bckgnd.flags = PLANE_MASK_DOUBLE_WIDTH | PLANE_MASK_TRANSPARENT;
-    CGIA.plane[p].regs.bckgnd.shared_color[0] = 0;
-    CGIA.plane[p].regs.bckgnd.shared_color[1] = 0;
-    CGIA.plane[p].regs.bckgnd.row_height = 7;
-    CGIA.plane[p].regs.bckgnd.border_columns = border_columns_3;
-    CGIA.plane[p].regs.bckgnd.scroll = 0;
-    CGIA.plane[p].regs.bckgnd.offset = 0;
-    CGIA.plane[p].regs.bckgnd.stride = 80;
-    for (uint i = 0; i < 25; ++i)
-    {
-        memcpy(vdo_bank + video_offset_3 + i * 640, bitmap_data_3 + i * 320, 320);
-        memcpy(vdo_bank + video_offset_3 + i * 640 + 320, bitmap_data_3 + i * 320, 320);
-        memcpy(vdo_bank + color_offset_3 + i * 80, color_data_3 + i * 40, 40);
-        memcpy(vdo_bank + color_offset_3 + i * 80 + 40, color_data_3 + i * 40, 40);
-        memcpy(vdo_bank + bkgnd_offset_3 + i * 80, bkgnd_data_3 + i * 40, 40);
-        memcpy(vdo_bank + bkgnd_offset_3 + i * 80 + 40, bkgnd_data_3 + i * 40, 40);
-    }
-    memcpy(vdo_bank + dl_offset_3, display_list_3, sizeof(display_list_3));
-    CGIA.plane[p].offset = dl_offset_3;
-
-    const int sprite_no = 2;
-    struct cgia_sprite_t *sprites = (struct cgia_sprite_t *)(spr_bank + spr_desc_offset);
-    p = 3;
-    CGIA.planes |= (0x11 << p);
-    CGIA.plane[p].regs.sprite.active = 0b00000011;
-    CGIA.plane[p].offset = spr_desc_offset;
-    for (uint8_t i = 0; i < sprite_no; ++i)
-    {
-        sprites[i].flags = SPRITE_MASK_MULTICOLOR;
-        sprites[i].flags |= (8) - 1; // width
-        sprites[i].lines_y = 52;
-        sprites[i].color[0] = 0x99;
-        sprites[i].color[1] = 0x9A;
-        sprites[i].color[2] = 0x9B;
-        sprites[i].pos_x = 180;
-        sprites[i].pos_y = 125 + 20;
-    }
-    sprites[0].color[0] = 0x0A;
-    sprites[0].color[1] = 0x6A;
-    sprites[0].color[2] = 0x06;
-    sprites[1].color[0] = 0x99;
-    sprites[1].color[1] = 0x9A;
-    sprites[1].color[2] = 0x9B;
-    memcpy(spr_bank + spr1_offset, spr_bitmap1_data, sizeof(spr_bitmap1_data));
-    memcpy(spr_bank + spr2_offset, spr_bitmap2_data, sizeof(spr_bitmap2_data));
-    sprites[0].data_offset = spr2_offset;
-    sprites[1].data_offset = spr1_offset;
-}
-
-static uint scroll = 0;
-static int8_t scroll_moon = 0;
-static int8_t offset_moon = 0;
-static int8_t scroll_clouds_01 = 0;
-static int8_t offset_clouds_01 = 0;
-static int8_t scroll_clouds_02 = 0;
-static int8_t offset_clouds_02 = 0;
-static int8_t scroll_clouds_03 = 0;
-static int8_t offset_clouds_03 = 0;
-static int8_t scroll_clouds_04 = 0;
-static int8_t offset_clouds_04 = 0;
-static int8_t scroll_clouds_05 = 0;
-static int8_t offset_clouds_05 = 0;
-static int8_t scroll_hills_06 = 0;
-static int8_t offset_hills_06 = 0;
-static int8_t scroll_grass_07 = 0;
-static int8_t offset_grass_07 = 0;
-static int8_t scroll_trees_08 = 0;
-static int8_t offset_trees_08 = 0;
-static int8_t scroll_grass_09 = 0;
-static int8_t offset_grass_09 = 0;
-static int8_t scroll_grass_10 = 0;
-static int8_t offset_grass_10 = 0;
-static int8_t scroll_grass_11 = 0;
-static int8_t offset_grass_11 = 0;
-static int8_t scroll_fence_12 = 0;
-static int8_t offset_fence_12 = 0;
-
-#define SCROLL_MAX 9600
-
-// ------- fake VBL --- FIXME: remove this
-static void __attribute__((optimize("O3"))) fake_vbl(void)
-{
-    CGIA.back_color = 0x8b;
-
-    scroll += 3;
-    if (scroll >= SCROLL_MAX)
-        scroll = 0;
-
-    // 01: 3300px
-    const uint scroll_01 = (scroll * 3520 / SCROLL_MAX) % 320;
-    scroll_clouds_01 = -(scroll_01 % 8);
-    offset_clouds_01 = (int8_t)(scroll_01 / 8);
-    // 02: 2700px
-    const uint scroll_02 = (scroll * 2880 / SCROLL_MAX) % 320;
-    scroll_clouds_02 = -(scroll_02 % 8);
-    offset_clouds_02 = (int8_t)(scroll_02 / 8);
-    // 03: 2500
-    const uint scroll_03 = (scroll * 2560 / SCROLL_MAX) % 320;
-    scroll_clouds_03 = -(scroll_03 % 8);
-    offset_clouds_03 = (int8_t)(scroll_03 / 8);
-    // 04: 2200
-    const uint scroll_04 = (scroll * 2240 / SCROLL_MAX) % 320;
-    scroll_clouds_04 = -(scroll_04 % 8);
-    offset_clouds_04 = (int8_t)(scroll_04 / 8);
-    // 05: 2000
-    const uint scroll_05 = (scroll * 1920 / SCROLL_MAX) % 320;
-    scroll_clouds_05 = -(scroll_05 % 8);
-    offset_clouds_05 = (int8_t)(scroll_05 / 8);
-    // 06: 2700
-    const uint scroll_06 = (scroll * 2880 / SCROLL_MAX) % 320;
-    scroll_hills_06 = -(scroll_06 % 8);
-    offset_hills_06 = (int8_t)(scroll_06 / 8);
-    // 07: 3400
-    const uint scroll_07 = (scroll * 3520 / SCROLL_MAX) % 320;
-    scroll_grass_07 = -(scroll_07 % 8);
-    offset_grass_07 = (int8_t)(scroll_07 / 8);
-    // 08: 4500
-    const uint scroll_08 = (scroll * 4480 / SCROLL_MAX) % 320;
-    scroll_trees_08 = -(scroll_08 % 8);
-    offset_trees_08 = (int8_t)(scroll_08 / 8);
-    // 09: 5400
-    const uint scroll_09 = (scroll * 5440 / SCROLL_MAX) % 320;
-    scroll_grass_09 = -(scroll_09 % 8);
-    offset_grass_09 = (int8_t)(scroll_09 / 8);
-    // 10: 6800
-    const uint scroll_10 = (scroll * 6720 / SCROLL_MAX) % 320;
-    scroll_grass_10 = -(scroll_10 % 8);
-    offset_grass_10 = (int8_t)(scroll_10 / 8);
-    // 11: 8200
-    const uint scroll_11 = (scroll * 8320 / SCROLL_MAX) % 320;
-    scroll_grass_11 = -(scroll_11 % 8);
-    offset_grass_11 = (int8_t)(scroll_11 / 8);
-    // 12: 9600
-    const uint scroll_12 = (scroll * 9600 / SCROLL_MAX) % 320;
-    scroll_fence_12 = -(scroll_12 % 8);
-    offset_fence_12 = (int8_t)(scroll_12 / 8);
-
-    const uint8_t sprite_frame = (scroll / 20) % 6;
-    uint8_t *spr_bank = vram_cache[1];
-    struct cgia_sprite_t *sprites = (struct cgia_sprite_t *)(spr_bank + spr_desc_offset);
-    const uint16_t sprite_frame_offset = sprite_frame * 8 * 52;
-    sprites[0].data_offset = spr2_offset + sprite_frame_offset;
-    sprites[1].data_offset = spr1_offset + sprite_frame_offset;
-}
-
-static void __attribute__((optimize("O3"))) fake_dli_handler(uint y)
-{
-    switch (y - 20) // subtract top border size
-    {
-    case 0:
-        CGIA.plane[0].regs.bckgnd.scroll = scroll_moon;
-        CGIA.plane[0].regs.bckgnd.offset = offset_moon;
-        CGIA.plane[1].regs.bckgnd.scroll = scroll_clouds_01;
-        CGIA.plane[1].regs.bckgnd.offset = offset_clouds_01;
-        CGIA.plane[2].regs.bckgnd.scroll = scroll_trees_08;
-        CGIA.plane[2].regs.bckgnd.offset = offset_trees_08;
-        break;
-    case 21:
-        CGIA.plane[1].regs.bckgnd.scroll = scroll_clouds_02;
-        CGIA.plane[1].regs.bckgnd.offset = offset_clouds_02;
-        break;
-    case 61:
-        CGIA.plane[1].regs.bckgnd.scroll = scroll_clouds_03;
-        CGIA.plane[1].regs.bckgnd.offset = offset_clouds_03;
-        break;
-    case 72:
-        CGIA.plane[0].regs.bckgnd.scroll = scroll_hills_06;
-        CGIA.plane[0].regs.bckgnd.offset = offset_hills_06;
-        break;
-    case 76:
-        CGIA.back_color = 0x9b;
-        break;
-    case 80:
-        CGIA.plane[1].regs.bckgnd.scroll = scroll_clouds_04;
-        CGIA.plane[1].regs.bckgnd.offset = offset_clouds_04;
-        break;
-    case 89:
-        CGIA.plane[1].regs.bckgnd.scroll = scroll_clouds_05;
-        CGIA.plane[1].regs.bckgnd.offset = offset_clouds_05;
-        break;
-    case 96:
-        CGIA.plane[1].regs.bckgnd.scroll = scroll_grass_07;
-        CGIA.plane[1].regs.bckgnd.offset = offset_grass_07;
-        break;
-    case 103:
-        CGIA.back_color = 0xa4;
-        break;
-    case 117:
-        CGIA.back_color = 0xb4;
-        break;
-    case 127:
-        CGIA.back_color = 0xc4;
-        break;
-    case 135:
-        CGIA.back_color = 0xcd;
-        break;
-    case 142:
-        CGIA.back_color = 0xdd;
-        break;
-    case 148:
-        CGIA.back_color = 0xed;
-        break;
-    case 154:
-        CGIA.back_color = 0xf6;
-        break;
-    case 158:
-        CGIA.back_color = 0x0e;
-        break;
-    case 170:
-        CGIA.back_color = 0x41;
-        break;
-    case 175:
-        CGIA.plane[0].regs.bckgnd.scroll = scroll_grass_09;
-        CGIA.plane[0].regs.bckgnd.offset = offset_grass_09;
-        break;
-    case 178:
-        CGIA.plane[1].regs.bckgnd.scroll = scroll_fence_12;
-        CGIA.plane[1].regs.bckgnd.offset = offset_fence_12;
-        break;
-    case 182:
-        CGIA.plane[0].regs.bckgnd.scroll = scroll_grass_10;
-        CGIA.plane[0].regs.bckgnd.offset = offset_grass_10;
-        break;
-    case 185:
-        CGIA.back_color = 0x40;
-        break;
-    case 189:
-        CGIA.plane[0].regs.bckgnd.scroll = scroll_grass_11;
-        CGIA.plane[0].regs.bckgnd.offset = offset_grass_11;
-        break;
-    }
 }
 
 void cgia_init(void)
@@ -485,11 +190,13 @@ static inline uint32_t *fill_back(
     return buf + pixels;
 }
 
-void __scratch_x("") cgia_render(uint y, uint32_t *rgbbuf)
+static void __scratch_x("") __attribute__((optimize("O1"))) cgia_render_planar(uint y, uint32_t *rgbbuf)
 {
     static struct cgia_plane_t *plane;
     static struct cgia_plane_internal *plane_data;
     static uint16_t(*sprite_dscs)[CGIA_SPRITES];
+
+#define CGIA CGIA.pl
 
     // track whether we need to fill line with background color
     // for transparent or sprite planes
@@ -996,13 +703,28 @@ void __scratch_x("") cgia_render(uint y, uint32_t *rgbbuf)
             interp_save(interp1, &plane_data->interpolator[1]);
         }
     }
+#undef CGIA
+}
 
-    fake_dli_handler((y + 1) % FRAME_HEIGHT); // FIXME: remove me
+static void __scratch_x("") __attribute__((optimize("O1"))) cgia_render_vt(uint y, uint32_t *rgbbuf)
+{
+#define CGIA CGIA.vt
+#undef CGIA
+}
+
+void __scratch_x("") cgia_render(uint y, uint32_t *rgbbuf)
+{
+    if (CGIA.mode & CGIA_MODE_VT)
+    {
+        cgia_render_vt(y, rgbbuf);
+    }
+    else
+    {
+        cgia_render_planar(y, rgbbuf);
+    }
 }
 
 void __scratch_x("") cgia_vbl(void)
 {
     // TODO: trigger CPU NMI
-
-    fake_vbl();
 }

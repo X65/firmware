@@ -96,7 +96,7 @@ struct cgia_plane_t
 #define PLANE_MASK_BORDER_TRANSPARENT 0b00001000
 #define PLANE_MASK_DOUBLE_WIDTH       0b00010000
 
-struct cgia_t
+struct cgia_planar_t
 {
     uint8_t planes; // [TTTTEEEE] EEEE - enable bits, TTTT - type (0 bckgnd, 1 sprite)
 
@@ -107,6 +107,38 @@ struct cgia_t
 
     struct cgia_plane_t plane[CGIA_PLANES];
 };
+
+struct cgia_vt_t
+{
+    uint8_t flags;
+    uint8_t bank;
+    uint16_t char_offset;
+    uint16_t fg_attr_offset;
+    uint16_t bg_attr_offset;
+    uint8_t fg_color;
+    uint8_t bg_color;
+    uint16_t palette_offset;
+    uint16_t chargen_offset;
+    uint16_t sprite_offset;
+};
+
+#define VT_MASK_60_ROWS        0b00000001
+#define VT_MASK_SPRITE_ACTIVE  0b00000010
+#define VT_MASK_PALETTE_ACTIVE 0b00010000
+#define VT_MASK_CHARGEN_ACTIVE 0b00100000
+
+struct cgia_t
+{
+    uint8_t mode;
+    union
+    {
+        struct cgia_planar_t pl;
+        struct cgia_vt_t vt;
+    };
+};
+
+#define CGIA_MODE_PLANAR 0b00000000
+#define CGIA_MODE_VT     0b00000001
 
 extern struct cgia_t CGIA;
 
