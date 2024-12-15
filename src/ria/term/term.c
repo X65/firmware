@@ -64,7 +64,7 @@ typedef struct term_state
     uint8_t csi_param_count;
 } term_state_t;
 
-static term_state_t term_80;
+static term_state_t term_96;
 
 static void term_clean_line(term_state_t *term, uint8_t y)
 {
@@ -551,20 +551,20 @@ static void term_out_chars(const char *buf, int length)
 {
     if (length)
     {
-        term_cursor_set_inv(&term_80, false);
+        term_cursor_set_inv(&term_96, false);
         for (int i = 0; i < length; i++)
         {
-            term_out_char(&term_80, buf[i]);
+            term_out_char(&term_96, buf[i]);
         }
-        term_80.timer = get_absolute_time();
+        term_96.timer = get_absolute_time();
     }
 }
 
 void term_init(void)
 {
     // prepare console
-    static term_data_t term80_mem[80 * TERM_MAX_HEIGHT];
-    term_state_init(&term_80, 80, term80_mem);
+    static term_data_t term96_mem[96 * TERM_MAX_HEIGHT];
+    term_state_init(&term_96, 96, term96_mem);
     // become part of stdout
     static stdio_driver_t term_stdio = {
         .out_chars = term_out_chars,
@@ -592,8 +592,8 @@ static void term_blink_cursor(term_state_t *term)
 
 void term_task(void)
 {
-    term_blink_cursor(&term_80);
-    term_clean_task(&term_80);
+    term_blink_cursor(&term_96);
+    term_clean_task(&term_96);
 }
 
 void
@@ -606,12 +606,12 @@ void
     interp_set_config(interp0, 1, &cfg);
     interp_set_base(interp0, 0, sizeof(term_data_t));
 
-    int mem_y = y / 8 + term_80.y_offset;
+    int mem_y = y / 8 + term_96.y_offset;
     if (mem_y >= TERM_MAX_HEIGHT)
         mem_y -= TERM_MAX_HEIGHT;
-    term_data_t *term_ptr = term_80.mem + 80 * mem_y;
+    term_data_t *term_ptr = term_96.mem + term_96.width * mem_y;
 
     interp_set_accumulator(interp0, 0, (uintptr_t)term_ptr - sizeof(term_data_t) + offsetof(term_data_t, font_code));
 
-    cgia_encode_vt(rgbbuf, 80, &font8[(y & 7)], 3u);
+    cgia_encode_vt(rgbbuf, term_96.width, &font8[(y & 7)], 3u);
 }
