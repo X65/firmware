@@ -45,6 +45,7 @@ static void init(void)
     cpu_init();
     bus_init();
     font_init(); // before out_init (copies data from flash before overclocking)
+    term_init();
     cgia_init();
     out_init();
     term_init();

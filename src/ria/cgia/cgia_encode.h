@@ -13,6 +13,11 @@ uint32_t *__not_in_flash_func(cgia_encode_mode_2_mapped)(
     uint32_t columns,
     uint8_t *character_generator,
     uint32_t char_shift);
+uint32_t *__not_in_flash_func(cgia_encode_vt)(
+    uint32_t *rgbbuf,
+    uint32_t columns,
+    uint8_t *character_generator,
+    uint32_t char_shift);
 
 uint32_t *__not_in_flash_func(cgia_encode_mode_3_shared)(
     uint32_t *rgbbuf,

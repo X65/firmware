@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2023 Rumbledethumps
+ * Copyright (c) 2024 Tomasz Sterna
  *
  * SPDX-License-Identifier: BSD-3-Clause
  */
@@ -11,7 +12,6 @@
 
 void term_init(void);
 void term_task(void);
-void term_clear(void);
-void term_render(uint y, uint32_t *tmdsbuf);
+void term_render(uint y, uint32_t *rgbbuf);
 
 #endif /* _TERM_H_ */

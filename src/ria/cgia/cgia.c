@@ -4,6 +4,8 @@
 #include "cgia.h"
 #include "cgia_encode.h"
 #include "cgia_palette.h"
+#include "main.h"
+#include "term/term.h"
 
 // #include "sys/mem.h"
 #include "sys/out.h"
@@ -442,7 +444,6 @@ static void __scratch_x("") __attribute__((optimize("O1"))) cgia_render_planar(u
                     buf += plane->regs.bckgnd.scroll;
 
                     // If it is not MODE7, use dfault interpolator configuration
-                    // TODO: possibly MODE7 config could be used for normal operation
                     interp_config cfg = interp_default_config();
                     interp_config_set_add_raw(&cfg, true);
                     interp_set_config(interp0, 0, &cfg);
@@ -714,7 +715,11 @@ static void __scratch_x("") __attribute__((optimize("O1"))) cgia_render_vt(uint 
 
 void __scratch_x("") cgia_render(uint y, uint32_t *rgbbuf)
 {
-    if (CGIA.mode & CGIA_MODE_VT)
+    if (!main_active())
+    {
+        term_render(y, rgbbuf);
+    }
+    else if (CGIA.mode & CGIA_MODE_VT)
     {
         cgia_render_vt(y, rgbbuf);
     }

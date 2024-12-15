@@ -117,15 +117,14 @@ struct cgia_vt_t
     uint16_t bg_attr_offset;
     uint8_t fg_color;
     uint8_t bg_color;
-    uint16_t palette_offset;
     uint16_t chargen_offset;
     uint16_t sprite_offset;
 };
 
 #define VT_MASK_60_ROWS        0b00000001
 #define VT_MASK_SPRITE_ACTIVE  0b00000010
-#define VT_MASK_PALETTE_ACTIVE 0b00010000
-#define VT_MASK_CHARGEN_ACTIVE 0b00100000
+#define VT_MASK_CGIA_PALETTE   0b00001000
+#define VT_MASK_CHARGEN_ACTIVE 0b00010000
 
 struct cgia_t
 {

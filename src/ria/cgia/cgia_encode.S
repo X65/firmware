@@ -101,6 +101,43 @@ decl_func cgia_encode_mode_2_shared
 decl_func cgia_encode_mode_2_mapped
 	cgia_encode_mode_2_shared_or_mapped 1
 
+// r0 is output RGB buffer
+// r1 is width in bytes
+// r2 - character generator address
+// r3 - character length in shift amount
+decl_func cgia_encode_vt
+  push {r4-r7, lr}
+
+  ldr ip, =(SIO_BASE + SIO_INTERP0_ACCUM0_OFFSET)
+
+3:
+  ldr r5, [ip, #POP0_OFFS]    // load character code offset
+  mov r6, r5
+  mov r7, r5
+  adds r6, 4        // move to fg color value
+  ldr r6, [r6]      // load foreground color value
+  adds r7, 8        // move to bg color value
+  ldr r7, [r7]      // load background color value
+  ldrb r5, [r5]     // load character code
+  lsls r5, r3       // multiply by character height
+  ldrb r5, [r2, r5] // load character line bitmap data
+
+  lsls r5, #24      // move LSB to MSB
+
+  write_pixel_bmp 1
+  write_pixel_bmp 1
+  write_pixel_bmp 1
+  write_pixel_bmp 1
+  write_pixel_bmp 1
+  write_pixel_bmp 1
+  write_pixel_bmp 1
+  write_pixel_bmp 1
+
+  subs r1, #1
+  bne 3b
+
+  pop {r4-r7, pc}
+
 
 //////////////////// MODE 3 ////////////////////
 
