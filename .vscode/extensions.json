@@ -1,12 +1,13 @@
 {
   "recommendations": [
-    "marus25.cortex-debug",
     "ms-vscode.cpptools",
     "ms-vscode.cpptools-extension-pack",
+    "ms-vscode.cmake-tools",
     "ms-vscode.vscode-serial-monitor",
     "dan-c-underwood.arm",
-    "tlgkccampbell.code-ca65",
+    "marus25.cortex-debug",
     "chris-hock.pioasm",
+    "tlgkccampbell.code-ca65",
     "llvm-vs-code-extensions.vscode-clangd",
     "streetsidesoftware.code-spell-checker"
   ]
