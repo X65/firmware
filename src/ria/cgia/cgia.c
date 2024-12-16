@@ -79,11 +79,6 @@ int data_chan;
 // DMA channel to fill raster line with background color
 int back_chan;
 
-// FIXME: these should be initialized by CPU Operating System
-static void cgia_data_init(void)
-{
-}
-
 void cgia_init(void)
 {
     // All planes should initially wait for VBL
@@ -136,8 +131,6 @@ void cgia_init(void)
         NULL,
         DISPLAY_WIDTH_PIXELS,
         false);
-
-    cgia_data_init();
 }
 
 static uint8_t
@@ -192,13 +185,11 @@ static inline uint32_t *fill_back(
     return buf + pixels;
 }
 
-static void __scratch_x("") __attribute__((optimize("O1"))) cgia_render_planar(uint y, uint32_t *rgbbuf)
+void __scratch_x("") __attribute__((optimize("O1"))) cgia_render(uint y, uint32_t *rgbbuf)
 {
     static struct cgia_plane_t *plane;
     static struct cgia_plane_internal *plane_data;
     static uint16_t(*sprite_dscs)[CGIA_SPRITES];
-
-#define CGIA CGIA.pl
 
     // track whether we need to fill line with background color
     // for transparent or sprite planes
@@ -703,29 +694,6 @@ static void __scratch_x("") __attribute__((optimize("O1"))) cgia_render_planar(u
             interp_save(interp0, &plane_data->interpolator[0]);
             interp_save(interp1, &plane_data->interpolator[1]);
         }
-    }
-#undef CGIA
-}
-
-static void __scratch_x("") __attribute__((optimize("O1"))) cgia_render_vt(uint y, uint32_t *rgbbuf)
-{
-#define CGIA CGIA.vt
-#undef CGIA
-}
-
-void __scratch_x("") cgia_render(uint y, uint32_t *rgbbuf)
-{
-    if (!main_active())
-    {
-        term_render(y, rgbbuf);
-    }
-    else if (CGIA.mode & CGIA_MODE_VT)
-    {
-        cgia_render_vt(y, rgbbuf);
-    }
-    else
-    {
-        cgia_render_planar(y, rgbbuf);
     }
 }
 

@@ -17,6 +17,7 @@
 #include "cgia/cgia.h"
 #include "main.h"
 #include "out.h"
+#include "term/term.h"
 
 #include <limits.h>
 #include <stdio.h>
@@ -46,7 +47,7 @@
 #define MODE_V_ACTIVE_LINES  480
 #define MODE_BIT_CLK_KHZ     287500
 
-#define FB_H_REPEAT 2
+#define FB_H_REPEAT 1
 #define FB_V_REPEAT 2
 
 // ----------------------------------------------------------------------------
@@ -62,6 +63,8 @@ static uint gen_scanline = UINT_MAX;
 static io_rw_32 gen_line_ptr;
 
 static bool trigger_vbl = false;
+
+static uint pixel_doubling = FB_H_REPEAT ? 1 : 0;
 
 // ----------------------------------------------------------------------------
 // DVI constants
@@ -167,6 +170,23 @@ void __isr __scratch_x("") dma_irq_handler(void)
         ch->transfer_count = count_of(vblank_line_vsync_on);
 
         a_scanline = 0;
+
+        if (!main_active() && pixel_doubling)
+        {
+            pixel_doubling = 0;
+            hstx_ctrl_hw->expand_shift = 1 << HSTX_CTRL_EXPAND_SHIFT_ENC_N_SHIFTS_LSB
+                                         | 0 << HSTX_CTRL_EXPAND_SHIFT_ENC_SHIFT_LSB
+                                         | 1 << HSTX_CTRL_EXPAND_SHIFT_RAW_N_SHIFTS_LSB
+                                         | 0 << HSTX_CTRL_EXPAND_SHIFT_RAW_SHIFT_LSB;
+        }
+        else if (main_active() && !pixel_doubling)
+        {
+            pixel_doubling = 1;
+            hstx_ctrl_hw->expand_shift = 2 << HSTX_CTRL_EXPAND_SHIFT_ENC_N_SHIFTS_LSB
+                                         | 0 << HSTX_CTRL_EXPAND_SHIFT_ENC_SHIFT_LSB
+                                         | 1 << HSTX_CTRL_EXPAND_SHIFT_RAW_N_SHIFTS_LSB
+                                         | 0 << HSTX_CTRL_EXPAND_SHIFT_RAW_SHIFT_LSB;
+        }
     }
     else if (v_scanline < MODE_V_FRONT_PORCH + MODE_V_SYNC_WIDTH + MODE_V_BACK_PORCH)
     {
@@ -191,7 +211,7 @@ void __isr __scratch_x("") dma_irq_handler(void)
             gen_line_ptr = ptr;
         }
         ch->read_addr = cur_line_ptr;
-        ch->transfer_count = MODE_H_ACTIVE_PIXELS / FB_H_REPEAT;
+        ch->transfer_count = MODE_H_ACTIVE_PIXELS >> pixel_doubling;
         vactive_cmdlist_posted = false;
 
         ++a_scanline;
@@ -330,7 +350,14 @@ void __not_in_flash_func(out_core1_main)(void)
             uint generated_raster = gen_scanline / FB_V_REPEAT;
             if (generated_raster != active_raster)
             {
-                cgia_render(active_raster, (uint32_t *)gen_line_ptr);
+                if (pixel_doubling)
+                {
+                    cgia_render(active_raster, (uint32_t *)gen_line_ptr);
+                }
+                else
+                {
+                    term_render(active_raster, (uint32_t *)gen_line_ptr);
+                }
                 gen_scanline = active_scanline;
             }
         }

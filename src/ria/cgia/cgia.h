@@ -21,13 +21,13 @@
 
     bit 3 set (8-F) - generate mode row:
     Bits 0-2 encode the mode:
-    0 - HighRes text (80/96 columns) mode
-    1 - HighRes bitmap mode, 256 colors
+    0 - [TBD]
+    1 - [TBD]
     2 - text/tile mode
     3 - bitmap mode
     4 - multicolor text/tile mode
     5 - multicolor bitmap mode
-    6 - [RESERVED]
+    6 - [TBD]
     7 - affine transform chunky, 256 colors
 
     bit 7 - trigger DLI - Display List Interrupt
@@ -96,7 +96,7 @@ struct cgia_plane_t
 #define PLANE_MASK_BORDER_TRANSPARENT 0b00001000
 #define PLANE_MASK_DOUBLE_WIDTH       0b00010000
 
-struct cgia_planar_t
+struct cgia_t
 {
     uint8_t planes; // [TTTTEEEE] EEEE - enable bits, TTTT - type (0 bckgnd, 1 sprite)
 
@@ -107,37 +107,6 @@ struct cgia_planar_t
 
     struct cgia_plane_t plane[CGIA_PLANES];
 };
-
-struct cgia_vt_t
-{
-    uint8_t flags;
-    uint8_t bank;
-    uint16_t char_offset;
-    uint16_t fg_attr_offset;
-    uint16_t bg_attr_offset;
-    uint8_t fg_color;
-    uint8_t bg_color;
-    uint16_t chargen_offset;
-    uint16_t sprite_offset;
-};
-
-#define VT_MASK_60_ROWS        0b00000001
-#define VT_MASK_SPRITE_ACTIVE  0b00000010
-#define VT_MASK_CGIA_PALETTE   0b00001000
-#define VT_MASK_CHARGEN_ACTIVE 0b00010000
-
-struct cgia_t
-{
-    uint8_t mode;
-    union
-    {
-        struct cgia_planar_t pl;
-        struct cgia_vt_t vt;
-    };
-};
-
-#define CGIA_MODE_PLANAR 0b00000000
-#define CGIA_MODE_VT     0b00000001
 
 extern struct cgia_t CGIA;
 
