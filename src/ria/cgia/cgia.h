@@ -59,8 +59,10 @@ struct cgia_plane_t
             uint8_t row_height;
             uint8_t stride;
             uint8_t shared_color[2];
-            int8_t scroll;
-            int8_t offset;
+            int8_t scroll_x;
+            int8_t offset_x;
+            int8_t scroll_y;
+            int8_t offset_y;
         } bckgnd;
 
         struct cgia_affine_regs
@@ -141,6 +143,7 @@ struct cgia_sprite_t
 #define SPRITE_MASK_MIRROR_X     0b00100000
 #define SPRITE_MASK_MIRROR_Y     0b01000000
 
+// ---- internals ----
 void cgia_init(void);
 void cgia_render(uint y, uint32_t *rgbbuf);
 void cgia_vbl(void);

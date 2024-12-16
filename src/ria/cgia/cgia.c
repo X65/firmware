@@ -432,7 +432,7 @@ void __scratch_x("") __attribute__((optimize("O1"))) cgia_render(uint y, uint32_
                 uint32_t *buf = rgbbuf + border_columns * CGIA_COLUMN_PX;
                 if (instr_code != (0x7 | CGIA_MODE_BIT))
                 {
-                    buf += plane->regs.bckgnd.scroll;
+                    buf += plane->regs.bckgnd.scroll_x;
 
                     // If it is not MODE7, use dfault interpolator configuration
                     interp_config cfg = interp_default_config();
@@ -539,7 +539,7 @@ void __scratch_x("") __attribute__((optimize("O1"))) cgia_render(uint y, uint32_
                 case (0x5 | CGIA_MODE_BIT): // MODE5 (D) - multicolor bitmap mode
                 {
                     {
-                        int offset_delta = plane->regs.bckgnd.offset - 1;
+                        int offset_delta = plane->regs.bckgnd.offset_x - 1;
                         interp_set_accumulator(interp1, 0, (uintptr_t)plane_data->colour_scan + offset_delta);
                         interp_set_accumulator(interp1, 1, (uintptr_t)plane_data->backgr_scan + offset_delta);
                         uint8_t row_height = plane->regs.bckgnd.row_height;
@@ -552,7 +552,7 @@ void __scratch_x("") __attribute__((optimize("O1"))) cgia_render(uint y, uint32_
                         uint8_t encode_columns = row_columns;
                         if (plane->regs.bckgnd.stride)
                         {
-                            int8_t scr_delta = plane->regs.bckgnd.scroll;
+                            int8_t scr_delta = plane->regs.bckgnd.scroll_x;
                             if (scr_delta < 0)
                                 scr_delta -= 7;
                             encode_columns = (uint8_t)(encode_columns - scr_delta / CGIA_COLUMN_PX);
