@@ -82,6 +82,9 @@ struct cgia_plane_t
         struct cgia_sprite_regs
         {
             uint8_t active; // bitmask for active sprites
+            uint8_t border_columns;
+            int8_t start_y;
+            int8_t stop_y;
         } sprite;
     } regs;
 };
