@@ -27,8 +27,8 @@
     3 - bitmap mode
     4 - multicolor text/tile mode
     5 - multicolor bitmap mode
-    6 - [TBD]
-    7 - affine transform chunky, 256 colors
+    6 - Hold-and-Modify (HAM) mode
+    7 - affine transform chunky pixel mode
 
     bit 7 - trigger DLI - Display List Interrupt
 */
