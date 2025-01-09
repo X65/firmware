@@ -1,6 +1,7 @@
 #!/usr/bin/env -S deno run --allow-read=. --allow-write=.
 
 import { assert } from "jsr:@std/assert";
+import { basename } from "jsr:@std/path";
 import { Args } from "jsr:@std/cli/parse-args";
 import { red, yellow } from "jsr:@std/fmt/colors";
 import { validateArgs, type ScriptDefinition } from "jsr:@ploiu/arg-helper";
@@ -14,6 +15,7 @@ const default_args = {
   double: false,
   threshold: 33.3,
   greys: true,
+  type: "header",
 };
 
 const supported_palettes = [
@@ -23,6 +25,7 @@ const supported_palettes = [
   "fixed([00,]11,22,33)",
 ];
 const supported_formats = ["hires", "multicolor", "chunky"];
+const supported_types = ["header", "xex"];
 
 // prettier-ignore
 const cgia_rgb_palette = [
@@ -193,9 +196,14 @@ function lightnessDistance(C1: Color, C2: Color) {
 }
 
 function toHEX(n: number) {
-  assert(n < 256);
+  assert(n < 0x100);
   assert(n >= 0);
   return `0${n.toString(16)}`.slice(-2);
+}
+function toHEX4(n: number) {
+  assert(n < 0x10000);
+  assert(n >= 0);
+  return `000${n.toString(16)}`.slice(-4);
 }
 
 function toCSS([R, G, B]: Color) {
@@ -304,6 +312,12 @@ let out = Deno.stdout.writable.getWriter();
 function print(s: string) {
   return out.write(new TextEncoder().encode(s));
 }
+function binary(arr: number[]) {
+  if (!args.out) {
+    abort(`Binary data can be written to -o file only`);
+  }
+  return out.write(new Uint8Array(arr));
+}
 
 const argDef: ScriptDefinition = {
   arguments: [
@@ -352,11 +366,17 @@ const argDef: ScriptDefinition = {
     {
       name: "out",
       shortName: "o",
-      description: `Output .h-eader file (Default: stdout)`,
+      description: `Output file (Default: stdout)`,
+      required: false,
+    },
+    {
+      name: "type",
+      shortName: "x",
+      description: `Output type [${supported_types}] (Default: ${default_args.type})`,
       required: false,
     },
   ],
-  scriptDescription: "Converts .png files into X65 data in .h-eader format.",
+  scriptDescription: "Converts .png files into X65 data file.",
   helpFlags: ["help", "?"],
 };
 
@@ -814,83 +834,210 @@ if (import.meta.main) {
     const file = await Deno.create(args.out);
     out = file.writable.getWriter();
   }
+
+  let writer = {
+    writeHeader(
+      video_offset: number,
+      color_offset: number,
+      bkgnd_offset: number,
+      dl_offset: number,
+      dl: [number, string?][]
+    ) {
+      print(
+        `// ${basename(
+          import.meta.filename || "converter.ts"
+        )} ${Deno.args.join(" ")}\n\n`
+      );
+      print(
+        `static const uint16_t video_offset = 0x${toHEX4(
+          video_offset
+        ).toUpperCase()};\n`
+      );
+      print(
+        `static const uint16_t color_offset = 0x${toHEX4(
+          color_offset
+        ).toUpperCase()};\n`
+      );
+      print(
+        `static const uint16_t bkgnd_offset = 0x${toHEX4(
+          bkgnd_offset
+        ).toUpperCase()};\n`
+      );
+      print(
+        `static const uint16_t dl_offset = 0x${toHEX4(
+          dl_offset
+        ).toUpperCase()};\n`
+      );
+      print(`static uint8_t __attribute__((aligned(4))) display_list[] = {\n`);
+      print(
+        `0x73, (video_offset & 0xFF), ((video_offset >> 8) & 0xFF),  // LMS\n`
+      );
+      print(
+        `(color_offset & 0xFF), ((color_offset >> 8) & 0xFF),        // LFS\n`
+      );
+      print(
+        `(bkgnd_offset & 0xFF), ((bkgnd_offset >> 8) & 0xFF),        // LBS\n`
+      );
+      for (const [instr, comment] of dl) {
+        print(`0x${toHEX(instr).toUpperCase()}, `);
+        if (comment) {
+          print(`// ${comment}\n`);
+        }
+      }
+      print(
+        `0x82, (dl_offset & 0xFF), ((dl_offset >> 8) & 0xFF)  // JMP to begin of DL and wait for Vertical BLank\n`
+      );
+      print(`};\n\n`);
+      print(
+        `static const uint8_t border_columns = ${
+          (384 - columns * column_width) / 16
+        };\n`
+      );
+    },
+    writeBitmapData(video_offset: number, bitmap_data: number[][]) {
+      print(
+        `static uint8_t __attribute__((aligned(4))) bitmap_data[${
+          bitmap_data.length * args.cell
+        }] = {\n`
+      );
+      for (let i = 0; i < bitmap_data.length; ++i) {
+        for (const data of bitmap_data[i]) {
+          print(`0x${toHEX(data)}, `);
+        }
+        if ((i + 1) % columns === 0) print(`// ${Math.floor(i / columns)}\n`);
+      }
+      print(`};\n\n`);
+    },
+    writeColorData(color_offset: number, color_data: number[]) {
+      print(
+        `static uint8_t __attribute__((aligned(4))) color_data[${color_data.length}] = {\n`
+      );
+      for (let i = 0; i < color_data.length; ++i) {
+        print(`0x${toHEX(color_data[i] || 0)}, `);
+        if ((i + 1) % columns === 0) print(`// ${Math.floor(i / columns)}\n`);
+      }
+      print(`};\n\n`);
+    },
+    writeBackgroundData(bkgnd_offset: number, color_data: number[]) {
+      print(
+        `static uint8_t __attribute__((aligned(4))) bkgnd_data[${color_data.length}] = {\n`
+      );
+      for (let i = 0; i < color_data.length; ++i) {
+        print(`0x${toHEX(color_data[i] || 0)}, `);
+        if ((i + 1) % columns === 0) print(`// ${Math.floor(i / columns)}\n`);
+      }
+      print(`};\n\n`);
+    },
+  };
+
+  if (args.type === "xex") {
+    const split16 = (n: number) => [n & 0xff, (n >> 8) & 0xff];
+    writer = {
+      writeHeader(
+        video_offset: number,
+        color_offset: number,
+        bkgnd_offset: number,
+        dl_offset: number,
+        dl: [number, string?][]
+      ) {
+        binary([0xff, 0xff]); // XEX header
+
+        const dl_data: number[] = [];
+        dl_data.push(0x73, ...split16(video_offset)); // LMS
+        dl_data.push(...split16(color_offset)); // LFS
+        dl_data.push(...split16(bkgnd_offset)); // LBS
+        // dl_data.push(
+        //   `static const uint8_t border_columns = ${
+        //     (384 - columns * column_width) / 16
+        //   };\n`
+        // );
+        dl_data.push(...dl.map(([instr, comment]) => instr));
+        dl_data.push(0x82, ...split16(dl_offset)); // JMP to begin of DL and wait for Vertical BLank
+
+        binary(split16(dl_offset));
+        binary(split16(dl_offset + dl_data.length - 1));
+        binary(dl_data);
+      },
+      writeBitmapData(video_offset: number, bitmap_data: number[][]) {
+        binary(split16(video_offset));
+        binary(split16(video_offset + bitmap_data.length * args.cell - 1));
+        for (let i = 0; i < bitmap_data.length; ++i) {
+          for (const data of bitmap_data[i]) {
+            binary([data]);
+          }
+        }
+      },
+      writeColorData(color_offset: number, color_data: number[]) {
+        binary(split16(color_offset));
+        binary(split16(color_offset + color_data.length - 1));
+        for (let i = 0; i < color_data.length; ++i) {
+          binary([color_data[i] || 0]);
+        }
+      },
+      writeBackgroundData(bkgnd_offset: number, color_data: number[]) {
+        binary(split16(bkgnd_offset));
+        binary(split16(bkgnd_offset + color_data.length - 1));
+        for (let i = 0; i < color_data.length; ++i) {
+          binary([color_data[i] || 0]);
+        }
+      },
+    };
+  }
+
   switch (args.format) {
     case "multicolor":
       {
-        print(
-          `static uint8_t __attribute__((aligned(4))) bitmap_data[${
-            cell_pixels.length * args.cell
-          }] = {\n`
-        );
-        for (let i = 0; i < cell_pixels.length; ++i) {
-          const cell_pixels_cell = cell_pixels[i];
-          for (let p = 0; p < cell_pixels_cell.length; p += 4) {
-            const data =
-              (cell_pixels_cell[p + 0] << 6) +
-              (cell_pixels_cell[p + 1] << 4) +
-              (cell_pixels_cell[p + 2] << 2) +
-              cell_pixels_cell[p + 3];
-            print(`0x${toHEX(data)}, `);
-          }
-          if ((i + 1) % columns === 0) print(`// ${Math.floor(i / columns)}\n`);
-        }
-        print(`};\n\n`);
+        const video_offset = 0x0000;
+        const color_offset = 0x5000;
+        const bkgnd_offset = 0xa000;
+        const dl_offset = 0xf000;
 
-        print(
-          `static uint8_t __attribute__((aligned(4))) color_data[${cell_colors.length}] = {\n`
-        );
-        for (let i = 0; i < cell_colors.length; ++i) {
-          print(`0x${toHEX(cell_colors[i][1] || 0)}, `);
-          if ((i + 1) % columns === 0) print(`// ${Math.floor(i / columns)}\n`);
-        }
-        print(`};\n\n`);
-
-        print(
-          `static uint8_t __attribute__((aligned(4))) bkgnd_data[${cell_colors.length}] = {\n`
-        );
-        for (let i = 0; i < cell_colors.length; ++i) {
-          print(`0x${toHEX(cell_colors[i][0] || 0)}, `);
-          if ((i + 1) % columns === 0) print(`// ${Math.floor(i / columns)}\n`);
-        }
-        print(`};\n\n`);
-
-        print(`static const uint16_t video_offset = 0x0000;\n`);
-        print(`static const uint16_t color_offset = 0x5000;\n`);
-        print(`static const uint16_t bkgnd_offset = 0xA000;\n`);
-        print(`static const uint16_t dl_offset = 0xF000;\n`);
-        print(
-          `static uint8_t __attribute__((aligned(4))) display_list[] = {\n`
-        );
-        print(
-          `0x73, (video_offset & 0xFF), ((video_offset >> 8) & 0xFF),  // LMS\n`
-        );
-        print(
-          `(color_offset & 0xFF), ((color_offset >> 8) & 0xFF),        // LFS\n`
-        );
-        print(
-          `(bkgnd_offset & 0xFF), ((bkgnd_offset >> 8) & 0xFF),        // LBS\n`
-        );
+        const dl: [number, string?][] = [];
         let sh_0 = -1;
         let sh_1 = -1;
         for (let i = 0; i < shared_colors.length; ++i) {
           if (sh_0 !== (shared_colors[i][0] || 0)) {
             sh_0 = shared_colors[i][0] || 0;
-            print(`0x44, 0x${toHEX(sh_0).toUpperCase()}, `);
+            dl.push([0x44], [sh_0]);
           }
           if (sh_1 !== (shared_colors[i][1] || 0)) {
             sh_1 = shared_colors[i][1] || 0;
-            print(`0x54, 0x${toHEX(sh_1).toUpperCase()}, `);
+            dl.push([0x54], [sh_1]);
           }
-          print(`0x0D, // MODE5\n`);
+          dl.push([0x0d, "MODE5"]);
         }
-        print(
-          `0x82, (dl_offset & 0xFF), ((dl_offset >> 8) & 0xFF)  // JMP to begin of DL and wait for Vertical BLank\n`
+        writer.writeHeader(
+          video_offset,
+          color_offset,
+          bkgnd_offset,
+          dl_offset,
+          dl
         );
-        print(`};\n\n`);
-        print(
-          `static const uint8_t border_columns = ${
-            (384 - columns * column_width) / 16
-          };\n`
+
+        writer.writeBitmapData(
+          video_offset,
+          cell_pixels.map((cell_pixels_cell) => {
+            const data: number[] = [];
+            for (let p = 0; p < cell_pixels_cell.length; p += 4) {
+              data.push(
+                (cell_pixels_cell[p + 0] << 6) +
+                  (cell_pixels_cell[p + 1] << 4) +
+                  (cell_pixels_cell[p + 2] << 2) +
+                  cell_pixels_cell[p + 3]
+              );
+            }
+            return data;
+          })
+        );
+
+        writer.writeColorData(
+          color_offset,
+          cell_colors.map((cc) => cc[1])
+        );
+
+        writer.writeBackgroundData(
+          bkgnd_offset,
+          cell_colors.map((cc) => cc[0])
         );
       }
       break;
