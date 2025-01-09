@@ -1,14 +1,18 @@
+#include "pico.h"
+#ifdef PICO_SDK_VERSION_MAJOR
 #include "hardware/dma.h"
 #include "hardware/interp.h"
 
 #include "cgia.h"
 #include "cgia_encode.h"
+#define CGIA_PALETTE_IMPL
 #include "cgia_palette.h"
 #include "main.h"
 #include "term/term.h"
 
 // #include "sys/mem.h"
 #include "sys/out.h"
+#endif
 
 #include <stdio.h>
 #include <string.h>
@@ -55,7 +59,9 @@ static uint8_t
 // let's assume we do not use such high memory
 // (we might need to actually create linker script to reserve it)
 extern uint8_t vram_cache[2][256 * 256];
+#ifdef PICO_SDK_VERSION_MAJOR
 asm(".equ vram_cache, 0x20060000"); // Addressable at 0x20060000 - 0x2007ffff
+#endif
 
 // store which PSRAM bank is currently mirrored in cache
 static uint8_t
@@ -79,6 +85,7 @@ int data_chan;
 // DMA channel to fill raster line with background color
 int back_chan;
 
+#ifdef PICO_SDK_VERSION_MAJOR
 void cgia_init(void)
 {
     // All planes should initially wait for VBL
@@ -132,6 +139,7 @@ void cgia_init(void)
         DISPLAY_WIDTH_PIXELS,
         false);
 }
+#endif
 
 static uint8_t
     __attribute__((aligned(4)))
@@ -172,6 +180,7 @@ static uint8_t
         0x08, 0x08, 0x08, 0x08, 0x08, 0x08, 0x08, 0x08, //
 };
 
+#ifdef PICO_SDK_VERSION_MAJOR
 static inline uint32_t *fill_back(
     uint32_t *buf,
     uint32_t columns,
@@ -184,6 +193,66 @@ static inline uint32_t *fill_back(
     dma_channel_set_trans_count(back_chan, pixels, true);
     return buf + pixels;
 }
+
+static inline void set_default_interp_config(void)
+{
+    interp_config cfg = interp_default_config();
+    interp_config_set_add_raw(&cfg, true);
+    interp_set_config(interp0, 0, &cfg);
+    interp_set_config(interp0, 1, &cfg);
+    interp_set_config(interp1, 0, &cfg);
+    interp_set_config(interp1, 1, &cfg);
+    interp_set_base(interp1, 0, 1);
+    interp_set_base(interp1, 1, 1);
+}
+static inline void set_interp_scans(uint8_t row_height, const uint8_t *memory_scan, const uint8_t *colour_scan, const uint8_t *backgr_scan)
+{
+    interp_set_base(interp0, 0, row_height);
+    interp_set_accumulator(interp0, 0, (uintptr_t)memory_scan);
+    interp_set_accumulator(interp1, 0, (uintptr_t)colour_scan);
+    interp_set_accumulator(interp1, 1, (uintptr_t)backgr_scan);
+}
+
+static inline void set_mode7_interp_config(struct cgia_plane_t *plane)
+{
+    interp_config cfg = interp_default_config();
+    interp_config_set_add_raw(&cfg, true);
+
+    // interp0 will scan texture row
+    // interp1 will scan row begin address
+    const uint texture_width_bits = plane->regs.affine.texture_bits & 0b0111;
+    interp_config_set_shift(&cfg, CGIA_AFFINE_FRACTIONAL_BITS);
+    interp_config_set_mask(&cfg, 0, texture_width_bits - 1);
+    interp_set_config(interp0, 0, &cfg);
+    const uint texture_height_bits = (plane->regs.affine.texture_bits >> 4) & 0b0111;
+    interp_config_set_shift(&cfg, CGIA_AFFINE_FRACTIONAL_BITS - texture_width_bits);
+    interp_config_set_mask(&cfg, texture_width_bits, texture_width_bits + texture_height_bits - 1);
+    interp_set_config(interp0, 1, &cfg);
+
+    // interp1 will scan row begin address
+    interp_config_set_shift(&cfg, CGIA_AFFINE_FRACTIONAL_BITS);
+    interp_config_set_mask(&cfg, 0, texture_width_bits - 1);
+    interp_set_config(interp1, 0, &cfg);
+    interp_config_set_shift(&cfg, 0);
+    interp_config_set_mask(&cfg, CGIA_AFFINE_FRACTIONAL_BITS, CGIA_AFFINE_FRACTIONAL_BITS + texture_height_bits - 1);
+    interp_set_config(interp1, 1, &cfg);
+    interp1->accum[0] = plane->regs.affine.u;
+    interp1->base[0] = plane->regs.affine.dx;
+    interp1->accum[1] = plane->regs.affine.v;
+    interp1->base[1] = plane->regs.affine.dy;
+    interp1->base[2] = 0;
+}
+static inline void set_mode7_scans(struct cgia_plane_t *plane, uint8_t *memory_scan)
+{
+    interp0->base[2] = (uintptr_t)memory_scan;
+    const uint32_t xy = interp1->pop[2];
+    interp0->accum[0] = (xy & 0x00FF) << CGIA_AFFINE_FRACTIONAL_BITS;
+    interp0->base[0] = plane->regs.affine.du;
+    interp0->accum[1] = (xy & 0xFF00);
+    interp0->base[1] = plane->regs.affine.dv;
+}
+
+#endif
 
 void __scratch_x("") __attribute__((optimize("O1"))) cgia_render(uint y, uint32_t *rgbbuf)
 {
@@ -434,15 +503,8 @@ void __scratch_x("") __attribute__((optimize("O1"))) cgia_render(uint y, uint32_
                 {
                     buf += plane->regs.bckgnd.scroll_x;
 
-                    // If it is not MODE7, use dfault interpolator configuration
-                    interp_config cfg = interp_default_config();
-                    interp_config_set_add_raw(&cfg, true);
-                    interp_set_config(interp0, 0, &cfg);
-                    interp_set_config(interp0, 1, &cfg);
-                    interp_set_config(interp1, 0, &cfg);
-                    interp_set_config(interp1, 1, &cfg);
-                    interp_set_base(interp1, 0, 1);
-                    interp_set_base(interp1, 1, 1);
+                    // If it is not MODE7, use default interpolator configuration
+                    set_default_interp_config();
                 }
 
                 // ------- Mode Rows --------------
@@ -450,10 +512,7 @@ void __scratch_x("") __attribute__((optimize("O1"))) cgia_render(uint y, uint32_
                 {
                 case (0x0 | CGIA_MODE_BIT): // MODE0 (8) - text80 mode
                 {
-                    interp_set_base(interp0, 0, 1);
-                    interp_set_accumulator(interp0, 0, (uintptr_t)plane_data->memory_scan - 1);
-                    interp_set_accumulator(interp1, 0, (uintptr_t)plane_data->colour_scan - 1);
-                    interp_set_accumulator(interp1, 1, (uintptr_t)plane_data->backgr_scan - 1);
+                    set_interp_scans(1, plane_data->memory_scan - 1, plane_data->colour_scan - 1, plane_data->backgr_scan - 1);
                     if (row_columns)
                     {
                         uint8_t encode_columns = (uint8_t)(row_columns << 1);
@@ -465,10 +524,7 @@ void __scratch_x("") __attribute__((optimize("O1"))) cgia_render(uint y, uint32_
 
                 case (0x2 | CGIA_MODE_BIT): // MODE2 (A) - text/tile mode
                 {
-                    interp_set_base(interp0, 0, 1);
-                    interp_set_accumulator(interp0, 0, (uintptr_t)plane_data->memory_scan - 1);
-                    interp_set_accumulator(interp1, 0, (uintptr_t)plane_data->colour_scan - 1);
-                    interp_set_accumulator(interp1, 1, (uintptr_t)plane_data->backgr_scan - 1);
+                    set_interp_scans(1, plane_data->memory_scan - 1, plane_data->colour_scan - 1, plane_data->backgr_scan - 1);
                     if (row_columns)
                     {
                         uint8_t char_shift = log2_tab[plane->regs.bckgnd.row_height];
@@ -487,10 +543,7 @@ void __scratch_x("") __attribute__((optimize("O1"))) cgia_render(uint y, uint32_
                 case (0x3 | CGIA_MODE_BIT): // MODE3 (B) - bitmap mode
                 {
                     const uint8_t row_height = plane->regs.bckgnd.row_height + 1;
-                    interp_set_base(interp0, 0, row_height);
-                    interp_set_accumulator(interp0, 0, (uintptr_t)plane_data->memory_scan - row_height);
-                    interp_set_accumulator(interp1, 0, (uintptr_t)plane_data->colour_scan - 1);
-                    interp_set_accumulator(interp1, 1, (uintptr_t)plane_data->backgr_scan - 1);
+                    set_interp_scans(row_height, plane_data->memory_scan - row_height, plane_data->colour_scan - 1, plane_data->backgr_scan - 1);
                     if (row_columns)
                     {
                         // TODO: double size
@@ -511,10 +564,7 @@ void __scratch_x("") __attribute__((optimize("O1"))) cgia_render(uint y, uint32_
 
                 case (0x4 | CGIA_MODE_BIT): // MODE4 (C) - multicolor text/tile mode
                 {
-                    interp_set_base(interp0, 0, 1);
-                    interp_set_accumulator(interp0, 0, (uintptr_t)plane_data->memory_scan - 1);
-                    interp_set_accumulator(interp1, 0, (uintptr_t)plane_data->colour_scan - 1);
-                    interp_set_accumulator(interp1, 1, (uintptr_t)plane_data->backgr_scan - 1);
+                    set_interp_scans(1, plane_data->memory_scan - 1, plane_data->colour_scan - 1, plane_data->backgr_scan - 1);
                     if (row_columns)
                     {
                         uint8_t char_shift = log2_tab[plane->regs.bckgnd.row_height];
@@ -540,12 +590,12 @@ void __scratch_x("") __attribute__((optimize("O1"))) cgia_render(uint y, uint32_
                 {
                     {
                         int offset_delta = plane->regs.bckgnd.offset_x - 1;
-                        interp_set_accumulator(interp1, 0, (uintptr_t)plane_data->colour_scan + offset_delta);
-                        interp_set_accumulator(interp1, 1, (uintptr_t)plane_data->backgr_scan + offset_delta);
+                        const uint8_t *cs = plane_data->colour_scan + offset_delta;
+                        const uint8_t *bs = plane_data->backgr_scan + offset_delta;
                         uint8_t row_height = plane->regs.bckgnd.row_height;
                         offset_delta <<= log2_tab[row_height];
-                        interp_set_accumulator(interp0, 0, (uintptr_t)plane_data->memory_scan + offset_delta);
-                        interp_set_base(interp0, 0, ++row_height);
+                        const uint8_t *ms = plane_data->memory_scan + offset_delta;
+                        set_interp_scans(++row_height, ms, cs, bs);
                     }
                     if (row_columns)
                     {
@@ -595,41 +645,9 @@ void __scratch_x("") __attribute__((optimize("O1"))) cgia_render(uint y, uint32_
                     if (row_columns)
                     {
                         if (plane_data->row_line_count == 0)
-                        {
-                            interp_config cfg = interp_default_config();
-                            interp_config_set_add_raw(&cfg, true);
+                            set_mode7_interp_config(plane);
 
-                            // interp0 will scan texture row
-                            // interp1 will scan row begin address
-                            const uint texture_width_bits = plane->regs.affine.texture_bits & 0b0111;
-                            interp_config_set_shift(&cfg, CGIA_AFFINE_FRACTIONAL_BITS);
-                            interp_config_set_mask(&cfg, 0, texture_width_bits - 1);
-                            interp_set_config(interp0, 0, &cfg);
-                            const uint texture_height_bits = (plane->regs.affine.texture_bits >> 4) & 0b0111;
-                            interp_config_set_shift(&cfg, CGIA_AFFINE_FRACTIONAL_BITS - texture_width_bits);
-                            interp_config_set_mask(&cfg, texture_width_bits, texture_width_bits + texture_height_bits - 1);
-                            interp_set_config(interp0, 1, &cfg);
-
-                            // interp1 will scan row begin address
-                            interp_config_set_shift(&cfg, CGIA_AFFINE_FRACTIONAL_BITS);
-                            interp_config_set_mask(&cfg, 0, texture_width_bits - 1);
-                            interp_set_config(interp1, 0, &cfg);
-                            interp_config_set_shift(&cfg, 0);
-                            interp_config_set_mask(&cfg, CGIA_AFFINE_FRACTIONAL_BITS, CGIA_AFFINE_FRACTIONAL_BITS + texture_height_bits - 1);
-                            interp_set_config(interp1, 1, &cfg);
-                            interp1->accum[0] = plane->regs.affine.u;
-                            interp1->base[0] = plane->regs.affine.dx;
-                            interp1->accum[1] = plane->regs.affine.v;
-                            interp1->base[1] = plane->regs.affine.dy;
-                            interp1->base[2] = 0;
-                        }
-
-                        interp0->base[2] = (uintptr_t)plane_data->memory_scan;
-                        const uint32_t xy = interp1->pop[2];
-                        interp0->accum[0] = (xy & 0x00FF) << CGIA_AFFINE_FRACTIONAL_BITS;
-                        interp0->base[0] = plane->regs.affine.du;
-                        interp0->accum[1] = (xy & 0xFF00);
-                        interp0->base[1] = plane->regs.affine.dv;
+                        set_mode7_scans(plane, plane_data->memory_scan);
 
                         buf = cgia_encode_mode_7(buf, row_columns);
                     }
