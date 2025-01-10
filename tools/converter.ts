@@ -25,7 +25,7 @@ const supported_palettes = [
   "fixed([00,]11,22,33)",
 ];
 const supported_formats = ["hires", "multicolor", "chunky"];
-const supported_types = ["header", "xex"];
+const supported_types = ["header", "xex", "xex-boot"];
 
 // prettier-ignore
 const cgia_rgb_palette = [
@@ -930,7 +930,7 @@ if (import.meta.main) {
     },
   };
 
-  if (args.type === "xex") {
+  if (args.type === "xex" || args.type === "xex-boot") {
     const split16 = (n: number) => [n & 0xff, (n >> 8) & 0xff];
     writer = {
       writeHeader(
@@ -957,6 +957,47 @@ if (import.meta.main) {
         binary(split16(dl_offset));
         binary(split16(dl_offset + dl_data.length - 1));
         binary(dl_data);
+
+        if (args.type === "xex-boot") {
+          // prettier-ignore
+          const boot_code = [
+            // FIXME: should really be one MVP call on 65816
+            0xA2, 0x10,        // LDX #16
+                               // LOOP:
+            0xBD, 0x0E, 0xF8,  // LDA $F80E,X
+            0x9D, 0x00, 0xFF,  // STA $FF00,X
+            0xCA,              // DEX
+            0x10, 0xF7,        // BPL $F802 - LOOP
+            0x4C, 0x0B, 0xF8,  // JMP $F80B - loop indefinitely
+
+            // --- 16 bytes of CGIA registers
+            0x01,  // [TTTTEEEE] EEEE - enable bits, TTTT - type (0 bckgnd, 1 sprite)
+            0x00,  // bckgnd_bank
+            0x00,  // sprite_bank
+            0x00,  // back_color
+              // --- plane 1
+              0x00, 0x00,  // offset - Current DisplayList or SpriteDescriptor table start
+              // --- background plane regs
+              0x10,  // flags;
+              (384 - columns * column_width) / (2*8),  // border_columns;
+              0x00,  // row_height;
+              0x00,  // stride;
+              0x00,  // shared_color[2];
+              0x00,  // scroll_x;
+              0x00,  // offset_x;
+              0x00,  // scroll_y;
+              0x00,  // offset_y;
+            // --- padding to 16 bytes
+            0x00,
+          ]
+          binary([
+            ...split16(0xf800),
+            ...split16(0xf800 + boot_code.length - 1),
+            ...boot_code,
+          ]);
+          // reset-vector - 0xF800
+          binary([...split16(0xfffc), ...split16(0xfffd), ...split16(0xf800)]);
+        }
       },
       writeBitmapData(video_offset: number, bitmap_data: number[][]) {
         binary(split16(video_offset));
