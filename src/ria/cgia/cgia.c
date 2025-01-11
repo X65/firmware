@@ -14,19 +14,19 @@
 #include "sys/out.h"
 #endif
 
-#include <stdio.h>
-#include <string.h>
-
 #define DISPLAY_WIDTH_PIXELS (FRAME_WIDTH / 2)
 #define MAX_BORDER_COLUMNS   (DISPLAY_WIDTH_PIXELS / CGIA_COLUMN_PX / 2)
 
 #define FRAME_CHARS (DISPLAY_WIDTH_PIXELS / CGIA_COLUMN_PX)
 
 // --- Globals ---
-struct cgia_t
+#ifndef CGIA
+static uint8_t
     __attribute__((aligned(4)))
-    __scratch_y("") CGIA
+    __scratch_y("") regs_int[128]
     = {0};
+#define CGIA (*((struct cgia_t *)regs_int))
+#endif
 
 struct cgia_plane_internal
 {
@@ -64,11 +64,65 @@ asm(".equ vram_cache, 0x20060000"); // Addressable at 0x20060000 - 0x2007ffff
 #endif
 
 // store which PSRAM bank is currently mirrored in cache
-static uint8_t
+// stored as bitmask for easy use during ram write call
+uint32_t
     __attribute__((aligned(4)))
     __scratch_y("")
-        vram_cache_bank[2]
+        vram_cache_bank_mask[CGIA_VRAM_BANKS]
     = {0, 0};
+
+// store in which vram cache bank a cgia bank (backgnd/sprite) is stored
+// these may be shared - backgnd and sprites in same bank
+uint8_t *
+    __scratch_y("")
+        vram_cache_ptr[CGIA_VRAM_BANKS]
+    = {vram_cache[0], vram_cache[0]};
+
+inline __attribute__((always_inline)) __attribute__((optimize("O3"))) void cgia_ram_write(uint32_t addr, uint8_t data)
+{
+    const uint32_t bank_mask = addr & 0xFFFF0000;
+    if (bank_mask == vram_cache_bank_mask[0])
+    {
+        vram_cache_ptr[0][addr & 0xFFFF] = data;
+    }
+    if (bank_mask == vram_cache_bank_mask[1])
+    {
+        vram_cache_ptr[1][addr & 0xFFFF] = data;
+    }
+}
+
+// store which memory bank is wanted in vram cache bank
+// used to trigger DMA transfer during cgia_run() workloop
+static uint32_t
+    __attribute__((aligned(4)))
+    __scratch_y("")
+        vram_wanted_bank_mask[CGIA_VRAM_BANKS]
+    = {0, 0};
+
+void cgia_set_bank(uint8_t cgia_bank_id, uint8_t mem_bank_no)
+{
+    assert(cgia_bank_id < 2);
+    const uint32_t bank_mask = mem_bank_no << 16;
+    vram_wanted_bank_mask[cgia_bank_id] = bank_mask;
+
+    if (bank_mask == vram_cache_bank_mask[cgia_bank_id])
+    {
+        // if the bank matches - nothing to do
+        return;
+    }
+    // if the new bank_no matches the one in other bank, re-use it
+    const uint8_t other_bank_id = cgia_bank_id ^ 1;
+    if (bank_mask == vram_cache_bank_mask[other_bank_id])
+    {
+        vram_cache_bank_mask[cgia_bank_id] = bank_mask;
+        vram_cache_ptr[cgia_bank_id] = vram_cache_ptr[other_bank_id];
+        return;
+    }
+
+    // if we got here, the vram_wanted_bank_mask differs from vram_cache_bank_mask
+    // which will trigger memory bank switch in work loop
+    // our job here is done
+}
 
 struct dma_control_block
 {
@@ -278,10 +332,10 @@ void __scratch_x("") __attribute__((optimize("O1"))) cgia_render(uint y, uint32_
                 line_background_filled = true;
             }
 
-            plane = CGIA.plane + p;
-            plane_data = plane_int + p;
+            plane = &CGIA.plane[p];
+            plane_data = &plane_int[p];
             sprite_dscs = &sprite_dsc_offsets[p];
-            uint8_t *sprite_bank = vram_cache[1];
+            uint8_t *sprite_bank = vram_cache_ptr[1];
 
             if (y == 0 // start of frame - reload descriptors
                 || plane_data->sprites_need_update)
@@ -362,8 +416,8 @@ void __scratch_x("") __attribute__((optimize("O1"))) cgia_render(uint y, uint32_
         else
         {
             /* --- BACKGROUND --- */
-            plane = CGIA.plane + p;
-            plane_data = plane_int + p;
+            plane = &CGIA.plane[p];
+            plane_data = &plane_int[p];
 
         restart_plane:
             if (y == 0) // start of frame - reset flags and counters
@@ -393,7 +447,7 @@ void __scratch_x("") __attribute__((optimize("O1"))) cgia_render(uint y, uint32_
                 goto next_plane;
             }
 
-            uint8_t *bckgnd_bank = vram_cache[0];
+            uint8_t *bckgnd_bank = vram_cache_ptr[0];
             uint8_t dl_instr = bckgnd_bank[plane->offset];
             uint8_t instr_code = dl_instr & 0b00001111;
 
@@ -719,3 +773,23 @@ void __scratch_x("") cgia_vbl(void)
 {
     // TODO: trigger CPU NMI
 }
+
+static void _cgia_transfer_vcache_bank(uint8_t bank);
+
+void cgia_task(void)
+{
+    _cgia_transfer_vcache_bank(0);
+    _cgia_transfer_vcache_bank(1);
+}
+
+#ifdef PICO_SDK_VERSION_MAJOR
+static void _cgia_transfer_vcache_bank(uint8_t bank)
+{
+    if (vram_wanted_bank_mask[bank] != vram_cache_bank_mask[bank])
+    {
+        // TODO: start DMA transfer from PSRAM to VRAM
+        // - do not start if transfer already in progress
+        // - allocate PSRAM chip, so CPU gets blocked until transfer is done
+    }
+}
+#endif

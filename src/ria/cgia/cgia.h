@@ -113,7 +113,10 @@ struct cgia_t
     struct cgia_plane_t plane[CGIA_PLANES];
 };
 
-extern struct cgia_t CGIA;
+#define CGIA_REG_PLANES      (offsetof(struct cgia_t, planes))
+#define CGIA_REG_BCKGND_BANK (offsetof(struct cgia_t, planes))
+#define CGIA_REG_SPRITE_BANK (offsetof(struct cgia_t, planes))
+#define CGIA_REG_BACK_COLOR  (offsetof(struct cgia_t, planes))
 
 struct cgia_sprite_t
 {
@@ -150,3 +153,11 @@ struct cgia_sprite_t
 void cgia_init(void);
 void cgia_render(uint y, uint32_t *rgbbuf);
 void cgia_vbl(void);
+
+void cgia_task(void);
+
+#define CGIA_VRAM_BANKS
+// pass both cgia.*_bank registry writes for updating VRAM cache banks
+void cgia_set_bank(uint8_t cgia_bank_id, uint8_t mem_bank_no);
+// pass EVERY RAM write through CGIA for updating VRAM cache banks
+inline void cgia_ram_write(uint32_t addr, uint8_t data);
