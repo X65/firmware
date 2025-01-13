@@ -897,7 +897,7 @@ if (import.meta.main) {
     writeBitmapData(video_offset: number, bitmap_data: number[][]) {
       print(
         `static uint8_t __attribute__((aligned(4))) bitmap_data[${
-          bitmap_data.length * args.cell
+          bitmap_data.length * cell_height
         }] = {\n`
       );
       for (let i = 0; i < bitmap_data.length; ++i) {
@@ -946,11 +946,6 @@ if (import.meta.main) {
         dl_data.push(0x73, ...split16(video_offset)); // LMS
         dl_data.push(...split16(color_offset)); // LFS
         dl_data.push(...split16(bkgnd_offset)); // LBS
-        // dl_data.push(
-        //   `static const uint8_t border_columns = ${
-        //     (384 - columns * column_width) / 16
-        //   };\n`
-        // );
         dl_data.push(...dl.map(([instr, comment]) => instr));
         dl_data.push(0x82, ...split16(dl_offset)); // JMP to begin of DL and wait for Vertical BLank
 
@@ -961,14 +956,17 @@ if (import.meta.main) {
         if (args.type === "xex-boot") {
           // prettier-ignore
           const boot_code = [
+            // First, disable all planes
+            0xA9, 0x00,        // LDA #0
+            0x8D, 0x00, 0xFF,  // STA CGIA[0]
             // FIXME: should really be one MVP call on 65816
             0xA2, 0x10,        // LDX #16
                                // LOOP:
-            0xBD, 0x0E, 0xF8,  // LDA $F80E,X
-            0x9D, 0x00, 0xFF,  // STA $FF00,X
+            0xBD, 0x13, 0xF8,  // LDA REGS,X
+            0x9D, 0x00, 0xFF,  // STA CGIA,X
             0xCA,              // DEX
-            0x10, 0xF7,        // BPL $F802 - LOOP
-            0x4C, 0x0B, 0xF8,  // JMP $F80B - loop indefinitely
+            0x10, 0xF7,        // BPL LOOP
+            0x4C, 0x10, 0xF8,  // JMP SELF - loop indefinitely
 
             // --- 16 bytes of CGIA registers
             0x01,  // [TTTTEEEE] EEEE - enable bits, TTTT - type (0 bckgnd, 1 sprite)
@@ -976,11 +974,11 @@ if (import.meta.main) {
             0x00,  // sprite_bank
             0x00,  // back_color
               // --- plane 1
-              0x00, 0x00,  // offset - Current DisplayList or SpriteDescriptor table start
+              ...split16(dl_offset),  // offset - Current DisplayList or SpriteDescriptor table start
               // --- background plane regs
               0x10,  // flags;
               (384 - columns * column_width) / (2*8),  // border_columns;
-              0x00,  // row_height;
+              (cell_height - 1),  // row_height;
               0x00,  // stride;
               0x00,  // shared_color[2];
               0x00,  // scroll_x;
@@ -1001,7 +999,7 @@ if (import.meta.main) {
       },
       writeBitmapData(video_offset: number, bitmap_data: number[][]) {
         binary(split16(video_offset));
-        binary(split16(video_offset + bitmap_data.length * args.cell - 1));
+        binary(split16(video_offset + bitmap_data.length * cell_height - 1));
         for (let i = 0; i < bitmap_data.length; ++i) {
           for (const data of bitmap_data[i]) {
             binary([data]);
@@ -1084,74 +1082,51 @@ if (import.meta.main) {
       break;
     case "hires":
       {
-        print(
-          `static uint8_t __attribute__((aligned(4))) bitmap_data[${
-            cell_pixels.length * args.cell
-          }] = {\n`
-        );
-        for (let i = 0; i < cell_pixels.length; ++i) {
-          const cell_pixels_cell = cell_pixels[i];
-          for (let p = 0; p < cell_pixels_cell.length; p += 8) {
-            const data =
-              (cell_pixels_cell[p + 0] << 7) +
-              (cell_pixels_cell[p + 1] << 6) +
-              (cell_pixels_cell[p + 2] << 5) +
-              (cell_pixels_cell[p + 3] << 4) +
-              (cell_pixels_cell[p + 4] << 3) +
-              (cell_pixels_cell[p + 5] << 2) +
-              (cell_pixels_cell[p + 6] << 1) +
-              cell_pixels_cell[p + 7];
-            print(`0x${toHEX(data)}, `);
-          }
-          if ((i + 1) % columns === 0) print(`// ${Math.floor(i / columns)}\n`);
-        }
-        print(`};\n\n`);
+        const video_offset = 0x0000;
+        const color_offset = 0x5000;
+        const bkgnd_offset = 0xa000;
+        const dl_offset = 0xf000;
 
-        print(
-          `static uint8_t __attribute__((aligned(4))) color_data[${cell_colors.length}] = {\n`
-        );
-        for (let i = 0; i < cell_colors.length; ++i) {
-          print(`0x${toHEX(cell_colors[i][1] || 0)}, `);
-          if ((i + 1) % columns === 0) print(`// ${Math.floor(i / columns)}\n`);
-        }
-        print(`};\n\n`);
-
-        print(
-          `static uint8_t __attribute__((aligned(4))) bkgnd_data[${cell_colors.length}] = {\n`
-        );
-        for (let i = 0; i < cell_colors.length; ++i) {
-          print(`0x${toHEX(cell_colors[i][0] || 0)}, `);
-          if ((i + 1) % columns === 0) print(`// ${Math.floor(i / columns)}\n`);
-        }
-        print(`};\n\n`);
-
-        print(`static const uint16_t video_offset = 0x0000;\n`);
-        print(`static const uint16_t color_offset = 0x5000;\n`);
-        print(`static const uint16_t bkgnd_offset = 0xA000;\n`);
-        print(`static const uint16_t dl_offset = 0xF000;\n`);
-        print(
-          `static uint8_t __attribute__((aligned(4))) display_list[] = {\n`
-        );
-        print(
-          `0x73, (video_offset & 0xFF), ((video_offset >> 8) & 0xFF),  // LMS\n`
-        );
-        print(
-          `(color_offset & 0xFF), ((color_offset >> 8) & 0xFF),        // LFS\n`
-        );
-        print(
-          `(bkgnd_offset & 0xFF), ((bkgnd_offset >> 8) & 0xFF),        // LBS\n`
-        );
+        const dl: [number, string?][] = [];
         for (let i = 0; i < rows; ++i) {
-          print(`0x0B, // MODE3\n`);
+          dl.push([0x0b, "MODE3"]);
         }
-        print(
-          `0x82, (dl_offset & 0xFF), ((dl_offset >> 8) & 0xFF)  // JMP to begin of DL and wait for Vertical BLank\n`
+        writer.writeHeader(
+          video_offset,
+          color_offset,
+          bkgnd_offset,
+          dl_offset,
+          dl
         );
-        print(`};\n\n`);
-        print(
-          `static const uint8_t border_columns = ${
-            (384 - columns * column_width) / 16
-          };\n`
+
+        writer.writeBitmapData(
+          video_offset,
+          cell_pixels.map((cell_pixels_cell) => {
+            const data: number[] = [];
+            for (let p = 0; p < cell_pixels_cell.length; p += 8) {
+              data.push(
+                (cell_pixels_cell[p + 0] << 7) +
+                  (cell_pixels_cell[p + 1] << 6) +
+                  (cell_pixels_cell[p + 2] << 5) +
+                  (cell_pixels_cell[p + 3] << 4) +
+                  (cell_pixels_cell[p + 4] << 3) +
+                  (cell_pixels_cell[p + 5] << 2) +
+                  (cell_pixels_cell[p + 6] << 1) +
+                  cell_pixels_cell[p + 7]
+              );
+            }
+            return data;
+          })
+        );
+
+        writer.writeColorData(
+          color_offset,
+          cell_colors.map((cc) => cc[1])
+        );
+
+        writer.writeBackgroundData(
+          bkgnd_offset,
+          cell_colors.map((cc) => cc[0])
         );
       }
       break;
