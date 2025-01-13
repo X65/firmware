@@ -892,7 +892,7 @@ if (import.meta.main) {
       print(
         `static const uint8_t border_columns = ${
           (384 - columns * column_width) / 16
-        };\n`
+        };\n\n`
       );
     },
     writeBitmapData(video_offset: number, bitmap_data: number[][]) {
