@@ -848,6 +848,7 @@ if (import.meta.main) {
           import.meta.filename || "converter.ts"
         )} ${Deno.args.join(" ")}\n\n`
       );
+      if (dl.length === 0) return;
       print(
         `static const uint16_t video_offset = 0x${toHEX4(
           video_offset
@@ -928,6 +929,18 @@ if (import.meta.main) {
       }
       print(`};\n\n`);
     },
+    writeChunkyData(data_offset: number, color_data: number[]) {
+      print(
+        `static uint8_t __attribute__((aligned(4))) pixel_data[${color_data.length}] = {\n`
+      );
+      for (let i = 0; i < color_data.length; ++i) {
+        print(`0x${toHEX(color_data[i] || 0)}, `);
+        if ((i + 1) % width === 0) print(`// ${Math.floor(i / width)}\n`);
+      }
+      print(`};\n\n`);
+      print(`static const uint8_t pixel_width = ${width};\n`);
+      print(`static const uint8_t pixel_height = ${height};\n`);
+    },
   };
 
   if (args.type === "xex" || args.type === "xex-boot") {
@@ -941,6 +954,8 @@ if (import.meta.main) {
         dl: [number, string?][]
       ) {
         binary([0xff, 0xff]); // XEX header
+
+        if (dl.length === 0) return;
 
         const dl_data: number[] = [];
         dl_data.push(0x73, ...split16(video_offset)); // LMS
@@ -1016,6 +1031,13 @@ if (import.meta.main) {
       writeBackgroundData(bkgnd_offset: number, color_data: number[]) {
         binary(split16(bkgnd_offset));
         binary(split16(bkgnd_offset + color_data.length - 1));
+        for (let i = 0; i < color_data.length; ++i) {
+          binary([color_data[i] || 0]);
+        }
+      },
+      writeChunkyData(data_offset: number, color_data: number[]) {
+        binary(split16(data_offset));
+        binary(split16(data_offset + color_data.length - 1));
         for (let i = 0; i < color_data.length; ++i) {
           binary([color_data[i] || 0]);
         }
@@ -1132,22 +1154,16 @@ if (import.meta.main) {
       break;
     case "chunky":
       {
-        print(
-          `static uint8_t __attribute__((aligned(4))) pixel_data[${
-            data.length / BYTES_PER_SAMPLE
-          }] = {\n`
-        );
+        writer.writeHeader(0, 0, 0, 0, []);
+
+        const colors: number[] = [];
         for (let i = 0; i < data.length; i += BYTES_PER_SAMPLE) {
           const pixel = getPixelN(i);
           const pixel_color = fromBGR(pixel);
           const color_no = getColorIdx(pixel_color);
-          print(`0x${toHEX(color_no)}, `);
-          if ((i / BYTES_PER_SAMPLE + 1) % width === 0)
-            print(`// ${Math.floor(i / BYTES_PER_SAMPLE / width)}\n`);
+          colors.push(color_no);
         }
-        print(`};\n\n`);
-        print(`static const uint8_t pixel_width = ${width};\n`);
-        print(`static const uint8_t pixel_height = ${height};\n`);
+        writer.writeChunkyData(0x0000, colors);
       }
       break;
     default:
