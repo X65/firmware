@@ -72,6 +72,7 @@ static const uint16_t mixed_video_offset = 0xEA00;
 static const uint16_t mixed_color_offset = 0xEC00;
 static const uint16_t mixed_bkgnd_offset = 0xEE00;
 static const uint16_t mixed_chrgn_offset = 0xE200;
+static const uint16_t mixed_mode_dl_offset = 0xF800;
 static const uint8_t __attribute__((aligned(4))) mixed_mode_dl[] = {
     0x13, 0x00, 0x00,                                                // LMS
     0x14, 0x00,                                                      // border_columns = 0

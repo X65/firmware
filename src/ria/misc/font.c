@@ -8,7 +8,7 @@
 
 #define SCREEN_COLUMNS 16
 
-int main()
+int main(void)
 {
     uint8_t *data = header_data;
     uint8_t pixel[3];
