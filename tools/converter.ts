@@ -979,15 +979,16 @@ if (import.meta.main) {
             0xA9, 0x00,        // LDA #0
             0x8D, 0x00, 0xFF,  // STA CGIA[0]
             // FIXME: should really be one MVP call on 65816
-            0xA2, 0x10,        // LDX #16
+            0xA2, 0x80,        // LDX #128
                                // LOOP:
             0xBD, 0x13, 0xF8,  // LDA REGS,X
             0x9D, 0x00, 0xFF,  // STA CGIA,X
             0xCA,              // DEX
             0x10, 0xF7,        // BPL LOOP
             0x4C, 0x10, 0xF8,  // JMP SELF - loop indefinitely
-
-            // --- 16 bytes of CGIA registers
+          ];
+          // prettier-ignore
+          const cgia_regs = [
             0x01,  // [TTTTEEEE] EEEE - enable bits, TTTT - type (0 bckgnd, 1 sprite)
             0x00,  // bckgnd_bank
             0x00,  // sprite_bank
@@ -1004,13 +1005,13 @@ if (import.meta.main) {
               0x00,  // offset_x;
               0x00,  // scroll_y;
               0x00,  // offset_y;
-            // --- padding to 16 bytes
-            0x00,
-          ]
+          ];
+          cgia_regs.length = 128; // expand to full 128 CGIA regs
           binary([
             ...split16(0xf800),
-            ...split16(0xf800 + boot_code.length - 1),
+            ...split16(0xf800 + boot_code.length + cgia_regs.length - 1),
             ...boot_code,
+            ...cgia_regs,
           ]);
           // reset-vector - 0xF800
           binary([...split16(0xfffc), ...split16(0xfffd), ...split16(0xf800)]);
