@@ -969,6 +969,10 @@ if (import.meta.main) {
         binary(dl_data);
 
         if (args.type === "xex-boot") {
+          let flags = 0;
+          if (args.transparent) flags |= 0x01;
+          if (args.double) flags |= 0x10;
+
           // prettier-ignore
           const boot_code = [
             // First, disable all planes
@@ -991,11 +995,11 @@ if (import.meta.main) {
               // --- plane 1
               ...split16(dl_offset),  // offset - Current DisplayList or SpriteDescriptor table start
               // --- background plane regs
-              0x10,  // flags;
+              flags,  // flags;
               (384 - columns * column_width) / (2*8),  // border_columns;
               (cell_height - 1),  // row_height;
               0x00,  // stride;
-              0x00,  // shared_color[2];
+              0x00, 0x00,  // shared_color[2];
               0x00,  // scroll_x;
               0x00,  // offset_x;
               0x00,  // scroll_y;
