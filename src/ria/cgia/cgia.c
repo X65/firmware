@@ -587,11 +587,19 @@ void __scratch_x("") __attribute__((optimize("O1"))) cgia_render(uint y, uint32_
                         uint8_t char_shift = log2_tab[plane->regs.bckgnd.row_height];
                         if (plane->regs.bckgnd.flags & PLANE_MASK_TRANSPARENT)
                         {
-                            cgia_encode_mode_2_shared(rgbbuf + plane->regs.bckgnd.scroll_x, row_columns, bckgnd_bank + plane_data->char_gen_offset + plane_data->row_line_count, char_shift);
+                            cgia_encode_mode_2_shared(
+                                rgbbuf + border_columns * CGIA_COLUMN_PX + plane->regs.bckgnd.scroll_x,
+                                row_columns,
+                                bckgnd_bank + plane_data->char_gen_offset + plane_data->row_line_count,
+                                char_shift);
                         }
                         else
                         {
-                            cgia_encode_mode_2_mapped(rgbbuf + plane->regs.bckgnd.scroll_x, row_columns, bckgnd_bank + plane_data->char_gen_offset + plane_data->row_line_count, char_shift);
+                            cgia_encode_mode_2_mapped(
+                                rgbbuf + border_columns * CGIA_COLUMN_PX + plane->regs.bckgnd.scroll_x,
+                                row_columns,
+                                bckgnd_bank + plane_data->char_gen_offset + plane_data->row_line_count,
+                                char_shift);
                         }
                     }
                     break;
@@ -606,11 +614,15 @@ void __scratch_x("") __attribute__((optimize("O1"))) cgia_render(uint y, uint32_
                         // TODO: double size
                         if (plane->regs.bckgnd.flags & PLANE_MASK_TRANSPARENT)
                         {
-                            cgia_encode_mode_3_shared(rgbbuf + plane->regs.bckgnd.scroll_x, row_columns);
+                            cgia_encode_mode_3_shared(
+                                rgbbuf + border_columns * CGIA_COLUMN_PX + plane->regs.bckgnd.scroll_x,
+                                row_columns);
                         }
                         else
                         {
-                            cgia_encode_mode_3_mapped(rgbbuf + plane->regs.bckgnd.scroll_x, row_columns);
+                            cgia_encode_mode_3_mapped(
+                                rgbbuf + border_columns * CGIA_COLUMN_PX + plane->regs.bckgnd.scroll_x,
+                                row_columns);
                         }
 
                         // next raster line starts with next byte, but color/bg scan stay the same
@@ -628,16 +640,34 @@ void __scratch_x("") __attribute__((optimize("O1"))) cgia_render(uint y, uint32_
                         if (plane->regs.bckgnd.flags & PLANE_MASK_TRANSPARENT)
                         {
                             if (plane->regs.bckgnd.flags & PLANE_MASK_DOUBLE_WIDTH)
-                                cgia_encode_mode_4_doubled_shared(rgbbuf + plane->regs.bckgnd.scroll_x, row_columns, bckgnd_bank + plane_data->char_gen_offset + plane_data->row_line_count, char_shift, plane->regs.bckgnd.shared_color);
+                                cgia_encode_mode_4_doubled_shared(
+                                    rgbbuf + border_columns * CGIA_COLUMN_PX + plane->regs.bckgnd.scroll_x,
+                                    row_columns,
+                                    bckgnd_bank + plane_data->char_gen_offset + plane_data->row_line_count,
+                                    char_shift,
+                                    plane->regs.bckgnd.shared_color);
                             else
-                                cgia_encode_mode_4_shared(rgbbuf + plane->regs.bckgnd.scroll_x, row_columns, bckgnd_bank + plane_data->char_gen_offset + plane_data->row_line_count, char_shift, plane->regs.bckgnd.shared_color);
+                                cgia_encode_mode_4_shared(
+                                    rgbbuf + border_columns * CGIA_COLUMN_PX + plane->regs.bckgnd.scroll_x,
+                                    row_columns,
+                                    bckgnd_bank + plane_data->char_gen_offset + plane_data->row_line_count,
+                                    char_shift,
+                                    plane->regs.bckgnd.shared_color);
                         }
                         else
                         {
                             if (plane->regs.bckgnd.flags & PLANE_MASK_DOUBLE_WIDTH)
-                                cgia_encode_mode_4_doubled_mapped(rgbbuf + plane->regs.bckgnd.scroll_x, row_columns, bckgnd_bank + plane_data->char_gen_offset + plane_data->row_line_count, char_shift, plane->regs.bckgnd.shared_color);
+                                cgia_encode_mode_4_doubled_mapped(
+                                    rgbbuf + border_columns * CGIA_COLUMN_PX + plane->regs.bckgnd.scroll_x,
+                                    row_columns,
+                                    bckgnd_bank + plane_data->char_gen_offset + plane_data->row_line_count, char_shift,
+                                    plane->regs.bckgnd.shared_color);
                             else
-                                cgia_encode_mode_4_mapped(rgbbuf + plane->regs.bckgnd.scroll_x, row_columns, bckgnd_bank + plane_data->char_gen_offset + plane_data->row_line_count, char_shift, plane->regs.bckgnd.shared_color);
+                                cgia_encode_mode_4_mapped(
+                                    rgbbuf + border_columns * CGIA_COLUMN_PX + plane->regs.bckgnd.scroll_x,
+                                    row_columns,
+                                    bckgnd_bank + plane_data->char_gen_offset + plane_data->row_line_count, char_shift,
+                                    plane->regs.bckgnd.shared_color);
                         }
                     }
                     break;
@@ -664,26 +694,38 @@ void __scratch_x("") __attribute__((optimize("O1"))) cgia_render(uint y, uint32_
                         {
                             if (plane->regs.bckgnd.flags & PLANE_MASK_DOUBLE_WIDTH)
                             {
-                                cgia_encode_mode_5_doubled_shared(rgbbuf + plane->regs.bckgnd.scroll_x, encode_columns, plane->regs.bckgnd.shared_color);
+                                cgia_encode_mode_5_doubled_shared(
+                                    rgbbuf + border_columns * CGIA_COLUMN_PX + plane->regs.bckgnd.scroll_x,
+                                    encode_columns,
+                                    plane->regs.bckgnd.shared_color);
                             }
                             else
                             {
                                 // this mode generates 4x8 cells, so requires 2x columns
                                 encode_columns <<= 1;
-                                cgia_encode_mode_5_shared(rgbbuf + plane->regs.bckgnd.scroll_x, encode_columns, plane->regs.bckgnd.shared_color);
+                                cgia_encode_mode_5_shared(
+                                    rgbbuf + border_columns * CGIA_COLUMN_PX + plane->regs.bckgnd.scroll_x,
+                                    encode_columns,
+                                    plane->regs.bckgnd.shared_color);
                             }
                         }
                         else
                         {
                             if (plane->regs.bckgnd.flags & PLANE_MASK_DOUBLE_WIDTH)
                             {
-                                cgia_encode_mode_5_doubled_mapped(rgbbuf + plane->regs.bckgnd.scroll_x, encode_columns, plane->regs.bckgnd.shared_color);
+                                cgia_encode_mode_5_doubled_mapped(
+                                    rgbbuf + border_columns * CGIA_COLUMN_PX + plane->regs.bckgnd.scroll_x,
+                                    encode_columns,
+                                    plane->regs.bckgnd.shared_color);
                             }
                             else
                             {
                                 // this mode generates 4x8 cells, so requires 2x columns
                                 encode_columns <<= 1;
-                                cgia_encode_mode_5_mapped(rgbbuf + plane->regs.bckgnd.scroll_x, encode_columns, plane->regs.bckgnd.shared_color);
+                                cgia_encode_mode_5_mapped(
+                                    rgbbuf + border_columns * CGIA_COLUMN_PX + plane->regs.bckgnd.scroll_x,
+                                    encode_columns,
+                                    plane->regs.bckgnd.shared_color);
                             }
                         }
 
@@ -707,7 +749,9 @@ void __scratch_x("") __attribute__((optimize("O1"))) cgia_render(uint y, uint32_
                         }
                         set_mode7_scans(plane, bckgnd_bank + plane_data->memory_scan);
 
-                        cgia_encode_mode_7(rgbbuf + plane->regs.bckgnd.scroll_x, row_columns);
+                        cgia_encode_mode_7(
+                            rgbbuf + border_columns * CGIA_COLUMN_PX,
+                            row_columns);
 
                         // save interpolators state for this plane
                         interp_save(interp0, &plane_data->interpolator[0]);
