@@ -390,7 +390,9 @@ void __scratch_x("") __attribute__((optimize("O1"))) cgia_render(uint y, uint32_
                     int sprite_line = (sprite->flags & SPRITE_MASK_MIRROR_Y)
                                           ? sprite->pos_y + sprite->lines_y - 1 - y
                                           : y - sprite->pos_y;
-                    if (sprite_line >= 0 && sprite_line < sprite->lines_y)
+                    if (sprite_line >= plane->regs.sprite.start_y
+                        && sprite_line < sprite->lines_y
+                        && (!plane->regs.sprite.stop_y || sprite_line <= plane->regs.sprite.stop_y))
                     {
                         const uint8_t sprite_width = sprite->flags & SPRITE_MASK_WIDTH;
                         uint8_t line_bytes = sprite_width + 1;
@@ -426,6 +428,17 @@ void __scratch_x("") __attribute__((optimize("O1"))) cgia_render(uint y, uint32_
                 }
                 --sprite_index;
                 mask >>= 1;
+            }
+            // borders
+            uint8_t border_columns = plane->regs.sprite.border_columns;
+            if (border_columns > MAX_BORDER_COLUMNS)
+                border_columns = MAX_BORDER_COLUMNS;
+            if (border_columns)
+            {
+                uint32_t *buf = fill_back(rgbbuf, border_columns, CGIA.back_color);
+                uint8_t row_columns = FRAME_CHARS - 2 * border_columns;
+                buf += row_columns * CGIA_COLUMN_PX;
+                fill_back(buf, border_columns, CGIA.back_color);
             }
         }
         else
