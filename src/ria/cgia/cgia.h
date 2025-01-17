@@ -58,12 +58,21 @@ struct cgia_plane_t
             uint8_t border_columns;
             uint8_t row_height;
             uint8_t stride;
-            uint8_t shared_color[2];
             int8_t scroll_x;
             int8_t offset_x;
             int8_t scroll_y;
             int8_t offset_y;
+            uint8_t shared_color[2];
         } bckgnd;
+
+        struct cgia_ham_regs
+        {
+            uint8_t flags;
+            uint8_t border_columns;
+            uint8_t row_height;
+            uint8_t reserved[5];
+            uint8_t base_color[8];
+        } ham;
 
         struct cgia_affine_regs
         {
