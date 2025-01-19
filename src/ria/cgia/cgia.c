@@ -546,7 +546,7 @@ void __scratch_x("") __attribute__((optimize("O1"))) cgia_render(uint y, uint32_
 
                 case 0x4: // Set 8-bit register
                 {
-                    ((uint8_t *)&plane->regs)[(dl_instr & 0b01110000) >> 4] = bckgnd_bank[++plane->offset];
+                    ((uint8_t *)&plane->regs)[(dl_instr & 0b11110000) >> 4] = bckgnd_bank[++plane->offset];
                 }
                     ++plane->offset; // Move to next DL instruction
                     goto process_instruction;
