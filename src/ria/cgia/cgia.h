@@ -44,6 +44,24 @@
    11   another "background" color
 */
 
+/*
+   Hold-And-Modify MODE6
+
+   HAM commands are 6bit each, 4 screen pixels packed in 3 bytes.
+   [CCCDDD] - C -command bit, D - data bit
+
+    000 - load base color index at DDD (one of 8 base colors)
+    001 - blend current color with color at DDD
+
+    CCS - CC:
+          01 - Modify Red channel
+          10 - Modify Green channel
+          11 - Modify Blue channel
+
+          S: sign, 0 +delta, 1 -delta
+          DDD: delta (0 offsetted, so 000 means 1)
+*/
+
 #define CGIA_COLUMN_PX 8
 
 struct cgia_plane_t

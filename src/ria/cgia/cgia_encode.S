@@ -356,6 +356,132 @@ decl_func cgia_encode_mode_5_doubled_mapped
 	cgia_encode_mode_5 1 1
 
 
+//////////////////// MODE 6 ////////////////////
+
+// r0 is output RGB buffer
+// r2 is base_color array [8]
+// r4 is cgia_rgb_palette
+// r6 is HAM command
+// changes r0,r7,r11,r12
+ham_command:
+  // split instruction
+  lsrs r7, r6, #3  // extract code
+
+  cmp r7, #0  // --- 000 - load base color index
+  bne 101f
+  ands r6, #7               // 00000111 mask data
+  ldrb r6, [r2, r6]         // load base color index
+  ldr r12, [r4, r6, LSL #2] // load palette entry to current color
+  b 111f
+101:
+  cmp r7, #1  // --- 001 - blend current color
+  bne 102f
+  ands r6, #7               // 00000111 mask data
+  ldrb r6, [r2, r6]         // load base color index
+  ldr r12, [r4, r6, LSL #2] // load palette entry to current color
+                            // TODO: blend with r12
+
+  b 111f
+102:            // --- Modify a channel
+  ands r6, #15  // 00001111 mask data
+  lsls r6, #4   // Make changes in quanta of 16
+
+  lsrs r7, #1   // extract two high bits of command
+
+  cmp r7, #1  // --- 01x - Modify Red channel
+  bne 103f
+  ands r7, r12, #0xFF     // extract RED color value
+  adds r7, r6             // add delta
+  ands r7, #0xFF          // clamp to 8 bit
+  ands r12, #0xFFFFFF00   // remove RED channel from current color
+  orrs r12, r7            // merge modified value
+  b 111f
+103:
+  cmp r7, #2  // --- 10x - Modify Green channel
+  bne 104f
+  ands r7, r12, #0xFF00   // extract GREEN color value
+  adds r7, r7, r6, LSL #8 // add delta
+  ands r7, #0xFF00        // clamp to 8 bit
+  ands r12, #0xFFFF00FF   // remove GREEN channel from current color
+  orrs r12, r7            // merge modified value
+  b 111f
+104:
+              // --- 11x - Modify Blue channel
+  ands r7, r12, #0xFF0000   // extract BLUE color value
+  adds r7, r7, r6, LSL #16  // add delta
+  ands r7, #0xFF0000        // clamp to 8 bit
+  ands r12, #0xFF00FFFF     // remove BLUE channel from current color
+  orrs r12, r7              // merge modified value
+111:
+  bx lr   // return
+
+.macro write_pixel_ham doubled
+.if \doubled
+  mov r11, r12
+  stmia r0!, {r11-r12}
+.else
+  stmia r0!, {r12}
+.endif
+.endm
+
+// r0 is output RGB buffer
+// r1 is width in bytes
+// r2 is base_color array [8]
+// r3 is background color
+.macro cgia_encode_mode_6_ doubled
+  push {r4-r7,r11, lr}
+
+  ldr r4, =cgia_rgb_palette
+  ldr r12, [r4, r3]  // get current color from background color
+
+  ldr r3, =(SIO_BASE + SIO_INTERP0_ACCUM0_OFFSET)
+
+3:
+  ldr r5, [r3, #POP0_OFFS]  // load HAM command address
+  ldr r5, [r5]              // load HAM command data
+  // commands in register:
+  // xxxxxxxx 22333333 11112222 00000011
+
+  // extract first command
+  mov r6, r5, LSR #2  // skip two lowest bits
+  ands r6, #0x3F      // mask 6 command bits
+  bl ham_command
+  write_pixel_ham \doubled
+  // extract second command
+  mov r6, r5, LSR #12
+  ands r6, #15        // get lower 4 bits from second byte
+  ands r7, r5, #3     // get higher 2 bits from first byte
+  orrs r6, r7         // merge higher bits to r6
+  bl ham_command
+  write_pixel_ham \doubled
+  // extract third command
+  mov r6, r5, LSR #6
+  ands r6, #60              // get higher 4 bits into bits 5-2
+  ands r7, r5, #0xC00000    // extract highest 2 bits from third byte
+  orrs r6, r6, r7, LSR #22  // merge highest two bits as lowest two bits
+  bl ham_command
+  write_pixel_ham \doubled
+  // extract fourth command
+  mov r6, r5, LSR #16 // get third byte
+  ands r6, #0x3F      // mask 6 command bits
+  bl ham_command
+  write_pixel_ham \doubled
+
+  ldr r5, [r3, #POP0_OFFS]  // pop two more addr
+  ldr r5, [r3, #POP0_OFFS]  // we've already processed these
+  subs r1, #1
+  bne 3b
+
+  pop {r4-r7,r11, pc}
+.endm
+
+decl_func cgia_encode_mode_6
+	cgia_encode_mode_6_ 0
+
+decl_func cgia_encode_mode_6_doubled
+	cgia_encode_mode_6_ 1
+
+
 //////////////////// MODE 7 ////////////////////
 
 // r0 is output RGB buffer
@@ -398,5 +524,4 @@ decl_func cgia_encode_mode_7
   bne 1b
 
   pop {r4-r7, pc}
-.endm
 

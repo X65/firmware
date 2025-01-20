@@ -236,11 +236,11 @@ void __not_in_flash_func(out_core1_main)(void)
 {
     // Configure HSTX's TMDS encoder for RGB888
     hstx_ctrl_hw->expand_tmds = 7 << HSTX_CTRL_EXPAND_TMDS_L2_NBITS_LSB // R
-                                | 16 << HSTX_CTRL_EXPAND_TMDS_L2_ROT_LSB
+                                | 0 << HSTX_CTRL_EXPAND_TMDS_L2_ROT_LSB
                                 | 7 << HSTX_CTRL_EXPAND_TMDS_L1_NBITS_LSB // G
                                 | 8 << HSTX_CTRL_EXPAND_TMDS_L1_ROT_LSB
                                 | 7 << HSTX_CTRL_EXPAND_TMDS_L0_NBITS_LSB // B
-                                | 0 << HSTX_CTRL_EXPAND_TMDS_L0_ROT_LSB;
+                                | 16 << HSTX_CTRL_EXPAND_TMDS_L0_ROT_LSB;
 
     // Pixels (TMDS) come in 3x 8-bit RGB + 1 byte padding.
     // Control symbols (RAW) are an entire 32-bit word.

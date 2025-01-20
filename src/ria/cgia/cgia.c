@@ -161,8 +161,8 @@ void cgia_init(void)
 
 #ifdef PICO_SDK_VERSION_MAJOR
     // DMA
-
-    ctrl_chan = dma_claim_unused_channel(true);
+    ctrl_chan
+        = dma_claim_unused_channel(true);
     data_chan = dma_claim_unused_channel(true);
 
     dma_channel_config c = dma_channel_get_default_config(ctrl_chan);
@@ -730,6 +730,34 @@ void __scratch_x("") __attribute__((optimize("O1"))) cgia_render(uint y, uint32_
                         }
 
                         // next raster line starts with next byte, but color/bg scan stay the same
+                        ++plane_data->memory_scan;
+                    }
+                    break;
+
+                    case (0x6 | CGIA_MODE_BIT): // MODE6 (E) - HAM mode
+                    {
+                        set_linear_scans(1,
+                                         bckgnd_bank + plane_data->memory_scan - 1,
+                                         0, 0);
+                        if (plane->regs.bckgnd.flags & PLANE_MASK_DOUBLE_WIDTH)
+                        {
+                            cgia_encode_mode_6_doubled(
+                                rgbbuf + border_columns * CGIA_COLUMN_PX + plane->regs.bckgnd.scroll_x,
+                                row_columns,
+                                plane->regs.ham.base_color,
+                                CGIA.back_color);
+                        }
+                        else
+                        {
+                            // this mode generates 4px columns, so requires 2x columns
+                            row_columns <<= 1;
+                            cgia_encode_mode_6(
+                                rgbbuf + border_columns * CGIA_COLUMN_PX + plane->regs.bckgnd.scroll_x,
+                                row_columns,
+                                plane->regs.ham.base_color,
+                                CGIA.back_color);
+                        }
+                        // next raster line starts with next byte
                         ++plane_data->memory_scan;
                     }
                     break;
