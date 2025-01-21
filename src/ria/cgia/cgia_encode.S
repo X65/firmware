@@ -367,7 +367,7 @@ ham_command:
   // split instruction
   lsrs r7, r6, #3  // extract code
 
-  cmp r7, #0  // --- 000 - load base color index
+  cmp r7, #0  // --- 000 - load base color
   bne 101f
   ands r6, #7               // 00000111 mask data
   ldrb r6, [r2, r6]         // load base color index
@@ -380,7 +380,6 @@ ham_command:
   ldrb r6, [r2, r6]         // load base color index
   ldr r12, [r4, r6, LSL #2] // load palette entry to current color
                             // TODO: blend with r12
-
   b 111f
 102:            // --- Modify a channel
   ands r6, #15  // 00001111 mask data
@@ -439,6 +438,9 @@ ham_command:
 3:
   ldr r5, [r3, #POP0_OFFS]  // load HAM command address
   ldr r5, [r5]              // load HAM command data
+  // NOTICE: this is a full register load, which loads 4 commands at once
+  // Since ARM is little endian, the in-register commands layout is magled,
+  // thus we need some bit wrangling to unpack it
   // commands in register:
   // xxxxxxxx 22333333 11112222 00000011
 
@@ -451,6 +453,7 @@ ham_command:
   mov r6, r5, LSR #12
   ands r6, #15        // get lower 4 bits from second byte
   ands r7, r5, #3     // get higher 2 bits from first byte
+  lsls r7, #4         // move to correct position
   orrs r6, r7         // merge higher bits to r6
   bl ham_command
   write_pixel_ham \doubled

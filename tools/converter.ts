@@ -6,6 +6,11 @@ import { Args } from "jsr:@std/cli/parse-args";
 import { red, yellow } from "jsr:@std/fmt/colors";
 import { validateArgs, type ScriptDefinition } from "jsr:@ploiu/arg-helper";
 import { getPixels } from "jsr:@unpic/pixels";
+import ProgressBar from "https://deno.land/x/progressbar@v0.2.0/progressbar.ts";
+import {
+  percentageWidget,
+  amountWidget,
+} from "https://deno.land/x/progressbar@v0.2.0/widgets.ts";
 
 const default_args = {
   cell: 8,
@@ -24,7 +29,7 @@ const supported_palettes = [
   "plus4-2",
   "fixed([00,]11,22,33)",
 ];
-const supported_formats = ["hires", "multicolor", "chunky"];
+const supported_formats = ["hires", "multicolor", "ham", "chunky"];
 const supported_types = ["header", "xex", "xex-boot"];
 
 // prettier-ignore
@@ -565,6 +570,8 @@ if (import.meta.main) {
   if (args.format === "chunky") {
     column_width = 1;
     cell_height = 1;
+  } else if (args.format === "ham") {
+    cell_height = 1;
   }
 
   const columns = width / column_width;
@@ -587,148 +594,180 @@ if (import.meta.main) {
   }
 
   // statistics gathering
-  for (let i = 0; i < data.length; i += BYTES_PER_SAMPLE) {
-    const color = getPixelN(i);
-    if (color >= 0) {
-      addColor(fromBGR(color));
+  {
+    console.log("Compute color map...");
+    const widgets = [percentageWidget, amountWidget];
+    const pb = new ProgressBar({ total: data.length, widgets });
+    for (let i = 0; i < data.length; i += BYTES_PER_SAMPLE) {
+      await pb.update(i);
+      const color = getPixelN(i);
+      if (color >= 0) {
+        addColor(fromBGR(color));
+      }
     }
+    await pb.finish();
   }
 
   // optimizing
-  if (printClashes()) {
-    console.log("Optimizing palette...");
+  if (args.format === "ham") {
+    const colors_used = palette_map.filter(({ length }) => length);
+    const colors_unique = colors_used.flat();
+    // TODO: flatten base colors - scan palette and merge colors below distance threshold
+    // start with the most common color, scan all colors and merge
+    // if not merged any - move to next common, rinse, repeat
+    // break if down to no more than 8 base colors
+    console.log(
+      `Will use ${colors_used.length} base colors, mapping ${colors_unique.length} image colors.`
+    );
+  } else {
+    if (printClashes()) {
+      console.log("Optimizing palette...");
+      const widgets = [percentageWidget, amountWidget];
+      const pb = new ProgressBar({ total: data.length, widgets });
 
-    // used to track where color has already been
-    const occupancies = Array.from({ length: 256 }, () => [] as Color[]);
+      // used to track where color has already been
+      const occupancies = Array.from({ length: 256 }, () => [] as Color[]);
 
-    let changed;
-    do {
-      // repeat until a run does nothing
-      changed = false;
+      let changed;
+      do {
+        // repeat until a run does nothing
+        changed = false;
 
-      for (let idx = 0; idx < palette_map.length; ++idx) {
-        if (palette_map[idx].length > 1) {
-          let distances: [Color, number, number][] = [];
-          if (idx < 8) {
-            // if grey
-            if (args.greys) {
-              // work only within current color band
-              const il = Math.max(Math.floor(idx / 8) * 8, idx - 1);
-              const ih = Math.min((Math.floor(idx / 8) + 1) * 8 - 1, idx + 1);
-              // compute distances to the lower color
-              if (il !== idx)
+        for (let idx = 0; idx < palette_map.length; ++idx) {
+          await pb.update(idx);
+          if (palette_map[idx].length > 1) {
+            let distances: [Color, number, number][] = [];
+            if (idx < 8) {
+              // if grey
+              if (args.greys) {
+                // work only within current color band
+                const il = Math.max(Math.floor(idx / 8) * 8, idx - 1);
+                const ih = Math.min((Math.floor(idx / 8) + 1) * 8 - 1, idx + 1);
+                // compute distances to the lower color
+                if (il !== idx)
+                  for (const cl of palette_map[idx]) {
+                    distances.push([
+                      cl,
+                      colorDistance(cl, fromRGB(cgia_rgb_palette[il])),
+                      il,
+                    ]);
+                  }
+                // compute distances to higher color
+                if (ih !== idx)
+                  for (const cl of palette_map[idx]) {
+                    distances.push([
+                      cl,
+                      colorDistance(cl, fromRGB(cgia_rgb_palette[ih])),
+                      ih,
+                    ]);
+                  }
+              } else {
+                // find closest brightness color
                 for (const cl of palette_map[idx]) {
-                  distances.push([
-                    cl,
-                    colorDistance(cl, fromRGB(cgia_rgb_palette[il])),
-                    il,
-                  ]);
+                  Object.entries(cgia_rgb_palette).map(([no, rgb]) => {
+                    distances.push([
+                      cl,
+                      lightnessDistance(cl, fromRGB(rgb)),
+                      Number(no),
+                    ]);
+                  });
                 }
-              // compute distances to higher color
-              if (ih !== idx)
-                for (const cl of palette_map[idx]) {
-                  distances.push([
-                    cl,
-                    colorDistance(cl, fromRGB(cgia_rgb_palette[ih])),
-                    ih,
-                  ]);
-                }
+              }
             } else {
-              // find closest brightness color
               for (const cl of palette_map[idx]) {
                 Object.entries(cgia_rgb_palette).map(([no, rgb]) => {
                   distances.push([
                     cl,
-                    lightnessDistance(cl, fromRGB(rgb)),
+                    colorDistance(cl, fromRGB(rgb)),
                     Number(no),
                   ]);
                 });
               }
             }
-          } else {
-            for (const cl of palette_map[idx]) {
-              Object.entries(cgia_rgb_palette).map(([no, rgb]) => {
-                distances.push([
-                  cl,
-                  colorDistance(cl, fromRGB(rgb)),
-                  Number(no),
-                ]);
-              });
-            }
-          }
-          let max_d_l = Infinity;
-          let max_d_h = Infinity;
-          distances = distances
-            .filter(([f_cl, f_d, f_idx]) => {
-              // skip colors that would change its brightness too much
-              // TODO: make it a CLI argument
-              const l_src = sRGBtoLstar(f_cl);
-              const l_dst = sRGBtoLstar(fromRGB(cgia_rgb_palette[f_idx]));
-              const l_delta = Math.abs(l_src - l_dst);
-              if (l_delta < args.threshold) {
-                return true;
-              }
-              if (f_idx < idx && f_d < max_d_l) max_d_l = f_d;
-              if (f_idx > idx && f_d < max_d_h) max_d_h = f_d;
-              return false;
-            })
-            .filter(([f_cl, f_d, f_idx]) => {
-              // skip colors that already was in place they would move
-              if (colorIn(occupancies[f_idx], f_cl)) {
+            let max_d_l = Infinity;
+            let max_d_h = Infinity;
+            distances = distances
+              .filter(([f_cl, f_d, f_idx]) => {
+                // skip colors that would change its brightness too much
+                // TODO: make it a CLI argument
+                const l_src = sRGBtoLstar(f_cl);
+                const l_dst = sRGBtoLstar(fromRGB(cgia_rgb_palette[f_idx]));
+                const l_delta = Math.abs(l_src - l_dst);
+                if (l_delta < args.threshold) {
+                  return true;
+                }
                 if (f_idx < idx && f_d < max_d_l) max_d_l = f_d;
                 if (f_idx > idx && f_d < max_d_h) max_d_h = f_d;
                 return false;
-              }
-              return true;
-            });
-          // skip colors that have worse match than colors skipped in above filter
-          distances = distances
-            .filter(([_f_cl, f_d, f_idx]) => {
-              return (
-                (f_idx < idx && f_d < max_d_l) || (f_idx > idx && f_d < max_d_h)
+              })
+              .filter(([f_cl, f_d, f_idx]) => {
+                // skip colors that already was in place they would move
+                if (colorIn(occupancies[f_idx], f_cl)) {
+                  if (f_idx < idx && f_d < max_d_l) max_d_l = f_d;
+                  if (f_idx > idx && f_d < max_d_h) max_d_h = f_d;
+                  return false;
+                }
+                return true;
+              });
+            // skip colors that have worse match than colors skipped in above filter
+            distances = distances
+              .filter(([_f_cl, f_d, f_idx]) => {
+                return (
+                  (f_idx < idx && f_d < max_d_l) ||
+                  (f_idx > idx && f_d < max_d_h)
+                );
+              })
+              .sort(([_c1, d1, i1], [_c2, d2, i2]) =>
+                d1 === d2 ? i1 - i2 : d1 - d2
               );
-            })
-            .sort(([_c1, d1, i1], [_c2, d2, i2]) =>
-              d1 === d2 ? i1 - i2 : d1 - d2
-            );
-          if (distances.length > 0) {
-            const [moved_cl, _moved_d, moved_idx] = distances.shift()!;
-            palette_map[idx] = palette_map[idx].filter(
-              (cl) => cl.toString() !== moved_cl.toString()
-            );
-            palette_map[moved_idx].push(moved_cl);
-            addColorToMap(occupancies, idx, moved_cl);
-            changed = true;
+            if (distances.length > 0) {
+              const [moved_cl, _moved_d, moved_idx] = distances.shift()!;
+              palette_map[idx] = palette_map[idx].filter(
+                (cl) => cl.toString() !== moved_cl.toString()
+              );
+              palette_map[moved_idx].push(moved_cl);
+              addColorToMap(occupancies, idx, moved_cl);
+              changed = true;
+            }
           }
         }
-      }
-    } while (changed);
+      } while (changed);
+      await pb.finish();
+    }
+    printClashes();
   }
-  printClashes();
 
   // conversion
   const cells = Array.from({ length: rows * columns }, () => [] as number[]);
 
-  // first, distribute pixels among cells
-  for (let y = 0; y < height; ++y) {
-    for (let x = 0; x < width; ++x) {
-      const pixel = getPixelXY(x, y);
-      let color_no: number;
-      if (pixel < 0) {
-        if (!args.transparent)
-          abort(`Transparency (@${x},${y}) allowed only in --transparent mode`);
-        color_no = -1;
-      } else {
-        const pixel_color = fromBGR(pixel);
-        color_no = getColorIdx(pixel_color);
+  {
+    console.log("Distribute pixels among cells...");
+    const widgets = [percentageWidget, amountWidget];
+    const pb = new ProgressBar({ total: width * height, widgets });
+    for (let y = 0; y < height; ++y) {
+      for (let x = 0; x < width; ++x) {
+        await pb.update(y * width + x);
+        const pixel = getPixelXY(x, y);
+        let color_no: number;
+        if (pixel < 0) {
+          if (!args.transparent)
+            abort(
+              `Transparency (@${x},${y}) allowed only in --transparent mode`
+            );
+          color_no = -1;
+        } else {
+          const pixel_color = fromBGR(pixel);
+          color_no = getColorIdx(pixel_color);
+        }
+        const cell_idx =
+          Math.floor(x / column_width) + Math.floor(y / cell_height) * columns;
+        cells[cell_idx].push(color_no);
       }
-      const cell_idx =
-        Math.floor(x / column_width) + Math.floor(y / cell_height) * columns;
-      cells[cell_idx].push(color_no);
     }
+    await pb.finish();
   }
 
-  // find out most common colors in rows
+  console.log("Find out most common colors in rows...");
   const row_colors_histogram = Array.from(
     { length: rows },
     () => [] as [number, number][]
@@ -820,6 +859,7 @@ if (import.meta.main) {
           cell_pixels.push(...row[2]);
         }
         break;
+      case "ham":
       case "chunky":
         // No need to mangle pixels
         break;
@@ -929,13 +969,18 @@ if (import.meta.main) {
       }
       print(`};\n\n`);
     },
-    writeChunkyData(data_offset: number, color_data: number[]) {
+    writeChunkyData(
+      data_offset: number,
+      color_data: number[],
+      row_width = width
+    ) {
       print(
         `static uint8_t __attribute__((aligned(4))) pixel_data[${color_data.length}] = {\n`
       );
       for (let i = 0; i < color_data.length; ++i) {
         print(`0x${toHEX(color_data[i] || 0)}, `);
-        if ((i + 1) % width === 0) print(`// ${Math.floor(i / width)}\n`);
+        if ((i + 1) % row_width === 0)
+          print(`// ${Math.floor(i / row_width)}\n`);
       }
       print(`};\n\n`);
       print(`static const uint8_t pixel_width = ${width};\n`);
@@ -1064,11 +1109,11 @@ if (import.meta.main) {
         for (let i = 0; i < shared_colors.length; ++i) {
           if (sh_0 !== (shared_colors[i][0] || 0)) {
             sh_0 = shared_colors[i][0] || 0;
-            dl.push([0x44], [sh_0]);
+            dl.push([0x84], [sh_0]);
           }
           if (sh_1 !== (shared_colors[i][1] || 0)) {
             sh_1 = shared_colors[i][1] || 0;
-            dl.push([0x54], [sh_1]);
+            dl.push([0x94], [sh_1]);
           }
           dl.push([0x0d, "MODE5"]);
         }
@@ -1169,6 +1214,121 @@ if (import.meta.main) {
           colors.push(color_no);
         }
         writer.writeChunkyData(0x0000, colors);
+      }
+      break;
+    case "ham":
+      {
+        const video_offset = 0x0000;
+        const dl_offset = 0xf000;
+
+        const dl: [number, string?][] = [];
+        for (let i = 0; i < row_colors.length; ++i) {
+          const colors = row_colors[i];
+          // cut-off max 8 base colors per row
+          if (colors.length > 8) colors.length = 8;
+
+          for (let c = 0; c < colors.length; ++c) {
+            dl.push([((8 + c) << 4) | 0x04], [colors[c]]);
+          }
+          dl.push([0x0e, "MODE6"]);
+        }
+        writer.writeHeader(video_offset, 0, 0, dl_offset, dl);
+
+        const bitpacked_ham_commands: number[] = [];
+
+        console.log("Compressing HAM data...");
+        const widgets = [percentageWidget, amountWidget];
+        const pb = new ProgressBar({ total: width * height, widgets });
+        for (let y = 0; y < height; ++y) {
+          let current_color: Color | undefined = undefined;
+          const ham_commands: number[] = [];
+          for (let x = 0; x < width; ++x) {
+            await pb.update(y * width + x);
+            const pixel = getPixelXY(x, y);
+            const pixel_color = fromBGR(pixel);
+            // find closest base color
+            const base_colors = row_colors[y].map((idx) => [
+              idx,
+              colorDistance(pixel_color, fromRGB(cgia_rgb_palette[idx])),
+            ]);
+            base_colors.sort(([idx1, d1], [idx2, d2]) =>
+              d1 === d2 ? idx1 - idx2 : d1 - d2
+            );
+            const [base_color_idx, base_color_distance] = base_colors[0];
+            // should just use base?
+            if (current_color === undefined || base_color_distance === 0) {
+              // 0b 000 IDX
+              ham_commands.push(row_colors[y].indexOf(base_color_idx));
+              current_color = fromRGB(cgia_rgb_palette[base_color_idx]);
+            } else {
+              // check delta commands
+              // TODO: try blend commands
+              type Cmd = "BASE" | "BLEND" | "RED" | "GREEN" | "BLUE";
+              let cmd: Cmd = "BASE";
+              let delta = 0;
+              let dist = base_color_distance;
+              let delta_color: Color | undefined;
+              const QUANTA_BITS = 4;
+              const QUANTA = 1 << QUANTA_BITS;
+              for (const [i, c] of [
+                [0, "RED"],
+                [1, "GREEN"],
+                [2, "BLUE"],
+              ] as [number, Cmd][]) {
+                let pixel_delta = pixel_color[i] - current_color[i];
+                pixel_delta = Math.floor(pixel_delta / QUANTA);
+                if (pixel_delta > 7) pixel_delta = 7;
+                if (pixel_delta < -8) pixel_delta = 8;
+                while (current_color[i] + pixel_delta * QUANTA > 255)
+                  --pixel_delta;
+                while (current_color[i] + pixel_delta * QUANTA < 0)
+                  ++pixel_delta;
+                const new_color: Color = [...current_color];
+                new_color[i] += pixel_delta * QUANTA;
+                const new_dist = colorDistance(pixel_color, new_color);
+                if (new_dist < dist) {
+                  cmd = c;
+                  delta = pixel_delta;
+                  delta_color = new_color;
+                  dist = new_dist;
+                }
+              }
+              switch (cmd) {
+                case "BASE":
+                  ham_commands.push(row_colors[y].indexOf(base_color_idx));
+                  current_color = fromRGB(cgia_rgb_palette[base_color_idx]);
+                  break;
+                case "BLEND":
+                  abort("BLEND not implemented");
+                  break;
+                case "RED":
+                  ham_commands.push(0x10 | (delta & 0x0f));
+                  current_color = delta_color;
+                  break;
+                case "GREEN":
+                  ham_commands.push(0x20 | (delta & 0x0f));
+                  current_color = delta_color;
+                  break;
+                case "BLUE":
+                  ham_commands.push(0x30 | (delta & 0x0f));
+                  current_color = delta_color;
+                  break;
+              }
+            }
+          }
+          // bitpack HAM commands
+          while (ham_commands.length) {
+            const cmd0 = ham_commands.shift()!;
+            const cmd1 = ham_commands.shift()!;
+            const cmd2 = ham_commands.shift()!;
+            const cmd3 = ham_commands.shift()!;
+            bitpacked_ham_commands.push((cmd0 << 2) | (cmd1 >> 4));
+            bitpacked_ham_commands.push(((cmd1 & 0xf) << 4) | (cmd2 >> 2));
+            bitpacked_ham_commands.push(((cmd2 & 0x3) << 6) | cmd3);
+          }
+        }
+        await pb.finish();
+        writer.writeChunkyData(0x0000, bitpacked_ham_commands, (width * 3) / 4);
       }
       break;
     default:
