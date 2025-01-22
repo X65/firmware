@@ -759,11 +759,10 @@ void __scratch_x("") __attribute__((optimize("O1"))) cgia_render(uint y, uint32_
                         }
                         else
                         {
-                            // this mode generates 4px columns, so requires 2x columns
-                            row_columns <<= 1;
                             cgia_encode_mode_6(
                                 rgbbuf + border_columns * CGIA_COLUMN_PX + plane->regs.bckgnd.scroll_x,
-                                row_columns,
+                                // this mode generates 4px columns, so requires 2x columns
+                                row_columns << 1,
                                 plane->regs.ham.base_color,
                                 CGIA.back_color);
                         }

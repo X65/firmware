@@ -427,7 +427,7 @@ ham_command:
 // r1 is width in bytes
 // r2 is base_color array [8]
 // r3 is background color
-.macro cgia_encode_mode_6_ doubled
+.macro _cgia_encode_mode_6 doubled
   push {r4-r7,r11, lr}
 
   ldr r4, =cgia_rgb_palette
@@ -479,10 +479,10 @@ ham_command:
 .endm
 
 decl_func cgia_encode_mode_6
-	cgia_encode_mode_6_ 0
+	_cgia_encode_mode_6 0
 
 decl_func cgia_encode_mode_6_doubled
-	cgia_encode_mode_6_ 1
+	_cgia_encode_mode_6 1
 
 
 //////////////////// MODE 7 ////////////////////
