@@ -738,7 +738,7 @@ void __scratch_x("") __attribute__((optimize("O1"))) cgia_render(uint y, uint32_
                     {
                         set_linear_scans(1,
                                          bckgnd_bank + plane_data->memory_scan - 1,
-                                         0, 0);
+                                         bckgnd_bank, bckgnd_bank);
                         if (plane->regs.bckgnd.flags & PLANE_MASK_DOUBLE_WIDTH)
                         {
                             cgia_encode_mode_6_doubled(
