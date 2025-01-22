@@ -458,9 +458,11 @@ void __scratch_x("") __attribute__((optimize("O1"))) cgia_render(uint y, uint32_
                 continue; // next if not enabled
 
         process_instruction:
-            if (plane_data->wait_vbl && y != 0)
+            if (plane_data->wait_vbl) // DL is stopped and waiting for VBL
             {
-                // DL is stopped and waiting for VBL
+                // if the plane is not transparent, it should become a border-color
+                // filled background for other planes
+                // start the fill now, no matter what happens later
                 if (!(plane->regs.bckgnd.flags & PLANE_MASK_BORDER_TRANSPARENT))
                 {
                     // generate full-length border line
@@ -475,14 +477,17 @@ void __scratch_x("") __attribute__((optimize("O1"))) cgia_render(uint y, uint32_
             uint8_t dl_instr = bckgnd_bank[plane->offset];
             uint8_t instr_code = dl_instr & 0b00001111;
 
-            // If it is a blank line (INSTR0) or plane is transparent
-            // fill the whole line with background color
-            if ((instr_code == 0 && !(plane->regs.bckgnd.flags & PLANE_MASK_BORDER_TRANSPARENT)) || (!line_background_filled && plane->regs.bckgnd.flags & PLANE_MASK_TRANSPARENT))
+            // If the plane is transparent and we didn't render anything
+            // to the framebuffer yet, we need to start background fill
+            // so we see background color in the transparent "holes"
+            if (!line_background_filled && plane->regs.bckgnd.flags & PLANE_MASK_TRANSPARENT)
             {
+                // fill the whole line with background color
                 (void)fill_back(rgbbuf, DISPLAY_WIDTH_PIXELS / CGIA_COLUMN_PX, CGIA.back_color);
+                line_background_filled = true;
             }
 
-            // Display list row takes a predefined raster lines,
+            // Display list row takes a plane-regs defined raster lines,
             // or may be encoded in instruction itself (gets modified later)
             uint8_t dl_row_lines = plane->regs.bckgnd.row_height;
 
@@ -495,7 +500,12 @@ void __scratch_x("") __attribute__((optimize("O1"))) cgia_render(uint y, uint32_
 
                 case 0x0: // INSTR0 - blank lines
                     dl_row_lines = dl_instr >> 4;
-                    // fill already running
+                    if (!line_background_filled || !(plane->regs.bckgnd.flags & PLANE_MASK_BORDER_TRANSPARENT))
+                    {
+                        // fill the whole line with background color
+                        (void)fill_back(rgbbuf, DISPLAY_WIDTH_PIXELS / CGIA_COLUMN_PX, CGIA.back_color);
+                        // line_background_filled = true; // set in plane_epilogue
+                    }
                     goto plane_epilogue;
 
                 case 0x1: // INSTR1 - duplicate lines
@@ -805,7 +815,7 @@ void __scratch_x("") __attribute__((optimize("O1"))) cgia_render(uint y, uint32_
             }
 
         plane_epilogue:
-            // this line has something to draw on
+            // this line has drawn something, so next planes don't have to fill background
             line_background_filled = true;
 
             // Should we run a new DL row?
