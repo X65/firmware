@@ -610,14 +610,10 @@ if (import.meta.main) {
 
   // optimizing
   if (args.format === "ham") {
-    const colors_used = palette_map.filter(({ length }) => length);
-    const colors_unique = colors_used.flat();
-    // TODO: flatten base colors - scan palette and merge colors below distance threshold
-    // start with the most common color, scan all colors and merge
-    // if not merged any - move to next common, rinse, repeat
-    // break if down to no more than 8 base colors
     console.log(
-      `Will use ${colors_used.length} base colors, mapping ${colors_unique.length} image colors.`
+      `Will use ${
+        palette_map.filter(({ length }) => length).length
+      } base colors, mapping ${palette_map.flat().length} image colors.`
     );
   } else {
     if (printClashes()) {
@@ -1219,16 +1215,29 @@ if (import.meta.main) {
     case "ham":
       {
         const video_offset = 0x0000;
-        const dl_offset = 0xf000;
-
+        const dl_offset = 0xe800;
         const dl: [number, string?][] = [];
-        for (let i = 0; i < row_colors.length; ++i) {
-          const colors = row_colors[i];
-          // cut-off max 8 base colors per row
-          if (colors.length > 8) colors.length = 8;
 
-          for (let c = 0; c < colors.length; ++c) {
-            dl.push([((8 + c) << 4) | 0x04], [colors[c]]);
+        for (let y = 0; y < row_colors.length; ++y) {
+          const base_colors = row_colors[y];
+          // gather max 8 base colors per row
+          let threshold = 1;
+          base_colors_loop: while (base_colors.length > 8) {
+            for (let i = 0; i < base_colors.length - 1; ++i) {
+              const color = fromRGB(cgia_rgb_palette[base_colors[i]]);
+              for (let j = base_colors.length - 1; j > i; --j) {
+                const cand_color = fromRGB(cgia_rgb_palette[base_colors[j]]);
+                if (colorDistance(color, cand_color) < threshold) {
+                  base_colors.splice(j, 1);
+                  if (base_colors.length <= 8) break base_colors_loop;
+                }
+              }
+            }
+            threshold = threshold * 1.1; // Add 10% of threshold
+          }
+
+          for (let c = 0; c < base_colors.length; ++c) {
+            dl.push([((8 + c) << 4) | 0x04], [base_colors[c]]);
           }
           dl.push([0x0e, "MODE6"]);
         }
@@ -1328,6 +1337,7 @@ if (import.meta.main) {
           }
         }
         await pb.finish();
+        console.log("Writing HAM data...");
         writer.writeChunkyData(0x0000, bitpacked_ham_commands, (width * 3) / 4);
       }
       break;
