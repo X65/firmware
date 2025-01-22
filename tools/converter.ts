@@ -1277,7 +1277,7 @@ if (import.meta.main) {
               let delta = 0;
               let dist = base_color_distance;
               let delta_color: Color | undefined;
-              const QUANTA_BITS = 4;
+              const QUANTA_BITS = 3;
               const QUANTA = 1 << QUANTA_BITS;
               for (const [i, c] of [
                 [0, "RED"],

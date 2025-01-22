@@ -383,7 +383,10 @@ ham_command:
   b 111f
 102:            // --- Modify a channel
   ands r6, #15  // 00001111 mask data
-  lsls r6, #4   // Make changes in quanta of 16
+  // Make changes in quanta
+  lsls r6, #4   // shift data to fill byte
+  sxtb r6, r6   // sign extend
+  lsrs r6, #1   // shift back to total shift of 3 (x8 quanta)
 
   lsrs r7, #1   // extract two high bits of command
 
