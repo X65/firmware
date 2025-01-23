@@ -362,7 +362,7 @@ decl_func cgia_encode_mode_5_doubled_mapped
 // r2 is base_color array [8]
 // r4 is cgia_rgb_palette
 // r6 is HAM command
-// changes r0,r7,r11,r12
+// changes r0,r6,r7,r8,r11,r12
 ham_command:
   // split instruction
   lsrs r7, r6, #3  // extract code
@@ -378,8 +378,36 @@ ham_command:
   bne 102f
   ands r6, #7               // 00000111 mask data
   ldrb r6, [r2, r6]         // load base color index
-  ldr r12, [r4, r6, LSL #2] // load palette entry to current color
-                            // TODO: blend with r12
+  ldr  r6, [r4, r6, LSL #2] // load palette entry - r6 is base color RGB now
+
+  // fast blend using bit shifting and masking voodoo:
+  // - remove lowest bits of channels to make place for overflow
+  //   and not accumulate overflow with next channel lowest bit
+  // - add everything at once (potentially overflowing to next channel)
+  // - shift back into position, averaging the sum
+  // fast_blend = ((base_color & 0xFEFEFE) + (current_color & 0xFEFEFE)) >> 1;
+  ldr r8, =0xFEFEFE
+  ands r7, r6, r8   // base color masked
+  ands r8, r12, r8  // current color masked
+  adds r7, r8
+  lsrs r7, #1       // blended value
+  // With above operation we lost lowest bits precision
+  // We could ignore it, but we will accumulate total error and color fringing over raster time
+  // Let's add it back:
+  // - extract lowest bits of all channels
+  // - add them and average by dividing (shifting)
+  // - mask-out highest channel bits that potentially underflowed from next channel
+  // - and finally add the fix to the previously blended value forming current_color
+  // current_color = fast_blend + ((((base_color & 0x010101) + (current_color & 0x010101)) >> 1) & 0x7F7F7F);
+  ldr r8, =0x010101
+  ands r6, r6, r8   // base color masked
+  ands r12, r12, r8 // current color masked
+  adds r6, r12
+  lsrs r6, #1
+  ldr r8, =0x7F7F7F
+  ands r6, r8
+  adds r12, r6, r7
+
   b 111f
 102:            // --- Modify a channel
   ands r6, #15  // 00001111 mask data
@@ -431,7 +459,7 @@ ham_command:
 // r2 is base_color array [8]
 // r3 is background color
 .macro _cgia_encode_mode_6 doubled
-  push {r4-r7,r11, lr}
+  push {r4-r8,r11, lr}
 
   ldr r4, =cgia_rgb_palette
   ldr r12, [r4, r3]  // get current color from background color
@@ -478,7 +506,7 @@ ham_command:
   subs r1, #1
   bne 3b
 
-  pop {r4-r7,r11, pc}
+  pop {r4-r8,r11, pc}
 .endm
 
 decl_func cgia_encode_mode_6
