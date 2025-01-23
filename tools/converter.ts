@@ -1236,9 +1236,30 @@ if (import.meta.main) {
             threshold = threshold * 1.1; // Add 10% of threshold
           }
 
-          for (let c = 0; c < base_colors.length; ++c) {
-            dl.push([((8 + c) << 4) | 0x04], [base_colors[c]]);
+          // try reusing base colors from previous row
+          const prev_base_colors = row_colors[y - 1] || [];
+          const new_base_colors: number[] = [];
+          const unmatched: number[] = [];
+          let color: number | undefined;
+          // first insert colors to the same slots
+          // these do not need a DL instruction, as they are already set
+          while ((color = base_colors.shift())) {
+            const prev_index = prev_base_colors.indexOf(color);
+            if (prev_index === -1) {
+              unmatched.push(color);
+            } else {
+              new_base_colors[prev_index] = color;
+            }
           }
+          // now insert the rest to empty slots
+          // and generate register-set DL instruction
+          for (let c = 0; unmatched.length > 0; ++c) {
+            if (new_base_colors[c] === undefined) {
+              new_base_colors[c] = unmatched.shift()!;
+              dl.push([((8 + c) << 4) | 0x04], [new_base_colors[c]]);
+            }
+          }
+          row_colors[y] = new_base_colors;
           dl.push([0x0e, "MODE6"]);
         }
         writer.writeHeader(video_offset, 0, 0, dl_offset, dl);
