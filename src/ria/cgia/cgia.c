@@ -460,9 +460,8 @@ void __scratch_x("") __attribute__((optimize("O1"))) cgia_render(uint y, uint32_
         process_instruction:
             if (plane_data->wait_vbl) // DL is stopped and waiting for VBL
             {
-                // if the plane is not transparent, it should become a border-color
-                // filled background for other planes
-                // start the fill now, no matter what happens later
+                // if the plane border is not transparent, it should become
+                // a filled background for other planes
                 if (!(plane->regs.bckgnd.flags & PLANE_MASK_BORDER_TRANSPARENT))
                 {
                     // generate full-length border line
@@ -851,6 +850,14 @@ void __scratch_x("") __attribute__((optimize("O1"))) cgia_render(uint y, uint32_
                 ++plane_data->row_line_count;
             }
         }
+    }
+
+    // if we ended-up herer without painting the line, we need to fill it with back color
+    if (!line_background_filled)
+    {
+        // generate full-length border line
+        (void)fill_back(rgbbuf, DISPLAY_WIDTH_PIXELS / CGIA_COLUMN_PX, CGIA.back_color);
+        line_background_filled = true;
     }
 }
 
