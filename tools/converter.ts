@@ -1286,10 +1286,8 @@ if (import.meta.main) {
                 for (const pixel_delta of [
                   -8, -7, -6, -5, -4, -3, -2, -1, 0, 1, 2, 3, 4, 5, 6, 7,
                 ]) {
-                  if (current_color[i] + pixel_delta * QUANTA > 255) continue;
-                  if (current_color[i] + pixel_delta * QUANTA < 0) continue;
                   const new_color: Color = [...current_color];
-                  new_color[i] += pixel_delta * QUANTA;
+                  new_color[i] = (new_color[i] + pixel_delta * QUANTA) & 0xff;
                   const new_dist = colorDistance(pixel_color, new_color);
                   if (new_dist < dist) {
                     cmd = c;
