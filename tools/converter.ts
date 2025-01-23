@@ -1256,6 +1256,7 @@ if (import.meta.main) {
             await pb.update(y * width + x);
             const pixel = getPixelXY(x, y);
             const pixel_color = fromBGR(pixel);
+
             // find closest base color
             const closest_base = base_colors.map((idx) => [
               idx,
@@ -1265,41 +1266,37 @@ if (import.meta.main) {
               d1 === d2 ? idx1 - idx2 : d1 - d2
             );
             const [base_color_idx, base_color_distance] = closest_base[0];
-            // should just use base?
-            if (current_color === undefined || base_color_distance === 0) {
-              // 0b 000 IDX
-              ham_commands.push(base_colors.indexOf(base_color_idx));
-              current_color = fromRGB(cgia_rgb_palette[base_color_idx]);
-            } else {
-              // check delta commands
-              type Cmd = "BASE" | "BLEND" | "RED" | "GREEN" | "BLUE";
-              let cmd: Cmd = "BASE";
-              let data = 0;
-              let dist = base_color_distance;
-              let cmd_color: Color | undefined;
+
+            type Cmd = "BASE" | "BLEND" | "RED" | "GREEN" | "BLUE";
+            let cmd: Cmd = "BASE";
+            let data = base_color_idx;
+            let dist = base_color_distance;
+            let cmd_color = fromRGB(cgia_rgb_palette[base_color_idx]);
+
+            // if it is not the begin of line and base does not fit perfectly, try finding better command
+            if (current_color !== undefined && base_color_distance > 0) {
               const QUANTA_BITS = 3;
               const QUANTA = 1 << QUANTA_BITS;
+              // check all delta commands
               for (const [i, c] of [
                 [0, "RED"],
                 [1, "GREEN"],
                 [2, "BLUE"],
               ] as [number, Cmd][]) {
-                let pixel_delta = pixel_color[i] - current_color[i];
-                pixel_delta = Math.floor(pixel_delta / QUANTA);
-                if (pixel_delta > 7) pixel_delta = 7;
-                if (pixel_delta < -8) pixel_delta = 8;
-                while (current_color[i] + pixel_delta * QUANTA > 255)
-                  --pixel_delta;
-                while (current_color[i] + pixel_delta * QUANTA < 0)
-                  ++pixel_delta;
-                const new_color: Color = [...current_color];
-                new_color[i] += pixel_delta * QUANTA;
-                const new_dist = colorDistance(pixel_color, new_color);
-                if (new_dist < dist) {
-                  cmd = c;
-                  data = pixel_delta;
-                  cmd_color = new_color;
-                  dist = new_dist;
+                for (const pixel_delta of [
+                  -8, -7, -6, -5, -4, -3, -2, -1, 0, 1, 2, 3, 4, 5, 6, 7,
+                ]) {
+                  if (current_color[i] + pixel_delta * QUANTA > 255) continue;
+                  if (current_color[i] + pixel_delta * QUANTA < 0) continue;
+                  const new_color: Color = [...current_color];
+                  new_color[i] += pixel_delta * QUANTA;
+                  const new_dist = colorDistance(pixel_color, new_color);
+                  if (new_dist < dist) {
+                    cmd = c;
+                    data = pixel_delta;
+                    cmd_color = new_color;
+                    dist = new_dist;
+                  }
                 }
               }
               for (const cl_idx of base_colors) {
@@ -1317,29 +1314,25 @@ if (import.meta.main) {
                   dist = new_dist;
                 }
               }
-              switch (cmd) {
-                case "BASE":
-                  ham_commands.push(base_colors.indexOf(base_color_idx));
-                  current_color = fromRGB(cgia_rgb_palette[base_color_idx]);
-                  break;
-                case "BLEND":
-                  ham_commands.push(0x08 | base_colors.indexOf(data));
-                  current_color = cmd_color;
-                  break;
-                case "RED":
-                  ham_commands.push(0x10 | (data & 0x0f));
-                  current_color = cmd_color;
-                  break;
-                case "GREEN":
-                  ham_commands.push(0x20 | (data & 0x0f));
-                  current_color = cmd_color;
-                  break;
-                case "BLUE":
-                  ham_commands.push(0x30 | (data & 0x0f));
-                  current_color = cmd_color;
-                  break;
-              }
             }
+            switch (cmd) {
+              case "BASE":
+                ham_commands.push(base_colors.indexOf(data));
+                break;
+              case "BLEND":
+                ham_commands.push(0x08 | base_colors.indexOf(data));
+                break;
+              case "RED":
+                ham_commands.push(0x10 | (data & 0x0f));
+                break;
+              case "GREEN":
+                ham_commands.push(0x20 | (data & 0x0f));
+                break;
+              case "BLUE":
+                ham_commands.push(0x30 | (data & 0x0f));
+                break;
+            }
+            current_color = cmd_color;
           }
           // bitpack HAM commands
           while (ham_commands.length) {
