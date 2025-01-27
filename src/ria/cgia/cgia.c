@@ -326,6 +326,7 @@ static inline void set_mode7_scans(struct cgia_plane_t *plane, uint8_t *memory_s
 void __scratch_x("") __attribute__((optimize("O1"))) cgia_render(uint y, uint32_t *rgbbuf)
 {
     static struct cgia_plane_t *plane;
+    static uint16_t *plane_offset;
     static struct cgia_plane_internal *plane_data;
     static uint16_t(*sprite_dscs)[CGIA_SPRITES];
 
@@ -348,6 +349,7 @@ void __scratch_x("") __attribute__((optimize("O1"))) cgia_render(uint y, uint32_
             }
 
             plane = &CGIA.plane[p];
+            plane_offset = &CGIA.offset[p];
             plane_data = &plane_int[p];
             sprite_dscs = &sprite_dsc_offsets[p];
             uint8_t *sprite_bank = vram_cache_ptr[1];
@@ -355,7 +357,7 @@ void __scratch_x("") __attribute__((optimize("O1"))) cgia_render(uint y, uint32_
             if (y == 0 // start of frame - reload descriptors
                 || plane_data->sprites_need_update)
             {
-                uint16_t offs = plane->offset;
+                uint16_t offs = *plane_offset;
                 (*sprite_dscs)[0] = offs;
                 offs += 16;
                 (*sprite_dscs)[1] = offs;
@@ -445,6 +447,7 @@ void __scratch_x("") __attribute__((optimize("O1"))) cgia_render(uint y, uint32_
         {
             /* --- BACKGROUND --- */
             plane = &CGIA.plane[p];
+            plane_offset = &CGIA.offset[p];
             plane_data = &plane_int[p];
 
         restart_plane:
@@ -473,7 +476,7 @@ void __scratch_x("") __attribute__((optimize("O1"))) cgia_render(uint y, uint32_
             }
 
             uint8_t *bckgnd_bank = vram_cache_ptr[0];
-            uint8_t dl_instr = bckgnd_bank[plane->offset];
+            uint8_t dl_instr = bckgnd_bank[*plane_offset];
             uint8_t instr_code = dl_instr & 0b00001111;
 
             // If the plane is transparent and we didn't render anything
@@ -515,8 +518,8 @@ void __scratch_x("") __attribute__((optimize("O1"))) cgia_render(uint y, uint32_
 
                 case 0x2: // INSTR1 - JMP
                     // Load DL address
-                    plane->offset = (uint16_t)((bckgnd_bank[++plane->offset])
-                                               | (bckgnd_bank[++plane->offset] << 8));
+                    *plane_offset = (uint16_t)((bckgnd_bank[++*plane_offset])
+                                               | (bckgnd_bank[++*plane_offset] << 8));
                     plane_data->row_line_count = 0; // will start new row
 
                     if (dl_instr & CGIA_DLI_BIT)
@@ -532,40 +535,40 @@ void __scratch_x("") __attribute__((optimize("O1"))) cgia_render(uint y, uint32_
                 case 0x3: // Load Memory
                     if (dl_instr & 0b00010000)
                     {
-                        plane_data->memory_scan = (uint16_t)((bckgnd_bank[++plane->offset])
-                                                             | (bckgnd_bank[++plane->offset] << 8));
+                        plane_data->memory_scan = (uint16_t)((bckgnd_bank[++*plane_offset])
+                                                             | (bckgnd_bank[++*plane_offset] << 8));
                     }
                     if (dl_instr & 0b00100000)
                     {
-                        plane_data->colour_scan = (uint16_t)((bckgnd_bank[++plane->offset])
-                                                             | (bckgnd_bank[++plane->offset] << 8));
+                        plane_data->colour_scan = (uint16_t)((bckgnd_bank[++*plane_offset])
+                                                             | (bckgnd_bank[++*plane_offset] << 8));
                     }
                     if (dl_instr & 0b01000000)
                     {
-                        plane_data->backgr_scan = (uint16_t)((bckgnd_bank[++plane->offset])
-                                                             | (bckgnd_bank[++plane->offset] << 8));
+                        plane_data->backgr_scan = (uint16_t)((bckgnd_bank[++*plane_offset])
+                                                             | (bckgnd_bank[++*plane_offset] << 8));
                     }
                     if (dl_instr & 0b10000000)
                     {
-                        plane_data->char_gen_offset = (uint16_t)((bckgnd_bank[++plane->offset])
-                                                                 | (bckgnd_bank[++plane->offset] << 8));
+                        plane_data->char_gen_offset = (uint16_t)((bckgnd_bank[++*plane_offset])
+                                                                 | (bckgnd_bank[++*plane_offset] << 8));
                     }
-                    ++plane->offset; // Move to next DL instruction
+                    ++*plane_offset; // Move to next DL instruction
                     goto process_instruction;
 
                 case 0x4: // Set 8-bit register
                 {
-                    ((uint8_t *)&plane->regs)[(dl_instr & 0b11110000) >> 4] = bckgnd_bank[++plane->offset];
+                    ((uint8_t *)&plane->regs)[(dl_instr & 0b11110000) >> 4] = bckgnd_bank[++*plane_offset];
                 }
-                    ++plane->offset; // Move to next DL instruction
+                    ++*plane_offset; // Move to next DL instruction
                     goto process_instruction;
 
                 case 0x5: // Set 16-bit register
                 {
-                    ((uint8_t *)&plane->regs)[(dl_instr & 0b01110000) >> 3] = (uint16_t)((bckgnd_bank[++plane->offset])
-                                                                                         | (bckgnd_bank[++plane->offset] << 8));
+                    ((uint8_t *)&plane->regs)[(dl_instr & 0b01110000) >> 3] = (uint16_t)((bckgnd_bank[++*plane_offset])
+                                                                                         | (bckgnd_bank[++*plane_offset] << 8));
                 }
-                    ++plane->offset; // Move to next DL instruction
+                    ++*plane_offset; // Move to next DL instruction
                     goto process_instruction;
 
                 // ------- UNKNOWN INSTRUCTION
@@ -842,7 +845,7 @@ void __scratch_x("") __attribute__((optimize("O1"))) cgia_render(uint y, uint32_
                 plane_data->row_line_count = 0;
 
                 // Move to next DL instruction
-                ++plane->offset;
+                ++*plane_offset;
             }
             else
             {

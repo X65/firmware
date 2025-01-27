@@ -66,8 +66,6 @@
 
 struct cgia_plane_t
 {
-    uint16_t offset; // Current DisplayList or SpriteDescriptor table start
-
     union cgia_plane_regs
     {
         struct cgia_bckgnd_regs
@@ -128,15 +126,30 @@ struct cgia_plane_t
 #define PLANE_MASK_BORDER_TRANSPARENT 0b00001000
 #define PLANE_MASK_DOUBLE_WIDTH       0b00010000
 
+struct cgia_pwm_t
+{
+    uint16_t freq;
+    uint8_t duty;
+    uint8_t _reserved;
+};
+
+#define CGIA_PWMS 2
+
 struct cgia_t
 {
-    uint8_t planes; // [TTTTEEEE] EEEE - enable bits, TTTT - type (0 bckgnd, 1 sprite)
+    uint8_t mode; // reserved
 
     uint8_t bckgnd_bank;
     uint8_t sprite_bank;
+    uint8_t _reserved[32 - 3];
 
+    struct cgia_pwm_t pwm[CGIA_PWMS];
+    struct cgia_pwm_t _reserved_pwm[4 - CGIA_PWMS];
+
+    uint8_t planes; // [TTTTEEEE] EEEE - enable bits, TTTT - type (0 bckgnd, 1 sprite)
     uint8_t back_color;
-
+    uint8_t _reserved_planes[8 - 2];
+    uint16_t offset[CGIA_PLANES]; // DisplayList or SpriteDescriptor table start
     struct cgia_plane_t plane[CGIA_PLANES];
 };
 
