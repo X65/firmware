@@ -142,7 +142,14 @@ struct cgia_t
 
     uint8_t bckgnd_bank;
     uint8_t sprite_bank;
-    uint8_t _reserved[32 - 3];
+    uint8_t _reserved[16 - 3];
+
+    uint8_t _raster_resv1[2];
+    uint8_t raster;
+    uint8_t _raster_resv2[6];
+    uint8_t irq_raster; // Line to generate raster interrupt.
+    uint8_t int_flags;  // Interrupt flags. [VBL RST x x x x x x]
+    uint8_t _raster_resv3[5];
 
     struct cgia_pwm_t pwm[CGIA_PWMS];
     struct cgia_pwm_t _reserved_pwm[4 - CGIA_PWMS];
@@ -154,10 +161,19 @@ struct cgia_t
     struct cgia_plane_t plane[CGIA_PLANES];
 };
 
+// register indices
+#define CGIA_REG_MODE        (offsetof(struct cgia_t, mode))
+#define CGIA_REG_BCKGND_BANK (offsetof(struct cgia_t, bckgnd_bank))
+#define CGIA_REG_SPRITE_BANK (offsetof(struct cgia_t, sprite_bank))
+#define CGIA_REG_RASTER      (offsetof(struct cgia_t, raster))
+#define CGIA_REG_IRQ_RASTER  (offsetof(struct cgia_t, irq_raster))
+#define CGIA_REG_INT_FLAGS   (offsetof(struct cgia_t, int_flags))
 #define CGIA_REG_PLANES      (offsetof(struct cgia_t, planes))
-#define CGIA_REG_BCKGND_BANK (offsetof(struct cgia_t, planes))
-#define CGIA_REG_SPRITE_BANK (offsetof(struct cgia_t, planes))
-#define CGIA_REG_BACK_COLOR  (offsetof(struct cgia_t, planes))
+#define CGIA_REG_BACK_COLOR  (offsetof(struct cgia_t, back_color))
+#define CGIA_REG_PWM_0_FREQ  (0x20) // PWM channel 0 frequency.
+#define CGIA_REG_PWM_0_DUTY  (0x22) // PWM channel 0 duty-cycle.
+#define CGIA_REG_PWM_1_FREQ  (0x24) // PWM channel 1 frequency.
+#define CGIA_REG_PWM_1_DUTY  (0x26) // PWM channel 1 duty-cycle.
 
 struct cgia_sprite_t
 {
