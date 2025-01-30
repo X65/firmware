@@ -323,7 +323,7 @@ static inline void set_mode7_scans(struct cgia_plane_t *plane, uint8_t *memory_s
 }
 #endif
 
-void __scratch_x("") __attribute__((optimize("O1"))) cgia_render(uint y, uint32_t *rgbbuf)
+void __scratch_x("") __attribute__((optimize("O1"))) cgia_render(uint8_t y, uint32_t *rgbbuf)
 {
     static struct cgia_plane_t *plane;
     static uint16_t *plane_offset;

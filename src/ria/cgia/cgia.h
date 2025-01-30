@@ -191,7 +191,7 @@ struct cgia_sprite_t
 
 // ---- internals ----
 void cgia_init(void);
-void cgia_render(uint y, uint32_t *rgbbuf);
+void cgia_render(uint8_t y, uint32_t *rgbbuf);
 void cgia_vbl(void);
 
 void cgia_task(void);
