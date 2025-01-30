@@ -62,7 +62,7 @@
           DDD: delta (0 offsetted, so 000 means 1)
 */
 
-#define CGIA_COLUMN_PX 8
+#define CGIA_COLUMN_PX (8)
 
 struct cgia_plane_t
 {
@@ -114,8 +114,9 @@ struct cgia_plane_t
     } regs;
 };
 
-#define CGIA_PLANES                 4
-#define CGIA_AFFINE_FRACTIONAL_BITS 8
+#define CGIA_PLANES                 (4)
+#define CGIA_AFFINE_FRACTIONAL_BITS (8)
+#define CGIA_MAX_DL_INSTR           (32)
 
 // plane flags:
 // 0 - color 0 is transparent
@@ -133,7 +134,7 @@ struct cgia_pwm_t
     uint8_t _reserved;
 };
 
-#define CGIA_PWMS 2
+#define CGIA_PWMS (2)
 
 struct cgia_t
 {
@@ -172,9 +173,8 @@ struct cgia_sprite_t
                               // this is a built-in sprite multiplexer
 };
 
-#define CGIA_SPRITES 8
-
-#define SPRITE_MAX_WIDTH 8
+#define CGIA_SPRITES     (8)
+#define SPRITE_MAX_WIDTH (8)
 
 // sprite flags:
 // 0-2 - width in bytes

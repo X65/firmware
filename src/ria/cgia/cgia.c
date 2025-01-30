@@ -329,6 +329,7 @@ void __scratch_x("") __attribute__((optimize("O1"))) cgia_render(uint y, uint32_
     static uint16_t *plane_offset;
     static struct cgia_plane_internal *plane_data;
     static uint16_t(*sprite_dscs)[CGIA_SPRITES];
+    static uint8_t max_instr_count;
 
     // track whether we need to fill line with background color
     // for transparent or sprite planes
@@ -449,6 +450,7 @@ void __scratch_x("") __attribute__((optimize("O1"))) cgia_render(uint y, uint32_
             plane = &CGIA.plane[p];
             plane_offset = &CGIA.offset[p];
             plane_data = &plane_int[p];
+            max_instr_count = CGIA_MAX_DL_INSTR;
 
         restart_plane:
             if (y == 0) // start of frame - reset flags and counters
@@ -473,6 +475,12 @@ void __scratch_x("") __attribute__((optimize("O1"))) cgia_render(uint y, uint32_
                 }
 
                 continue; // and we're done
+            }
+
+            if (0 == max_instr_count--)
+            {
+                // move to next plane if we already processed maximum allowed instructions per raster line
+                goto plane_epilogue;
             }
 
             uint8_t *bckgnd_bank = vram_cache_ptr[0];
