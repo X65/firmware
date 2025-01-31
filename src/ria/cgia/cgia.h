@@ -147,12 +147,12 @@ struct cgia_t
     uint8_t sprite_bank;
     uint8_t _reserved[16 - 3];
 
-    uint8_t _raster_resv1[2];
-    uint8_t raster;
-    uint8_t _raster_resv2[6];
-    uint8_t irq_raster; // Line to generate raster interrupt.
-    uint8_t int_flags;  // Interrupt flags. [VBL RST x x x x x x]
-    uint8_t _raster_resv3[5];
+    uint16_t raster;
+    uint8_t _raster_res1[6];
+    uint16_t int_raster; // Line to generate raster interrupt.
+    uint8_t int_enable;  // Interrupt flags. [VBI DLI RSI x x x x x]
+    uint8_t int_status;  // Interrupt flags. [VBI DLI RSI x x x x x]
+    uint8_t _raster_res2[4];
 
     struct cgia_pwm_t pwm[CGIA_PWMS];
     struct cgia_pwm_t _reserved_pwm[4 - CGIA_PWMS];
@@ -169,14 +169,19 @@ struct cgia_t
 #define CGIA_REG_BCKGND_BANK (offsetof(struct cgia_t, bckgnd_bank))
 #define CGIA_REG_SPRITE_BANK (offsetof(struct cgia_t, sprite_bank))
 #define CGIA_REG_RASTER      (offsetof(struct cgia_t, raster))
-#define CGIA_REG_IRQ_RASTER  (offsetof(struct cgia_t, irq_raster))
-#define CGIA_REG_INT_FLAGS   (offsetof(struct cgia_t, int_flags))
+#define CGIA_REG_INT_RASTER  (offsetof(struct cgia_t, int_raster))
+#define CGIA_REG_INT_ENABLE  (offsetof(struct cgia_t, int_enable))
+#define CGIA_REG_INT_STATUS  (offsetof(struct cgia_t, int_status))
 #define CGIA_REG_PLANES      (offsetof(struct cgia_t, planes))
 #define CGIA_REG_BACK_COLOR  (offsetof(struct cgia_t, back_color))
 #define CGIA_REG_PWM_0_FREQ  (0x20) // PWM channel 0 frequency.
 #define CGIA_REG_PWM_0_DUTY  (0x22) // PWM channel 0 duty-cycle.
 #define CGIA_REG_PWM_1_FREQ  (0x24) // PWM channel 1 frequency.
 #define CGIA_REG_PWM_1_DUTY  (0x26) // PWM channel 1 duty-cycle.
+
+#define CGIA_REG_INT_FLAG_VBI 0b10000000
+#define CGIA_REG_INT_FLAG_DLI 0b01000000
+#define CGIA_REG_INT_FLAG_RSI 0b00100000
 
 struct cgia_sprite_t
 {
@@ -210,8 +215,9 @@ struct cgia_sprite_t
 
 // ---- internals ----
 void cgia_init(void);
-void cgia_render(uint8_t y, uint32_t *rgbbuf);
-void cgia_vbl(void);
+void cgia_render(uint16_t y, uint32_t *rgbbuf);
+void cgia_vbi(void);
+void cgia_clear_int(void);
 
 void cgia_task(void);
 

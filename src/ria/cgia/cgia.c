@@ -336,6 +336,9 @@ void __scratch_x("") __attribute__((optimize("O1"))) cgia_render(uint16_t y, uin
     // for transparent or sprite planes
     bool line_background_filled = false;
 
+    // should trigger DLI after rasterizing the line?
+    bool trigger_dli = false;
+
     for (uint p = 0; p < CGIA_PLANES; ++p)
     {
         if (CGIA.planes & (0x10u << p))
@@ -828,6 +831,12 @@ void __scratch_x("") __attribute__((optimize("O1"))) cgia_render(uint16_t y, uin
             // this line has drawn something, so next planes don't have to fill background
             line_background_filled = true;
 
+            // should trigger DLI?
+            if (dl_instr & CGIA_DLI_BIT)
+            {
+                trigger_dli = true;
+            }
+
             // Should we run a new DL row?
             if (plane_data->row_line_count == dl_row_lines)
             {
@@ -864,18 +873,36 @@ void __scratch_x("") __attribute__((optimize("O1"))) cgia_render(uint16_t y, uin
         }
     }
 
-    // if we ended-up herer without painting the line, we need to fill it with back color
+    // if we ended-up here without painting the line, we need to fill it with back color
     if (!line_background_filled)
     {
         // generate full-length border line
         (void)fill_back(rgbbuf, DISPLAY_WIDTH_PIXELS / CGIA_COLUMN_PX, CGIA.back_color);
         line_background_filled = true;
     }
+
+    // trigger raster-line interrupt
+    if (CGIA.int_enable & CGIA_REG_INT_FLAG_RSI && (y + 1) == CGIA.int_raster)
+    {
+        CGIA.int_status |= CGIA_REG_INT_FLAG_RSI;
+    }
+    if (CGIA.int_enable & CGIA_REG_INT_FLAG_DLI && trigger_dli)
+    {
+        CGIA.int_status |= CGIA_REG_INT_FLAG_DLI;
+    }
 }
 
-void __scratch_x("") cgia_vbl(void)
+void __scratch_x("") cgia_vbi(void)
 {
-    // TODO: trigger CPU NMI
+    if (CGIA.int_enable & CGIA_REG_INT_FLAG_VBI)
+    {
+        CGIA.int_status |= CGIA_REG_INT_FLAG_VBI;
+    }
+}
+
+void __scratch_x("") cgia_clear_int(void)
+{
+    CGIA.int_status = 0x00;
 }
 
 static void _cgia_transfer_vcache_bank(uint8_t bank);

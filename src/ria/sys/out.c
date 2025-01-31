@@ -337,7 +337,7 @@ void __not_in_flash_func(out_core1_main)(void)
     {
         if (trigger_vbl)
         {
-            cgia_vbl();
+            cgia_vbi();
             trigger_vbl = false;
         }
 
@@ -352,7 +352,7 @@ void __not_in_flash_func(out_core1_main)(void)
             {
                 if (pixel_doubling)
                 {
-                    cgia_render(active_raster, (uint32_t *)gen_line_ptr);
+                    cgia_render((uint16_t)active_raster, (uint32_t *)gen_line_ptr);
                 }
                 else
                 {
