@@ -8,7 +8,7 @@
 
 // Put every function in its own ELF section, to permit linker GC
 .macro decl_func name
-.section .scratch_x.\name, "ax"
+.section .scratch_y.\name, "ax"
 .global \name
 .type \name,%function
 .thumb_func

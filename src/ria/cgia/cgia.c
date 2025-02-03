@@ -324,7 +324,7 @@ static inline __attribute__((always_inline)) void set_mode7_scans(union cgia_pla
 }
 #endif
 
-void __scratch_x("") __attribute__((optimize("O1"))) cgia_render(uint16_t y, uint32_t *rgbbuf)
+void __attribute__((optimize("O3"))) cgia_render(uint16_t y, uint32_t *rgbbuf)
 {
     static union cgia_plane_regs_t *plane;
     static uint16_t *plane_offset;
