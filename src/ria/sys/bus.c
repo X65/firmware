@@ -10,6 +10,7 @@
 #include "hardware/pio.h"
 #include "hardware/structs/bus_ctrl.h"
 #include "main.h"
+#include "pico/rand.h"
 #include "sys/com.h"
 #include "sys/cpu.h"
 #include "sys/mem.h"
@@ -114,6 +115,13 @@ mem_bus_pio_irq_handler(void)
                         //     ++xstack_ptr;
                         // API_STACK = xstack[xstack_ptr];
                         break;
+
+                    case CASE_READ(0xFFE3): // Random Number Generator
+                    case CASE_READ(0xFFE2): // Two bytes to allow 16 bit instructions
+                    {
+                        MEM_BUS_PIO->txf[MEM_BUS_SM] = get_rand_32();
+                        break;
+                    }
 
                     case CASE_READ(0xFFE1): // UART Rx
                     {
