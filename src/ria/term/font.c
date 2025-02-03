@@ -6,6 +6,7 @@
 
 #include "pico/stdlib.h"
 
+#include "cgia/font_8.h"
 #include "font.h"
 #include "term.h"
 
@@ -1149,6 +1150,7 @@ static const __in_flash("font") uint8_t FONT8_CP869[] = {
 
 void font_init(void)
 {
+#if 0
     // font data is provided in rows for every character.
     // 128x row0, 128x row1, etc.
     // Convert it to linear format
@@ -1161,6 +1163,10 @@ void font_init(void)
         }
     }
     memset(&font8[128 * 8], 0, 128 * 8);
+#else
+    // Use X65 font as base font for terminal
+    memcpy(font8, font8_data, sizeof(font8));
+#endif
 
     if (RP6502_CODE_PAGE)
         font_set_codepage(RP6502_CODE_PAGE);
