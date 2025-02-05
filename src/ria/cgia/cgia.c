@@ -152,7 +152,7 @@ void cgia_init(void)
     memset(plane_int, 0, sizeof(plane_int));
     memset(sprite_dsc_offsets, 0, sizeof(sprite_dsc_offsets));
 
-    for (uint i = 0; i < CGIA_PLANES; ++i)
+    for (unsigned int i = 0; i < CGIA_PLANES; ++i)
     {
         // All planes should initially wait for VBL
         plane_int[i].wait_vbl = true;
