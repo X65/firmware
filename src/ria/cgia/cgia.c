@@ -506,7 +506,7 @@ void __attribute__((optimize("O3"))) cgia_render(uint16_t y, uint32_t *rgbbuf)
             }
 
             // first process instructions - they need less preparation and can be shortcutted
-            if (!(dl_instr & CGIA_MODE_BIT))
+            if (!(dl_instr & CGIA_DL_MODE_BIT))
             {
                 switch (instr_code)
                 {
@@ -534,7 +534,7 @@ void __attribute__((optimize("O3"))) cgia_render(uint16_t y, uint32_t *rgbbuf)
                                                | (bckgnd_bank[++*plane_offset] << 8));
                     plane_data->row_line_count = 0; // will start new row
 
-                    if (dl_instr & CGIA_DLI_BIT)
+                    if (dl_instr & CGIA_DL_DLI_BIT)
                     {
                         // if DLI set, wait for VBL
                         plane_data->wait_vbl = true;
@@ -602,7 +602,7 @@ void __attribute__((optimize("O3"))) cgia_render(uint16_t y, uint32_t *rgbbuf)
                     // ------- Mode Rows --------------
                     switch (instr_code)
                     {
-                    case (0x2 | CGIA_MODE_BIT): // MODE2 (A) - text/tile mode
+                    case (0x2 | CGIA_DL_MODE_BIT): // MODE2 (A) - text/tile mode
                     {
                         set_linear_scans(1,
                                          bckgnd_bank + plane_data->memory_scan - 1,
@@ -628,7 +628,7 @@ void __attribute__((optimize("O3"))) cgia_render(uint16_t y, uint32_t *rgbbuf)
                     }
                     break;
 
-                    case (0x3 | CGIA_MODE_BIT): // MODE3 (B) - bitmap mode
+                    case (0x3 | CGIA_DL_MODE_BIT): // MODE3 (B) - bitmap mode
                     {
                         const uint8_t row_height = plane->bckgnd.row_height + 1;
                         set_linear_scans(row_height,
@@ -654,7 +654,7 @@ void __attribute__((optimize("O3"))) cgia_render(uint16_t y, uint32_t *rgbbuf)
                     }
                     break;
 
-                    case (0x4 | CGIA_MODE_BIT): // MODE4 (C) - multicolor text/tile mode
+                    case (0x4 | CGIA_DL_MODE_BIT): // MODE4 (C) - multicolor text/tile mode
                     {
                         set_linear_scans(1,
                                          bckgnd_bank + plane_data->memory_scan - 1,
@@ -696,7 +696,7 @@ void __attribute__((optimize("O3"))) cgia_render(uint16_t y, uint32_t *rgbbuf)
                     }
                     break;
 
-                    case (0x5 | CGIA_MODE_BIT): // MODE5 (D) - multicolor bitmap mode
+                    case (0x5 | CGIA_DL_MODE_BIT): // MODE5 (D) - multicolor bitmap mode
                     {
                         int offset_delta = plane->bckgnd.offset_x - 1;
                         const uint8_t *cs = bckgnd_bank + plane_data->colour_scan + offset_delta;
@@ -758,7 +758,7 @@ void __attribute__((optimize("O3"))) cgia_render(uint16_t y, uint32_t *rgbbuf)
                     }
                     break;
 
-                    case (0x6 | CGIA_MODE_BIT): // MODE6 (E) - HAM mode
+                    case (0x6 | CGIA_DL_MODE_BIT): // MODE6 (E) - HAM mode
                     {
                         set_linear_scans(1,
                                          bckgnd_bank + plane_data->memory_scan - 1,
@@ -785,7 +785,7 @@ void __attribute__((optimize("O3"))) cgia_render(uint16_t y, uint32_t *rgbbuf)
                     }
                     break;
 
-                    case (0x7 | CGIA_MODE_BIT): // MODE7 (F) - affine transform mode
+                    case (0x7 | CGIA_DL_MODE_BIT): // MODE7 (F) - affine transform mode
                     {
                         if (plane_data->row_line_count == 0)
                         {
@@ -819,7 +819,7 @@ void __attribute__((optimize("O3"))) cgia_render(uint16_t y, uint32_t *rgbbuf)
                 }
 
                 // borders
-                if ((dl_instr & CGIA_MODE_BIT) && border_columns && !(plane->bckgnd.flags & PLANE_MASK_BORDER_TRANSPARENT))
+                if ((dl_instr & CGIA_DL_MODE_BIT) && border_columns && !(plane->bckgnd.flags & PLANE_MASK_BORDER_TRANSPARENT))
                 {
                     uint32_t *buf = fill_back(rgbbuf, border_columns, CGIA.back_color);
                     buf += row_columns * CGIA_COLUMN_PX;
@@ -832,7 +832,7 @@ void __attribute__((optimize("O3"))) cgia_render(uint16_t y, uint32_t *rgbbuf)
             line_background_filled = true;
 
             // should trigger DLI?
-            if (dl_instr & CGIA_DLI_BIT)
+            if (dl_instr & CGIA_DL_DLI_BIT)
             {
                 trigger_dli = true;
             }
@@ -841,7 +841,7 @@ void __attribute__((optimize("O3"))) cgia_render(uint16_t y, uint32_t *rgbbuf)
             if (plane_data->row_line_count == dl_row_lines)
             {
                 // Update scan pointers
-                if (dl_instr & CGIA_MODE_BIT && instr_code != (0x7 | CGIA_MODE_BIT))
+                if (dl_instr & CGIA_DL_MODE_BIT && instr_code != (0x7 | CGIA_DL_MODE_BIT))
                 {
                     // update scan pointers to next value
                     uint8_t stride = plane->bckgnd.stride;

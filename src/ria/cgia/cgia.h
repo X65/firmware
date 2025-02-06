@@ -37,8 +37,8 @@
     bit 7 - trigger DLI - Display List Interrupt
 */
 
-#define CGIA_MODE_BIT 0b00001000
-#define CGIA_DLI_BIT  0b10000000
+#define CGIA_DL_MODE_BIT 0b00001000
+#define CGIA_DL_DLI_BIT  0b10000000
 
 // https://csbruce.com/cbm/hacking/hacking12.txt
 /*
@@ -141,7 +141,7 @@ struct cgia_pwm_t
 
 struct cgia_t
 {
-    uint8_t mode; // reserved
+    uint8_t mode;
 
     uint8_t bckgnd_bank;
     uint8_t sprite_bank;
@@ -163,6 +163,9 @@ struct cgia_t
     uint16_t offset[CGIA_PLANES]; // DisplayList or SpriteDescriptor table start
     union cgia_plane_regs_t plane[CGIA_PLANES];
 };
+
+#define CGIA_MODE_HIRES_BIT     0b00000001 // 96 columns (768px horz) mode
+#define CGIA_MODE_INTERLACE_BIT 0b00000010 // interlace (480px vert) mode
 
 // register indices
 #define CGIA_REG_MODE        (offsetof(struct cgia_t, mode))
