@@ -17,10 +17,12 @@
 
 #include <string.h>
 
-#define DISPLAY_WIDTH_PIXELS (FRAME_WIDTH / 2)
-#define MAX_BORDER_COLUMNS   (DISPLAY_WIDTH_PIXELS / CGIA_COLUMN_PX / 2)
+#define DISPLAY_WIDTH_PIXELS (MODE_H_ACTIVE_PIXELS / FB_H_REPEAT)
+#define MAX_BORDER_COLUMNS   (DISPLAY_WIDTH_PIXELS / CGIA_COLUMN_PX / 2 /* borders */)
 
 #define FRAME_CHARS (DISPLAY_WIDTH_PIXELS / CGIA_COLUMN_PX)
+
+#define DISPLAY_HEIGHT_LINES (MODE_V_ACTIVE_LINES / FB_H_REPEAT)
 
 #define UNHANDLED_DL_COLOR (234)
 
@@ -959,7 +961,7 @@ void __attribute__((optimize("O3"))) cgia_render(uint16_t y, uint32_t *rgbbuf)
     // bump right after processing, so CPU is free to modify regs
     // before next line rasterization starts
     ++CGIA.raster;
-    if (CGIA.raster >= FRAME_HEIGHT)
+    if (CGIA.raster >= DISPLAY_HEIGHT_LINES)
         CGIA.raster = 0;
 
     // trigger raster-line interrupt

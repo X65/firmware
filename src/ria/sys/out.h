@@ -35,9 +35,6 @@
 #define FB_H_REPEAT 2
 #define FB_V_REPEAT 2
 
-#define FRAME_WIDTH  (MODE_H_ACTIVE_PIXELS / FB_H_REPEAT)
-#define FRAME_HEIGHT (MODE_V_ACTIVE_LINES / FB_V_REPEAT)
-
 void out_init(void);
 void out_reclock(void);
 void out_print_status(void);
