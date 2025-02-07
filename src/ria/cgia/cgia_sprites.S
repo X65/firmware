@@ -26,6 +26,9 @@
 #define SPRITE_COLOR_2_OFFS 8
 #define SPRITE_COLOR_3_OFFS 9
 
+#define CGIA_SPRITES     8
+#define SPRITE_MAX_WIDTH 8
+
 #define SPRITE_MASK_WIDTH        0b00000011
 #define SPRITE_MASK_MULTICOLOR   0b00001000
 #define SPRITE_MASK_DOUBLE_WIDTH 0b00010000
@@ -75,10 +78,10 @@
   lsrs r4, #\sh_amt
   ands r4, 3        // 00000011 mask
   beq 1f            // do not set 00 pixel
-  ldrb r4, [r1, r4] // load sprite color
+  ldrb r4, [r1, r4] // load sprite color // FIXME: preload color values to separate array
   ldr r4, [r9, r4, LSL #2]  // load palette entry
   stmia r0!, {r4}
-  tst r5, SPRITE_MASK_DOUBLE_WIDTH
+  tst r5, SPRITE_MASK_DOUBLE_WIDTH  // FIXME: these tests should be outside loop
   beq 2f
   stmia r0!, {r4}
   b 2f
@@ -104,22 +107,22 @@ decl_func cgia_encode_sprite
   ldr r9, =cgia_rgb_palette
 
   ldrh r6, [r1, #SPRITE_POS_X_OFFS]
-  sxth r6, r6     //sign-extend the 16-bit value
+  sxth r6, r6   //sign-extend the 16-bit value
   cmp r6, 768   // check if past RGB buffer
   bge 6f
-  cmp r6, -4*8*2  // check if visible (sprite max width is 4x 8 doubled pixels)
+  cmp r6, -SPRITE_MAX_WIDTH*8*2  // check if visible (sprite max width is 4x 8 doubled pixels)
   blt 6f
 
   lsls r6, #2   // 4 bytes per pixel (one word of 2px)
   adds r0, r6   // move RGB buffer pointer to correct position in line
 
   adds r1, #SPRITE_COLORS_OFFS    // move r1 to point to flags/color data
-  mov ip, r3  // iterate this times
+  mov ip, r3    // iterate this times
 
 5:
-  ldrb r3, [r2]  // load bitmap byte
+  ldrb r3, [r2] // load bitmap byte
 
-  ldrb r5, [r1]
+  ldrb r5, [r1] // FIXME: these tests should be outside loop
   tst r5, SPRITE_MASK_MULTICOLOR
   beq spr_bmp
 
@@ -141,7 +144,7 @@ spr_multi:
   b spr_next
 
 spr_bmp:
-  ldrb r4, [r1, #1] // load sprite color 1
+  ldrb r4, [r1, #1]         // load sprite color 1
   ldr r4, [r9, r4, LSL #2]  // load palette entry
 
   tst r5, SPRITE_MASK_MIRROR_X
