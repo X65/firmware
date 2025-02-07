@@ -194,7 +194,7 @@ static void aud_pwm_init_channel(size_t channel, uint gpio)
     pwm_init(pwm_channels[channel].slice_num, &cfg, true);
 }
 
-static void aud_pwm_set_channel(size_t channel, uint16_t freq, uint8_t duty)
+void aud_pwm_set_channel(size_t channel, uint16_t freq, uint8_t duty)
 {
     float clock_div = 0;
     int wrap_shift = 0;
@@ -228,7 +228,7 @@ static void aud_pwm_set_channel(size_t channel, uint16_t freq, uint8_t duty)
                        pwm_channels[channel].channel, (uint16_t)(duty << wrap_shift));
 }
 
-static void aud_pwm_set_channel_duty(size_t channel, uint8_t duty)
+void aud_pwm_set_channel_duty(size_t channel, uint8_t duty)
 {
     pwm_channels[channel].duty = duty;
     if (pwm_channels[channel].frequency > 0)

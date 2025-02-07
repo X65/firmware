@@ -10,6 +10,7 @@
 #include "main.h"
 #include "term/term.h"
 
+#include "sys/aud.h"
 // #include "sys/mem.h"
 #include "sys/out.h"
 #endif
@@ -27,13 +28,11 @@
 _Static_assert(CGIA_REGS_NO == sizeof(struct cgia_t), "Incorrect CGIA_REGS_NO");
 
 // --- Globals ---
-#ifndef CGIA
-static uint8_t
+uint8_t
     __attribute__((aligned(4)))
     __scratch_y("") regs_int[CGIA_REGS_NO]
     = {0};
 #define CGIA (*((struct cgia_t *)regs_int))
-#endif
 
 struct cgia_plane_internal
 {
@@ -44,9 +43,9 @@ struct cgia_plane_internal
     uint8_t row_line_count;
     interp_hw_save_t interpolator[2];
     bool wait_vbl;
-    bool sprites_need_update; // TODO: set when writing CGIA.plane[1].regs.sprite.active
+    bool sprites_need_update;
 };
-static struct cgia_plane_internal
+struct cgia_plane_internal
     __attribute__((aligned(4)))
     __scratch_y("")
         plane_int[CGIA_PLANES]
@@ -100,7 +99,7 @@ inline __attribute__((always_inline)) __attribute__((optimize("O3"))) void cgia_
 
 // store which memory bank is wanted in vram cache bank
 // used to trigger DMA transfer during cgia_run() workloop
-static uint32_t
+uint32_t
     __attribute__((aligned(4)))
     __scratch_y("")
         vram_wanted_bank_mask[CGIA_VRAM_BANKS]
@@ -129,6 +128,78 @@ void cgia_set_bank(uint8_t cgia_bank_id, uint8_t mem_bank_no)
     // if we got here, the vram_wanted_bank_mask differs from vram_cache_bank_mask
     // which will trigger memory bank switch in work loop
     // our job here is done
+}
+
+inline __attribute__((always_inline)) __attribute__((optimize("O3"))) void cgia_vbi(void)
+{
+    if (CGIA.int_enable & CGIA_REG_INT_FLAG_VBI)
+    {
+        CGIA.int_status |= CGIA_REG_INT_FLAG_VBI;
+    }
+}
+
+inline __attribute__((always_inline)) __attribute__((optimize("O3"))) uint8_t cgia_reg_read(uint8_t reg_no)
+{
+    switch (reg_no)
+    {
+    case CGIA_REG_INT_STATUS:
+        return regs_int[CGIA_REG_INT_STATUS] & regs_int[CGIA_REG_INT_ENABLE];
+    }
+
+    return regs_int[reg_no];
+}
+
+inline __attribute__((always_inline)) __attribute__((optimize("O3"))) void cgia_reg_write(uint8_t reg_no, uint8_t value)
+{
+    regs_int[reg_no] = value;
+
+    switch (reg_no)
+    {
+    case CGIA_REG_BCKGND_BANK:
+        vram_wanted_bank_mask[0] = value << 16;
+        break;
+    case CGIA_REG_SPRITE_BANK:
+        vram_wanted_bank_mask[1] = value << 16;
+        break;
+    case CGIA_REG_INT_ENABLE:
+        regs_int[reg_no] = value & 0b11100000;
+        break;
+    case CGIA_REG_INT_STATUS:
+        CGIA.int_status = 0x00;
+        break;
+
+    case CGIA_REG_PWM_0_FREQ:
+    case CGIA_REG_PWM_0_FREQ + 1:
+        aud_pwm_set_channel(0, CGIA.pwm[0].freq, CGIA.pwm[0].duty);
+        break;
+    case CGIA_REG_PWM_0_DUTY:
+        aud_pwm_set_channel_duty(0, CGIA.pwm[0].duty);
+        break;
+    case CGIA_REG_PWM_1_FREQ:
+    case CGIA_REG_PWM_1_FREQ + 1:
+        aud_pwm_set_channel(1, CGIA.pwm[1].freq, CGIA.pwm[1].duty);
+        break;
+    case CGIA_REG_PWM_1_DUTY:
+        aud_pwm_set_channel_duty(1, CGIA.pwm[1].duty);
+        break;
+
+    case CGIA_REG_PLANES + CGIA_PLANE_REGS_NO * 0: // .plane[0].sprite.active ?
+        if (CGIA.planes & (0x10 << 0))
+            plane_int[0].sprites_need_update = true;
+        break;
+    case CGIA_REG_PLANES + CGIA_PLANE_REGS_NO * 1: // .plane[1].sprite.active ?
+        if (CGIA.planes & (0x10 << 1))
+            plane_int[1].sprites_need_update = true;
+        break;
+    case CGIA_REG_PLANES + CGIA_PLANE_REGS_NO * 2: // .plane[2].sprite.active ?
+        if (CGIA.planes & (0x10 << 2))
+            plane_int[2].sprites_need_update = true;
+        break;
+    case CGIA_REG_PLANES + CGIA_PLANE_REGS_NO * 3: // .plane[3].sprite.active ?
+        if (CGIA.planes & (0x10 << 3))
+            plane_int[3].sprites_need_update = true;
+        break;
+    }
 }
 
 struct dma_control_block
@@ -332,6 +403,8 @@ void __attribute__((optimize("O3"))) cgia_render(uint16_t y, uint32_t *rgbbuf)
     static uint16_t(*sprite_dscs)[CGIA_SPRITES];
     static uint8_t max_instr_count;
 
+    CGIA.raster = y;
+
     // track whether we need to fill line with background color
     // for transparent or sprite planes
     bool line_background_filled = false;
@@ -378,6 +451,8 @@ void __attribute__((optimize("O3"))) cgia_render(uint16_t y, uint32_t *rgbbuf)
                 (*sprite_dscs)[6] = offs;
                 offs += 16;
                 (*sprite_dscs)[7] = offs;
+
+                plane_data->sprites_need_update = false;
             }
 
             // render sprites in reverse order
@@ -881,6 +956,12 @@ void __attribute__((optimize("O3"))) cgia_render(uint16_t y, uint32_t *rgbbuf)
         line_background_filled = true;
     }
 
+    // bump right after processing, so CPU is free to modify regs
+    // before next line rasterization starts
+    ++CGIA.raster;
+    if (CGIA.raster >= FRAME_HEIGHT)
+        CGIA.raster = 0;
+
     // trigger raster-line interrupt
     if (CGIA.int_enable & CGIA_REG_INT_FLAG_RSI && (y + 1) == CGIA.int_raster)
     {
@@ -890,19 +971,6 @@ void __attribute__((optimize("O3"))) cgia_render(uint16_t y, uint32_t *rgbbuf)
     {
         CGIA.int_status |= CGIA_REG_INT_FLAG_DLI;
     }
-}
-
-void __scratch_x("") cgia_vbi(void)
-{
-    if (CGIA.int_enable & CGIA_REG_INT_FLAG_VBI)
-    {
-        CGIA.int_status |= CGIA_REG_INT_FLAG_VBI;
-    }
-}
-
-void __scratch_x("") cgia_clear_int(void)
-{
-    CGIA.int_status = 0x00;
 }
 
 static void _cgia_transfer_vcache_bank(uint8_t bank);
