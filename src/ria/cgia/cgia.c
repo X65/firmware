@@ -158,10 +158,10 @@ inline __attribute__((always_inline)) __attribute__((optimize("O3"))) void cgia_
     switch (reg_no)
     {
     case CGIA_REG_BCKGND_BANK:
-        vram_wanted_bank_mask[0] = value << 16;
+        cgia_set_bank(0, value);
         break;
     case CGIA_REG_SPRITE_BANK:
-        vram_wanted_bank_mask[1] = value << 16;
+        cgia_set_bank(1, value);
         break;
     case CGIA_REG_INT_ENABLE:
         regs_int[reg_no] = value & 0b11100000;
@@ -434,6 +434,11 @@ void __attribute__((optimize("O3"))) cgia_render(uint16_t y, uint32_t *rgbbuf)
             sprite_dscs = &sprite_dsc_offsets[p];
             uint8_t *sprite_bank = vram_cache_ptr[1];
 
+            if (vram_cache_bank_mask[1] != vram_wanted_bank_mask[1])
+            {
+                continue; // skip if the sprite bank is not synced yet
+            }
+
             if (y == 0 // start of frame - reload descriptors
                 || plane_data->sprites_need_update)
             {
@@ -561,6 +566,11 @@ void __attribute__((optimize("O3"))) cgia_render(uint16_t y, uint32_t *rgbbuf)
             uint8_t *bckgnd_bank = vram_cache_ptr[0];
             uint8_t dl_instr = bckgnd_bank[*plane_offset];
             uint8_t instr_code = dl_instr & 0b00001111;
+
+            if (vram_cache_bank_mask[0] != vram_wanted_bank_mask[0])
+            {
+                continue; // skip if the bg bank is not synced yet
+            }
 
             // Display list row takes a plane-regs defined raster lines,
             // or may be encoded in instruction itself (gets modified later)
@@ -989,8 +999,12 @@ static void _cgia_transfer_vcache_bank(uint8_t bank)
     if (vram_wanted_bank_mask[bank] != vram_cache_bank_mask[bank])
     {
         // TODO: start DMA transfer from PSRAM to VRAM
+        // - store bank id and destination being trasferred
         // - do not start if transfer already in progress
         // - allocate PSRAM chip, so CPU gets blocked until transfer is done
+        // - update vram_cache_bank_mask when transfer is done with stored value
+        //   - vram_wanted_bank_mask might already have changed and next transfer
+        //   - will be started next tick
     }
 }
 #endif
