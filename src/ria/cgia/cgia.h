@@ -110,8 +110,8 @@ union cgia_plane_regs_t
     {
         uint8_t active; // bitmask for active sprites
         uint8_t border_columns;
-        int8_t start_y;
-        int8_t stop_y;
+        uint8_t start_y;
+        uint8_t stop_y;
     } sprite;
 
     uint8_t reg[CGIA_PLANE_REGS_NO];
@@ -193,8 +193,9 @@ struct cgia_sprite_t
     int16_t pos_y;
     uint16_t lines_y;
     uint8_t flags;
+    uint8_t reserved_f;
     uint8_t color[3];
-    uint8_t reserved[2];
+    uint8_t reserved_c;
     uint16_t data_offset;
     uint16_t next_dsc_offset; // after passing lines_y, reload sprite descriptor data
                               // this is a built-in sprite multiplexer

@@ -21,10 +21,10 @@
 #define SPRITE_POS_Y_OFFS   2
 #define SPRITE_LINES_Y_OFFS 4
 #define SPRITE_FLAGS_OFFS   6
-#define SPRITE_COLORS_OFFS  6   // COLOR 0 is not used, so point one byte before color table
-#define SPRITE_COLOR_1_OFFS 7
-#define SPRITE_COLOR_2_OFFS 8
-#define SPRITE_COLOR_3_OFFS 9
+#define SPRITE_COLORS_OFFS  7   // COLOR 0 is not used, so point one byte before color table
+#define SPRITE_COLOR_1_OFFS 8
+#define SPRITE_COLOR_2_OFFS 9
+#define SPRITE_COLOR_3_OFFS 10
 
 #define CGIA_SPRITES     8
 #define SPRITE_MAX_WIDTH 8
