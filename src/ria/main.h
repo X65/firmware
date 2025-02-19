@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2023 Rumbledethumps
+ * Copyright (c) 2024 Tomasz Sterna
  *
  * SPDX-License-Identifier: BSD-3-Clause
  */
