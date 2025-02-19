@@ -8,6 +8,7 @@
 #include "bus.pio.h"
 #include "hardware/gpio.h"
 #include "hardware/pio.h"
+#include "hardware/powman.h"
 #include "hardware/structs/bus_ctrl.h"
 #include "main.h"
 #include "pico/rand.h"
@@ -115,6 +116,23 @@ mem_bus_pio_irq_handler(void)
                         //     ++xstack_ptr;
                         // API_STACK = xstack[xstack_ptr];
                         break;
+
+                    case CASE_READ(0xFFC8):
+                    case CASE_READ(0xFFC9):
+                    case CASE_READ(0xFFCA):
+                    case CASE_READ(0xFFCB):
+                    {
+                        MEM_BUS_PIO->txf[MEM_BUS_SM] = ((const volatile uint8_t *)&(powman_hw->read_time_lower))[bus_address & 0x03];
+                        break;
+                    }
+                    case CASE_READ(0xFFCC):
+                    case CASE_READ(0xFFCD):
+                    case CASE_READ(0xFFCE):
+                    case CASE_READ(0xFFCF):
+                    {
+                        MEM_BUS_PIO->txf[MEM_BUS_SM] = ((const volatile uint8_t *)&(powman_hw->read_time_upper))[bus_address & 0x03];
+                        break;
+                    }
 
                     case CASE_READ(0xFFE3): // Random Number Generator
                     case CASE_READ(0xFFE2): // Two bytes to allow 16 bit instructions
