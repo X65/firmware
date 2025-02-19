@@ -8,10 +8,10 @@
 #include "bus.pio.h"
 #include "hardware/gpio.h"
 #include "hardware/pio.h"
-#include "hardware/powman.h"
 #include "hardware/structs/bus_ctrl.h"
 #include "main.h"
 #include "pico/rand.h"
+#include "pico/time.h"
 #include "sys/com.h"
 #include "sys/cpu.h"
 #include "sys/mem.h"
@@ -121,16 +121,13 @@ mem_bus_pio_irq_handler(void)
                     case CASE_READ(0xFFC9):
                     case CASE_READ(0xFFCA):
                     case CASE_READ(0xFFCB):
-                    {
-                        MEM_BUS_PIO->txf[MEM_BUS_SM] = ((const volatile uint8_t *)&(powman_hw->read_time_lower))[bus_address & 0x03];
-                        break;
-                    }
                     case CASE_READ(0xFFCC):
                     case CASE_READ(0xFFCD):
                     case CASE_READ(0xFFCE):
                     case CASE_READ(0xFFCF):
                     {
-                        MEM_BUS_PIO->txf[MEM_BUS_SM] = ((const volatile uint8_t *)&(powman_hw->read_time_upper))[bus_address & 0x03];
+                        uint64_t us = to_us_since_boot(get_absolute_time());
+                        MEM_BUS_PIO->txf[MEM_BUS_SM] = ((uint8_t *)&us)[bus_address & 0x07];
                         break;
                     }
 
