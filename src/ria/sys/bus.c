@@ -123,8 +123,6 @@ mem_bus_pio_irq_handler(void)
                     case CASE_READ(0xFFCB):
                     case CASE_READ(0xFFCC):
                     case CASE_READ(0xFFCD):
-                    case CASE_READ(0xFFCE):
-                    case CASE_READ(0xFFCF):
                     {
                         uint64_t us = to_us_since_boot(get_absolute_time());
                         MEM_BUS_PIO->txf[MEM_BUS_SM] = ((uint8_t *)&us)[bus_address & 0x07];
