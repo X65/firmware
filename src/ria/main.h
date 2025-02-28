@@ -138,7 +138,7 @@ bool main_api(uint8_t operation);
 #define IOE_I2C_ADDRESS 0x20 // Address of I/O Extender on I2C bus
 #define MIX_I2C_ADDRESS 0x40 // Address of Mixer on I2C bus
 
-// #define RASPBERRY_PICO_2
+#define PIMORONI_PICO_PLUS_2
 
 #if defined(RASPBERRY_PICO_2)
 #undef CPU_RESB_PIN

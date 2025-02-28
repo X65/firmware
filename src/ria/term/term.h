@@ -8,7 +8,7 @@
 #ifndef _TERM_H_
 #define _TERM_H_
 
-#include "pico/types.h"
+#include <sys/types.h>
 
 void term_init(void);
 void term_task(void);

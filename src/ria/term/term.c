@@ -5,14 +5,19 @@
  * SPDX-License-Identifier: BSD-3-Clause
  */
 
+#include "pico.h"
+#ifdef PICO_SDK_VERSION_MAJOR
 #include "hardware/interp.h"
 #include "pico/stdio/driver.h"
 #include "pico/stdlib.h"
+#include "pico/time.h"
 
+#include "./font.h"
 #include "cgia/cgia_encode.h"
-#include "term/color.h"
-#include "term/font.h"
-#include "term/term.h"
+#endif
+
+#include "./color.h"
+#include "./term.h"
 
 #include <stdio.h>
 
@@ -338,7 +343,7 @@ static void term_out_cuu_1(term_state_t *term)
     {
         term->y--;
         term->ptr -= term->width;
-        if (term->ptr < 0)
+        if (term->ptr < term->mem)
             term->ptr += term->width * TERM_MAX_HEIGHT;
     }
 }
@@ -565,6 +570,7 @@ void term_init(void)
     // prepare console
     static term_data_t term96_mem[96 * TERM_MAX_HEIGHT];
     term_state_init(&term_96, 96, term96_mem);
+#ifdef PICO_SDK_VERSION_MAJOR
     // become part of stdout
     static stdio_driver_t term_stdio = {
         .out_chars = term_out_chars,
@@ -573,6 +579,7 @@ void term_init(void)
 #endif
     };
     stdio_set_driver_enabled(&term_stdio, true);
+#endif
 }
 
 static void term_blink_cursor(term_state_t *term)
@@ -581,7 +588,7 @@ static void term_blink_cursor(term_state_t *term)
     if (absolute_time_diff_us(now, term->timer) < 0)
     {
         term_cursor_set_inv(term, !term->blink_state);
-        // 0.3ms drift to avoid blinking cursor trearing
+        // 0.3ms drift to avoid blinking cursor tearing
         if (term->x == term->width)
             // fast blink when off right side
             term->timer = delayed_by_us(now, 249700);
@@ -596,6 +603,7 @@ void term_task(void)
     term_clean_task(&term_96);
 }
 
+#ifdef PICO_SDK_VERSION_MAJOR
 void
     __attribute__((optimize("O1")))
     term_render(uint y, uint32_t *rgbbuf)
@@ -615,3 +623,4 @@ void
 
     cgia_encode_vt(rgbbuf, term_96.width, &font8[(y & 7)], 3u);
 }
+#endif

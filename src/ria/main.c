@@ -48,7 +48,6 @@ static void init(void)
     term_init();
     cgia_init();
     out_init();
-    term_init();
     com_init();
     ext_init(); // before aud_init (shared I2C init)
 
