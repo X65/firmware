@@ -348,6 +348,18 @@ static void term_out_cuu_1(term_state_t *term)
     }
 }
 
+// Cursor down by one line
+static void term_out_cud_1(term_state_t *term)
+{
+    if (term->y)
+    {
+        term->y++;
+        term->ptr += term->width;
+        if (term->ptr > term->mem + term->width * TERM_MAX_HEIGHT)
+            term->ptr -= term->width * TERM_MAX_HEIGHT;
+    }
+}
+
 // Cursor forward
 static void term_out_cuf(term_state_t *term)
 {
@@ -514,6 +526,12 @@ static void term_out_state_CSI(term_state_t *term, char ch)
     {
     case 'm':
         term_out_sgr(term);
+        break;
+    case 'A':
+        term_out_cuu_1(term);
+        break;
+    case 'B':
+        term_out_cud_1(term);
         break;
     case 'C':
         term_out_cuf(term);
