@@ -364,7 +364,7 @@ void rom_mon_info(const char *args, size_t len)
     if (!rom_open(args, true))
         return;
     bool found = false;
-    while (rom_next_chunk())
+    while (!rom_eof() && rom_next_chunk())
     {
         if (rom_start == 0xFC00)
             found = true;
@@ -394,7 +394,7 @@ bool rom_help(const char *args, size_t len)
             return false;
         bool found = false;
         if (rom_open(lfs_name, false))
-            while (rom_next_chunk())
+            while (!rom_eof() && rom_next_chunk())
             {
                 if (rom_start == 0xFC00)
                     found = true;
