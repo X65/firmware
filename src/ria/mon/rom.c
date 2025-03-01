@@ -18,71 +18,15 @@ static enum {
     ROM_LOADING,
     ROM_WRITING,
 } rom_state;
-static uint32_t rom_addr;
-static uint32_t rom_len;
+static uint8_t rom_bank;
+static uint16_t rom_start;
+static uint16_t rom_end;
 static bool rom_FFFC;
 static bool rom_FFFD;
 static bool is_reading_fat;
 static bool lfs_file_open;
 static lfs_file_t lfs_file;
-static LFS_FILE_CONFIG(lfs_file_config);
-static FIL fat_fil;
-
-static size_t rom_gets(void)
-{
-    size_t len;
-    if (is_reading_fat)
-    {
-        if (!f_gets((char *)mbuf, MBUF_SIZE, &fat_fil))
-            return 0;
-    }
-    else
-    {
-        if (!lfs_gets((char *)mbuf, MBUF_SIZE, &lfs_volume, &lfs_file))
-            return 0;
-    }
-    len = strlen((char *)mbuf);
-    if (len && mbuf[len - 1] == '\n')
-        len--;
-    if (len && mbuf[len - 1] == '\r')
-        len--;
-    mbuf[len] = 0;
-    return len;
-}
-
-static bool rom_open(const char *name, bool is_fat)
-{
-    is_reading_fat = is_fat;
-    if (is_fat)
-    {
-        FRESULT result = f_open(&fat_fil, name, FA_READ);
-        if (result != FR_OK)
-        {
-            printf("?Unable to open file (%d)\n", result);
-            return false;
-        }
-    }
-    else
-    {
-        int lfsresult = lfs_file_opencfg(&lfs_volume, &lfs_file, name,
-                                         LFS_O_RDONLY, &lfs_file_config);
-        if (lfsresult < 0)
-        {
-            printf("?Unable to lfs_file_opencfg (%d)\n", lfsresult);
-            return false;
-        }
-        lfs_file_open = true;
-    }
-    if (rom_gets() != 8 || strnicmp("#!RP6502", (char *)mbuf, 8))
-    {
-        printf("?Missing RP6502 ROM header\n");
-        rom_state = ROM_IDLE;
-        return false;
-    }
-    rom_FFFC = false;
-    rom_FFFD = false;
-    return true;
-}
+static LFS_FILE_CONFIG(lfs_file_config) static FIL fat_fil;
 
 static bool rom_eof(void)
 {
@@ -92,7 +36,7 @@ static bool rom_eof(void)
         return !!lfs_eof(&lfs_file);
 }
 
-static bool rom_read(uint32_t len, uint32_t crc)
+static bool rom_read(uint32_t len)
 {
     if (is_reading_fat)
     {
@@ -118,54 +62,81 @@ static bool rom_read(uint32_t len, uint32_t crc)
         printf("?Unable to read binary data\n");
         return false;
     }
-    if (mbuf_crc32() != crc)
+    return true;
+}
+
+static bool rom_open(const char *name, bool is_fat)
+{
+    is_reading_fat = is_fat;
+    if (is_fat)
     {
-        printf("?CRC failed\n");
+        FRESULT result = f_open(&fat_fil, name, FA_READ);
+        if (result != FR_OK)
+        {
+            printf("?Unable to open file (%d)\n", result);
+            return false;
+        }
+    }
+    else
+    {
+        int lfsresult = lfs_file_opencfg(&lfs_volume, &lfs_file, name,
+                                         LFS_O_RDONLY, &lfs_file_config);
+        if (lfsresult < 0)
+        {
+            printf("?Unable to lfs_file_opencfg (%d)\n", lfsresult);
+            return false;
+        }
+        lfs_file_open = true;
+    }
+    if (!rom_read(2) || mbuf[0] != 0xFF || mbuf[1] != 0xFF)
+    {
+        printf("?Missing XEX header in ROM file\n");
+        rom_state = ROM_IDLE;
         return false;
     }
+    rom_FFFC = false;
+    rom_FFFD = false;
+    rom_start = 0xFFFF;
+    rom_bank = 0;
     return true;
 }
 
 static bool rom_next_chunk(void)
 {
-    mbuf_len = 0;
-    size_t len = rom_gets();
-    for (size_t i = 0; i < len; i++)
-        switch (mbuf[i])
-        {
-        case ' ':
-            continue;
-        case '#':
-            return true;
-        default:
-            break;
-        }
-    uint32_t rom_crc;
-    const char *args = (char *)mbuf;
-    if (parse_uint32(&args, &len, &rom_addr)
-        && parse_uint32(&args, &len, &rom_len)
-        && parse_uint32(&args, &len, &rom_crc)
-        && parse_end(args, len))
+    if (rom_start == 0xFFFF || rom_start >= rom_end)
     {
-        if (rom_addr > 0x1FFFF)
+        // read header
+        if (!rom_read(2))
         {
-            printf("?invalid address\n");
+            printf("?Missing XEX block header\n");
             return false;
         }
-        if (!rom_len || rom_len > MBUF_SIZE
-            || (rom_addr + rom_len > 0x1000000))
+        if (mbuf[0] == 0xFF && mbuf[1] == 0xFF)
         {
-            printf("?invalid length\n");
+            // optional block header marker - try next one
+            if (!rom_read(2))
+            {
+                printf("?Missing XEX block header\n");
+                return false;
+            }
+        }
+        rom_start = mbuf[0] | (mbuf[1] << 8);
+        if (!rom_read(2))
+        {
+            printf("?Corrupt XEX block header\n");
             return false;
         }
-        if (rom_addr <= 0xFFFC && rom_addr + rom_len > 0xFFFC)
-            rom_FFFC = true;
-        if (rom_addr <= 0xFFFD && rom_addr + rom_len > 0xFFFD)
-            rom_FFFD = true;
-        return rom_read(rom_len, rom_crc);
+        rom_end = mbuf[0] | (mbuf[1] << 8);
+        if (rom_end < rom_start)
+        {
+            printf("?Invalid XEX block header\n");
+            return false;
+        }
+        // printf("Loading XEX block: $%04X - $%04X\n", rom_start, rom_end);
     }
-    printf("?Corrupt ROM file\n");
-    return false;
+
+    uint16_t rom_len = rom_end - rom_start + 1;
+    return rom_read(MIN(rom_len, MBUF_SIZE));
 }
 
 static void rom_loading(void)
@@ -190,6 +161,59 @@ static void rom_loading(void)
     }
 }
 
+static bool rom_ram_writing(bool test)
+{
+    if (rom_start == rom_end && rom_start == 0xFFFE)
+    {
+        rom_bank = mbuf[0];
+        return false;
+    }
+
+    uint16_t i = 0;
+    while (mbuf_len--)
+    {
+        uint32_t addr = (rom_bank << 16) | rom_start++;
+        if (addr == 0xFFFC)
+            rom_FFFC = true;
+        if (addr == 0xFFFD)
+            rom_FFFD = true;
+
+        if (!test)
+        {
+            uint8_t data = mbuf[i++];
+            if (addr >= 0xFFE4 && addr <= 0xFFFF)
+            {
+                switch (addr)
+                {
+                case 0xFFE4: // COP_L
+                case 0xFFE5: // COP_H
+                case 0xFFE6: // BRK_L
+                case 0xFFE7: // BRK_H
+                case 0xFFE8: // ABORTB_L
+                case 0xFFE9: // ABORTB_H
+                case 0xFFEA: // NMIB_L
+                case 0xFFEB: // NMIB_H
+                case 0xFFEE: // IRQB_L
+                case 0xFFEF: // IRQB_H
+                case 0xFFF4: // COP_L
+                case 0xFFF5: // COP_H
+                case 0xFFF8: // ABORTB_L
+                case 0xFFF9: // ABORTB_H
+                case 0xFFFA: // NMIB_L
+                case 0xFFFB: // NMIB_H
+                case 0xFFFC: // RESETB_l
+                case 0xFFFD: // RESETB_H
+                case 0xFFFE: // IRQB/BRK_L
+                case 0xFFFF: // IRQB/BRK_H
+                    REGS(addr) = data;
+                }
+            }
+            psram[addr] = data;
+        }
+    }
+    return (int)mbuf_len > 0;
+}
+
 void rom_mon_install(const char *args, size_t len)
 {
     // Strip special extension, validate and upcase name
@@ -197,9 +221,9 @@ void rom_mon_install(const char *args, size_t len)
     size_t lfs_name_len = len;
     while (lfs_name_len && args[lfs_name_len - 1] == ' ')
         lfs_name_len--;
-    if (lfs_name_len > 7)
-        if (!strnicmp(".RP6502", args + lfs_name_len - 7, 7))
-            lfs_name_len -= 7;
+    if (lfs_name_len > 4)
+        if (!strnicmp(".xex", args + lfs_name_len - 4, 4))
+            lfs_name_len -= 4;
     if (lfs_name_len > LFS_NAME_MAX)
         lfs_name_len = 0;
     lfs_name[lfs_name_len] = 0;
@@ -227,7 +251,11 @@ void rom_mon_install(const char *args, size_t len)
     if (!rom_open(args, true))
         return;
     while (!rom_eof())
-        if (!rom_next_chunk())
+        if (rom_next_chunk())
+        {
+            rom_ram_writing(true);
+        }
+        else
             return;
     if (!rom_FFFC || !rom_FFFD)
     {
@@ -336,10 +364,18 @@ void rom_mon_info(const char *args, size_t len)
     if (!rom_open(args, true))
         return;
     bool found = false;
-    while (rom_gets() && mbuf[0] == '#' && mbuf[1] == ' ')
+    while (rom_next_chunk())
     {
-        puts((char *)mbuf + 2);
-        found = true;
+        if (rom_start == 0xFC00)
+            found = true;
+        if (found)
+            printf("%.*s", mbuf_len, mbuf);
+        rom_start += mbuf_len;
+        if (found && rom_start >= rom_end)
+        {
+            putc('\n', stdout);
+            break;
+        }
     }
     if (!found)
         puts("?No help found in file.");
@@ -358,26 +394,24 @@ bool rom_help(const char *args, size_t len)
             return false;
         bool found = false;
         if (rom_open(lfs_name, false))
-            while (rom_gets() && mbuf[0] == '#' && mbuf[1] == ' ')
+            while (rom_next_chunk())
             {
-                puts((char *)mbuf + 2);
-                found = true;
+                if (rom_start == 0xFC00)
+                    found = true;
+                if (found)
+                    printf("%.*s", mbuf_len, mbuf);
+                rom_start += mbuf_len;
+                if (found && rom_start >= rom_end)
+                {
+                    putc('\n', stdout);
+                    break;
+                }
             }
         if (!found)
             puts("?No help found in ROM.");
         return true; // even when !found
     }
     return false;
-}
-
-static bool rom_psram_writing(void)
-{
-    while (rom_len)
-    {
-        uint32_t addr = rom_addr + --rom_len;
-        psram[addr] = mbuf[rom_len];
-    }
-    return !!rom_len;
 }
 
 void rom_init(void)
@@ -398,7 +432,7 @@ void rom_task(void)
         rom_loading();
         break;
     case ROM_WRITING:
-        if (!rom_psram_writing())
+        if (!rom_ram_writing(false))
             rom_state = ROM_LOADING;
         break;
     }

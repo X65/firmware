@@ -96,7 +96,7 @@ static const char __in_flash("helptext") hlp_text_install[]
       "integrated part of the system and can be loaded manually by simply using their\n"
       "name like any other command. The ROM name must not conflict with any other\n"
       "system command and may only contain up to 16 ASCII letters. If the file\n"
-      "contains an extension, it must be \".rp6502\", which will be stripped upon\n"
+      "contains an extension, it must be \".xex\", which will be stripped upon\n"
       "install.";
 
 static const char __in_flash("helptext") hlp_text_reboot[]
