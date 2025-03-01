@@ -27,8 +27,8 @@ extern volatile size_t xstack_ptr;
 
 // RIA registers are located at the bottom of cpu1 stack.
 // cpu1 runs the action loop and uses very little stack.
-extern uint8_t regs[0x20];
-#define REGS(addr)  regs[(addr) & 0x1F]
+extern uint8_t regs[0x40];
+#define REGS(addr)  regs[(addr) & 0x3F]
 #define REGSW(addr) ((uint16_t *)&REGS(addr))[0]
 asm(".equ regs, 0x20040000");
 
