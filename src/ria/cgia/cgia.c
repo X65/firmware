@@ -132,6 +132,14 @@ void cgia_set_bank(uint8_t cgia_bank_id, uint8_t mem_bank_no)
     // our job here is done
 }
 
+// This mask is used to enable interruptable render points in time.
+// Once ACK'ed, the interrupt source will not be signalled until
+// the condition in met again
+// VBL - new frame starts
+// RSI - new raster line starts
+// DLI - next DL instruction is loaded
+uint8_t int_mask = 0b11100000;
+
 inline __attribute__((always_inline)) __attribute__((optimize("O3"))) void cgia_vbi(void)
 {
     if (CGIA.int_enable & CGIA_REG_INT_FLAG_VBI)
@@ -145,7 +153,7 @@ inline __attribute__((always_inline)) __attribute__((optimize("O3"))) uint8_t cg
     switch (reg_no)
     {
     case CGIA_REG_INT_STATUS:
-        return regs_int[CGIA_REG_INT_STATUS] & regs_int[CGIA_REG_INT_ENABLE];
+        return regs_int[CGIA_REG_INT_STATUS] & regs_int[CGIA_REG_INT_ENABLE] & int_mask;
     }
 
     return regs_int[reg_no];
@@ -168,6 +176,7 @@ inline __attribute__((always_inline)) __attribute__((optimize("O3"))) void cgia_
         break;
     case CGIA_REG_INT_STATUS:
         CGIA.int_status = 0x00;
+        int_mask = 0x00;
         break;
 
     case CGIA_REG_PWM_0_FREQ:
@@ -406,6 +415,9 @@ void __attribute__((optimize("O3"))) cgia_render(uint16_t y, uint32_t *rgbbuf)
     static uint8_t max_instr_count;
 
     CGIA.raster = y;
+    int_mask = CGIA_REG_INT_FLAG_RSI;
+    if (y == 0)
+        int_mask = CGIA_REG_INT_FLAG_VBI;
 
     // track whether we need to fill line with background color
     // for transparent or sprite planes
@@ -566,6 +578,7 @@ void __attribute__((optimize("O3"))) cgia_render(uint16_t y, uint32_t *rgbbuf)
             uint8_t *bckgnd_bank = vram_cache_ptr[0];
             uint8_t dl_instr = bckgnd_bank[*plane_offset];
             uint8_t instr_code = dl_instr & 0b00001111;
+            int_mask = CGIA_REG_INT_FLAG_DLI;
 
             if (vram_cache_bank_mask[0] != vram_wanted_bank_mask[0])
             {
