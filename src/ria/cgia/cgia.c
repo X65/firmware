@@ -138,10 +138,12 @@ void cgia_set_bank(uint8_t cgia_bank_id, uint8_t mem_bank_no)
 // VBL - new frame starts
 // RSI - new raster line starts
 // DLI - next DL instruction is loaded
-uint8_t int_mask = 0b11100000;
+uint8_t int_mask = 0;
 
 inline __attribute__((always_inline)) __attribute__((optimize("O3"))) void cgia_vbi(void)
 {
+    int_mask |= CGIA_REG_INT_FLAG_VBI;
+
     if (CGIA.int_enable & CGIA_REG_INT_FLAG_VBI)
     {
         CGIA.int_status |= CGIA_REG_INT_FLAG_VBI;
@@ -415,9 +417,9 @@ void __attribute__((optimize("O3"))) cgia_render(uint16_t y, uint32_t *rgbbuf)
     static uint8_t max_instr_count;
 
     CGIA.raster = y;
-    int_mask = CGIA_REG_INT_FLAG_RSI;
+    int_mask |= CGIA_REG_INT_FLAG_RSI;
     if (y == 0)
-        int_mask = CGIA_REG_INT_FLAG_VBI;
+        int_mask |= CGIA_REG_INT_FLAG_VBI;
 
     // track whether we need to fill line with background color
     // for transparent or sprite planes
@@ -578,7 +580,7 @@ void __attribute__((optimize("O3"))) cgia_render(uint16_t y, uint32_t *rgbbuf)
             uint8_t *bckgnd_bank = vram_cache_ptr[0];
             uint8_t dl_instr = bckgnd_bank[*plane_offset];
             uint8_t instr_code = dl_instr & 0b00001111;
-            int_mask = CGIA_REG_INT_FLAG_DLI;
+            int_mask |= CGIA_REG_INT_FLAG_DLI;
 
             if (vram_cache_bank_mask[0] != vram_wanted_bank_mask[0])
             {
@@ -989,11 +991,11 @@ void __attribute__((optimize("O3"))) cgia_render(uint16_t y, uint32_t *rgbbuf)
         CGIA.raster = 0;
 
     // trigger raster-line interrupt
-    if (CGIA.int_enable & CGIA_REG_INT_FLAG_RSI && (y + 1) == CGIA.int_raster)
+    if ((CGIA.int_enable & CGIA_REG_INT_FLAG_RSI) && (CGIA.raster == CGIA.int_raster))
     {
         CGIA.int_status |= CGIA_REG_INT_FLAG_RSI;
     }
-    if (CGIA.int_enable & CGIA_REG_INT_FLAG_DLI && trigger_dli)
+    if ((CGIA.int_enable & CGIA_REG_INT_FLAG_DLI) && trigger_dli)
     {
         CGIA.int_status |= CGIA_REG_INT_FLAG_DLI;
     }
