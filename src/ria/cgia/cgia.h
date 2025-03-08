@@ -81,6 +81,7 @@ union cgia_plane_regs_t
         int8_t scroll_y;
         int8_t offset_y;
         uint8_t shared_color[2];
+        uint8_t reserved[6];
     } bckgnd;
 
     struct cgia_ham_regs
