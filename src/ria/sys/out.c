@@ -26,7 +26,8 @@
 #define LINE_BUFFER_PADDING (-SCHAR_MIN) // maximum scroll of signed 8 bit
 // RGB line buffers
 #define RGB_LINE_BUFFERS    2
-static uint32_t linebuffer[(MODE_H_ACTIVE_PIXELS + 2 * LINE_BUFFER_PADDING) * RGB_LINE_BUFFERS];
+#define RGB_LINE_BUFFER_LEN (MODE_H_ACTIVE_PIXELS + 2 * LINE_BUFFER_PADDING)
+static uint32_t linebuffer[RGB_LINE_BUFFER_LEN * RGB_LINE_BUFFERS];
 
 static uint a_scanline = 0;
 static uint cur_scanline = UINT_MAX;
@@ -195,10 +196,7 @@ void __isr __scratch_x("") dma_irq_handler(void)
         if (v_scanline >= MODE_V_TOTAL_LINES)
         {
             v_scanline = 0;
-        }
 
-        if (v_scanline == 0)
-        {
             trigger_vbl = true;
         }
     }
@@ -303,7 +301,7 @@ void __not_in_flash_func(out_core1_main)(void)
     dma_channel_start(DMACH_PING);
 
     gen_line_ptr = (uintptr_t)(linebuffer + LINE_BUFFER_PADDING);
-    cur_line_ptr = (uintptr_t)(linebuffer + LINE_BUFFER_PADDING + MODE_H_ACTIVE_PIXELS);
+    cur_line_ptr = (uintptr_t)(linebuffer + LINE_BUFFER_PADDING + RGB_LINE_BUFFER_LEN);
 
     while (true)
     {
