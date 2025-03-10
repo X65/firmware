@@ -550,7 +550,7 @@ void __attribute__((optimize("O3"))) cgia_render(uint16_t y, uint32_t *rgbbuf)
             plane = &CGIA.plane[p];
             plane_offset = &CGIA.offset[p];
             plane_data = &plane_int[p];
-            max_instr_count = CGIA_MAX_DL_INSTR;
+            max_instr_count = CGIA_MAX_DL_INSTR_PER_LINE;
 
         restart_plane:
             if (y == 0) // start of frame - reset flags and counters
