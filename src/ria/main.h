@@ -49,8 +49,8 @@ bool main_api(uint8_t operation);
  */
 
 #define CPU_RESB_PIN 26
-#define CPU_IRQB_PIN 10
-#define CPU_NMIB_PIN 11
+#define CPU_IRQB_PIN 20
+#define CPU_NMIB_PIN 21
 
 #define BUS_PIN_BASE       0
 #define BUS_DATA_PIN_BASE  (BUS_PIN_BASE + 0) /* D0-D7 */
@@ -131,7 +131,7 @@ bool main_api(uint8_t operation);
 #define RGB_LED_PIO pio1
 #define RGB_LED_SM  2
 
-// Extension/External I2C bus (also DVI/HDMI CDC)
+// Extension/External 3.3V I2C bus
 #define EXT_I2C          i2c0
 #define EXT_I2C_BAUDRATE (400 * 1000)
 
