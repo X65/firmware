@@ -25,19 +25,20 @@ It will take an extremely long time to recurse the project, so do this instead:
 
 ```
 git submodule update --init
-cd src/pico-sdk
-git submodule update --init
-cd ../..
 ```
 
 To debug Pico RIA or Pico VPU code, you need a Debug Probe or a Pi Pico as a Picoprobe.
 
-The VSCode launch settings connect to a remote debug session. I use multiple terminals for the debugger and console. You'll also want to add a udev rule to avoid a sudo nightmare. The following are rough notes, you may need to install software which is beyond the scope of this README.
+The Pi Pico VSCode Extension will need this additional software:
+
+```
+sudo apt install build-essential gdb-multiarch pkg-config libftdi1-dev libhidapi-hidraw0
+```
 
 Create `/etc/udev/rules.d/99-pico.rules` with:
 
 ```
-#Picoprobe
+#Raspberry Pi Foundation
 SUBSYSTEM=="usb", ATTRS{idVendor}=="2e8a", MODE="0666"
 ```
 
@@ -56,9 +57,8 @@ picocom -b 115200 /dev/ttyACM0
 WSL (Windows Subsystem for Linux) can forward the Picoprobe to Linux:
 
 ```
+PS> winget install usbipd
 PS> usbipd list
-BUSID  DEVICE
-7-4    CMSIS-DAP v2 Interface, USB Serial Device (COM6)
 
 PS> usbipd wsl attach --busid 7-4
 ```

@@ -30,7 +30,13 @@ extern volatile size_t xstack_ptr;
 extern uint8_t regs[0x40];
 #define REGS(addr)  regs[(addr) & 0x3F]
 #define REGSW(addr) ((uint16_t *)&REGS(addr))[0]
+#if PICO_RP2040 == 1
 asm(".equ regs, 0x20040000");
+#elif PICO_RP2350 == 1
+asm(".equ regs, 0x20080000");
+#else
+#error "Unknown microcontroller"
+#endif
 
 // Misc memory buffer for moving things around.
 // FS <-> RAM, USB <-> RAM, UART <-> RAM, etc.

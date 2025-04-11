@@ -22,6 +22,7 @@ target_compile_options(rp816 PRIVATE
 )
 
 target_link_libraries(rp816 PRIVATE
+    pico_aon_timer
     pico_stdlib
     pico_multicore
     pico_rand
@@ -33,7 +34,6 @@ target_link_libraries(rp816 PRIVATE
     hardware_pwm
     hardware_interp
     hardware_flash
-    tinyusb_board
     tinyusb_host
 )
 

@@ -377,13 +377,15 @@ void bus_init(void)
     // Adjustments for GPIO performance. Important!
     for (int i = BUS_PIN_BASE; i < BUS_PIN_BASE + BUS_DATA_PINS_USED; ++i)
     {
-        gpio_set_pulls(i, true, true);
+        pio_gpio_init(MEM_BUS_PIO, i);
+        gpio_set_pulls(i, false, false);
         gpio_set_input_hysteresis_enabled(i, false);
         hw_set_bits(&MEM_BUS_PIO->input_sync_bypass, 1u << i);
     }
     for (int i = BUS_CTL_PIN_BASE; i < BUS_CTL_PIN_BASE + BUS_CTL_PINS_USED; ++i)
     {
-        gpio_set_pulls(i, true, true);
+        pio_gpio_init(MEM_BUS_PIO, i);
+        gpio_set_pulls(i, false, false);
         gpio_set_input_hysteresis_enabled(i, false);
         hw_set_bits(&MEM_BUS_PIO->input_sync_bypass, 1u << i);
     }

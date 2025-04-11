@@ -497,7 +497,8 @@ static inline void aud_i2s_pio_init(void)
     for (int i = 0; i < 4; ++i)
     {
         uint pin = i2s_pins[i];
-        gpio_set_pulls(pin, true, true);
+        pio_gpio_init(AUD_I2S_PIO, pin);
+        gpio_set_pulls(pin, false, false);
         gpio_set_input_hysteresis_enabled(pin, false);
         hw_set_bits(&AUD_I2S_PIO->input_sync_bypass, 1u << pin);
     }
