@@ -69,3 +69,8 @@ WSL needs udev started. Create `/etc/wsl.conf` with:
 [boot]
 command="service udev start"
 ```
+
+VSCode Serial Monitor doesn't yet send breaks or let you slow down a paste. Minicom is still useful\.
+```
+$ minicom -c on -b 115200 -o -D /dev/ttyACM0
+```
