@@ -9,35 +9,35 @@
 #include "str.h"
 #include "sys/lfs.h"
 
-static const char __in_flash("helptext") hlp_text_help[]
-    = "Commands:\n"
-      "HELP (command|rom)  - This help or expanded help for command or rom.\n"
-      "HELP ABOUT|SYSTEM   - About includes credits. System for general usage.\n"
-      "STATUS              - Show hardware status and USB devices.\n"
-      "SET (attr) (value)  - Change or show settings.\n"
-      "LS (dir|drive)      - List contents of directory.\n"
-      "CD (dir)            - Change or show current directory.\n"
-      "MKDIR dir           - Make a new directory.\n"
-      "0:                  - 1:-8: Change current USB drive.\n"
-      "LOAD file           - Load ROM file. Start if contains reset vector.\n"
-      "INFO file           - Show help text, if any, contained in ROM file.\n"
-      "INSTALL file        - Install ROM file on RIA.\n"
-      "REMOVE rom          - Remove ROM from RIA.\n"
-      "REBOOT              - Cold start. Load and start selected boot ROM.\n"
-      "RESET               - Start CPU at current reset vector ($FFFC).\n"
-      "rom                 - Load and start an installed ROM.\n"
-      "UPLOAD file         - Write file. Binary chunks follow.\n"
-      "UNLINK file|dir     - Delete file or empty directory.\n"
-      "BINARY addr len crc - Write memory. Binary data follows.\n"
-      "AT ...              - Send AT+command to WiFi modem.\n"
-      "0000 (00 00 ...)    - Read or write memory.";
+static const char __in_flash("helptext") hlp_text_help[] =
+    "Commands:\n"
+    "HELP (command|rom)  - This help or expanded help for command or rom.\n"
+    "HELP ABOUT|SYSTEM   - About includes credits. System for general usage.\n"
+    "STATUS              - Show hardware status and USB devices.\n"
+    "SET (attr) (value)  - Change or show settings.\n"
+    "LS (dir|drive)      - List contents of directory.\n"
+    "CD (dir)            - Change or show current directory.\n"
+    "MKDIR dir           - Make a new directory.\n"
+    "(USB)0:             - USB0:-USB7: Change current USB drive.\n"
+    "LOAD file           - Load ROM file. Start if contains reset vector.\n"
+    "INFO file           - Show help text, if any, contained in ROM file.\n"
+    "INSTALL file        - Install ROM file on RIA.\n"
+    "REMOVE rom          - Remove ROM from RIA.\n"
+    "REBOOT              - Cold start. Load and start selected boot ROM.\n"
+    "RESET               - Start CPU at current reset vector ($FFFC).\n"
+    "rom                 - Load and start an installed ROM.\n"
+    "UPLOAD file         - Write file. Binary chunks follow.\n"
+    "UNLINK file|dir     - Delete file or empty directory.\n"
+    "BINARY addr len crc - Write memory. Binary data follows.\n"
+    "AT ...              - Send AT+command to WiFi modem.\n"
+    "0000 (00 00 ...)    - Read or write memory.";
 
-static const char __in_flash("helptext") hlp_text_set[]
-    = "Settings:\n"
-      "HELP SET attr       - Show information about a setting.\n"
-      "SET CAPS (0|1|2)    - Invert or force caps while CPU is running.\n"
-      "SET RESB (ms)       - Query or set RESB hold time. Set to 0 for auto.\n"
-      "SET BOOT (rom|-)    - Select ROM to boot from cold start. \"-\" for none.";
+static const char __in_flash("helptext") hlp_text_set[] =
+    "Settings:\n"
+    "HELP SET attr       - Show information about a setting.\n"
+    "SET CAPS (0|1|2)    - Invert or force caps while CPU is running.\n"
+    "SET RESB (ms)       - Query or set RESB hold time. Set to 0 for auto.\n"
+    "SET BOOT (rom|-)    - Select ROM to boot from cold start. \"-\" for none.";
 
 static const char __in_flash("helptext") hlp_text_about[]
     = " X65 microcomputer - Copyright (c) 2024 Tomasz Sterna\n"

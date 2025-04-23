@@ -397,7 +397,7 @@ void kbd_task(void)
     if (kdb_hid_leds_need_report)
     {
         kdb_hid_leds_need_report = false;
-        for (uint8_t dev_addr = 0; dev_addr < CFG_TUH_DEVICE_MAX; dev_addr++)
+        for (uint8_t dev_addr = 1; dev_addr <= CFG_TUH_DEVICE_MAX; dev_addr++)
             for (uint8_t instance = 0; instance < CFG_TUH_HID; instance++)
                 if (tuh_hid_interface_protocol(dev_addr, instance) == HID_ITF_PROTOCOL_KEYBOARD)
                     tuh_hid_set_report(dev_addr, instance, 0, HID_REPORT_TYPE_OUTPUT,
