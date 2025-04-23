@@ -10,6 +10,7 @@
 #include "sys/com.h"
 #include "sys/mem.h"
 #include <stdio.h>
+#include <string.h>
 
 #define TIMEOUT_MS 200
 
@@ -71,7 +72,17 @@ void fil_mon_chdrive(const char *args, size_t len)
     (void)len;
     FRESULT result;
     DIR dir;
-    result = f_opendir(&dir, args);
+    char s[10];
+    while (len && args[len - 1] == ' ')
+        len--;
+    if (len < 10)
+    {
+        memcpy(s, args, len);
+        s[len] = 0;
+        result = f_opendir(&dir, s);
+    }
+    else
+        result = FR_INVALID_DRIVE;
     if (result != FR_OK)
         printf("?Drive not found (%d)\n", result);
     if (result == FR_OK)
@@ -82,7 +93,7 @@ void fil_mon_chdrive(const char *args, size_t len)
     }
     if (result == FR_OK)
     {
-        result = f_chdrive(args);
+        result = f_chdrive(s);
         if (result != FR_OK)
             printf("?Unable to change drive (%d)\n", result);
     }
