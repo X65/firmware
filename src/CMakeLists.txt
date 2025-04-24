@@ -11,7 +11,7 @@ target_include_directories(rp816 PRIVATE
 )
 
 target_compile_definitions(rp816 PRIVATE
-    PICO_COPY_TO_RAM=1
+    LFS_NO_ASSERT=1
     LFS_NO_MALLOC=1
     LFS_NAME_MAX=16
     PICO_CORE1_STACK_SIZE=0x200
