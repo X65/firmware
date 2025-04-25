@@ -5,6 +5,7 @@
  */
 
 #include "main.h"
+#include "api/api.h"
 #include "api/clk.h"
 #include "api/oem.h"
 #include "cgia/cgia.h"
@@ -130,6 +131,7 @@ static void reset(void)
     fil_reset();
     mon_reset();
     rom_reset();
+    api_reset();
 }
 
 // Triggered once after init then after every PHI2 clock change.
