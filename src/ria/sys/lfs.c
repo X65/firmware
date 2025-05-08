@@ -11,13 +11,6 @@
 // 1MB for ROM storage
 #define LFS_DISK_BLOCKS 256
 
-// Bluetooth stack uses the last two blocks
-#ifdef RASPBERRYPI_PICO2_W
-#define LFS_RESERVED_BLOCKS 2
-#else
-#define LFS_RESERVED_BLOCKS 0
-#endif
-
 static int lfs_read(const struct lfs_config *c, lfs_block_t block,
                     lfs_off_t off, void *buffer, lfs_size_t size);
 static int lfs_prog(const struct lfs_config *c, lfs_block_t block,
@@ -28,7 +21,6 @@ static int lfs_sync(const struct lfs_config *c);
 static_assert(!(LFS_DISK_BLOCKS % 8));
 #define LFS_LOOKAHEAD_SIZE LFS_DISK_BLOCKS / 8
 #define LFS_DISK_SIZE      (LFS_DISK_BLOCKS * FLASH_SECTOR_SIZE)
-#define LFS_RESERVED_SIZE  (LFS_RESERVED_BLOCKS * FLASH_SECTOR_SIZE)
 
 lfs_t lfs_volume;
 static char lfs_read_buffer[FLASH_PAGE_SIZE];
@@ -51,12 +43,20 @@ static const struct lfs_config cfg = {
     .lookahead_buffer = lfs_lookahead_buffer,
 };
 
+// This will relocate the two flash blocks used for bluetooth.
+// untested. see btstack_flash_bank.c
+uint32_t lfs_get_bt_storage_offset(void)
+{
+    const uint32_t PICO_FLASH_BANK_TOTAL_SIZE = (FLASH_SECTOR_SIZE * 2u);
+    return PICO_FLASH_SIZE_BYTES - LFS_DISK_SIZE - PICO_FLASH_BANK_TOTAL_SIZE;
+}
+
 static int lfs_read(const struct lfs_config *c, lfs_block_t block,
                     lfs_off_t off, void *buffer, lfs_size_t size)
 {
     (void)(c);
     memcpy(buffer,
-           (void *)XIP_NOCACHE_NOALLOC_BASE + (PICO_FLASH_SIZE_BYTES - LFS_DISK_SIZE - LFS_RESERVED_SIZE) + (block * FLASH_SECTOR_SIZE) + off,
+           (void *)XIP_NOCACHE_NOALLOC_BASE + (PICO_FLASH_SIZE_BYTES - LFS_DISK_SIZE) + (block * FLASH_SECTOR_SIZE) + off,
            size);
     return LFS_ERR_OK;
 }
@@ -65,7 +65,9 @@ static int lfs_prog(const struct lfs_config *c, lfs_block_t block,
                     lfs_off_t off, const void *buffer, lfs_size_t size)
 {
     (void)(c);
-    uint32_t flash_offs = (PICO_FLASH_SIZE_BYTES - LFS_DISK_SIZE - LFS_RESERVED_SIZE) + (block * FLASH_SECTOR_SIZE) + off;
+    uint32_t flash_offs = (PICO_FLASH_SIZE_BYTES - LFS_DISK_SIZE)
+                          + (block * FLASH_SECTOR_SIZE)
+                          + off;
     uint32_t interrupt_status = save_and_disable_interrupts();
     flash_range_program(flash_offs, buffer, size);
     restore_interrupts(interrupt_status);
@@ -75,7 +77,8 @@ static int lfs_prog(const struct lfs_config *c, lfs_block_t block,
 static int lfs_erase(const struct lfs_config *c, lfs_block_t block)
 {
     (void)(c);
-    uint32_t flash_offs = (PICO_FLASH_SIZE_BYTES - LFS_DISK_SIZE - LFS_RESERVED_SIZE) + (block * FLASH_SECTOR_SIZE);
+    uint32_t flash_offs = (PICO_FLASH_SIZE_BYTES - LFS_DISK_SIZE)
+                          + (block * FLASH_SECTOR_SIZE);
     uint32_t interrupt_status = save_and_disable_interrupts();
     flash_range_erase(flash_offs, FLASH_SECTOR_SIZE);
     restore_interrupts(interrupt_status);
@@ -90,6 +93,9 @@ static int lfs_sync(const struct lfs_config *c)
 
 void lfs_init(void)
 {
+    // Check we're not overlapping the binary in flash
+    extern char __flash_binary_end;
+    assert(((uintptr_t)&__flash_binary_end - XIP_BASE <= lfs_get_bt_storage_offset()));
     // mount the filesystem
     int err = lfs_mount(&lfs_volume, &cfg);
     if (err)

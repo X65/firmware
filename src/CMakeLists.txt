@@ -11,6 +11,7 @@ target_include_directories(rp816 PRIVATE
 )
 
 target_compile_definitions(rp816 PRIVATE
+    pico_flash_bank_get_storage_offset_func=lfs_get_bt_storage_offset
     LFS_NO_ASSERT=1
     LFS_NO_MALLOC=1
     LFS_NAME_MAX=16
