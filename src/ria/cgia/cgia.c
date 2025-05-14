@@ -776,7 +776,8 @@ void __attribute__((optimize("O3"))) cgia_render(uint16_t y, uint32_t *rgbbuf)
                             else
                                 cgia_encode_mode_4_shared(
                                     rgbbuf + border_columns * CGIA_COLUMN_PX + plane->bckgnd.scroll_x,
-                                    row_columns,
+                                    // this mode generates 4px columns, so requires 2x columns
+                                    row_columns << 1,
                                     bckgnd_bank + plane_data->char_gen_offset + plane_data->row_line_count,
                                     char_shift,
                                     plane->bckgnd.shared_color);
@@ -792,7 +793,8 @@ void __attribute__((optimize("O3"))) cgia_render(uint16_t y, uint32_t *rgbbuf)
                             else
                                 cgia_encode_mode_4_mapped(
                                     rgbbuf + border_columns * CGIA_COLUMN_PX + plane->bckgnd.scroll_x,
-                                    row_columns,
+                                    // this mode generates 4px columns, so requires 2x columns
+                                    row_columns << 1,
                                     bckgnd_bank + plane_data->char_gen_offset + plane_data->row_line_count, char_shift,
                                     plane->bckgnd.shared_color);
                         }
