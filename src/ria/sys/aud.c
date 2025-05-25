@@ -770,10 +770,10 @@ void aud_init(void)
     aud_mix_init();
 
     // Set clocks
-    aud_reclock();
+    aud_post_reclock();
 }
 
-void aud_reclock(void)
+void aud_post_reclock(void)
 {
     aud_fm_reclock();
     aud_i2s_reclock();

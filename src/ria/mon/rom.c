@@ -15,6 +15,7 @@
 
 static enum {
     ROM_IDLE,
+    ROM_WAIT_LOAD,
     ROM_LOADING,
     ROM_WRITING,
 } rom_state;
@@ -139,6 +140,15 @@ static bool rom_next_chunk(void)
     return rom_read(MIN(rom_len, MBUF_SIZE));
 }
 
+static void rom_wait_load(void)
+{
+    // vga connection setup is unreliable at some clock speeds
+    // if we don't give it a chance to finish before loading
+    // if (!vga_active())
+    // TODO: if (!mdm_active())
+    rom_state = ROM_LOADING;
+}
+
 static void rom_loading(void)
 {
     if (rom_eof())
@@ -147,7 +157,7 @@ static void rom_loading(void)
         if (rom_FFFC && rom_FFFD)
             main_run();
         else
-            printf("Loaded. No reset vector.\n");
+            printf("Loaded.\n");
         return;
     }
     if (!rom_next_chunk())
@@ -419,7 +429,8 @@ void rom_init(void)
     // Try booting the set boot ROM
     char *boot = cfg_get_boot();
     size_t boot_len = strlen(boot);
-    rom_load((char *)boot, boot_len);
+    if (rom_load((char *)boot, boot_len))
+        rom_state = ROM_WAIT_LOAD;
 }
 
 void rom_task(void)
@@ -427,6 +438,9 @@ void rom_task(void)
     switch (rom_state)
     {
     case ROM_IDLE:
+        break;
+    case ROM_WAIT_LOAD:
+        rom_wait_load();
         break;
     case ROM_LOADING:
         rom_loading();

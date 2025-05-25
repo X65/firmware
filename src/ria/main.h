@@ -37,7 +37,8 @@ bool main_active(void);
  */
 
 void main_task(void);
-void main_reclock(void);
+void main_pre_reclock();
+void main_post_reclock();
 bool main_api(uint8_t operation);
 
 /* Overclock

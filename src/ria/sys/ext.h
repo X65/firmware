@@ -13,7 +13,7 @@
  */
 
 void ext_init(void);
-void ext_reclock(void);
+void ext_post_reclock(void);
 void ext_stop(void);
 void ext_task(void);
 

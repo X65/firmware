@@ -87,7 +87,12 @@ void com_flush(void)
         tight_loop_contents();
 }
 
-void com_reclock(void)
+void com_pre_reclock(void)
+{
+    com_flush();
+}
+
+void com_post_reclock(void)
 {
     uart_init(COM_UART, COM_UART_BAUD_RATE);
 }
@@ -392,7 +397,7 @@ void com_read_binary(uint32_t timeout_ms, com_read_callback_t callback, uint8_t 
     com_bufsize = size;
     com_buflen = 0;
     com_timeout_ms = timeout_ms;
-    com_timer = delayed_by_ms(get_absolute_time(), com_timeout_ms);
+    com_timer = make_timeout_time_ms(com_timeout_ms);
     com_callback = callback;
 }
 
@@ -405,7 +410,7 @@ void com_read_line(uint32_t timeout_ms, com_read_callback_t callback, size_t siz
     com_bufpos = 0;
     com_ansi_state = ansi_state_C0;
     com_timeout_ms = timeout_ms;
-    com_timer = delayed_by_ms(get_absolute_time(), com_timeout_ms);
+    com_timer = make_timeout_time_ms(com_timeout_ms);
     com_callback = callback;
     com_ctrl_bits = ctrl_bits;
 }
@@ -441,14 +446,14 @@ void com_task(void)
         {
             if (com_callback)
             {
-                com_timer = delayed_by_ms(get_absolute_time(), com_timeout_ms);
+                com_timer = make_timeout_time_ms(com_timeout_ms);
                 if (com_binary_buf)
-                    com_binary_rx((uint8_t)ch);
+                    com_binary_rx(ch);
                 else
-                    com_line_rx((uint8_t)ch);
+                    com_line_rx(ch);
             }
             else if (cpu_active())
-                cpu_com_rx((uint8_t)ch);
+                cpu_com_rx(ch);
             ch = getchar_timeout_us(0);
         }
     }

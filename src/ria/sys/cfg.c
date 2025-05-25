@@ -5,16 +5,19 @@
  */
 
 #include "sys/cfg.h"
+#include "api/clk.h"
 #include "api/oem.h"
 #include "str.h"
 #include "sys/cpu.h"
 #include "sys/lfs.h"
 #include "sys/mem.h"
+#include <ctype.h>
 
 // Configuration is a plain ASCII file on the LFS. e.g.
 // +V1         | Version - Must be first
 // +C0         | Caps
 // +R0         | RESB
+// +TUTC0      | Time Zone
 // +S437       | Code Page
 // BASIC       | Boot ROM - Must be last
 
@@ -24,6 +27,7 @@ static const char filename[] = "CONFIG.SYS";
 static uint8_t cfg_reset_ms;
 static uint8_t cfg_caps;
 static uint32_t cfg_codepage;
+static char cfg_time_zone[65];
 
 // Optional string can replace boot string
 static void cfg_save_with_boot_opt(char *opt_str)
@@ -59,11 +63,13 @@ static void cfg_save_with_boot_opt(char *opt_str)
                                "+V%d\n"
                                "+R%d\n"
                                "+C%d\n"
+                               "+T%s\n"
                                "+S%d\n"
                                "%s",
                                CFG_VERSION,
                                cfg_reset_ms,
                                cfg_caps,
+                               cfg_time_zone,
                                cfg_codepage,
                                opt_str);
         if (lfsresult < 0)
@@ -91,30 +97,33 @@ static void cfg_load_with_boot_opt(bool boot_only)
     }
     while (lfs_gets((char *)mbuf, MBUF_SIZE, &lfs_volume, &lfs_file))
     {
+        if (mbuf[0] != '+')
+            break;
+        if (boot_only)
+            continue;
         size_t len = strlen((char *)mbuf);
         while (len && mbuf[len - 1] == '\n')
             len--;
         mbuf[len] = 0;
-        if (len < 3 || mbuf[0] != '+')
-            break;
         const char *str = (char *)mbuf + 2;
         len -= 2;
-        uint32_t val;
-        if (!boot_only && parse_uint32(&str, &len, &val))
-            switch (mbuf[1])
-            {
-            case 'R':
-                cfg_reset_ms = val;
-                break;
-            case 'C':
-                cfg_caps = val;
-                break;
-            case 'S':
-                cfg_codepage = val;
-                break;
-            default:
-                break;
-            }
+        switch (mbuf[1])
+        {
+        case 'R':
+            parse_uint8(&str, &len, &cfg_reset_ms);
+            break;
+        case 'C':
+            parse_uint8(&str, &len, &cfg_caps);
+            break;
+        case 'T':
+            parse_string(&str, &len, cfg_time_zone, sizeof(cfg_time_zone));
+            break;
+        case 'S':
+            parse_uint32(&str, &len, &cfg_codepage);
+            break;
+        default:
+            break;
+        }
     }
     lfsresult = lfs_file_close(&lfs_volume, &lfs_file);
     if (lfsresult < 0)
@@ -164,6 +173,26 @@ void cfg_set_caps(uint8_t mode)
 uint8_t cfg_get_caps(void)
 {
     return cfg_caps;
+}
+
+bool cfg_set_time_zone(const char *tz)
+{
+    if (strlen(tz) < sizeof(cfg_time_zone) - 1)
+    {
+        const char *time_zone = clk_set_time_zone(tz);
+        if (strcmp(cfg_time_zone, time_zone))
+        {
+            strcpy(cfg_time_zone, time_zone);
+            cfg_save_with_boot_opt(NULL);
+        }
+        return true;
+    }
+    return false;
+}
+
+const char *cfg_get_time_zone(void)
+{
+    return cfg_time_zone;
 }
 
 bool cfg_set_codepage(uint32_t cp)

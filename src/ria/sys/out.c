@@ -344,7 +344,7 @@ void __not_in_flash_func(out_core1_main)(void)
     __builtin_unreachable();
 }
 
-void out_reclock(void)
+void out_post_reclock(void)
 {
     clock_configure(clk_hstx,
                     0,
@@ -358,10 +358,11 @@ void out_reclock(void)
 
 void out_init(void)
 {
+    main_pre_reclock();
     vreg_set_voltage(MAIN_VREG_VSEL);
     sleep_ms(10);
     set_sys_clock_khz(MAIN_SYS_CLOCK_KHZ, true);
-    main_reclock();
+    main_post_reclock();
 
     multicore_launch_core1(out_core1_main);
 }

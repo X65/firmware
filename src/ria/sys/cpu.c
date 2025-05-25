@@ -30,7 +30,7 @@ void cpu_init(void)
     gpio_set_dir(CPU_RESB_PIN, true);
 }
 
-void cpu_reclock(void)
+void cpu_post_reclock(void)
 {
     if (!gpio_get(CPU_RESB_PIN))
         cpu_resb_timer = delayed_by_us(get_absolute_time(), cpu_get_reset_us());

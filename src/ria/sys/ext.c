@@ -104,10 +104,10 @@ void ext_init(void)
     gpio_set_slew_rate(EXT_I2C_SCL_PIN, GPIO_SLEW_RATE_FAST);
 
     // Set clocks
-    ext_reclock();
+    ext_post_reclock();
 }
 
-void ext_reclock(void)
+void ext_post_reclock(void)
 {
     i2c_set_baudrate(EXT_I2C, EXT_I2C_BAUDRATE);
 }

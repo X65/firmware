@@ -134,19 +134,24 @@ static void reset(void)
     api_reset();
 }
 
+void main_pre_reclock()
+{
+    com_pre_reclock();
+}
+
 // Triggered once after init then after every PHI2 clock change.
 // Divider is used when PHI2 less than 4 MHz to
 // maintain a minimum system clock of 120 MHz.
 // From 4 to 8 MHz increases system clock to 240 MHz.
-void main_reclock(void)
+void main_post_reclock()
 {
-    com_reclock();
-    cpu_reclock();
-    mem_reclock();
-    out_reclock();
-    ext_reclock();
-    aud_reclock();
-    mdm_reclock();
+    com_post_reclock();
+    cpu_post_reclock();
+    mem_post_reclock();
+    out_post_reclock();
+    ext_post_reclock();
+    aud_post_reclock();
+    mdm_post_reclock();
 }
 
 // This will repeatedly trigger until API_BUSY is false so
@@ -182,6 +187,9 @@ bool main_api(uint8_t operation)
         break;
     case 0x12:
         clk_api_set_time();
+        break;
+    case 0x13:
+        clk_api_get_time_zone();
         break;
     // case 0x14:
     //     std_api_open();

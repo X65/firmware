@@ -38,7 +38,7 @@ void mem_init(void)
     psram_size = setup_psram(QMI_PSRAM_CS_PIN);
 }
 
-void mem_reclock(void)
+void mem_post_reclock(void)
 {
     set_psram_timing();
 }

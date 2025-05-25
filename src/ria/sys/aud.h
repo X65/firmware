@@ -14,7 +14,7 @@
  */
 
 void aud_init(void);
-void aud_reclock(void);
+void aud_post_reclock(void);
 void aud_stop(void);
 void aud_task(void);
 

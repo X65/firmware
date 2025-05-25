@@ -53,7 +53,7 @@ uint32_t mbuf_crc32(void);
  */
 
 void mem_init(void);
-void mem_reclock(void);
+void mem_post_reclock(void);
 void mem_print_status(void);
 
 // Move data from the RAM to mbuf.

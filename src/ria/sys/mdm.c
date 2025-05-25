@@ -298,7 +298,7 @@ void mdm_init(void)
     // }
 }
 
-void mdm_reclock(void)
+void mdm_post_reclock(void)
 {
     spi_set_baudrate(ESP_SPI, ESP_BAUDRATE_HZ);
 }
