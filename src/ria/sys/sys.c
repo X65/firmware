@@ -5,6 +5,7 @@
  */
 
 #include "sys/sys.h"
+#include "api/clk.h"
 #include "hardware/watchdog.h"
 #include "main.h"
 #include "sys/aud.h"
@@ -51,6 +52,7 @@ void sys_mon_status(const char *args, size_t len)
     out_print_status();
     mem_print_status();
     aud_print_status();
+    clk_print_status();
     hid_print_status();
     msc_print_status();
     // gpx_dump_registers();
