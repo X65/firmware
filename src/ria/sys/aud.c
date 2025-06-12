@@ -19,6 +19,11 @@
 
 #define SD1_SPI_READ_BIT 0x80 // Read/Write command bit on SD-1 bus
 
+// stubs:
+#define AUD_CHANGE_DURATION_MS 10
+void aud_pwm_set_channel(size_t channel, uint16_t freq, uint8_t duty) { };
+void aud_pwm_set_channel_duty(size_t channel, uint8_t duty) { };
+
 static struct
 {
     uint slice_num;
@@ -191,54 +196,8 @@ static void aud_pwm_init_channel(size_t channel, uint gpio)
     pwm_init(pwm_channels[channel].slice_num, &cfg, true);
 }
 
-void aud_pwm_set_channel(size_t channel, uint16_t freq, uint8_t duty)
+static inline void aud_i2s_init(void)
 {
-    float clock_div = 0;
-    int wrap_shift = 0;
-    if (freq == 0)
-    {
-        duty = 0;
-    }
-    else
-    {
-        float clock_div_base = (float)(clock_get_hz(clk_sys)) / freq;
-        do
-        {
-            clock_div = clock_div_base / (float)((UINT8_MAX + 1) << wrap_shift) / 2;
-        } while (clock_div > 256.f && wrap_shift++ < 9);
-
-        if (wrap_shift > 8)
-        {
-            printf("? cannot handle channel %d frequency: %d\n", channel, freq);
-        }
-    }
-
-    pwm_channels[channel].frequency = freq;
-    pwm_channels[channel].duty = duty;
-    pwm_channels[channel].wrap_shift = (uint8_t)wrap_shift;
-    if (clock_div > 0)
-    {
-        pwm_set_clkdiv(pwm_channels[channel].slice_num, clock_div);
-        pwm_set_wrap(pwm_channels[channel].slice_num, (uint16_t)(UINT8_MAX << wrap_shift));
-    }
-    pwm_set_chan_level(pwm_channels[channel].slice_num,
-                       pwm_channels[channel].channel, (uint16_t)(duty << wrap_shift));
-}
-
-void aud_pwm_set_channel_duty(size_t channel, uint8_t duty)
-{
-    pwm_channels[channel].duty = duty;
-    if (pwm_channels[channel].frequency > 0)
-    {
-        pwm_set_chan_level(pwm_channels[channel].slice_num,
-                           pwm_channels[channel].channel, (uint16_t)(duty << pwm_channels[channel].wrap_shift));
-    }
-}
-
-static inline void aud_pwm_init(void)
-{
-    aud_pwm_init_channel(0, AUD_PWM_1_PIN);
-    aud_pwm_init_channel(1, AUD_PWM_2_PIN);
 }
 
 static void aud_mix_reset(void)
@@ -258,7 +217,7 @@ static inline void aud_mix_init(void)
 void aud_init(void)
 {
     aud_fm_init();
-    aud_pwm_init();
+    aud_i2s_init();
     aud_mix_init();
 
     // Set clocks
@@ -343,14 +302,12 @@ void aud_task(void)
                          0b11111100, 0b11111100, 0b11111100, 0b00000000, 0b00000000, 0b00000000};
         i2c_write_blocking(EXT_I2C, MIX_I2C_ADDRESS, buf, 13, false);
 
-        aud_pwm_set_channel(0, AUD_PWM_BASE_FREQUENCY, 128);
-
         done = true;
     }
 
     // heartbeat
     static bool was_on = false;
-    bool on = (time_us_32() / 100000) % AUD_CLICK_DURATION_MS > 8;
+    bool on = (time_us_32() / 100000) % AUD_CHANGE_DURATION_MS > 8;
     if (was_on != on)
     {
         // aud_pwm_set_channel(0, on ? AUD_CLICK_FREQUENCY : 0, AUD_CLICK_DUTY);

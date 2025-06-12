@@ -41,10 +41,6 @@ pico_generate_pio_header(rp816
     ${CMAKE_CURRENT_LIST_DIR}/ria/sys/bus.pio
 )
 
-pico_generate_pio_header(rp816
-    ${CMAKE_CURRENT_LIST_DIR}/ria/sys/led.pio
-)
-
 target_sources(rp816 PRIVATE
     ria/main.c
     ria/str.c

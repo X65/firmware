@@ -68,14 +68,18 @@ bool main_api(uint8_t operation);
 #define QMI_PSRAM_BS_PIN 38
 
 // #define RIA_LED_PIN 25   // not present on X65 board
-#define RGB_LED_PIN 45
 
 #define AUD_SPI_PIN_BASE 32
 #define AUD_SPI_RX_PIN   (AUD_SPI_PIN_BASE + 0)
 #define AUD_SPI_CS_PIN   (AUD_SPI_PIN_BASE + 1)
 #define AUD_SPI_SCK_PIN  (AUD_SPI_PIN_BASE + 2)
 #define AUD_SPI_TX_PIN   (AUD_SPI_PIN_BASE + 3)
-#define AUD_CLOCK_PIN    21 // CLOCK_GPOUT0
+#define AUD_CLOCK_PIN    21 // CLOCK_GPOUT0 - FIXME: PCB has separate clock IC
+
+#define AUD_I2S_DOUT_PIN  38 // sound out from sampler (ADC)
+#define AUD_I2S_LRCLK_PIN 44
+#define AUD_I2S_SCLK_PIN  45
+#define AUD_I2S_DIN_PIN   46 // sound incoming to DAC
 
 #define ESP_SPI_PIN_BASE 40
 #define ESP_SPI_RX_PIN   (ESP_SPI_PIN_BASE + 0)
@@ -86,9 +90,6 @@ bool main_api(uint8_t operation);
 
 #define EXT_I2C_SDA_PIN 36
 #define EXT_I2C_SCL_PIN 37
-
-#define AUD_PWM_1_PIN 44 // PWM10_A
-#define AUD_PWM_2_PIN 46 // PWM11_A
 
 #define COM_UART_TX_PIN 28
 #define COM_UART_RX_PIN 29
@@ -117,19 +118,13 @@ bool main_api(uint8_t operation);
 #define AUD_SPI                 spi0
 #define AUD_CLOCK_FREQUENCY_KHZ 12288
 #define AUD_BAUDRATE_HZ         1000000
-// PWM click
-#define AUD_PWM_BASE_FREQUENCY  (255 * 256)
-#define AUD_CLICK_FREQUENCY     280
-#define AUD_CLICK_DUTY          24
-#define AUD_CLICK_DURATION_MS   10
+// I2S
+#define AUD_I2S_PIO             pio1
+#define AUD_I2S_SM              2
 
 // ESP-AT modem SPI
 #define ESP_SPI         spi1
 #define ESP_BAUDRATE_HZ 10000000
-
-// LEDs
-#define RGB_LED_PIO pio1
-#define RGB_LED_SM  2
 
 // Extension/External 3.3V I2C bus
 #define EXT_I2C          i2c0
@@ -219,10 +214,14 @@ bool main_api(uint8_t operation);
 #define EXT_I2C_SDA_PIN 4
 #undef EXT_I2C_SCL_PIN
 #define EXT_I2C_SCL_PIN 5
-#undef AUD_PWM_1_PIN
-#define AUD_PWM_1_PIN 26
-#undef AUD_PWM_2_PIN
-#define AUD_PWM_2_PIN 28
+#undef AUD_I2S_DOUT_PIN
+#define AUD_I2S_DOUT_PIN 45 // << incorrect!
+#undef AUD_I2S_LRCLK_PIN
+#define AUD_I2S_LRCLK_PIN 26
+#undef AUD_I2S_SCLK_PIN
+#define AUD_I2S_SCLK_PIN 27
+#undef AUD_I2S_DIN_PIN
+#define AUD_I2S_DIN_PIN 28
 #undef COM_UART_TX_PIN
 #define COM_UART_TX_PIN 0
 #undef COM_UART_RX_PIN

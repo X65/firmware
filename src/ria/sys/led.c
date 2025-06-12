@@ -25,29 +25,13 @@
  */
 
 #include "led.h"
-#include "hardware/pio.h"
+#include "hardware/gpio.h"
 #include "hardware/timer.h"
 #include "main.h"
-
-#include "led.pio.h"
 
 #define IS_RGBW false
 
 static bool hearbeat_enabled = false;
-
-static bool rgb_update = false;
-#define RGB_LED_COUNT 4
-static uint32_t RGB_LEDS[RGB_LED_COUNT];
-
-static inline void put_pixel(uint32_t pixel_grb)
-{
-    pio_sm_put_blocking(RGB_LED_PIO, RGB_LED_SM, pixel_grb << 8u);
-}
-
-static inline uint32_t urgb_u32(uint8_t r, uint8_t g, uint8_t b)
-{
-    return ((uint32_t)(r) << 8) | ((uint32_t)(g) << 16) | (uint32_t)(b);
-}
 
 void led_init(void)
 {
@@ -57,22 +41,10 @@ void led_init(void)
     gpio_set_dir(RIA_LED_PIN, GPIO_OUT);
     gpio_put(RIA_LED_PIN, 1);
 #endif
-    // RGB LED
-    uint offset = pio_add_program(RGB_LED_PIO, &ws2812_program);
-    ws2812_program_init(RGB_LED_PIO, RGB_LED_SM, offset, RGB_LED_PIN, 800000, IS_RGBW);
-    rgb_update = true;
 }
 
 void led_task(void)
 {
-    if (rgb_update)
-    {
-        for (size_t i = 0; i < RGB_LED_COUNT; ++i)
-        {
-            put_pixel(RGB_LEDS[i]);
-        }
-        rgb_update = false;
-    }
     if (hearbeat_enabled)
     {
         // heartbeat
@@ -84,11 +56,6 @@ void led_task(void)
             // LED
             gpio_put(RIA_LED_PIN, on);
 #endif
-            // RGB LED
-            if (on)
-                put_pixel(urgb_u32(0x05, 0x1c, 0x26));
-            else
-                put_pixel(urgb_u32(0x00, 0x00, 0x00));
 
             was_on = on;
         }
@@ -98,11 +65,4 @@ void led_task(void)
 void led_set_hartbeat(bool enabled)
 {
     hearbeat_enabled = enabled;
-}
-
-void led_set_pixel(size_t index, uint8_t r, uint8_t g, uint8_t b)
-{
-    assert(index < RGB_LED_COUNT);
-    RGB_LEDS[index] = urgb_u32(r, g, b);
-    rgb_update = true;
 }
