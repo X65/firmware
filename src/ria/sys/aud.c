@@ -181,21 +181,6 @@ static void aud_fm_keyoff(void)
     aud_write_fm_register(0x0F, 0x00); // keyon = 0
 }
 
-static void aud_pwm_init_channel(size_t channel, uint gpio)
-{
-    pwm_channels[channel].gpio = gpio;
-    gpio_set_function(gpio, GPIO_FUNC_PWM);
-    pwm_channels[channel].slice_num = pwm_gpio_to_slice_num(gpio);
-    pwm_channels[channel].channel = pwm_gpio_to_channel(gpio);
-    pwm_channels[channel].frequency = 0;
-    pwm_channels[channel].duty = 0;
-
-    pwm_config cfg = pwm_get_default_config();
-    pwm_config_set_clkdiv_mode(&cfg, PWM_DIV_FREE_RUNNING);
-    pwm_config_set_phase_correct(&cfg, true);
-    pwm_init(pwm_channels[channel].slice_num, &cfg, true);
-}
-
 static inline void aud_i2s_init(void)
 {
 }
@@ -310,14 +295,9 @@ void aud_task(void)
     bool on = (time_us_32() / 100000) % AUD_CHANGE_DURATION_MS > 8;
     if (was_on != on)
     {
-        // aud_pwm_set_channel(0, on ? AUD_CLICK_FREQUENCY : 0, AUD_CLICK_DUTY);
         was_on = on;
         if (on)
         {
-            static uint16_t do_re_mi_pwm[] = {392, 349, 493, 523, 698, 587};
-            static size_t i = 0;
-            aud_pwm_set_channel(0, do_re_mi_pwm[i++ % 6], 128);
-
             // FM do-re-mi
             static uint8_t do_re_mi_fm[] = {
                 0x14, 0x65, //

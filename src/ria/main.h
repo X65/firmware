@@ -132,6 +132,7 @@ bool main_api(uint8_t operation);
 
 #define IOE_I2C_ADDRESS 0x20 // Address of I/O Extender on I2C bus
 #define MIX_I2C_ADDRESS 0x40 // Address of Mixer on I2C bus
+#define I2S_I2C_ADDRESS 0x0A // Address of I2S DAC/ADC on I2C bus
 
 // #define RASPBERRY_PICO_2
 
@@ -215,7 +216,7 @@ bool main_api(uint8_t operation);
 #undef EXT_I2C_SCL_PIN
 #define EXT_I2C_SCL_PIN 5
 #undef AUD_I2S_DOUT_PIN
-#define AUD_I2S_DOUT_PIN 45 // << incorrect!
+#define AUD_I2S_DOUT_PIN 36
 #undef AUD_I2S_LRCLK_PIN
 #define AUD_I2S_LRCLK_PIN 26
 #undef AUD_I2S_SCLK_PIN

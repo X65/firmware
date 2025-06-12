@@ -13,7 +13,7 @@
 
 uint8_t gpx_read(uint8_t reg)
 {
-    // i2c_write_blocking(EXT_I2C, IOE_I2C_ADDRESS, &reg, 1, true);
+    i2c_write_blocking(EXT_I2C, IOE_I2C_ADDRESS, &reg, 1, true);
     absolute_time_t timeout = make_timeout_time_us(10000); // 0.01 second
     int ret = i2c_read_blocking_until(EXT_I2C, IOE_I2C_ADDRESS, &reg, 1, false, timeout);
     if (ret != 1)
@@ -62,7 +62,7 @@ void ext_bus_scan(void)
     printf("\nI2C Bus Scan\n");
     printf("   0  1  2  3  4  5  6  7  8  9  A  B  C  D  E  F\n");
 
-    for (int addr = 0; addr < (1 << 7); ++addr)
+    for (uint8_t addr = 0; addr < (1 << 7); ++addr)
     {
         if (addr % 16 == 0)
         {
@@ -74,11 +74,14 @@ void ext_bus_scan(void)
         // transferred. If the address byte is ignored, the function returns
         // -1.
 
-        // Skip over any reserved addresses.
         int ret;
         uint8_t rxdata;
+        // Skip over any reserved addresses.
         if (reserved_addr(addr))
             ret = PICO_ERROR_GENERIC;
+        // Mixer is write-only, but we know it's there
+        else if (addr == MIX_I2C_ADDRESS)
+            ret = 0xff;
         else
             ret = i2c_read_blocking_until(i2c_default, addr, &rxdata, 1, false, make_timeout_time_ms(500));
 
