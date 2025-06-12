@@ -95,7 +95,7 @@ target_sources(rp816 PRIVATE
 # For release, set version string and set code page to 0.
 set_property(TARGET rp816
     APPEND PROPERTY COMPILE_DEFINITIONS
-    RP6502_NAME="Picocomputer 65816"
+    RP6502_NAME="X65 microcomputer"
     RP6502_CODE_PAGE=850
     RP6502_KEYBOARD=EN_US
     RP6502_MIN_PHI2=500
