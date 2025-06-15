@@ -114,11 +114,11 @@ bool main_api(uint8_t operation);
 #define MEM_BUS_SM      0
 #define MEM_BUS_PIO_IRQ 1 // IRQ0 is used by DVI
 
-// Audio chip SPI
+// FM chip SPI
 #define AUD_SPI                 spi0
 #define AUD_CLOCK_FREQUENCY_KHZ 12288
 #define AUD_BAUDRATE_HZ         1000000
-// I2S
+// DAC chip I2S
 #define AUD_I2S_PIO             pio1
 #define AUD_I2S_SM              2
 

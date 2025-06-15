@@ -60,7 +60,7 @@ static bool reserved_addr(uint8_t addr)
 void ext_bus_scan(void)
 {
     printf("\nI2C Bus Scan\n");
-    printf("   0  1  2  3  4  5  6  7  8  9  A  B  C  D  E  F\n");
+    printf("   0 1 2 3 4 5 6 7 8 9 A B C D E F\n");
 
     for (uint8_t addr = 0; addr < (1 << 7); ++addr)
     {
@@ -83,10 +83,10 @@ void ext_bus_scan(void)
         else if (addr == MIX_I2C_ADDRESS)
             ret = 0xff;
         else
-            ret = i2c_read_blocking_until(i2c_default, addr, &rxdata, 1, false, make_timeout_time_ms(500));
+            ret = i2c_read_blocking_until(EXT_I2C, addr, &rxdata, 1, false, make_timeout_time_ms(500));
 
         printf(ret < 0 ? "." : "@");
-        printf(addr % 16 == 15 ? "\n" : "  ");
+        printf(addr % 16 == 15 ? "\n" : " ");
     }
 }
 
