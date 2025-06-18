@@ -140,9 +140,6 @@ void main_pre_reclock()
 }
 
 // Triggered once after init then after every PHI2 clock change.
-// Divider is used when PHI2 less than 4 MHz to
-// maintain a minimum system clock of 120 MHz.
-// From 4 to 8 MHz increases system clock to 240 MHz.
 void main_post_reclock()
 {
     com_post_reclock();

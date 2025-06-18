@@ -27,7 +27,8 @@ static bool rom_FFFD;
 static bool is_reading_fat;
 static bool lfs_file_open;
 static lfs_file_t lfs_file;
-static LFS_FILE_CONFIG(lfs_file_config) static FIL fat_fil;
+LFS_FILE_CONFIG(lfs_file_config, static);
+static FIL fat_fil;
 
 static bool rom_eof(void)
 {
@@ -232,7 +233,7 @@ void rom_mon_install(const char *args, size_t len)
     while (lfs_name_len && args[lfs_name_len - 1] == ' ')
         lfs_name_len--;
     if (lfs_name_len > 4)
-        if (!strnicmp(".xex", args + lfs_name_len - 4, 4))
+        if (!strncasecmp(".xex", args + lfs_name_len - 4, 4))
             lfs_name_len -= 4;
     if (lfs_name_len > LFS_NAME_MAX)
         lfs_name_len = 0;

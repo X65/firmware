@@ -126,7 +126,8 @@ void cpu_com_rx(uint8_t ch)
 }
 
 // Used by std.c to get stdin destined for the CPU.
-// Mixing RIA register input with read() calls isn't perfect.
+// Mixing RIA register input with read() calls isn't perfect,
+// should be considered underfined behavior, and is discouraged.
 // Even with a mutex, nulls may appear from RIA register.
 uint8_t cpu_getchar(void)
 {

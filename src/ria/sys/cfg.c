@@ -60,11 +60,11 @@ static void cfg_save_with_boot_opt(char *opt_str)
     if (lfsresult >= 0)
     {
         lfsresult = lfs_printf(&lfs_volume, &lfs_file,
-                               "+V%d\n"
-                               "+R%d\n"
-                               "+C%d\n"
+                               "+V%u\n"
+                               "+R%u\n"
+                               "+C%u\n"
                                "+T%s\n"
-                               "+S%d\n"
+                               "+S%u\n"
                                "%s",
                                CFG_VERSION,
                                cfg_reset_ms,

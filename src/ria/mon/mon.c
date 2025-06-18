@@ -18,6 +18,7 @@
 #include "sys/mem.h"
 #include "sys/sys.h"
 #include <stdio.h>
+#include <strings.h>
 
 static bool needs_newline = true;
 static bool needs_prompt = true;
@@ -81,7 +82,7 @@ static mon_function mon_command_lookup(const char **buf, uint8_t buflen)
             break;
     }
     // cd for chdir, 00cd for r/w address
-    if (cmd_len == 2 && !strnicmp(cmd, "cd", cmd_len))
+    if (cmd_len == 2 && !strncasecmp(cmd, "cd", cmd_len))
         is_not_addr = true;
     // address command
     if (is_maybe_addr && !is_not_addr)
@@ -100,7 +101,7 @@ static mon_function mon_command_lookup(const char **buf, uint8_t buflen)
     for (i = 0; i < COMMANDS_COUNT; i++)
     {
         if (cmd_len == COMMANDS[i].cmd_len)
-            if (!strnicmp(cmd, COMMANDS[i].cmd, cmd_len))
+            if (!strncasecmp(cmd, COMMANDS[i].cmd, cmd_len))
                 return COMMANDS[i].func;
     }
     return NULL;
