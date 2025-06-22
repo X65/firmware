@@ -1,0 +1,44 @@
+; Based on code by Daniel Collins of rp2040_i2s_example.
+.program aud_i2s
+; Input:
+; 0: DIN
+; 1: BCK
+; 2: LRCK
+;
+; Also set JMP pin to LRCK.
+;
+; RX/TX FIFO push/pull is driven by LRCK edge.
+; Both Left and Right channels are 16bit packed in one 32-bit FIFO entry.
+; High word is Left channel, low word is Right channel
+;
+; Clock synchronously with the system clock, or *at least* 4x the usual
+; bit clock for a given fs (e.g. for 48kHz 24-bit, clock at at least
+; (48000 * 24 * 2 (stereo)) * 4 = 9.216 MHz. Ideally 8x or more.
+
+start_l:
+    wait 1 pin 1                ; sample DIN on BCK rising edge
+    in pins, 1                  ; first bit is LSB of previous frame (I2S quirk)
+    pull noblock                ; get next output word (if any)
+    push noblock                ; send received word
+    wait 0 pin 1                ; skip one BCK falling edge (start alignment)
+public entry_point:
+    wait 0 pin 2                ; wait for LRCK low (left channel start)
+    out pins 1                  ; update DOUT on BCK falling edge
+loop_l:
+    wait 1 pin 1                ; sample DIN on BCK rising edge
+    in pins, 1                  ; read DIN
+    wait 0 pin 1                ; wait for BCK falling edge
+    out pins 1                  ; update DOUT
+    jmp pin start_r             ; if LRCK high, move to right channel
+    jmp loop_l                  ; else continue left word
+start_r:
+    wait 1 pin 1                ; one more BCK rising edge (last left bit)
+    in pins, 1                  ; first right bit is LSB of left (I2S quirk)
+    wait 0 pin 1                ; wait for BCK falling edge
+    out pins 1                  ; update DOUT
+loop_r:
+    wait 1 pin 1                ; BCK rising edge
+    in pins 1                   ; read DIN
+    wait 0 pin 1                ; BCK falling edge
+    out pins 1                  ; update DOUT
+    jmp pin loop_r              ; if LRCK still high, continue right word

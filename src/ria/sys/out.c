@@ -361,6 +361,6 @@ void out_init(void)
 
 void out_print_status(void)
 {
-    printf("CORE: %.1fMHz\n", (float)(clock_get_hz(clk_sys)) / MHZ);
+    printf("CLK: %.1fMHz\n", (float)(clock_get_hz(clk_sys)) / MHZ);
     printf("DVI: %dx%d@24bpp\n", MODE_H_ACTIVE_PIXELS, MODE_V_ACTIVE_LINES);
 }

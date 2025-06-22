@@ -76,10 +76,11 @@ bool main_api(uint8_t operation);
 #define AUD_SPI_TX_PIN   (AUD_SPI_PIN_BASE + 3)
 #define AUD_CLOCK_PIN    21 // CLOCK_GPOUT0 - FIXME: PCB has separate clock IC
 
-#define AUD_I2S_DOUT_PIN  38 // sound out from sampler (ADC)
-#define AUD_I2S_LRCLK_PIN 44
-#define AUD_I2S_SCLK_PIN  45
-#define AUD_I2S_DIN_PIN   46 // sound incoming to DAC
+#define AUD_I2S_PIN_BASE  44
+#define AUD_I2S_DIN_PIN   (AUD_I2S_PIN_BASE + 0)
+#define AUD_I2S_SCLK_PIN  (AUD_I2S_PIN_BASE + 1)
+#define AUD_I2S_LRCLK_PIN (AUD_I2S_PIN_BASE + 2)
+#define AUD_I2S_DOUT_PIN  38 // WARNING: this PIN needs to be in the same GPIO bank as AUD_I2S_PIN_BASE
 
 #define ESP_SPI_PIN_BASE 40
 #define ESP_SPI_RX_PIN   (ESP_SPI_PIN_BASE + 0)
@@ -119,8 +120,8 @@ bool main_api(uint8_t operation);
 #define AUD_CLOCK_FREQUENCY_KHZ 12288
 #define AUD_BAUDRATE_HZ         1000000
 // DAC chip I2S
-#define AUD_I2S_PIO             pio1
-#define AUD_I2S_SM              2
+#define AUD_I2S_PIO             pio2
+#define AUD_I2S_SM              0
 
 // ESP-AT modem SPI
 #define ESP_SPI         spi1
@@ -215,14 +216,10 @@ bool main_api(uint8_t operation);
 #define EXT_I2C_SDA_PIN 4
 #undef EXT_I2C_SCL_PIN
 #define EXT_I2C_SCL_PIN 5
+#undef AUD_I2S_PIN_BASE
+#define AUD_I2S_PIN_BASE 26
 #undef AUD_I2S_DOUT_PIN
-#define AUD_I2S_DOUT_PIN 36
-#undef AUD_I2S_LRCLK_PIN
-#define AUD_I2S_LRCLK_PIN 26
-#undef AUD_I2S_SCLK_PIN
-#define AUD_I2S_SCLK_PIN 27
-#undef AUD_I2S_DIN_PIN
-#define AUD_I2S_DIN_PIN 28
+#define AUD_I2S_DOUT_PIN 2
 #undef COM_UART_TX_PIN
 #define COM_UART_TX_PIN 0
 #undef COM_UART_RX_PIN

@@ -93,10 +93,15 @@ void ext_bus_scan(void)
 void ext_init(void)
 {
     i2c_init(EXT_I2C, EXT_I2C_BAUDRATE);
+
     gpio_set_function(EXT_I2C_SDA_PIN, GPIO_FUNC_I2C);
     gpio_set_function(EXT_I2C_SCL_PIN, GPIO_FUNC_I2C);
-    gpio_pull_up(EXT_I2C_SDA_PIN);
-    gpio_pull_up(EXT_I2C_SCL_PIN);
+    gpio_set_pulls(EXT_I2C_SDA_PIN, true, false);
+    gpio_set_pulls(EXT_I2C_SCL_PIN, true, false);
+    gpio_set_drive_strength(EXT_I2C_SDA_PIN, GPIO_DRIVE_STRENGTH_12MA);
+    gpio_set_drive_strength(EXT_I2C_SCL_PIN, GPIO_DRIVE_STRENGTH_12MA);
+    gpio_set_slew_rate(EXT_I2C_SDA_PIN, GPIO_SLEW_RATE_FAST);
+    gpio_set_slew_rate(EXT_I2C_SCL_PIN, GPIO_SLEW_RATE_FAST);
 
     // Set clocks
     ext_reclock();
