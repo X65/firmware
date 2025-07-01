@@ -97,12 +97,9 @@ void cpu_stop(void)
     clear_com_rx_fifo();
 
     cpu_run_requested = false;
-    if (gpio_get(CPU_RESB_PIN))
-    {
-        gpio_put(CPU_RESB_PIN, false);
-        cpu_resb_timer = delayed_by_us(get_absolute_time(),
-                                       cpu_get_reset_us());
-    }
+    gpio_put(CPU_RESB_PIN, false);
+    cpu_resb_timer = delayed_by_us(get_absolute_time(),
+                                   cpu_get_reset_us());
 }
 
 bool cpu_active(void)

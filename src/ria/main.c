@@ -59,6 +59,10 @@ static void init(void)
     lfs_init();
     cfg_init();
 
+    // Print startup message after setting code page
+    oem_init();
+    sys_init();
+
     // Misc kernel modules, add yours here
     aud_init();
     kbd_init();
@@ -119,6 +123,7 @@ static void stop(void)
     cpu_stop(); // Must be first
     bus_stop();
     aud_stop();
+    oem_stop();
     kbd_stop();
     mou_stop();
     pad_stop();
