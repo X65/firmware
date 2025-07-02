@@ -109,10 +109,17 @@ bool cpu_active(void)
 
 uint32_t cpu_get_reset_us(void)
 {
-    uint32_t reset_ms = cfg_get_reset_ms();
-    if (!reset_ms)
-        return 2000;
-    return reset_ms * 1000;
+#ifndef RP6502_RESB_US
+#define RP6502_RESB_US 0
+#endif
+    // If provided, use RP6502_RESB_US unless PHI2 speed needs
+    // longer for 8 clock cycles (7 required, 1 for safety).
+    uint32_t reset_us = 1;
+    if (!RP6502_RESB_US)
+        return reset_us;
+    return RP6502_RESB_US < reset_us
+               ? reset_us
+               : RP6502_RESB_US;
 }
 
 void cpu_com_rx(uint8_t ch)

@@ -15,8 +15,9 @@
 
 // Configuration is a plain ASCII file on the LFS. e.g.
 // +V1         | Version - Must be first
+// +P8000      | PHI2 (retired)
 // +C0         | Caps
-// +R0         | RESB
+// +R0         | RESB (retired)
 // +TUTC0      | Time Zone
 // +S437       | Code Page
 // BASIC       | Boot ROM - Must be last
@@ -24,7 +25,6 @@
 #define CFG_VERSION 1
 static const char filename[] = "CONFIG.SYS";
 
-static uint8_t cfg_reset_ms;
 static uint8_t cfg_caps;
 static uint32_t cfg_codepage;
 static char cfg_time_zone[65];
@@ -61,13 +61,11 @@ static void cfg_save_with_boot_opt(char *opt_str)
     {
         lfsresult = lfs_printf(&lfs_volume, &lfs_file,
                                "+V%u\n"
-                               "+R%u\n"
                                "+C%u\n"
                                "+T%s\n"
                                "+S%u\n"
                                "%s",
                                CFG_VERSION,
-                               cfg_reset_ms,
                                cfg_caps,
                                cfg_time_zone,
                                cfg_codepage,
@@ -109,9 +107,6 @@ static void cfg_load_with_boot_opt(bool boot_only)
         len -= 2;
         switch (mbuf[1])
         {
-        case 'R':
-            parse_uint8(&str, &len, &cfg_reset_ms);
-            break;
         case 'C':
             parse_uint8(&str, &len, &cfg_caps);
             break;
@@ -144,21 +139,6 @@ char *cfg_get_boot(void)
 {
     cfg_load_with_boot_opt(true);
     return (char *)mbuf;
-}
-
-// Specify a minimum time for reset low. 0=auto
-void cfg_set_reset_ms(uint8_t ms)
-{
-    if (cfg_reset_ms != ms)
-    {
-        cfg_reset_ms = ms;
-        cfg_save_with_boot_opt(NULL);
-    }
-}
-
-uint8_t cfg_get_reset_ms(void)
-{
-    return cfg_reset_ms;
 }
 
 void cfg_set_caps(uint8_t mode)
