@@ -134,7 +134,7 @@ void cpu_com_rx(uint8_t ch)
 // Mixing RIA register input with read() calls isn't perfect,
 // should be considered underfined behavior, and is discouraged.
 // Even with a mutex, nulls may appear from RIA register.
-uint8_t cpu_getchar(void)
+int cpu_getchar(void)
 {
     // Steal char from RIA register
     if (REGS(0xFFE0) & 0b01000000)
@@ -157,5 +157,5 @@ uint8_t cpu_getchar(void)
     // Get char from UART
     if (ch < 0)
         ch = getchar_timeout_us(0);
-    return cpu_caps((uint8_t)ch);
+    return cpu_caps(ch);
 }

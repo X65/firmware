@@ -23,7 +23,6 @@ void cpu_task(void);
 void cpu_run(void);
 void cpu_stop(void);
 void cpu_post_reclock(void);
-void cpu_api_phi2(void);
 
 // The CPU is active when RESB is high or when
 // we're waiting for the RESB timer.
@@ -43,6 +42,6 @@ uint32_t cpu_get_reset_us();
 void cpu_com_rx(uint8_t ch);
 
 // Get char from CPU rx buf
-uint8_t cpu_getchar(void);
+int cpu_getchar(void);
 
 #endif /* _CPU_H_ */

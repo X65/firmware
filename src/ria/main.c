@@ -121,6 +121,7 @@ static void run(void)
 static void stop(void)
 {
     cpu_stop(); // Must be first
+    api_stop();
     bus_stop();
     aud_stop();
     oem_stop();
@@ -136,7 +137,6 @@ static void reset(void)
     fil_reset();
     mon_reset();
     rom_reset();
-    api_reset();
 }
 
 void main_pre_reclock()
@@ -156,74 +156,73 @@ void main_post_reclock()
     mdm_post_reclock();
 }
 
-// This will repeatedly trigger until API_BUSY is false so
-// IO operations can hold busy while waiting for data.
-// Be sure any state is reset in a stop() handler.
+// API call implementations should return true if they have more
+// work to process. They will be called repeatedly until returning
+// false. Be sure any state is reset in a stop() handler.
 bool main_api(uint8_t operation)
 {
     switch (operation)
     {
     // case 0x01:
-    //     pix_api_xreg();
+    //     return pix_api_xreg();
     //     break;
     // case 0x02:
-    //     cpu_api_phi2();
+    //     return cpu_api_phi2();
     //     break;
     case 0x03:
-        oem_api_codepage();
+        return oem_api_codepage();
         break;
     // case 0x04:
-    //     rng_api_lrand();
+    //     return rng_api_lrand();
     //     break;
     // case 0x05:
-    //     cpu_api_stdin_opt();
+    //     return cpu_api_stdin_opt();
     //     break;
     case 0x0F:
-        clk_api_clock();
+        return clk_api_clock();
         break;
     case 0x10:
-        clk_api_get_res();
+        return clk_api_get_res();
         break;
     case 0x11:
-        clk_api_get_time();
+        return clk_api_get_time();
         break;
     case 0x12:
-        clk_api_set_time();
+        return clk_api_set_time();
         break;
     case 0x13:
-        clk_api_get_time_zone();
+        return clk_api_get_time_zone();
         break;
-    // case 0x14:
-    //     std_api_open();
-    //     break;
-    // case 0x15:
-    //     std_api_close();
-    //     break;
-    // case 0x16:
-    //     std_api_read_xstack();
-    //     break;
-    // case 0x17:
-    //     std_api_read_xram();
-    //     break;
-    // case 0x18:
-    //     std_api_write_xstack();
-    //     break;
-    // case 0x19:
-    //     std_api_write_xram();
-    //     break;
-    // case 0x1A:
-    //     std_api_lseek();
-    //     break;
-    // case 0x1B:
-    //     std_api_unlink();
-    //     break;
-    // case 0x1C:
-    //     std_api_rename();
-    //     break;
-    default:
-        return false;
+        // case 0x14:
+        //     return std_api_open();
+        //     break;
+        // case 0x15:
+        //     return std_api_close();
+        //     break;
+        // case 0x16:
+        //     return std_api_read_xstack();
+        //     break;
+        // case 0x17:
+        //     return std_api_read_xram();
+        //     break;
+        // case 0x18:
+        //     return std_api_write_xstack();
+        //     break;
+        // case 0x19:
+        //     return std_api_write_xram();
+        //     break;
+        // case 0x1A:
+        //     return std_api_lseek();
+        //     break;
+        // case 0x1B:
+        //     return std_api_unlink();
+        //     break;
+        // case 0x1C:
+        //     return std_api_rename();
+        //     break;
     }
-    return true;
+    api_return_errno(API_ENOSYS);
+    return false;
 }
 
 /*********************************/

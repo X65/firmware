@@ -55,7 +55,7 @@
 
 void api_task(void);
 void api_run(void);
-void api_reset(void);
+void api_stop(void);
 
 // How to build an API handler:
 // 1. The last fastcall argument is in API_A, API_AX or API_AXSREG.
@@ -205,21 +205,33 @@ static inline void api_set_axsreg(uint32_t val)
 // Call one of these at the very end. These signal
 // the 6502 that the operation is complete.
 
-static inline void api_return_ax(uint16_t val)
+static inline bool api_return_ax(uint16_t val)
 {
     api_set_ax(val);
     api_return_released();
+    return false;
 }
-static inline void api_return_axsreg(uint32_t val)
+
+static inline bool api_return_axsreg(uint32_t val)
 {
     api_set_axsreg(val);
     api_return_released();
+    return false;
 }
-static inline void api_return_errno(uint16_t errno)
+
+static inline bool api_return_errno(uint16_t errno)
 {
     api_zxstack();
     API_ERRNO = errno;
     api_return_axsreg(-1);
+    return false;
+}
+
+// Helper that returns true to make code more readable.
+
+static inline bool api_working()
+{
+    return true;
 }
 
 #endif /* _API_H_ */

@@ -15,13 +15,8 @@ void api_task(void)
     // Latch called op in case 6502 app misbehaves
     if (cpu_active() && !api_active_op && API_BUSY && API_OP != 0x00 && API_OP != 0xFF)
         api_active_op = API_OP;
-    if (api_active_op)
-    {
-        if (!main_api(api_active_op))
-            api_return_errno(API_ENOSYS);
-        if (!API_BUSY)
-            api_active_op = 0;
-    }
+    if (api_active_op && !main_api(api_active_op))
+        api_active_op = 0;
 }
 
 void api_run(void)
@@ -38,7 +33,7 @@ void api_run(void)
     api_return_errno(0);
 }
 
-void api_reset(void)
+void api_stop(void)
 {
     api_active_op = 0;
 }
