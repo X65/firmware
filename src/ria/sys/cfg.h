@@ -18,8 +18,6 @@ void cfg_init(void);
 // These setters will auto save on change and
 // reconfigure the system as necessary.
 
-void cfg_set_caps(uint8_t mode);
-uint8_t cfg_get_caps(void);
 void cfg_set_boot(char *rom);
 char *cfg_get_boot(void);
 bool cfg_set_codepage(uint32_t cp);

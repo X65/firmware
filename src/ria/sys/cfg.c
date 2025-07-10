@@ -16,7 +16,7 @@
 // Configuration is a plain ASCII file on the LFS. e.g.
 // +V1         | Version - Must be first
 // +P8000      | PHI2 (retired)
-// +C0         | Caps
+// +C0         | Caps (retired)
 // +R0         | RESB (retired)
 // +TUTC0      | Time Zone
 // +S437       | Code Page
@@ -25,7 +25,6 @@
 #define CFG_VERSION 1
 static const char filename[] = "CONFIG.SYS";
 
-static uint8_t cfg_caps;
 static uint32_t cfg_codepage;
 static char cfg_time_zone[65];
 
@@ -61,12 +60,10 @@ static void cfg_save_with_boot_opt(char *opt_str)
     {
         lfsresult = lfs_printf(&lfs_volume, &lfs_file,
                                "+V%u\n"
-                               "+C%u\n"
                                "+T%s\n"
                                "+S%u\n"
                                "%s",
                                CFG_VERSION,
-                               cfg_caps,
                                cfg_time_zone,
                                cfg_codepage,
                                opt_str);
@@ -107,9 +104,6 @@ static void cfg_load_with_boot_opt(bool boot_only)
         len -= 2;
         switch (mbuf[1])
         {
-        case 'C':
-            parse_uint8(&str, &len, &cfg_caps);
-            break;
         case 'T':
             parse_string(&str, &len, cfg_time_zone, sizeof(cfg_time_zone));
             break;
@@ -139,20 +133,6 @@ char *cfg_get_boot(void)
 {
     cfg_load_with_boot_opt(true);
     return (char *)mbuf;
-}
-
-void cfg_set_caps(uint8_t mode)
-{
-    if (mode <= 2 && cfg_caps != mode)
-    {
-        cfg_caps = mode;
-        cfg_save_with_boot_opt(NULL);
-    }
-}
-
-uint8_t cfg_get_caps(void)
-{
-    return cfg_caps;
 }
 
 bool cfg_set_time_zone(const char *tz)
