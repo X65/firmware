@@ -29,6 +29,7 @@
 #include "usb/kbd.h"
 #include "usb/mou.h"
 #include "usb/pad.h"
+#include "usb/xin.h"
 
 /**************************************/
 /* All kernel modules register below. */
@@ -96,7 +97,7 @@ void main_task(void)
     ext_task();
     mdm_task();
     kbd_task();
-    pad_task();
+    xin_task();
     led_task();
 }
 

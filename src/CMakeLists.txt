@@ -13,6 +13,7 @@ target_include_directories(rp816 PRIVATE
 
 target_compile_definitions(rp816 PRIVATE
     pico_flash_bank_get_storage_offset_func=lfs_get_bt_storage_offset
+    PICO_FLASH_ASSUME_CORE1_SAFE=1
     LFS_NO_ASSERT=1
     LFS_NO_MALLOC=1
     LFS_NAME_MAX=16
@@ -34,6 +35,7 @@ target_link_libraries(rp816 PRIVATE
     hardware_interp
     hardware_flash
     tinyusb_host
+    pico_btstack_ble
 )
 
 pico_generate_pio_header(rp816
@@ -76,11 +78,13 @@ target_sources(rp816 PRIVATE
     ria/cgia/cgia.c
     ria/cgia/cgia_encode.S
     ria/cgia/cgia_sprites.S
+    ria/usb/des.c
     ria/usb/hid.c
     ria/usb/kbd.c
     ria/usb/mou.c
     ria/usb/msc.c
     ria/usb/pad.c
+    ria/usb/xin.c
     fatfs/ff.c
     fatfs/ffunicode.c
     littlefs/lfs.c
