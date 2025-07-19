@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.24)
+cmake_minimum_required(VERSION 3.13)
 
 set(CMAKE_C_STANDARD 23)
 set(CMAKE_CXX_STANDARD 17)
@@ -22,6 +22,8 @@ endif()
 set(PICO_BOARD pico2 CACHE STRING "Board type")
 
 include(pico_sdk_import.cmake)
+
+set(PICO_TINYUSB_PATH ${CMAKE_CURRENT_LIST_DIR}/src/tinyusb)
 
 project(RP65816 C CXX ASM)
 

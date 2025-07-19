@@ -1,12 +1,13 @@
 # The Pi Pico RIA
+
 add_executable(rp816)
 pico_add_extra_outputs(rp816)
-pico_set_program_name(rp816 "RP816 RIA")
-# pico_set_program_version(rp816 "0.1")
+pico_set_program_name(rp816 "RP65816 RIA")
 pico_set_binary_type(rp816 copy_to_ram)
 
 target_include_directories(rp816 PRIVATE
     ${CMAKE_CURRENT_LIST_DIR}
+    ${CMAKE_CURRENT_LIST_DIR}/tinyusb/src
     ria
 )
 
@@ -15,7 +16,6 @@ target_compile_definitions(rp816 PRIVATE
     LFS_NO_ASSERT=1
     LFS_NO_MALLOC=1
     LFS_NAME_MAX=16
-    PICO_CORE1_STACK_SIZE=0x200
 )
 
 target_compile_options(rp816 PRIVATE
@@ -27,12 +27,10 @@ target_link_libraries(rp816 PRIVATE
     pico_stdlib
     pico_multicore
     pico_rand
-    pico_aon_timer
-    hardware_dma
     hardware_pio
+    hardware_dma
     hardware_spi
     hardware_i2c
-    hardware_pwm
     hardware_interp
     hardware_flash
     tinyusb_host
@@ -92,6 +90,7 @@ target_sources(rp816 PRIVATE
 
 # Please change name for hardware forks.
 # For release, set version string and set code page to 0.
+
 set_property(TARGET rp816
     APPEND PROPERTY COMPILE_DEFINITIONS
     RP6502_NAME="X65 microcomputer"
@@ -101,6 +100,7 @@ set_property(TARGET rp816
     RP6502_MAX_PHI2=8000
     RP6502_EXFAT=0
 )
+
 
 # Add a custom command that produces version.c, plus
 # a dummy output that's not actually produced, in order
