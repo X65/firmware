@@ -49,7 +49,7 @@ bool main_api(uint8_t operation);
  */
 
 #define CPU_RESB_PIN 26
-#define CPU_IRQB_PIN 20
+#define CPU_IRQB_PIN 20 /* connected to RIAB (IRQ0) on interrupt controller  */
 #define CPU_NMIB_PIN 21
 
 #define BUS_PIN_BASE       0
@@ -65,7 +65,7 @@ bool main_api(uint8_t operation);
 #define BUS_CTL_PINS_USED  4
 
 #define QMI_PSRAM_CS_PIN 47
-#define QMI_PSRAM_BS_PIN 38
+#define QMI_PSRAM_BS_PIN 10
 
 // #define RIA_LED_PIN 25   // not present on X65 board
 
@@ -74,7 +74,7 @@ bool main_api(uint8_t operation);
 #define AUD_SPI_CS_PIN   (AUD_SPI_PIN_BASE + 1)
 #define AUD_SPI_SCK_PIN  (AUD_SPI_PIN_BASE + 2)
 #define AUD_SPI_TX_PIN   (AUD_SPI_PIN_BASE + 3)
-#define AUD_CLOCK_PIN    21 // CLOCK_GPOUT0 - FIXME: PCB has separate clock IC
+// #define AUD_CLOCK_PIN    21 // CLOCK_GPOUT0 - not used: X65 PCB has separate clock IC
 
 #define AUD_I2S_PIN_BASE  44
 #define AUD_I2S_DIN_PIN   (AUD_I2S_PIN_BASE + 0)

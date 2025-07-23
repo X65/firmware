@@ -240,23 +240,30 @@ void __not_in_flash_func(out_core1_main)(void)
     //   GP14 CK+  GP15 CK-
     //   GP16 D2+  GP17 D2-
     //   GP18 D1+  GP19 D1-
+    //
+    // Pinout on X65 board:
+    //
+    //   GP12 CK-  GP13 CK+
+    //   GP14 D0-  GP15 D0+
+    //   GP16 D1-  GP17 D1+
+    //   GP18 D2-  GP19 D2+
 
     // Assign clock pair to two neighbouring pins:
-    hstx_ctrl_hw->bit[2] = HSTX_CTRL_BIT0_CLK_BITS;
-    hstx_ctrl_hw->bit[3] = HSTX_CTRL_BIT0_CLK_BITS | HSTX_CTRL_BIT0_INV_BITS;
+    hstx_ctrl_hw->bit[1] = HSTX_CTRL_BIT0_CLK_BITS;
+    hstx_ctrl_hw->bit[0] = HSTX_CTRL_BIT0_CLK_BITS | HSTX_CTRL_BIT0_INV_BITS;
     for (uint lane = 0; lane < 3; ++lane)
     {
         // For each TMDS lane, assign it to the correct GPIO pair based on the
         // desired pinout:
-        static const int lane_to_output_bit[3] = {0, 6, 4};
+        static const int lane_to_output_bit[3] = {2, 4, 6};
         int bit = lane_to_output_bit[lane];
         // Output even bits during first half of each HSTX cycle, and odd bits
         // during second half. The shifter advances by two bits each cycle.
         uint32_t lane_data_sel_bits = (lane * 10) << HSTX_CTRL_BIT0_SEL_P_LSB
                                       | (lane * 10 + 1) << HSTX_CTRL_BIT0_SEL_N_LSB;
         // The two halves of each pair get identical data, but one pin is inverted.
-        hstx_ctrl_hw->bit[bit] = lane_data_sel_bits;
-        hstx_ctrl_hw->bit[bit + 1] = lane_data_sel_bits | HSTX_CTRL_BIT0_INV_BITS;
+        hstx_ctrl_hw->bit[bit + 1] = lane_data_sel_bits;
+        hstx_ctrl_hw->bit[bit] = lane_data_sel_bits | HSTX_CTRL_BIT0_INV_BITS;
     }
 
     for (int i = 12; i <= 19; ++i)

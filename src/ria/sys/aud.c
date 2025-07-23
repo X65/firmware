@@ -127,8 +127,11 @@ void aud_write_fm_register_multiple(uint8_t reg, uint8_t *data, uint16_t len)
 
 static inline void aud_fm_init(void)
 {
+#ifdef AUD_CLOCK_PIN
     // Generate clock for SD-1 using CLK_GPOUT0
+    // This is used on proto-boards only and is not needed on DEV-board.
     gpio_set_function(AUD_CLOCK_PIN, GPIO_FUNC_GPCK);
+#endif
 
     // Configure SPI communication
     spi_init(AUD_SPI, AUD_BAUDRATE_HZ);
