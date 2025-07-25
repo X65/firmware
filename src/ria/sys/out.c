@@ -350,7 +350,7 @@ void out_reclock(void)
                     0,
                     CLOCKS_CLK_HSTX_CTRL_AUXSRC_VALUE_CLK_SYS,
                     clock_get_hz(clk_sys),
-                    MODE_BIT_CLK_KHZ * KHZ
+                    MODE_V_FREQ_HZ * MODE_V_TOTAL_LINES * MODE_H_TOTAL_PIXELS
                         * 10 // TMDS symbol bits
                         / 2  // DDR - two bits per clock on each edge
     );
@@ -368,6 +368,34 @@ void out_init(void)
 
 void out_print_status(void)
 {
-    printf("CLK: %.1fMHz\n", (float)(clock_get_hz(clk_sys)) / MHZ);
-    printf("DVI: %dx%d@24bpp\n", MODE_H_ACTIVE_PIXELS, MODE_V_ACTIVE_LINES);
+    const float clk = (float)(clock_get_hz(clk_sys));
+    printf("CLK: %.1fMHz\n", clk / MHZ);
+
+    const float hstx_div = (float)(clocks_hw->clk[clk_hstx].div >> 16);
+    const float refresh_hz = clk / hstx_div * 2 / 10 / MODE_H_TOTAL_PIXELS / MODE_V_TOTAL_LINES;
+    printf("DVI: %dx%d@%.1fHz/24bpp\n", MODE_H_ACTIVE_PIXELS, MODE_V_ACTIVE_LINES, refresh_hz);
+
+#if 0
+    uint f_pll_sys = frequency_count_khz(CLOCKS_FC0_SRC_VALUE_PLL_SYS_CLKSRC_PRIMARY);
+    uint f_pll_usb = frequency_count_khz(CLOCKS_FC0_SRC_VALUE_PLL_USB_CLKSRC_PRIMARY);
+    uint f_rosc = frequency_count_khz(CLOCKS_FC0_SRC_VALUE_ROSC_CLKSRC);
+    uint f_clk_sys = frequency_count_khz(CLOCKS_FC0_SRC_VALUE_CLK_SYS);
+    uint f_clk_peri = frequency_count_khz(CLOCKS_FC0_SRC_VALUE_CLK_PERI);
+    uint f_clk_usb = frequency_count_khz(CLOCKS_FC0_SRC_VALUE_CLK_USB);
+    uint f_clk_adc = frequency_count_khz(CLOCKS_FC0_SRC_VALUE_CLK_ADC);
+    uint f_clk_hstx = frequency_count_khz(CLOCKS_FC0_SRC_VALUE_CLK_HSTX);
+
+    printf("pll_sys  = %dkHz\n", f_pll_sys);
+    printf("pll_usb  = %dkHz\n", f_pll_usb);
+    printf("rosc     = %dkHz\n", f_rosc);
+    printf("clk_sys  = %dkHz\n", f_clk_sys);
+    printf("clk_peri = %dkHz\n", f_clk_peri);
+    printf("clk_usb  = %dkHz\n", f_clk_usb);
+    printf("clk_adc  = %dkHz\n", f_clk_adc);
+    printf("clk_hstx = %dkHz\n", f_clk_hstx);
+
+    uint32_t ctrl = clocks_hw->clk[clk_hstx].ctrl;
+    uint32_t div = clocks_hw->clk[clk_hstx].div;
+    printf("HSTX CTRL: 0x%08x, DIV: 0x%08x\n", ctrl, div);
+#endif
 }
