@@ -32,6 +32,5 @@
     "src/pico-sdk": true,
     "src/tinyusb": true
   },
-  "editor.formatOnSave": true,
-  "deno.enable": true
+  "editor.formatOnSave": true
 }
