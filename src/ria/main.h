@@ -50,8 +50,8 @@ bool main_api(uint8_t operation);
  */
 
 #define CPU_RESB_PIN 26
-#define CPU_IRQB_PIN 20 /* connected to RIAB (IRQ0) on interrupt controller  */
-#define CPU_NMIB_PIN 21
+#define RIA_IRQB_PIN 20 /* connected to RIAB (IRQ0) on interrupt controller  */
+#define RIA_NMIB_PIN 21
 
 #define BUS_PIN_BASE       0
 #define BUS_DATA_PIN_BASE  (BUS_PIN_BASE + 0) /* D0-D7 */
@@ -67,6 +67,8 @@ bool main_api(uint8_t operation);
 
 #define QMI_PSRAM_CS_PIN 47
 #define QMI_PSRAM_BS_PIN 10
+
+#define INT_CTL_EN_PIN 11 // interrupt controller enable
 
 // #define RIA_LED_PIN 25   // not present on X65 board
 
@@ -141,8 +143,8 @@ bool main_api(uint8_t operation);
 #if defined(RASPBERRY_PICO_2)
 #undef CPU_RESB_PIN
 #define CPU_RESB_PIN 22
-#undef CPU_IRQB_PIN
-#define CPU_IRQB_PIN 23
+#undef RIA_IRQB_PIN
+#define RIA_IRQB_PIN 23
 #undef BUS_CTL_PIN_BASE
 #define BUS_CTL_PIN_BASE 0
 #undef QMI_PSRAM_CS_PIN
@@ -165,8 +167,8 @@ bool main_api(uint8_t operation);
 #elif defined(SPARKFUN_PRO_MICRO)
 #undef CPU_RESB_PIN
 #define CPU_RESB_PIN 22
-#undef CPU_IRQB_PIN
-#define CPU_IRQB_PIN 23
+#undef RIA_IRQB_PIN
+#define RIA_IRQB_PIN 23
 #undef BUS_CTL_PIN_BASE
 #define BUS_CTL_PIN_BASE 26
 #undef QMI_PSRAM_CS_PIN
@@ -198,10 +200,10 @@ bool main_api(uint8_t operation);
 #elif defined(PIMORONI_PICO_PLUS_2)
 #undef CPU_RESB_PIN
 #define CPU_RESB_PIN 45
-#undef CPU_IRQB_PIN
-#define CPU_IRQB_PIN 46
-#undef CPU_NMIB_PIN
-#define CPU_NMIB_PIN 47
+#undef RIA_IRQB_PIN
+#define RIA_IRQB_PIN 46
+#undef RIA_NMIB_PIN
+#define RIA_NMIB_PIN 47
 #undef BUS_PIN_BASE
 #define BUS_PIN_BASE 30
 #undef BUS_CTL_PIN_BASE

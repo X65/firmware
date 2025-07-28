@@ -25,10 +25,10 @@ static volatile bool irq_enabled = false;
 // // #define MEM_CPU_ADDRESS_BUS_DUMP
 // #define ABORT_ON_IRQ_BRK_READ              2
 #ifdef MEM_CPU_ADDRESS_BUS_HISTORY_LENGTH
+#include <stdio.h>
 static uint32_t mem_cpu_address_bus_history[MEM_CPU_ADDRESS_BUS_HISTORY_LENGTH];
 static uint8_t mem_cpu_address_bus_history_index = 0;
 #ifdef ABORT_ON_IRQ_BRK_READ
-#include <stdio.h>
 static uint8_t irq_brk_read = 0;
 #endif
 void dump_cpu_history(void);
@@ -72,7 +72,7 @@ mem_bus_pio_irq_handler(void)
                     // CPU is writing - pull D0-7 from PIO FIFO
                     while ((MEM_BUS_PIO->fstat & (1u << (PIO_FSTAT_RXEMPTY_LSB + MEM_BUS_SM))))
                     {
-                        // tight_loop_contents()
+                        tight_loop_contents();
                     }
                     bus_data = (uint8_t)MEM_BUS_PIO->rxf[MEM_BUS_SM];
                 }
@@ -327,15 +327,32 @@ mem_bus_pio_irq_handler(void)
 void ria_trigger_irq(void)
 {
     if (irq_enabled & 0x01)
-        gpio_put(CPU_IRQB_PIN, false);
+        gpio_put(RIA_IRQB_PIN, false);
 }
 
-static void mem_bus_irq_init(void)
+void ria_trigger_nmi(void)
 {
-    // drive irq pin
-    gpio_init(CPU_IRQB_PIN);
-    gpio_put(CPU_IRQB_PIN, true);
-    gpio_set_dir(CPU_IRQB_PIN, true);
+    gpio_put(RIA_NMIB_PIN, false);
+}
+
+static void mem_bus_int_init(void)
+{
+    // drive IRQ pin
+    gpio_init(RIA_IRQB_PIN);
+    gpio_set_dir(RIA_IRQB_PIN, true);
+    gpio_put(RIA_IRQB_PIN, true);
+    // drive NMI pin
+    gpio_init(RIA_NMIB_PIN);
+    gpio_set_dir(RIA_NMIB_PIN, true);
+    gpio_put(RIA_NMIB_PIN, true);
+}
+
+static void mem_bus_intctl_init(void)
+{
+    // drive INT_CTL pin
+    gpio_init(INT_CTL_EN_PIN);
+    gpio_set_dir(INT_CTL_EN_PIN, true);
+    gpio_put(INT_CTL_EN_PIN, true);
 }
 
 static void mem_bus_pio_init(void)
@@ -391,7 +408,8 @@ void bus_init(void)
     }
 
     // the inits
-    mem_bus_irq_init();
+    mem_bus_int_init();
+    mem_bus_intctl_init();
     mem_bus_pio_init();
 }
 
@@ -402,7 +420,8 @@ void bus_run(void)
 void bus_stop(void)
 {
     irq_enabled = false;
-    gpio_put(CPU_IRQB_PIN, true);
+    gpio_put(RIA_IRQB_PIN, true);
+    gpio_put(RIA_NMIB_PIN, true);
 #ifdef MEM_CPU_ADDRESS_BUS_HISTORY_LENGTH
     mem_cpu_address_bus_history_index = 0;
 #ifdef ABORT_ON_IRQ_BRK_READ

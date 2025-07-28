@@ -137,10 +137,10 @@ static void mon_enter(bool timeout, const char *buf, size_t length)
 // Anything that suspends the monitor.
 static bool mon_suspended(void)
 {
-    return main_active()
-           || ram_active()
-           || rom_active()
-           || fil_active();
+    return main_active()    // CPU is running
+           || ram_active()  // monitor reads/writes RAM
+           || rom_active()  // ROM is being loaded
+           || fil_active(); // file system operation
 }
 
 void mon_task(void)
