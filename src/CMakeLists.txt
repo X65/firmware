@@ -42,6 +42,7 @@ target_link_libraries(rp816 PRIVATE
     hardware_interp
     hardware_flash
     tinyusb_host
+    pico_btstack_ble
 )
 
 pico_generate_pio_header(rp816
