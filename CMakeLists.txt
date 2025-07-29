@@ -25,7 +25,7 @@ include(pico_sdk_import.cmake)
 
 set(PICO_TINYUSB_PATH ${CMAKE_CURRENT_LIST_DIR}/src/tinyusb)
 
-project(RP65816 C CXX ASM)
+project(RP816 C CXX ASM)
 
 pico_sdk_init()
 

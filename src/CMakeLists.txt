@@ -2,7 +2,7 @@
 
 add_executable(rp816)
 pico_add_extra_outputs(rp816)
-pico_set_program_name(rp816 "RP65816 RIA")
+pico_set_program_name(rp816 "RP816 RIA")
 pico_set_binary_type(rp816 copy_to_ram)
 
 target_include_directories(rp816 PRIVATE
