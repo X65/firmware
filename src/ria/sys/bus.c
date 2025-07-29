@@ -19,6 +19,11 @@
 
 #define MEM_BUS_PIO_CLKDIV_INT 10
 
+volatile uint8_t
+    __attribute__((aligned(4)))
+    __scratch_x("")
+        __regs[0x40];
+
 static volatile bool irq_enabled = false;
 
 // #define MEM_CPU_ADDRESS_BUS_HISTORY_LENGTH 50
@@ -382,9 +387,6 @@ static void mem_bus_pio_init(void)
 
 void bus_init(void)
 {
-    // safety check for compiler alignment
-    assert(!((uintptr_t)regs & 0x1F));
-
     // Lower CPU0 on crossbar by raising others
     bus_ctrl_hw->priority |=              //
         BUSCTRL_BUS_PRIORITY_DMA_R_BITS | //

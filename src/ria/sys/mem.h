@@ -25,20 +25,11 @@ asm(".equ psram, 0x11000000");   // Addressable at 0x11000000 - 0x11ffffff
 extern uint8_t xstack[];
 extern volatile size_t xstack_ptr;
 
-// RIA registers are located at the bottom of cpu1 stack.
-// cpu1 runs the action loop and uses very little stack.
-// On the RP2040 these registers persist a press of the REBOOT
-// button, but the RP2350 changes FFFC-FFFF for some reason.
-extern volatile uint8_t regs[0x40];
-#define REGS(addr)  regs[(addr) & 0x3F]
-#define REGSW(addr) ((uint16_t *)&REGS(addr))[0]
-#if PICO_RP2040 == 1
-asm(".equ regs, 0x20040000");
-#elif PICO_RP2350 == 1
-asm(".equ regs, 0x20080000");
-#else
-#error "Unknown microcontroller"
-#endif
+// RP816 RIA "internal" registers
+extern volatile uint8_t __regs[0x40];
+#define REGS(addr)   (__regs[(addr) & 0x3F])
+#define REGSW(addr)  (((uint16_t *)&REGS(addr))[0])
+#define REGSDW(addr) (((uint32_t *)&REGS(addr))[0])
 
 // Misc memory buffer for moving things around.
 // FS <-> RAM, USB <-> RAM, UART <-> RAM, etc.

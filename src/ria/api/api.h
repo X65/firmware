@@ -184,16 +184,16 @@ static inline bool api_is_xstack_empty(void)
 
 static inline void api_return_blocked()
 {
-    *(uint32_t *)&regs[0x10] = 0xA9FE80EA;
+    REGSDW(0x10) = 0xA9FE80EA;
 }
 static inline void api_return_released()
 {
-    *(uint32_t *)&regs[0x10] = 0xA90080EA;
+    REGSDW(0x10) = 0xA90080EA;
 }
 
 static inline void api_set_ax(uint16_t val)
 {
-    *(uint32_t *)&regs[0x14] = 0x6000A200 | (val & 0xFF) | ((val << 8) & 0xFF0000);
+    REGSDW(0x14) = 0x6000A200 | (val & 0xFF) | ((val << 8) & 0xFF0000);
 }
 
 static inline void api_set_axsreg(uint32_t val)
