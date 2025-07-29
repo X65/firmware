@@ -192,34 +192,15 @@ static bool rom_ram_writing(bool test)
         if (!test)
         {
             uint8_t data = mbuf[i++];
-            if (addr >= 0xFFE4 && addr <= 0xFFFF)
+            // TODO: unify with mem_write_buf() ?
+            if (addr >= 0xFFC0 && addr < 0x10000)
             {
-                switch (addr)
-                {
-                case 0xFFE4: // COP_L
-                case 0xFFE5: // COP_H
-                case 0xFFE6: // BRK_L
-                case 0xFFE7: // BRK_H
-                case 0xFFE8: // ABORTB_L
-                case 0xFFE9: // ABORTB_H
-                case 0xFFEA: // NMIB_L
-                case 0xFFEB: // NMIB_H
-                case 0xFFEE: // IRQB_L
-                case 0xFFEF: // IRQB_H
-                case 0xFFF4: // COP_L
-                case 0xFFF5: // COP_H
-                case 0xFFF8: // ABORTB_L
-                case 0xFFF9: // ABORTB_H
-                case 0xFFFA: // NMIB_L
-                case 0xFFFB: // NMIB_H
-                case 0xFFFC: // RESETB_l
-                case 0xFFFD: // RESETB_H
-                case 0xFFFE: // IRQB/BRK_L
-                case 0xFFFF: // IRQB/BRK_H
-                    REGS(addr) = data;
-                }
+                REGS(addr) = data;
             }
-            psram[addr] = data;
+            else
+            {
+                psram[addr] = data;
+            }
         }
     }
     return (int)mbuf_len > 0;

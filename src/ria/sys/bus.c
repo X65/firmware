@@ -118,7 +118,7 @@ mem_bus_pio_irq_handler(void)
                         case CASE_READ(0xFFF9): // ABORTB_H
                         case CASE_READ(0xFFFA): // NMIB_L
                         case CASE_READ(0xFFFB): // NMIB_H
-                        case CASE_READ(0xFFFC): // RESETB_l
+                        case CASE_READ(0xFFFC): // RESETB_L
                         case CASE_READ(0xFFFD): // RESETB_H
                         case CASE_READ(0xFFFE): // IRQB/BRK_L
                         case CASE_READ(0xFFFF): // IRQB/BRK_H
@@ -142,7 +142,7 @@ mem_bus_pio_irq_handler(void)
                         case CASE_WRIT(0xFFF9): // ABORTB_H
                         case CASE_WRIT(0xFFFA): // NMIB_L
                         case CASE_WRIT(0xFFFB): // NMIB_H
-                        case CASE_WRIT(0xFFFC): // RESETB_l
+                        case CASE_WRIT(0xFFFC): // RESETB_L
                         case CASE_WRIT(0xFFFD): // RESETB_H
                         case CASE_WRIT(0xFFFE): // IRQB/BRK_L
                         case CASE_WRIT(0xFFFF): // IRQB/BRK_H
