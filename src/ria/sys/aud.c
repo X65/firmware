@@ -248,7 +248,7 @@ int aud_read_i2s_register(uint16_t reg)
     buf[0] = reg >> 8;
     buf[1] = reg & 0xFF;
     // write address
-    i2c_write_blocking(EXT_I2C, I2S_I2C_ADDRESS, buf, 2, true);
+    i2c_write_blocking_until(EXT_I2C, I2S_I2C_ADDRESS, buf, 2, true, make_timeout_time_ms(500));
     // read register value
     int ret = i2c_read_blocking_until(EXT_I2C, I2S_I2C_ADDRESS, buf, 2, false, make_timeout_time_ms(500));
     if (ret < 0)
@@ -748,14 +748,14 @@ static void aud_mix_reset(void)
 {
     // Two byte reset. First byte register, second byte data
     uint8_t buf[] = {0xFE, 0b10000001};
-    i2c_write_blocking(EXT_I2C, MIX_I2C_ADDRESS, buf, 2, false);
+    i2c_write_blocking_until(EXT_I2C, MIX_I2C_ADDRESS, buf, 2, false, make_timeout_time_ms(500));
 }
 
 static inline void aud_mix_init(void)
 {
     // Init the chip
     uint8_t buf[] = {0x01, 0b00000100};
-    i2c_write_blocking(EXT_I2C, MIX_I2C_ADDRESS, buf, 2, false);
+    i2c_write_blocking_until(EXT_I2C, MIX_I2C_ADDRESS, buf, 2, false, make_timeout_time_ms(500));
 }
 
 static inline void aud_mix_reclock(void)
@@ -827,7 +827,7 @@ void aud_task(void)
                          0b10000000, 0b10000000, 0b10000000, 0b10000000, 0b10000000, 0b10000000,
                          // Activate all EXT on all channels and set volume (attenuation) to max (0db)
                          0b11111100, 0b11111100, 0b11111100, 0b00000000, 0b00000000, 0b00000000};
-        i2c_write_blocking(EXT_I2C, MIX_I2C_ADDRESS, buf, 13, false);
+        i2c_write_blocking_until(EXT_I2C, MIX_I2C_ADDRESS, buf, 13, false, make_timeout_time_ms(500));
 
         done = true;
     }
