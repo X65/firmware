@@ -152,20 +152,22 @@ inline __attribute__((always_inline)) __attribute__((optimize("O3"))) void cgia_
 
 inline __attribute__((always_inline)) __attribute__((optimize("O3"))) uint8_t cgia_reg_read(uint8_t reg_no)
 {
-    switch (reg_no)
+    const uint8_t reg = reg_no & 0x7F;
+    switch (reg)
     {
     case CGIA_REG_INT_STATUS:
         return regs_int[CGIA_REG_INT_STATUS] & regs_int[CGIA_REG_INT_ENABLE] & int_mask;
     }
 
-    return regs_int[reg_no];
+    return regs_int[reg];
 }
 
 inline __attribute__((always_inline)) __attribute__((optimize("O3"))) void cgia_reg_write(uint8_t reg_no, uint8_t value)
 {
-    regs_int[reg_no] = value;
+    const uint8_t reg = reg_no & 0x7F;
+    regs_int[reg] = value;
 
-    switch (reg_no)
+    switch (reg)
     {
     case CGIA_REG_BCKGND_BANK:
         cgia_set_bank(0, value);
@@ -174,7 +176,7 @@ inline __attribute__((always_inline)) __attribute__((optimize("O3"))) void cgia_
         cgia_set_bank(1, value);
         break;
     case CGIA_REG_INT_ENABLE:
-        regs_int[reg_no] = value & 0b11100000;
+        regs_int[reg] = value & 0b11100000;
         break;
     case CGIA_REG_INT_STATUS:
         CGIA.int_status = 0x00;
@@ -413,7 +415,7 @@ void __attribute__((optimize("O3"))) cgia_render(uint16_t y, uint32_t *rgbbuf)
     static union cgia_plane_regs_t *plane;
     static uint16_t *plane_offset;
     static struct cgia_plane_internal *plane_data;
-    static uint16_t(*sprite_dscs)[CGIA_SPRITES];
+    static uint16_t (*sprite_dscs)[CGIA_SPRITES];
     static uint8_t max_instr_count;
 
     CGIA.raster = y;

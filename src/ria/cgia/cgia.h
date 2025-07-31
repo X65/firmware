@@ -223,8 +223,8 @@ struct cgia_sprite_t
 void cgia_init(void);
 void cgia_render(uint16_t y, uint32_t *rgbbuf);
 void cgia_vbi(void);
-uint8_t cgia_reg_read(uint8_t reg_no);
-void cgia_reg_write(uint8_t reg_no, uint8_t value);
+inline uint8_t cgia_reg_read(uint8_t reg_no);
+inline void cgia_reg_write(uint8_t reg_no, uint8_t value);
 
 void cgia_task(void);
 
