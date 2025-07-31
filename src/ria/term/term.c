@@ -600,6 +600,7 @@ static void term_out_EL(term_state_t *term)
     {
     case 0: // to the end of the line
     case 1: // to beginning of the line
+    {
         term_data_t *row = &term->mem[(term->y_offset + term->y) * term->width];
         if (row >= term->mem + term->width * TERM_MAX_HEIGHT)
             row -= term->width * TERM_MAX_HEIGHT;
@@ -622,14 +623,17 @@ static void term_out_EL(term_state_t *term)
             row[x].fg_color = erase_fg_color;
             row[x].bg_color = erase_bg_color;
         }
-        break;
+    }
+    break;
     case 2: // full line
+    {
         term->wrapped[term->y] = false;
         term->dirty[term->y] = true;
         term->erase_fg_color[term->y] = term->fg_color;
         term->erase_bg_color[term->y] = term->bg_color;
         term_clean_line(term, term->y);
-        break;
+    }
+    break;
     }
 }
 
