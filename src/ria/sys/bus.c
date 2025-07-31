@@ -6,6 +6,7 @@
 
 #include "bus.h"
 #include "bus.pio.h"
+#include "cgia/cgia.h"
 #include "hardware/gpio.h"
 #include "hardware/pio.h"
 #include "hardware/structs/bus_ctrl.h"
@@ -83,7 +84,7 @@ mem_bus_pio_irq_handler(void)
                 }
 
                 // I/O area access
-                if ((bus_address & 0xFFFE00) == 0x00FE00)
+                if ((bus_address & 0xFFFFC0) == 0x00FFC0) // RP816 RIA registers
                 {
                     // ------ FFF0 - FFFF ------
                     if ((bus_address & 0xFFF0) == 0xFFF0)
@@ -162,7 +163,7 @@ mem_bus_pio_irq_handler(void)
                             }
                         }
                     // ------ FFE0 - FFEF ------
-                    if ((bus_address & 0xFFF0) == 0xFFE0)
+                    else if ((bus_address & 0xFFF0) == 0xFFE0)
                         switch (bus_address & (CPU_IODEV_MASK | CPU_RWB_MASK))
                         {
                         case CASE_READ(0xFFE1): // UART Rx
@@ -242,7 +243,7 @@ mem_bus_pio_irq_handler(void)
                             }
                         }
                     // ------ FFD0 - FFDF ------
-                    if ((bus_address & 0xFFF0) == 0xFFD0)
+                    else if ((bus_address & 0xFFF0) == 0xFFD0)
                         switch (bus_address & (CPU_IODEV_MASK | CPU_RWB_MASK))
                         {
                             // DMA - FFD0 - FFD9
@@ -256,7 +257,7 @@ mem_bus_pio_irq_handler(void)
                             }
                         }
                     // ------ FFC0 - FFCF ------
-                    if ((bus_address & 0xFFF0) == 0xFFC0)
+                    else if ((bus_address & 0xFFF0) == 0xFFC0)
                         switch (bus_address & (CPU_IODEV_MASK | CPU_RWB_MASK))
                         {
                         // math accelerator - OPERA, OPERB
@@ -303,6 +304,17 @@ mem_bus_pio_irq_handler(void)
                                 MEM_BUS_PIO->txf[MEM_BUS_SM] = 0xEA;
                             }
                         }
+                }
+                else if ((bus_address & 0xFFFF80) == 0x00FF00) // CGIA registers
+                {
+                    if (bus_address & CPU_RWB_MASK)
+                    { // CPU is reading
+                        MEM_BUS_PIO->txf[MEM_BUS_SM] = cgia_reg_read((uint8_t)bus_address);
+                    }
+                    else
+                    { // CPU is writing
+                        cgia_reg_write((uint8_t)bus_address, bus_data);
+                    }
                 }
                 else
                 {
