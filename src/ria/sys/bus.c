@@ -318,16 +318,18 @@ mem_bus_pio_irq_handler(void)
                 }
                 else
                 {
+                    const uint32_t addr = bus_address & 0xFFFFFF;
                     // normal memory access
                     if (bus_address & CPU_RWB_MASK)
                     { // CPU is reading
                         // Push 1 byte from RAM to PIO tx FIFO
-                        MEM_BUS_PIO->txf[MEM_BUS_SM] = psram[bus_address & 0xFFFFFF];
+                        MEM_BUS_PIO->txf[MEM_BUS_SM] = psram[addr];
                     }
                     else
                     { // CPU is writing
                         // Store bus D0-7 to RAM
-                        psram[bus_address & 0xFFFFFF] = bus_data;
+                        psram[addr] = bus_data;
+                        cgia_ram_write(addr, bus_data);
                     }
                 }
             }

@@ -230,4 +230,4 @@ void cgia_task(void);
 
 #define CGIA_VRAM_BANKS (2)
 // pass EVERY RAM write through CGIA for updating VRAM cache banks
-inline void cgia_ram_write(uint32_t addr, uint8_t data);
+void cgia_ram_write(uint32_t addr, uint8_t data);
