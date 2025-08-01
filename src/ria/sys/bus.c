@@ -46,11 +46,16 @@ void dump_cpu_history(void);
 #define CASE_READ(addr) (CPU_RWB_MASK | (addr & CPU_IODEV_MASK))
 #define CASE_WRIT(addr) (addr & CPU_IODEV_MASK)
 
-static void __isr __attribute__((optimize("O1")))
+static void __isr __attribute__((optimize("O3")))
 mem_bus_pio_irq_handler(void)
 {
+    /*
+        BUS address is read by PIO in the following chunks:
+        [. . . . . . RWB VAB BA7-BA0] [A15-A8] [A7-A0]
+        Use above CPU_*_MASK to extract bits.
+    */
     uint32_t bus_address;
-    uint8_t bus_data = 0xEA;
+    uint8_t bus_data = 0xEA; // NOP
 
     // In here we bypass the usual SDK calls as needed for performance.
     while (true)
