@@ -50,6 +50,7 @@ static struct
     {6, "unlink", fil_mon_unlink},
     {6, "binary", ram_mon_binary},
     {2, "at", at_mon_at},
+    {7, "memtest", ram_mon_test},
 };
 static const size_t COMMANDS_COUNT = sizeof COMMANDS / sizeof COMMANDS[0];
 

@@ -20,5 +20,6 @@ bool ram_active(void);
 
 void ram_mon_binary(const char *args, size_t len);
 void ram_mon_address(const char *args, size_t len);
+void ram_mon_test(const char *args, size_t len);
 
 #endif /* _RAM_H_ */

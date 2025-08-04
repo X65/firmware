@@ -33,6 +33,7 @@ static const char __in_flash("helptext") hlp_text_help[] =
     "UNLINK file|dir     - Delete a file or empty directory.\n"
     "UPLOAD file         - Write file. Binary chunks follow.\n"
     "BINARY addr len crc - Write memory. Binary data follows.\n"
+    "MEMTEST             - Test PSRAM memory.\n"
     "0000 (00 00 ...)    - Read or write memory.";
 
 static const char __in_flash("helptext") hlp_text_set[] =

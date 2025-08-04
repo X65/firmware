@@ -18,8 +18,8 @@
 #include <stdint.h>
 #include <stdio.h>
 
-static size_t psram_size;
-static uint8_t psram_readid_response[8];
+size_t psram_size;
+uint8_t psram_readid_response[8];
 
 // Activate PSRAM. (Copied from CircuitPython ports/raspberrypi/supervisor/port.c)
 static void __no_inline_not_in_flash_func(setup_psram)(void)
