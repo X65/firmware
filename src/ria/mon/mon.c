@@ -51,7 +51,7 @@ static struct
     {6, "binary", ram_mon_binary},
     {2, "at", at_mon_at},
 };
-static const size_t COMMANDS_COUNT = sizeof COMMANDS / sizeof *COMMANDS;
+static const size_t COMMANDS_COUNT = sizeof COMMANDS / sizeof COMMANDS[0];
 
 // Returns NULL if not found. Advances buf to start of args.
 static mon_function mon_command_lookup(const char **buf, uint8_t buflen)

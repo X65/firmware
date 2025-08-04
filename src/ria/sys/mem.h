@@ -47,6 +47,9 @@ void mem_init(void);
 void mem_post_reclock(void);
 void mem_print_status(void);
 
+// Select PSRAM bank
+void mem_use_bank(uint8_t bank);
+
 // Move data from the RAM to mbuf.
 void mem_read_buf(uint32_t addr);
 

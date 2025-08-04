@@ -25,6 +25,9 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include "hardware/structs/xip_ctrl.h"
 #include "hardware/sync.h"
 
+#define XIP_PSRAM_CACHED  0x11000000
+#define XIP_PSRAM_NOCACHE 0x15000000
+
 // DETAILS/
 //
 // SparkFun RP2350 boards use the following PSRAM IC:
@@ -79,7 +82,8 @@ static size_t __no_inline_not_in_flash_func(get_psram_size)(void)
     uint32_t intr_stash = save_and_disable_interrupts();
 
     // Try and read the PSRAM ID via direct_csr.
-    qmi_hw->direct_csr = 30 << QMI_DIRECT_CSR_CLKDIV_LSB | QMI_DIRECT_CSR_EN_BITS;
+    qmi_hw->direct_csr = 30 << QMI_DIRECT_CSR_CLKDIV_LSB
+                         | QMI_DIRECT_CSR_EN_BITS;
 
     // Need to poll for the cooldown on the last XIP transfer to expire
     // (via direct-mode BUSY flag) before it is safe to perform the first
@@ -92,7 +96,9 @@ static size_t __no_inline_not_in_flash_func(get_psram_size)(void)
     qmi_hw->direct_csr |= QMI_DIRECT_CSR_ASSERT_CS1N_BITS;
 
     // Transmit the command to exit QPI quad mode - read ID as standard SPI
-    qmi_hw->direct_tx = QMI_DIRECT_TX_OE_BITS | QMI_DIRECT_TX_IWIDTH_VALUE_Q << QMI_DIRECT_TX_IWIDTH_LSB | PSRAM_CMD_QUAD_END;
+    qmi_hw->direct_tx = QMI_DIRECT_TX_OE_BITS
+                        | QMI_DIRECT_TX_IWIDTH_VALUE_Q << QMI_DIRECT_TX_IWIDTH_LSB
+                        | PSRAM_CMD_QUAD_END;
 
     while ((qmi_hw->direct_csr & QMI_DIRECT_CSR_BUSY_BITS) != 0)
     {
@@ -174,9 +180,13 @@ void __no_inline_not_in_flash_func(set_psram_timing)(void)
 
     // printf("Max Select: %d, Min Deselect: %d, clock divider: %d\n", maxSelect, minDeselect, clockDivider);
 
-    qmi_hw->m[1].timing = QMI_M1_TIMING_PAGEBREAK_VALUE_1024 << QMI_M1_TIMING_PAGEBREAK_LSB | // Break between pages.
-                          3 << QMI_M1_TIMING_SELECT_HOLD_LSB |                                // Delay releasing CS for 3 extra system cycles.
-                          1 << QMI_M1_TIMING_COOLDOWN_LSB | 2 << QMI_M1_TIMING_RXDELAY_LSB | maxSelect << QMI_M1_TIMING_MAX_SELECT_LSB | minDeselect << QMI_M1_TIMING_MIN_DESELECT_LSB | clockDivider << QMI_M1_TIMING_CLKDIV_LSB;
+    qmi_hw->m[1].timing = QMI_M1_TIMING_PAGEBREAK_VALUE_1024 << QMI_M1_TIMING_PAGEBREAK_LSB // Break between pages.
+                          | 3 << QMI_M1_TIMING_SELECT_HOLD_LSB                              // Delay releasing CS for 3 extra system cycles.
+                          | 1 << QMI_M1_TIMING_COOLDOWN_LSB
+                          | 2 << QMI_M1_TIMING_RXDELAY_LSB
+                          | maxSelect << QMI_M1_TIMING_MAX_SELECT_LSB
+                          | minDeselect << QMI_M1_TIMING_MIN_DESELECT_LSB
+                          | clockDivider << QMI_M1_TIMING_CLKDIV_LSB;
 
     restore_interrupts(intr_stash);
 }
@@ -201,7 +211,8 @@ size_t __no_inline_not_in_flash_func(setup_psram)(uint32_t psram_cs_pin)
 
     uint32_t intr_stash = save_and_disable_interrupts();
     // Enable quad mode.
-    qmi_hw->direct_csr = 30 << QMI_DIRECT_CSR_CLKDIV_LSB | QMI_DIRECT_CSR_EN_BITS;
+    qmi_hw->direct_csr = 30 << QMI_DIRECT_CSR_CLKDIV_LSB
+                         | QMI_DIRECT_CSR_EN_BITS;
 
     // Need to poll for the cooldown on the last XIP transfer to expire
     // (via direct-mode BUSY flag) before it is safe to perform the first
@@ -220,6 +231,7 @@ size_t __no_inline_not_in_flash_func(setup_psram)(uint32_t psram_cs_pin)
             qmi_hw->direct_tx = PSRAM_CMD_RST;
         else
             qmi_hw->direct_tx = PSRAM_CMD_QUAD_ENABLE;
+        // else // Toggle wrap boundary mode // 0xc0
 
         while ((qmi_hw->direct_csr & QMI_DIRECT_CSR_BUSY_BITS) != 0)
         {
@@ -241,18 +253,43 @@ size_t __no_inline_not_in_flash_func(setup_psram)(uint32_t psram_cs_pin)
     // and now stash interrupts again
     intr_stash = save_and_disable_interrupts();
 
-    qmi_hw->m[1].rfmt = (QMI_M1_RFMT_PREFIX_WIDTH_VALUE_Q << QMI_M1_RFMT_PREFIX_WIDTH_LSB | QMI_M1_RFMT_ADDR_WIDTH_VALUE_Q << QMI_M1_RFMT_ADDR_WIDTH_LSB | QMI_M1_RFMT_SUFFIX_WIDTH_VALUE_Q << QMI_M1_RFMT_SUFFIX_WIDTH_LSB | QMI_M1_RFMT_DUMMY_WIDTH_VALUE_Q << QMI_M1_RFMT_DUMMY_WIDTH_LSB | QMI_M1_RFMT_DUMMY_LEN_VALUE_24 << QMI_M1_RFMT_DUMMY_LEN_LSB | QMI_M1_RFMT_DATA_WIDTH_VALUE_Q << QMI_M1_RFMT_DATA_WIDTH_LSB | QMI_M1_RFMT_PREFIX_LEN_VALUE_8 << QMI_M1_RFMT_PREFIX_LEN_LSB | QMI_M1_RFMT_SUFFIX_LEN_VALUE_NONE << QMI_M1_RFMT_SUFFIX_LEN_LSB);
+    qmi_hw->m[1].rfmt = (QMI_M1_RFMT_PREFIX_WIDTH_VALUE_Q << QMI_M1_RFMT_PREFIX_WIDTH_LSB
+                         | QMI_M1_RFMT_ADDR_WIDTH_VALUE_Q << QMI_M1_RFMT_ADDR_WIDTH_LSB
+                         | QMI_M1_RFMT_SUFFIX_WIDTH_VALUE_Q << QMI_M1_RFMT_SUFFIX_WIDTH_LSB
+                         | QMI_M1_RFMT_DUMMY_WIDTH_VALUE_Q << QMI_M1_RFMT_DUMMY_WIDTH_LSB
+                         | QMI_M1_RFMT_DUMMY_LEN_VALUE_24 << QMI_M1_RFMT_DUMMY_LEN_LSB
+                         | QMI_M1_RFMT_DATA_WIDTH_VALUE_Q << QMI_M1_RFMT_DATA_WIDTH_LSB
+                         | QMI_M1_RFMT_PREFIX_LEN_VALUE_8 << QMI_M1_RFMT_PREFIX_LEN_LSB
+                         | QMI_M1_RFMT_SUFFIX_LEN_VALUE_NONE << QMI_M1_RFMT_SUFFIX_LEN_LSB);
 
-    qmi_hw->m[1].rcmd = PSRAM_CMD_QUAD_READ << QMI_M1_RCMD_PREFIX_LSB | 0 << QMI_M1_RCMD_SUFFIX_LSB;
+    qmi_hw->m[1].rcmd = PSRAM_CMD_QUAD_READ << QMI_M1_RCMD_PREFIX_LSB
+                        | 0 << QMI_M1_RCMD_SUFFIX_LSB;
 
-    qmi_hw->m[1].wfmt = (QMI_M1_WFMT_PREFIX_WIDTH_VALUE_Q << QMI_M1_WFMT_PREFIX_WIDTH_LSB | QMI_M1_WFMT_ADDR_WIDTH_VALUE_Q << QMI_M1_WFMT_ADDR_WIDTH_LSB | QMI_M1_WFMT_SUFFIX_WIDTH_VALUE_Q << QMI_M1_WFMT_SUFFIX_WIDTH_LSB | QMI_M1_WFMT_DUMMY_WIDTH_VALUE_Q << QMI_M1_WFMT_DUMMY_WIDTH_LSB | QMI_M1_WFMT_DUMMY_LEN_VALUE_NONE << QMI_M1_WFMT_DUMMY_LEN_LSB | QMI_M1_WFMT_DATA_WIDTH_VALUE_Q << QMI_M1_WFMT_DATA_WIDTH_LSB | QMI_M1_WFMT_PREFIX_LEN_VALUE_8 << QMI_M1_WFMT_PREFIX_LEN_LSB | QMI_M1_WFMT_SUFFIX_LEN_VALUE_NONE << QMI_M1_WFMT_SUFFIX_LEN_LSB);
+    qmi_hw->m[1].wfmt = (QMI_M1_WFMT_PREFIX_WIDTH_VALUE_Q << QMI_M1_WFMT_PREFIX_WIDTH_LSB
+                         | QMI_M1_WFMT_ADDR_WIDTH_VALUE_Q << QMI_M1_WFMT_ADDR_WIDTH_LSB
+                         | QMI_M1_WFMT_SUFFIX_WIDTH_VALUE_Q << QMI_M1_WFMT_SUFFIX_WIDTH_LSB
+                         | QMI_M1_WFMT_DUMMY_WIDTH_VALUE_Q << QMI_M1_WFMT_DUMMY_WIDTH_LSB
+                         | QMI_M1_WFMT_DUMMY_LEN_VALUE_NONE << QMI_M1_WFMT_DUMMY_LEN_LSB
+                         | QMI_M1_WFMT_DATA_WIDTH_VALUE_Q << QMI_M1_WFMT_DATA_WIDTH_LSB
+                         | QMI_M1_WFMT_PREFIX_LEN_VALUE_8 << QMI_M1_WFMT_PREFIX_LEN_LSB
+                         | QMI_M1_WFMT_SUFFIX_LEN_VALUE_NONE << QMI_M1_WFMT_SUFFIX_LEN_LSB);
 
-    qmi_hw->m[1].wcmd = PSRAM_CMD_QUAD_WRITE << QMI_M1_WCMD_PREFIX_LSB | 0 << QMI_M1_WCMD_SUFFIX_LSB;
+    qmi_hw->m[1].wcmd = PSRAM_CMD_QUAD_WRITE << QMI_M1_WCMD_PREFIX_LSB
+                        | 0 << QMI_M1_WCMD_SUFFIX_LSB;
 
     // Mark that we can write to PSRAM.
     xip_ctrl_hw->ctrl |= XIP_CTRL_WRITABLE_M1_BITS;
 
     restore_interrupts(intr_stash);
+
+    // Test write to the PSRAM.
+    volatile uint32_t *psram_nocache = (volatile uint32_t *)XIP_PSRAM_NOCACHE;
+    psram_nocache[0] = 0x12345678;
+    volatile uint32_t readback = psram_nocache[0];
+    if (readback != 0x12345678)
+    {
+        psram_size = 0;
+    }
 
     return psram_size;
 }

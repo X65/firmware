@@ -6,6 +6,7 @@
  */
 
 #include "mem.h"
+#include "hardware/gpio.h"
 #include "littlefs/lfs_util.h"
 #include "main.h"
 #include <stdbool.h>
@@ -35,7 +36,19 @@ inline uint32_t mbuf_crc32(void)
 
 void mem_init(void)
 {
+    // PSRAM Bank-Select pin
+    gpio_init(QMI_PSRAM_BS_PIN);
+    gpio_set_dir(QMI_PSRAM_BS_PIN, true);
+    // Select BANK0 for now
+    mem_use_bank(0);
+
+    // Setup PSRAM controller
     psram_size = setup_psram(QMI_PSRAM_CS_PIN);
+}
+
+void mem_use_bank(uint8_t bank)
+{
+    gpio_put(QMI_PSRAM_BS_PIN, (bool)bank);
 }
 
 void mem_post_reclock(void)
