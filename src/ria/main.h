@@ -41,11 +41,6 @@ void main_pre_reclock();
 void main_post_reclock();
 bool main_api(uint8_t operation);
 
-/* Overclock
- */
-#define MAIN_VREG_VSEL     VREG_VOLTAGE_1_30
-#define MAIN_SYS_CLOCK_KHZ 240000
-
 /* All pin assignments
  */
 
