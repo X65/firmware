@@ -364,10 +364,12 @@ static void mem_bus_int_init(void)
     // drive IRQ pin
     gpio_init(RIA_IRQB_PIN);
     gpio_set_dir(RIA_IRQB_PIN, true);
+    gpio_set_pulls(RIA_IRQB_PIN, false, false);
     gpio_put(RIA_IRQB_PIN, true);
     // drive NMI pin
     gpio_init(RIA_NMIB_PIN);
     gpio_set_dir(RIA_NMIB_PIN, true);
+    gpio_set_pulls(RIA_NMIB_PIN, false, false);
     gpio_put(RIA_NMIB_PIN, true);
 }
 

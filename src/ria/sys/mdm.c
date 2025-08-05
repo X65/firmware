@@ -275,6 +275,7 @@ void mdm_init(void)
     gpio_set_function(ESP_SPI_TX_PIN, GPIO_FUNC_SPI);
     // Chip select is active-low, so we'll initialise it to a driven-high state
     gpio_init(ESP_SPI_CS_PIN);
+    gpio_set_pulls(ESP_SPI_CS_PIN, false, false);
     gpio_set_dir(ESP_SPI_CS_PIN, GPIO_OUT);
     gpio_put(ESP_SPI_CS_PIN, 1);
 

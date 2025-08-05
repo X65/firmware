@@ -141,6 +141,7 @@ static inline void aud_fm_init(void)
     // Chip select is active-low, so we'll initialise it to a driven-high state
     gpio_init(AUD_SPI_CS_PIN);
     gpio_set_dir(AUD_SPI_CS_PIN, GPIO_OUT);
+    gpio_set_pulls(AUD_SPI_CS_PIN, false, false);
     gpio_put(AUD_SPI_CS_PIN, 1);
 }
 

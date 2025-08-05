@@ -27,6 +27,7 @@ void cpu_init(void)
     // drive reset pin
     gpio_init(CPU_RESB_PIN);
     gpio_put(CPU_RESB_PIN, false);
+    gpio_set_pulls(CPU_RESB_PIN, false, false);
     gpio_set_dir(CPU_RESB_PIN, true);
 }
 
