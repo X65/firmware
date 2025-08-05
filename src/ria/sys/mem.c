@@ -6,6 +6,7 @@
  */
 
 #include "mem.h"
+#include "hardware/clocks.h"
 #include "hardware/gpio.h"
 #include "hardware/regs/qmi.h"
 #include "hardware/regs/xip.h"
@@ -20,6 +21,28 @@
 
 size_t psram_size[PSRAM_BANKS_NO];
 uint8_t psram_readid_response[PSRAM_BANKS_NO][8];
+
+// DETAILS/
+//      apmemory APS6404L-3SQR-ZR
+//      https://www.mouser.com/ProductDetail/AP-Memory/APS6404L-3SQR-ZR?qs=IS%252B4QmGtzzpDOdsCIglviw%3D%3D
+//
+// The origin of this logic is from the Circuit Python code that was downloaded from:
+//     https://github.com/raspberrypi/pico-sdk-rp2350/issues/12#issuecomment-2055274428
+//
+
+// For PSRAM timing calculations - to use int math, we work in femto seconds (fs) (1e-15),
+#define SFE_SEC_TO_FS 1000000000000000ll
+
+// max select pulse width = 8us => 8e6 ns => 8000 ns => 8000 * 1e6 fs => 8000e6 fs
+// Additionally, the MAX select is in units of 64 clock cycles - will use a constant that
+// takes this into account - so 8000e6 fs / 64 = 125e6 fs
+const uint32_t SFE_PSRAM_MAX_SELECT_FS64 = 125000000;
+
+// min deselect pulse width = 50ns => 50 * 1e6 fs => 50e7 fs
+const uint32_t SFE_PSRAM_MIN_DESELECT_FS = 50000000;
+
+// from psram datasheet - max Freq with VDDat 3.3v
+const uint32_t SFE_PSRAM_MAX_SCK_HZ = 109000000;
 
 // PSRAM SPI command codes
 const uint8_t PSRAM_CMD_QUAD_END = 0xF5;
@@ -40,6 +63,10 @@ static void __no_inline_not_in_flash_func(setup_psram)(uint8_t bank)
 {
     gpio_set_function(QMI_PSRAM_CS_PIN, GPIO_FUNC_XIP_CS1);
     psram_size[bank] = 0;
+
+    // Get secs / cycle for the system clock - get before disabling interrupts.
+    uint32_t sysHz = (uint32_t)clock_get_hz(clk_sys);
+
     uint32_t save_irq_status = save_and_disable_interrupts();
     // Try and read the PSRAM ID via direct_csr.
     qmi_hw->direct_csr = 30 << QMI_DIRECT_CSR_CLKDIV_LSB
@@ -153,56 +180,50 @@ static void __no_inline_not_in_flash_func(setup_psram)(uint8_t bank)
     // Disable direct csr.
     qmi_hw->direct_csr &= ~(QMI_DIRECT_CSR_ASSERT_CS1N_BITS | QMI_DIRECT_CSR_EN_BITS);
 
-    // PSRAM timings with 150MHz SCK, 6.667 ns per cycle.
-    //   COOLDOWN:     2'b01            64 SCK = 426.7ns
-    //   PAGEBREAK:    2'b10            break bursts at 1024-byte page boundaries
-    //   reserved:     2'b00
-    //   SELECT_SETUP: 1'b0             0.5 SCK = 3.33ns
-    //   SELECT_HOLD:  2'b11            1.0 SCK = 6.67ns
-    //   MAX_SELECT:   6'b01_0000       16 x 64 SCK = 6.827us
-    //   MIN_DESELECT: 4'b0111          7.5 x SCK = 50.0ns
-    //   reserved:     1'b0
-    //   RXDELAY:      3'b001           0.5 SCK = 3.33ns
-    //   CLKDIV:       8'b0000_0010     150 / 2 = 75MHz
+    // Calculate the clock divider - goal to get clock used for PSRAM <= what
+    // the PSRAM IC can handle - which is defined in SFE_PSRAM_MAX_SCK_HZ
+    volatile uint8_t clockDivider = (sysHz + SFE_PSRAM_MAX_SCK_HZ - 1) / SFE_PSRAM_MAX_SCK_HZ;
 
-    // Revised PSRAM timings with 240MHz SCK, 4.167 ns per cycle.
-    //   COOLDOWN:     2'b01            64 SCK = 266.7ns
-    //   PAGEBREAK:    2'b10            break bursts at 1024-byte page boundaries
-    //   reserved:     2'b00
-    //   SELECT_SETUP: 1'b0             0.5 SCK = 2.08ns
-    //   SELECT_HOLD:  2'b11            1.0 SCK = 4.17ns
-    //   MAX_SELECT:   6'b01_1101       29 x 64 SCK = 7.734us
-    //   MIN_DESELECT: 4'b1100          12.5 x SCK = 52.1ns
-    //   reserved:     1'b0
-    //   RXDELAY:      3'b010           1.0 SCK = 4.17ns
-    //   CLKDIV:       8'b0000_0010     240 / 2 = 120MHz
-    qmi_hw->m[1].timing = QMI_M0_TIMING_PAGEBREAK_VALUE_1024 << QMI_M0_TIMING_PAGEBREAK_LSB // Break between pages.
-                          | 3 << QMI_M0_TIMING_SELECT_HOLD_LSB                              // Delay releasing CS for 3 extra system cycles.
-                          | 1 << QMI_M0_TIMING_COOLDOWN_LSB
-                          | 2 << QMI_M0_TIMING_RXDELAY_LSB
-                          | 29 << QMI_M0_TIMING_MAX_SELECT_LSB   // In units of 64 system clock cycles. PSRAM says 8us max. 8 / 0.00752 / 64 = 16.62
-                          | 12 << QMI_M0_TIMING_MIN_DESELECT_LSB // In units of system clock cycles. PSRAM says 50ns.50 / 7.52 = 6.64
-                          | 2 << QMI_M0_TIMING_CLKDIV_LSB;
-    qmi_hw->m[1].rfmt = (QMI_M0_RFMT_PREFIX_WIDTH_VALUE_Q << QMI_M0_RFMT_PREFIX_WIDTH_LSB
-                         | QMI_M0_RFMT_ADDR_WIDTH_VALUE_Q << QMI_M0_RFMT_ADDR_WIDTH_LSB
-                         | QMI_M0_RFMT_SUFFIX_WIDTH_VALUE_Q << QMI_M0_RFMT_SUFFIX_WIDTH_LSB
-                         | QMI_M0_RFMT_DUMMY_WIDTH_VALUE_Q << QMI_M0_RFMT_DUMMY_WIDTH_LSB
-                         | QMI_M0_RFMT_DUMMY_LEN_VALUE_24 << QMI_M0_RFMT_DUMMY_LEN_LSB
-                         | QMI_M0_RFMT_DATA_WIDTH_VALUE_Q << QMI_M0_RFMT_DATA_WIDTH_LSB
-                         | QMI_M0_RFMT_PREFIX_LEN_VALUE_8 << QMI_M0_RFMT_PREFIX_LEN_LSB
-                         | QMI_M0_RFMT_SUFFIX_LEN_VALUE_NONE << QMI_M0_RFMT_SUFFIX_LEN_LSB);
-    qmi_hw->m[1].rcmd = PSRAM_CMD_QUAD_READ << QMI_M0_RCMD_PREFIX_LSB
-                        | 0 << QMI_M0_RCMD_SUFFIX_LSB;
-    qmi_hw->m[1].wfmt = (QMI_M0_WFMT_PREFIX_WIDTH_VALUE_Q << QMI_M0_WFMT_PREFIX_WIDTH_LSB
-                         | QMI_M0_WFMT_ADDR_WIDTH_VALUE_Q << QMI_M0_WFMT_ADDR_WIDTH_LSB
-                         | QMI_M0_WFMT_SUFFIX_WIDTH_VALUE_Q << QMI_M0_WFMT_SUFFIX_WIDTH_LSB
-                         | QMI_M0_WFMT_DUMMY_WIDTH_VALUE_Q << QMI_M0_WFMT_DUMMY_WIDTH_LSB
-                         | QMI_M0_WFMT_DUMMY_LEN_VALUE_NONE << QMI_M0_WFMT_DUMMY_LEN_LSB
-                         | QMI_M0_WFMT_DATA_WIDTH_VALUE_Q << QMI_M0_WFMT_DATA_WIDTH_LSB
-                         | QMI_M0_WFMT_PREFIX_LEN_VALUE_8 << QMI_M0_WFMT_PREFIX_LEN_LSB
-                         | QMI_M0_WFMT_SUFFIX_LEN_VALUE_NONE << QMI_M0_WFMT_SUFFIX_LEN_LSB);
-    qmi_hw->m[1].wcmd = PSRAM_CMD_QUAD_WRITE << QMI_M0_WCMD_PREFIX_LSB
-                        | 0 << QMI_M0_WCMD_SUFFIX_LSB;
+    // Get the clock femto seconds per cycle.
+    uint32_t fsPerCycle = SFE_SEC_TO_FS / sysHz;
+
+    // the maxSelect value is defined in units of 64 clock cycles
+    // So maxFS / (64 * fsPerCycle) = maxSelect = SFE_PSRAM_MAX_SELECT_FS64/fsPerCycle
+    volatile uint8_t maxSelect = SFE_PSRAM_MAX_SELECT_FS64 / fsPerCycle;
+
+    // minDeselect time - in system clock cycles
+    // Must be higher than 50ns (min deselect time for PSRAM) so add a fsPerCycle - 1 to round up
+    // So minFS/fsPerCycle = minDeselect = SFE_PSRAM_MIN_DESELECT_FS/fsPerCycle
+
+    volatile uint8_t minDeselect = (SFE_PSRAM_MIN_DESELECT_FS + fsPerCycle - 1) / fsPerCycle;
+
+    qmi_hw->m[1].timing = QMI_M1_TIMING_PAGEBREAK_VALUE_1024 << QMI_M1_TIMING_PAGEBREAK_LSB // Break between pages.
+                          | 3 << QMI_M1_TIMING_SELECT_HOLD_LSB                              // Delay releasing CS for 3 extra system cycles.
+                          | 1 << QMI_M1_TIMING_COOLDOWN_LSB
+                          | clockDivider << QMI_M1_TIMING_RXDELAY_LSB // The faster the clock, the longer the delay.
+                          | maxSelect << QMI_M1_TIMING_MAX_SELECT_LSB
+                          | minDeselect << QMI_M1_TIMING_MIN_DESELECT_LSB
+                          | clockDivider << QMI_M1_TIMING_CLKDIV_LSB;
+    qmi_hw->m[1].rfmt = (QMI_M1_RFMT_PREFIX_WIDTH_VALUE_Q << QMI_M1_RFMT_PREFIX_WIDTH_LSB
+                         | QMI_M1_RFMT_ADDR_WIDTH_VALUE_Q << QMI_M1_RFMT_ADDR_WIDTH_LSB
+                         | QMI_M1_RFMT_SUFFIX_WIDTH_VALUE_Q << QMI_M1_RFMT_SUFFIX_WIDTH_LSB
+                         | QMI_M1_RFMT_DUMMY_WIDTH_VALUE_Q << QMI_M1_RFMT_DUMMY_WIDTH_LSB
+                         | QMI_M1_RFMT_DUMMY_LEN_VALUE_24 << QMI_M1_RFMT_DUMMY_LEN_LSB
+                         | QMI_M1_RFMT_DATA_WIDTH_VALUE_Q << QMI_M1_RFMT_DATA_WIDTH_LSB
+                         | QMI_M1_RFMT_PREFIX_LEN_VALUE_8 << QMI_M1_RFMT_PREFIX_LEN_LSB
+                         | QMI_M1_RFMT_SUFFIX_LEN_VALUE_NONE << QMI_M1_RFMT_SUFFIX_LEN_LSB);
+    qmi_hw->m[1].rcmd = PSRAM_CMD_QUAD_READ << QMI_M1_RCMD_PREFIX_LSB
+                        | 0 << QMI_M1_RCMD_SUFFIX_LSB;
+    qmi_hw->m[1].wfmt = (QMI_M1_WFMT_PREFIX_WIDTH_VALUE_Q << QMI_M1_WFMT_PREFIX_WIDTH_LSB
+                         | QMI_M1_WFMT_ADDR_WIDTH_VALUE_Q << QMI_M1_WFMT_ADDR_WIDTH_LSB
+                         | QMI_M1_WFMT_SUFFIX_WIDTH_VALUE_Q << QMI_M1_WFMT_SUFFIX_WIDTH_LSB
+                         | QMI_M1_WFMT_DUMMY_WIDTH_VALUE_Q << QMI_M1_WFMT_DUMMY_WIDTH_LSB
+                         | QMI_M1_WFMT_DUMMY_LEN_VALUE_NONE << QMI_M1_WFMT_DUMMY_LEN_LSB
+                         | QMI_M1_WFMT_DATA_WIDTH_VALUE_Q << QMI_M1_WFMT_DATA_WIDTH_LSB
+                         | QMI_M1_WFMT_PREFIX_LEN_VALUE_8 << QMI_M1_WFMT_PREFIX_LEN_LSB
+                         | QMI_M1_WFMT_SUFFIX_LEN_VALUE_NONE << QMI_M1_WFMT_SUFFIX_LEN_LSB);
+    qmi_hw->m[1].wcmd = PSRAM_CMD_QUAD_WRITE << QMI_M1_WCMD_PREFIX_LSB
+                        | 0 << QMI_M1_WCMD_SUFFIX_LSB;
 
     restore_interrupts(save_irq_status);
 
@@ -254,6 +275,13 @@ void mem_init(void)
     gpio_set_dir(QMI_PSRAM_BS_PIN, true);
     gpio_set_pulls(QMI_PSRAM_BS_PIN, false, false);
 
+    // Setup PSRAM controller and chips
+    for (uint8_t bank = 0; bank < PSRAM_BANKS_NO; bank++)
+    {
+        mem_use_bank(bank);
+        setup_psram(bank);
+    }
+
     // Select BANK0 for now
     mem_use_bank(0);
 }
@@ -265,13 +293,6 @@ void mem_use_bank(uint8_t bank)
 
 void mem_post_reclock(void)
 {
-    // Setup PSRAM controller and chips
-    for (uint8_t bank = 0; bank < PSRAM_BANKS_NO; bank++)
-    {
-        mem_use_bank(bank);
-        setup_psram(bank);
-    }
-    mem_use_bank(0);
 }
 
 void mem_read_buf(uint32_t addr)
