@@ -13,10 +13,10 @@ target_include_directories(rp816 PRIVATE
 
 target_compile_definitions(rp816 PRIVATE
     PLL_SYS_REFDIV=1
-    PLL_SYS_VCO_FREQ_HZ=1464000000
+    PLL_SYS_VCO_FREQ_HZ=1344000000
     PLL_SYS_POSTDIV1=4
     PLL_SYS_POSTDIV2=1
-    SYS_CLK_HZ=366000000
+    SYS_CLK_HZ=336000000
     SYS_CLK_VREG_VOLTAGE_AUTO_ADJUST=1
     SYS_CLK_VREG_VOLTAGE_MIN=VREG_VOLTAGE_1_30
     pico_flash_bank_get_storage_offset_func=lfs_get_bt_storage_offset

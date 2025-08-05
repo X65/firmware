@@ -80,6 +80,7 @@ static void init(void)
 
     led_set_hartbeat(true);
 
+    // finally start video output
     out_init();
 }
 
@@ -269,8 +270,14 @@ int main(void)
 {
     init();
 
-    // Trigger a reclock
+    // Reconfigure clocks, that the USB 48MHz clock is derived from system clock.
+    // This requires that system clock is a multiple of 48 MHz. (no fractional divider)
     main_pre_reclock();
+    clock_configure(clk_usb,
+                    0,
+                    CLOCKS_CLK_USB_CTRL_AUXSRC_VALUE_CLKSRC_PLL_SYS,
+                    SYS_CLK_HZ,
+                    48 * MHZ);
     main_post_reclock();
 
     while (true)
