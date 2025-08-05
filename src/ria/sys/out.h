@@ -22,14 +22,14 @@
 // Timings computed using https://tomverbeure.github.io/video_timings_calculator
 // and porches adjusted to achieve 60Hz refresh rate with 366MHz SYS clock
 #define MODE_H_ACTIVE_PIXELS 768
-#define MODE_H_FRONT_PORCH   26
-#define MODE_H_SYNC_WIDTH    82
-#define MODE_H_BACK_PORCH    111
+#define MODE_H_FRONT_PORCH   24
+#define MODE_H_SYNC_WIDTH    72
+#define MODE_H_BACK_PORCH    96
 #define MODE_H_SYNC_POLARITY 0
 #define MODE_V_ACTIVE_LINES  480
-#define MODE_V_FRONT_PORCH   20
-#define MODE_V_SYNC_WIDTH    42
-#define MODE_V_BACK_PORCH    76
+#define MODE_V_FRONT_PORCH   3
+#define MODE_V_SYNC_WIDTH    6
+#define MODE_V_BACK_PORCH    11
 #define MODE_V_SYNC_POLARITY 1
 #define MODE_V_FREQ_HZ       60
 

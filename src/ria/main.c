@@ -51,7 +51,6 @@ static void init(void)
     font_init(); // before out_init (copies data from flash before overclocking)
     term_init();
     cgia_init();
-    out_init();
     com_init();
     ext_init(); // before aud_init (shared I2C init)
 
@@ -80,6 +79,8 @@ static void init(void)
     tuh_init(TUH_OPT_RHPORT);
 
     led_set_hartbeat(true);
+
+    out_init();
 }
 
 // Tasks events are repeatedly called by the main kernel loop.

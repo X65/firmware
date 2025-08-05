@@ -51,18 +51,6 @@ static uint pixel_doubling = FB_H_REPEAT ? 1 : 0;
 #define SYNC_V1_H0 (TMDS_CTRL_10 | (TMDS_CTRL_00 << 10) | (TMDS_CTRL_00 << 20))
 #define SYNC_V1_H1 (TMDS_CTRL_11 | (TMDS_CTRL_00 << 10) | (TMDS_CTRL_00 << 20))
 
-// #define MODE_H_SYNC_POLARITY 0
-// #define MODE_H_FRONT_PORCH   16
-// #define MODE_H_SYNC_WIDTH    96
-// #define MODE_H_BACK_PORCH    48
-// #define MODE_H_ACTIVE_PIXELS 640
-
-// #define MODE_V_SYNC_POLARITY 0
-// #define MODE_V_FRONT_PORCH   10
-// #define MODE_V_SYNC_WIDTH    2
-// #define MODE_V_BACK_PORCH    33
-// #define MODE_V_ACTIVE_LINES  480
-
 #define MODE_H_TOTAL_PIXELS ( \
     MODE_H_FRONT_PORCH + MODE_H_SYNC_WIDTH + MODE_H_BACK_PORCH + MODE_H_ACTIVE_PIXELS)
 #define MODE_V_TOTAL_LINES ( \
@@ -357,6 +345,7 @@ void out_post_reclock(void)
 
 void out_init(void)
 {
+    out_post_reclock();
     multicore_launch_core1(out_core1_main);
 }
 
