@@ -18,14 +18,14 @@
 #include <stdint.h>
 #include <stdio.h>
 
-size_t psram_size;
-uint8_t psram_readid_response[8];
+size_t psram_size[PSRAM_BANKS_NO];
+uint8_t psram_readid_response[8][PSRAM_BANKS_NO];
 
 // Activate PSRAM. (Copied from CircuitPython ports/raspberrypi/supervisor/port.c)
-static void __no_inline_not_in_flash_func(setup_psram)(void)
+static void __no_inline_not_in_flash_func(setup_psram)(uint8_t bank)
 {
     gpio_set_function(QMI_PSRAM_CS_PIN, GPIO_FUNC_XIP_CS1);
-    psram_size = 0;
+    psram_size[bank] = 0;
     uint32_t save_irq_status = save_and_disable_interrupts();
     // Try and read the PSRAM ID via direct_csr.
     qmi_hw->direct_csr = 30 << QMI_DIRECT_CSR_CLKDIV_LSB
@@ -72,7 +72,7 @@ static void __no_inline_not_in_flash_func(setup_psram)(void)
         // buffer read id response eliding the first 4 bytes (cmd + 24-bit addr)
         if (i >= 4)
         {
-            psram_readid_response[i - 4] = qmi_hw->direct_rx;
+            psram_readid_response[i - 4][bank] = qmi_hw->direct_rx;
         }
         else
         {
@@ -81,11 +81,11 @@ static void __no_inline_not_in_flash_func(setup_psram)(void)
 
         if (i == 5)
         {
-            kgd = psram_readid_response[i - 4];
+            kgd = psram_readid_response[i - 4][bank];
         }
         else if (i == 6)
         {
-            eid = psram_readid_response[i - 4];
+            eid = psram_readid_response[i - 4][bank];
         }
     }
     // Disable direct csr.
@@ -196,19 +196,19 @@ static void __no_inline_not_in_flash_func(setup_psram)(void)
 
     restore_interrupts(save_irq_status);
 
-    psram_size = 1024 * 1024; // 1 MiB
+    psram_size[bank] = 1024 * 1024; // 1 MiB
     uint8_t size_id = eid >> 5;
     if (eid == 0x26 || size_id == 2)
     {
-        psram_size *= 8;
+        psram_size[bank] *= 8;
     }
     else if (size_id == 0)
     {
-        psram_size *= 2;
+        psram_size[bank] *= 2;
     }
     else if (size_id == 1)
     {
-        psram_size *= 4;
+        psram_size[bank] *= 4;
     }
 
     // Mark that we can write to PSRAM.
@@ -220,7 +220,7 @@ static void __no_inline_not_in_flash_func(setup_psram)(void)
     volatile uint32_t readback = psram_nocache[0];
     if (readback != 0x12345678)
     {
-        psram_size = 0;
+        psram_size[bank] = 0;
         return;
     }
 }
@@ -242,6 +242,8 @@ void mem_init(void)
     // PSRAM Bank-Select pin
     gpio_init(QMI_PSRAM_BS_PIN);
     gpio_set_dir(QMI_PSRAM_BS_PIN, true);
+    gpio_set_pulls(QMI_PSRAM_BS_PIN, false, false);
+
     // Select BANK0 for now
     mem_use_bank(0);
 }
@@ -253,8 +255,13 @@ void mem_use_bank(uint8_t bank)
 
 void mem_post_reclock(void)
 {
-    // Setup PSRAM controller
-    setup_psram();
+    // Setup PSRAM controller and chips
+    for (uint8_t bank = 0; bank < PSRAM_BANKS_NO; bank++)
+    {
+        mem_use_bank(bank);
+        setup_psram(bank);
+    }
+    mem_use_bank(0);
 }
 
 void mem_read_buf(uint32_t addr)
@@ -289,12 +296,17 @@ void mem_write_buf(uint32_t addr)
 
 void mem_print_status(void)
 {
-    if (psram_size == 0)
+    printf("RAM:");
+    for (uint8_t bank = 0; bank < PSRAM_BANKS_NO; bank++)
     {
-        printf("RAM not detected\n");
+        if (psram_size[bank] == 0)
+        {
+            printf(" [%d: not detected]", bank);
+        }
+        else
+        {
+            printf(" [%d: %dMB]", bank, psram_size[bank] / (1024 * 1024));
+        }
     }
-    else
-    {
-        printf("RAM: %dMB\n", psram_size / (1024 * 1024));
-    }
+    printf("\n");
 }

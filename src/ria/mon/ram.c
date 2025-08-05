@@ -208,158 +208,173 @@ void ram_mon_test(const char *args, size_t len)
     (void)(args);
     (void)(len);
 
-    //     for (uint8_t bank = 0; bank < 2; bank++)
-    //     {
-    //         printf("PSRAM BANK%d\n", bank);
-    //         mem_use_bank(bank);
+    printf("Buffer size: %d bytes\n", BUF_SIZE);
 
-    //         printf(" OK\n");
-    //     }
-
-    //     printf("PSRAM test passed\n");
-    // exit:
-    //     mem_use_bank(0);
-
-    if (psram_size > 0)
+    // Fill an SRAM buffer with a random pattern
+    uint32_t start_time = time_us_32();
+    for (int i = 0; i < (BUF_SIZE / 4); i++)
     {
-        // Copied from: https://gist.github.com/eightycc/b61813c05899281ce7d2a2f86490be3b
-        printf("PSRAM size: %d bytes\n", psram_size);
-        printf("PSRAM read ID: %02x %02x %02x %02x %02x %02x %02x %02x\n",
-               psram_readid_response[0], psram_readid_response[1], psram_readid_response[2], psram_readid_response[3],
-               psram_readid_response[4], psram_readid_response[5], psram_readid_response[6], psram_readid_response[7]);
-        printf("Buffer size: %d bytes\n", BUF_SIZE);
-
-        // Fill an SRAM buffer with a random pattern
-        uint32_t start_time = time_us_32();
-        for (int i = 0; i < (BUF_SIZE / 4); i++)
-        {
-            ((uint32_t *)random_buf)[i] = get_rand_32();
-        }
-        uint32_t end_time = time_us_32();
-        printf("SRAM buffer random filled in %d us\n", end_time - start_time);
-
-        printf("\n");
-
-        // Copy SRAM -> SRAM and verify
-        uint32_t copy_time = time_copy_buffer((const uint32_t *)random_buf, (uint32_t *)copy_buf, BUF_SIZE);
-        printf("SRAM -> SRAM copied in %d us, %d ns/word\n", copy_time, (copy_time * 1000) / (BUF_SIZE / 4));
-        if (!verify_buffer((const uint32_t *)random_buf, (const uint32_t *)copy_buf, BUF_SIZE))
-        {
-            printf("Buffer verification failed\n");
-        }
-
-        // Copy Flash(cached) -> SRAM and verify
-        xip_cache_clean_all();
-        copy_time = time_copy_buffer((const uint32_t *)random_buf, (uint32_t *)XIP_BASE + FLASH_TARGET_OFFSET, BUF_SIZE);
-        printf("Flash(cached) -> SRAM copied in %d us, %d ns/word\n", copy_time, (copy_time * 1000) / (BUF_SIZE / 4));
-        if (!verify_buffer((const uint32_t *)random_buf, (const uint32_t *)copy_buf, BUF_SIZE))
-        {
-            printf("Buffer verification failed\n");
-        }
-
-        // Copy Flash(no cache) -> SRAM and verify
-        xip_cache_clean_all();
-        copy_time = time_copy_buffer((const uint32_t *)random_buf, (uint32_t *)XIP_NOCACHE_NOALLOC_BASE + FLASH_TARGET_OFFSET, BUF_SIZE);
-        printf("Flash(no cache) -> SRAM copied in %d us, %d ns/word\n", copy_time, (copy_time * 1000) / (BUF_SIZE / 4));
-        if (!verify_buffer((const uint32_t *)random_buf, (const uint32_t *)copy_buf, BUF_SIZE))
-        {
-            printf("Buffer verification failed\n");
-        }
-
-        // Copy SRAM -> PSRAM(cached) and verify
-        xip_cache_clean_all();
-        copy_time = time_copy_buffer((const uint32_t *)random_buf, (uint32_t *)XIP_PSRAM_CACHED, BUF_SIZE);
-        printf("SRAM -> PSRAM(cached) copied in %d us, %d ns/word\n", copy_time, (copy_time * 1000) / (BUF_SIZE / 4));
-        if (!verify_buffer((const uint32_t *)random_buf, (const uint32_t *)XIP_PSRAM_CACHED, BUF_SIZE))
-        {
-            printf("Buffer verification failed\n");
-        }
-
-        // Copy SRAM -> PSRAM(no cache) and verify
-        xip_cache_clean_all();
-        copy_time = time_copy_buffer((const uint32_t *)random_buf, (uint32_t *)XIP_PSRAM_NOCACHE, BUF_SIZE);
-        printf("SRAM -> PSRAM(no cache) copied in %d us, %d ns/word\n", copy_time, (copy_time * 1000) / (BUF_SIZE / 4));
-        if (!verify_buffer((const uint32_t *)random_buf, (const uint32_t *)XIP_PSRAM_NOCACHE, BUF_SIZE))
-        {
-            printf("Buffer verification failed\n");
-        }
-
-        // Copy PSRAM(cached) -> SRAM and verify
-        xip_cache_clean_all();
-        time_copy_buffer((const uint32_t *)random_buf, (uint32_t *)XIP_PSRAM_NOCACHE, BUF_SIZE);
-        xip_cache_clean_all();
-        copy_time = time_copy_buffer((const uint32_t *)XIP_PSRAM_CACHED, (uint32_t *)copy_buf, BUF_SIZE);
-        printf("PSRAM(cached) -> SRAM copied in %d us, %d ns/word\n", copy_time, (copy_time * 1000) / (BUF_SIZE / 4));
-        if (!verify_buffer((const uint32_t *)random_buf, (const uint32_t *)copy_buf, BUF_SIZE))
-        {
-            printf("Buffer verification failed\n");
-        }
-
-        // Copy PSRAM(no cache) -> SRAM and verify
-        xip_cache_clean_all();
-        time_copy_buffer((const uint32_t *)random_buf, (uint32_t *)XIP_PSRAM_NOCACHE, BUF_SIZE);
-        xip_cache_clean_all();
-        copy_time = time_copy_buffer((const uint32_t *)XIP_PSRAM_NOCACHE, (uint32_t *)copy_buf, BUF_SIZE);
-        printf("PSRAM(no cache) -> SRAM copied in %d us, %d ns/word\n", copy_time, (copy_time * 1000) / (BUF_SIZE / 4));
-        if (!verify_buffer((const uint32_t *)random_buf, (const uint32_t *)copy_buf, BUF_SIZE))
-        {
-            printf("Buffer verification failed\n");
-        }
-
-        // Copy PSRAM(cached) -> PSRAM(cached) and verify
-        xip_cache_clean_all();
-        time_copy_buffer((const uint32_t *)random_buf, (uint32_t *)XIP_PSRAM_NOCACHE, BUF_SIZE);
-        xip_cache_clean_all();
-        copy_time = time_copy_buffer((const uint32_t *)XIP_PSRAM_CACHED, (uint32_t *)XIP_PSRAM_CACHED + BUF_SIZE, BUF_SIZE);
-        printf("PSRAM(cached) -> PSRAM(cached) copied in %d us, %d ns/word\n", copy_time, (copy_time * 1000) / (BUF_SIZE / 4));
-        if (!verify_buffer((const uint32_t *)random_buf, (const uint32_t *)XIP_PSRAM_CACHED + BUF_SIZE, BUF_SIZE))
-        {
-            printf("Buffer verification failed\n");
-        }
-
-        // Copy PSRAM(no cache) -> PSRAM(no cache) and verify
-        xip_cache_clean_all();
-        time_copy_buffer((const uint32_t *)random_buf, (uint32_t *)XIP_PSRAM_NOCACHE, BUF_SIZE);
-        xip_cache_clean_all();
-        copy_time = time_copy_buffer((const uint32_t *)XIP_PSRAM_NOCACHE, (uint32_t *)XIP_PSRAM_NOCACHE + BUF_SIZE, BUF_SIZE);
-        printf("PSRAM(no cache) -> PSRAM(no cache) copied in %d us, %d ns/word\n", copy_time, (copy_time * 1000) / (BUF_SIZE / 4));
-        if (!verify_buffer((const uint32_t *)random_buf, (const uint32_t *)XIP_PSRAM_NOCACHE + BUF_SIZE, BUF_SIZE))
-        {
-            printf("Buffer verification failed\n");
-        }
-
-        printf("\n");
-
-        // Copied from: https://github.com/sparkfun/sparkfun-pico/blob/main/examples/has_psram/has_psram.c
-
-        // How many data blocks to write - use all of PSRAM
-        size_t nDataBlocks = psram_size / DATA_BLOCK_SIZE;
-        printf("PSRAM data block testing - %d data blocks\n", nDataBlocks);
-
-        // Write data blocks to PSRAM - then read them back and check
-        for (size_t i = 0; i < nDataBlocks; i++)
-        {
-            int32_t *data_buffer = (int32_t *)(XIP_PSRAM_CACHED + i * DATA_BLOCK_SIZE);
-            erase_data_block(data_buffer);
-            write_data_block(random_buf, data_buffer, i * 0x2);
-        }
-        printf("Data blocks written\n");
-
-        int nPassed = 0;
-        for (size_t i = 0; i < nDataBlocks; i++)
-        {
-            if (i % 10 == 0)
-            {
-                printf(".");
-                stdio_flush();
-            }
-            int32_t *data_buffer = (int32_t *)(XIP_PSRAM_CACHED + i * DATA_BLOCK_SIZE);
-            if (!check_data_block(random_buf, data_buffer, i * 0x2))
-                printf("Data block %d failed\n", (int)i);
-            else
-                nPassed++;
-        }
-
-        printf("\nTest Run: %d, Passed: %d, Failed: %d\n", nDataBlocks, nPassed, nDataBlocks - nPassed);
+        ((uint32_t *)random_buf)[i] = get_rand_32();
     }
+    uint32_t end_time = time_us_32();
+    printf("SRAM buffer random filled in %d us\n", end_time - start_time);
+
+    for (uint8_t bank = 0; bank < PSRAM_BANKS_NO; bank++)
+    {
+        if (psram_size[bank] > 0)
+        {
+            printf("\n------- PSRAM BANK%d -------\n", bank);
+            mem_use_bank(bank);
+
+            // Copied from: https://gist.github.com/eightycc/b61813c05899281ce7d2a2f86490be3b
+            printf("PSRAM size: %d bytes\n", psram_size[bank]);
+            printf("PSRAM read ID: %02x %02x %02x %02x %02x %02x %02x %02x\n",
+                   psram_readid_response[0][bank], psram_readid_response[1][bank], psram_readid_response[2][bank], psram_readid_response[3][bank],
+                   psram_readid_response[4][bank], psram_readid_response[5][bank], psram_readid_response[6][bank], psram_readid_response[7][bank]);
+            printf("\n");
+
+            // Copy SRAM -> SRAM and verify
+            uint32_t copy_time = time_copy_buffer((const uint32_t *)random_buf, (uint32_t *)copy_buf, BUF_SIZE);
+            printf("SRAM -> SRAM copied in %d us, %d ns/word\n", copy_time, (copy_time * 1000) / (BUF_SIZE / 4));
+            if (!verify_buffer((const uint32_t *)random_buf, (const uint32_t *)copy_buf, BUF_SIZE))
+            {
+                printf("Buffer verification failed\n");
+            }
+
+            // Copy Flash(cached) -> SRAM and verify
+            xip_cache_clean_all();
+            copy_time = time_copy_buffer((const uint32_t *)random_buf, (uint32_t *)XIP_BASE + FLASH_TARGET_OFFSET, BUF_SIZE);
+            printf("Flash(cached) -> SRAM copied in %d us, %d ns/word\n", copy_time, (copy_time * 1000) / (BUF_SIZE / 4));
+            if (!verify_buffer((const uint32_t *)random_buf, (const uint32_t *)copy_buf, BUF_SIZE))
+            {
+                printf("Buffer verification failed\n");
+            }
+
+            // Copy Flash(no cache) -> SRAM and verify
+            xip_cache_clean_all();
+            copy_time = time_copy_buffer((const uint32_t *)random_buf, (uint32_t *)XIP_NOCACHE_NOALLOC_BASE + FLASH_TARGET_OFFSET, BUF_SIZE);
+            printf("Flash(no cache) -> SRAM copied in %d us, %d ns/word\n", copy_time, (copy_time * 1000) / (BUF_SIZE / 4));
+            if (!verify_buffer((const uint32_t *)random_buf, (const uint32_t *)copy_buf, BUF_SIZE))
+            {
+                printf("Buffer verification failed\n");
+            }
+
+            // Copy SRAM -> PSRAM(cached) and verify
+            xip_cache_clean_all();
+            copy_time = time_copy_buffer((const uint32_t *)random_buf, (uint32_t *)XIP_PSRAM_CACHED, BUF_SIZE);
+            printf("SRAM -> PSRAM(cached) copied in %d us, %d ns/word\n", copy_time, (copy_time * 1000) / (BUF_SIZE / 4));
+            if (!verify_buffer((const uint32_t *)random_buf, (const uint32_t *)XIP_PSRAM_CACHED, BUF_SIZE))
+            {
+                printf("Buffer verification failed\n");
+            }
+
+            // Copy SRAM -> PSRAM(no cache) and verify
+            xip_cache_clean_all();
+            copy_time = time_copy_buffer((const uint32_t *)random_buf, (uint32_t *)XIP_PSRAM_NOCACHE, BUF_SIZE);
+            printf("SRAM -> PSRAM(no cache) copied in %d us, %d ns/word\n", copy_time, (copy_time * 1000) / (BUF_SIZE / 4));
+            if (!verify_buffer((const uint32_t *)random_buf, (const uint32_t *)XIP_PSRAM_NOCACHE, BUF_SIZE))
+            {
+                printf("Buffer verification failed\n");
+            }
+
+            // Copy PSRAM(cached) -> SRAM and verify
+            xip_cache_clean_all();
+            time_copy_buffer((const uint32_t *)random_buf, (uint32_t *)XIP_PSRAM_NOCACHE, BUF_SIZE);
+            xip_cache_clean_all();
+            copy_time = time_copy_buffer((const uint32_t *)XIP_PSRAM_CACHED, (uint32_t *)copy_buf, BUF_SIZE);
+            printf("PSRAM(cached) -> SRAM copied in %d us, %d ns/word\n", copy_time, (copy_time * 1000) / (BUF_SIZE / 4));
+            if (!verify_buffer((const uint32_t *)random_buf, (const uint32_t *)copy_buf, BUF_SIZE))
+            {
+                printf("Buffer verification failed\n");
+            }
+
+            // Copy PSRAM(no cache) -> SRAM and verify
+            xip_cache_clean_all();
+            time_copy_buffer((const uint32_t *)random_buf, (uint32_t *)XIP_PSRAM_NOCACHE, BUF_SIZE);
+            xip_cache_clean_all();
+            copy_time = time_copy_buffer((const uint32_t *)XIP_PSRAM_NOCACHE, (uint32_t *)copy_buf, BUF_SIZE);
+            printf("PSRAM(no cache) -> SRAM copied in %d us, %d ns/word\n", copy_time, (copy_time * 1000) / (BUF_SIZE / 4));
+            if (!verify_buffer((const uint32_t *)random_buf, (const uint32_t *)copy_buf, BUF_SIZE))
+            {
+                printf("Buffer verification failed\n");
+            }
+
+            // Copy PSRAM(cached) -> PSRAM(cached) and verify
+            xip_cache_clean_all();
+            time_copy_buffer((const uint32_t *)random_buf, (uint32_t *)XIP_PSRAM_NOCACHE, BUF_SIZE);
+            xip_cache_clean_all();
+            copy_time = time_copy_buffer((const uint32_t *)XIP_PSRAM_CACHED, (uint32_t *)XIP_PSRAM_CACHED + BUF_SIZE, BUF_SIZE);
+            printf("PSRAM(cached) -> PSRAM(cached) copied in %d us, %d ns/word\n", copy_time, (copy_time * 1000) / (BUF_SIZE / 4));
+            if (!verify_buffer((const uint32_t *)random_buf, (const uint32_t *)XIP_PSRAM_CACHED + BUF_SIZE, BUF_SIZE))
+            {
+                printf("Buffer verification failed\n");
+            }
+
+            // Copy PSRAM(no cache) -> PSRAM(no cache) and verify
+            xip_cache_clean_all();
+            time_copy_buffer((const uint32_t *)random_buf, (uint32_t *)XIP_PSRAM_NOCACHE, BUF_SIZE);
+            xip_cache_clean_all();
+            copy_time = time_copy_buffer((const uint32_t *)XIP_PSRAM_NOCACHE, (uint32_t *)XIP_PSRAM_NOCACHE + BUF_SIZE, BUF_SIZE);
+            printf("PSRAM(no cache) -> PSRAM(no cache) copied in %d us, %d ns/word\n", copy_time, (copy_time * 1000) / (BUF_SIZE / 4));
+            if (!verify_buffer((const uint32_t *)random_buf, (const uint32_t *)XIP_PSRAM_NOCACHE + BUF_SIZE, BUF_SIZE))
+            {
+                printf("Buffer verification failed\n");
+            }
+
+            printf("\n");
+
+            // Copied from: https://github.com/sparkfun/sparkfun-pico/blob/main/examples/has_psram/has_psram.c
+
+            // How many data blocks to write - use all of PSRAM
+            size_t nDataBlocks = psram_size[bank] / DATA_BLOCK_SIZE;
+            printf("PSRAM data block testing - %d data blocks\n", nDataBlocks);
+
+            // Write data blocks to PSRAM - then read them back and check
+            for (size_t i = 0; i < nDataBlocks; i++)
+            {
+                int32_t *data_buffer = (int32_t *)(XIP_PSRAM_CACHED + i * DATA_BLOCK_SIZE);
+                erase_data_block(data_buffer);
+                write_data_block(random_buf, data_buffer, i * 0x2);
+            }
+            printf("Data blocks written\n");
+
+            int nPassed = 0;
+            for (size_t i = 0; i < nDataBlocks; i++)
+            {
+                if (i % 10 == 0)
+                {
+                    printf(".");
+                    stdio_flush();
+                }
+                int32_t *data_buffer = (int32_t *)(XIP_PSRAM_CACHED + i * DATA_BLOCK_SIZE);
+                if (!check_data_block(random_buf, data_buffer, i * 0x2))
+                    printf("Data block %d failed\n", (int)i);
+                else
+                    nPassed++;
+            }
+
+            printf("\nTest Run: %d, Passed: %d, Failed: %d\n", nDataBlocks, nPassed, nDataBlocks - nPassed);
+        }
+    }
+
+    // cross-bank test - should not have the same data in both banks
+    if (psram_size[0] > 0 && psram_size[1] > 0)
+    {
+        volatile uint32_t *psram_nocache = (volatile uint32_t *)XIP_PSRAM_NOCACHE;
+
+        mem_use_bank(0);
+        psram_nocache[0] = 0x56A90FF0;
+        mem_use_bank(1);
+        psram_nocache[0] = 0xF00F659A;
+
+        mem_use_bank(0);
+        volatile uint32_t readback0 = psram_nocache[0];
+        mem_use_bank(1);
+        volatile uint32_t readback1 = psram_nocache[0];
+        if (readback0 == readback1)
+        {
+            printf("\nCross-bank test failed: same data in both banks [%08X]\n", readback0);
+        }
+    }
+    mem_use_bank(0);
 }
