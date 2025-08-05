@@ -8,6 +8,7 @@
 #include "hardware/dma.h"
 #include "hardware/gpio.h"
 #include "hardware/irq.h"
+#include "hardware/pll.h"
 #include "hardware/structs/bus_ctrl.h"
 #include "hardware/structs/hstx_ctrl.h"
 #include "hardware/structs/hstx_fifo.h"
@@ -331,21 +332,33 @@ void __not_in_flash_func(out_core1_main)(void)
     __builtin_unreachable();
 }
 
+// * 10 : TMDS symbol bits
+// / 2  : DDR - two bits per clock on each edge
+#define OUT_HSTX_HZ (MODE_V_FREQ_HZ * MODE_V_TOTAL_LINES * MODE_H_TOTAL_PIXELS * 10 / 2)
+
 void out_post_reclock(void)
 {
+    // This function is called after the USB clock has been switched to use PLL_SYS.
+    // Now we can re-use the PLL_USB to generate the HSTX clock, with perfect 60Hz rate.
+    pll_init(pll_usb, 1, OUT_HSTX_HZ * 5 * 2, 5, 2);
+
     clock_configure(clk_hstx,
                     0,
-                    CLOCKS_CLK_HSTX_CTRL_AUXSRC_VALUE_CLK_SYS,
-                    clock_get_hz(clk_sys),
-                    MODE_V_FREQ_HZ * MODE_V_TOTAL_LINES * MODE_H_TOTAL_PIXELS
-                        * 10 // TMDS symbol bits
-                        / 2  // DDR - two bits per clock on each edge
-    );
+                    CLOCKS_CLK_HSTX_CTRL_AUXSRC_VALUE_CLKSRC_PLL_USB,
+                    OUT_HSTX_HZ,
+                    OUT_HSTX_HZ);
 }
 
 void out_init(void)
 {
-    out_post_reclock();
+    // Begin by configuring HSTX clock from system clock.
+    // This is close, but not exact (HSTX clock divider lacks fractional divisor)
+    clock_configure(clk_hstx,
+                    0,
+                    CLOCKS_CLK_HSTX_CTRL_AUXSRC_VALUE_CLK_SYS,
+                    clock_get_hz(clk_sys),
+                    OUT_HSTX_HZ);
+
     multicore_launch_core1(out_core1_main);
 }
 
@@ -355,7 +368,7 @@ void out_print_status(void)
     printf("CLK : %.1fMHz\n", clk / MHZ);
 
     const float hstx_div = (float)(clocks_hw->clk[clk_hstx].div >> 16);
-    const float refresh_hz = clk / hstx_div * 2 / 10 / MODE_H_TOTAL_PIXELS / MODE_V_TOTAL_LINES;
+    const float refresh_hz = OUT_HSTX_HZ / hstx_div * 2 / 10 / MODE_H_TOTAL_PIXELS / MODE_V_TOTAL_LINES;
     printf("DVI : %dx%d@%.1fHz/24bpp\n", MODE_H_ACTIVE_PIXELS, MODE_V_ACTIVE_LINES, refresh_hz);
 
 #if 0

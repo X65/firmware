@@ -10,7 +10,6 @@
 #include "api/oem.h"
 #include "cgia/cgia.h"
 #include "hardware/clocks.h"
-#include "hardware/vreg.h"
 #include "mon/fil.h"
 #include "mon/mon.h"
 #include "mon/rom.h"
@@ -270,14 +269,20 @@ int main(void)
 {
     init();
 
+    main_pre_reclock();
+
     // Reconfigure clocks, that the USB 48MHz clock is derived from system clock.
     // This requires that system clock is a multiple of 48 MHz. (no fractional divider)
-    main_pre_reclock();
     clock_configure(clk_usb,
                     0,
                     CLOCKS_CLK_USB_CTRL_AUXSRC_VALUE_CLKSRC_PLL_SYS,
                     SYS_CLK_HZ,
                     48 * MHZ);
+    // Stop ADC clock (we do not use) which it is based off USB PLL.
+    clock_stop(clk_adc);
+
+    // Now we can use USB PLL to drive HSTX to achieve perfect 60Hz display refresh rate.
+
     main_post_reclock();
 
     while (true)
