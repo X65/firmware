@@ -19,7 +19,21 @@
 #include <stdio.h>
 
 size_t psram_size[PSRAM_BANKS_NO];
-uint8_t psram_readid_response[8][PSRAM_BANKS_NO];
+uint8_t psram_readid_response[PSRAM_BANKS_NO][8];
+
+// PSRAM SPI command codes
+const uint8_t PSRAM_CMD_QUAD_END = 0xF5;
+const uint8_t PSRAM_CMD_QUAD_ENABLE = 0x35;
+const uint8_t PSRAM_CMD_READ_ID = 0x9F;
+const uint8_t PSRAM_CMD_RSTEN = 0x66;
+const uint8_t PSRAM_CMD_RST = 0x99;
+const uint8_t PSRAM_CMD_WRAP_BOUNDARY = 0xC0;
+const uint8_t PSRAM_CMD_QUAD_READ = 0xEB;
+const uint8_t PSRAM_CMD_QUAD_WRITE = 0x38;
+const uint8_t PSRAM_CMD_NOOP = 0xFF;
+
+const uint8_t PSRAM_MF_AP = 0x0D;
+const uint8_t PSRAM_KGD = 0b01011101;
 
 // Activate PSRAM. (Copied from CircuitPython ports/raspberrypi/supervisor/port.c)
 static void __no_inline_not_in_flash_func(setup_psram)(uint8_t bank)
@@ -39,10 +53,10 @@ static void __no_inline_not_in_flash_func(setup_psram)(uint8_t bank)
 
     // Exit out of QMI in case we've inited already
     qmi_hw->direct_csr |= QMI_DIRECT_CSR_ASSERT_CS1N_BITS;
-    // Transmit as quad.
+    // Transmit the command to exit QPI quad mode - read ID as standard SPI
     qmi_hw->direct_tx = QMI_DIRECT_TX_OE_BITS
                         | QMI_DIRECT_TX_IWIDTH_VALUE_Q << QMI_DIRECT_TX_IWIDTH_LSB
-                        | 0xf5;
+                        | PSRAM_CMD_QUAD_END;
     while ((qmi_hw->direct_csr & QMI_DIRECT_CSR_BUSY_BITS) != 0)
     {
     }
@@ -57,11 +71,11 @@ static void __no_inline_not_in_flash_func(setup_psram)(uint8_t bank)
     {
         if (i == 0)
         {
-            qmi_hw->direct_tx = 0x9f;
+            qmi_hw->direct_tx = PSRAM_CMD_READ_ID;
         }
         else
         {
-            qmi_hw->direct_tx = 0xff;
+            qmi_hw->direct_tx = PSRAM_CMD_NOOP;
         }
         while ((qmi_hw->direct_csr & QMI_DIRECT_CSR_TXEMPTY_BITS) == 0)
         {
@@ -72,7 +86,7 @@ static void __no_inline_not_in_flash_func(setup_psram)(uint8_t bank)
         // buffer read id response eliding the first 4 bytes (cmd + 24-bit addr)
         if (i >= 4)
         {
-            psram_readid_response[i - 4][bank] = qmi_hw->direct_rx;
+            psram_readid_response[bank][i - 4] = qmi_hw->direct_rx;
         }
         else
         {
@@ -81,17 +95,17 @@ static void __no_inline_not_in_flash_func(setup_psram)(uint8_t bank)
 
         if (i == 5)
         {
-            kgd = psram_readid_response[i - 4][bank];
+            kgd = psram_readid_response[bank][i - 4];
         }
         else if (i == 6)
         {
-            eid = psram_readid_response[i - 4][bank];
+            eid = psram_readid_response[bank][i - 4];
         }
     }
     // Disable direct csr.
     qmi_hw->direct_csr &= ~(QMI_DIRECT_CSR_ASSERT_CS1N_BITS | QMI_DIRECT_CSR_EN_BITS);
 
-    if (kgd != 0x5D)
+    if (kgd != PSRAM_KGD)
     {
         restore_interrupts(save_irq_status);
         return;
@@ -114,20 +128,16 @@ static void __no_inline_not_in_flash_func(setup_psram)(uint8_t bank)
         switch (i)
         {
         case 0:
-            // RESETEN
-            qmi_hw->direct_tx = 0x66;
+            qmi_hw->direct_tx = PSRAM_CMD_RSTEN;
             break;
         case 1:
-            // RESET
-            qmi_hw->direct_tx = 0x99;
+            qmi_hw->direct_tx = PSRAM_CMD_RST;
             break;
         case 2:
-            // Quad enable
-            qmi_hw->direct_tx = 0x35;
+            qmi_hw->direct_tx = PSRAM_CMD_QUAD_ENABLE;
             break;
         case 3:
-            // Toggle wrap boundary mode
-            qmi_hw->direct_tx = 0xc0;
+            qmi_hw->direct_tx = PSRAM_CMD_WRAP_BOUNDARY;
             break;
         }
         while ((qmi_hw->direct_csr & QMI_DIRECT_CSR_BUSY_BITS) != 0)
@@ -181,7 +191,7 @@ static void __no_inline_not_in_flash_func(setup_psram)(uint8_t bank)
                          | QMI_M0_RFMT_DATA_WIDTH_VALUE_Q << QMI_M0_RFMT_DATA_WIDTH_LSB
                          | QMI_M0_RFMT_PREFIX_LEN_VALUE_8 << QMI_M0_RFMT_PREFIX_LEN_LSB
                          | QMI_M0_RFMT_SUFFIX_LEN_VALUE_NONE << QMI_M0_RFMT_SUFFIX_LEN_LSB);
-    qmi_hw->m[1].rcmd = 0xeb << QMI_M0_RCMD_PREFIX_LSB
+    qmi_hw->m[1].rcmd = PSRAM_CMD_QUAD_READ << QMI_M0_RCMD_PREFIX_LSB
                         | 0 << QMI_M0_RCMD_SUFFIX_LSB;
     qmi_hw->m[1].wfmt = (QMI_M0_WFMT_PREFIX_WIDTH_VALUE_Q << QMI_M0_WFMT_PREFIX_WIDTH_LSB
                          | QMI_M0_WFMT_ADDR_WIDTH_VALUE_Q << QMI_M0_WFMT_ADDR_WIDTH_LSB
@@ -191,7 +201,7 @@ static void __no_inline_not_in_flash_func(setup_psram)(uint8_t bank)
                          | QMI_M0_WFMT_DATA_WIDTH_VALUE_Q << QMI_M0_WFMT_DATA_WIDTH_LSB
                          | QMI_M0_WFMT_PREFIX_LEN_VALUE_8 << QMI_M0_WFMT_PREFIX_LEN_LSB
                          | QMI_M0_WFMT_SUFFIX_LEN_VALUE_NONE << QMI_M0_WFMT_SUFFIX_LEN_LSB);
-    qmi_hw->m[1].wcmd = 0x38 << QMI_M0_WCMD_PREFIX_LSB
+    qmi_hw->m[1].wcmd = PSRAM_CMD_QUAD_WRITE << QMI_M0_WCMD_PREFIX_LSB
                         | 0 << QMI_M0_WCMD_SUFFIX_LSB;
 
     restore_interrupts(save_irq_status);
@@ -296,17 +306,26 @@ void mem_write_buf(uint32_t addr)
 
 void mem_print_status(void)
 {
-    printf("RAM:");
+    int total_ram_size = 0;
     for (uint8_t bank = 0; bank < PSRAM_BANKS_NO; bank++)
     {
+        total_ram_size += psram_size[bank];
+    }
+    printf("RAM : %dMB, %d banks\n", total_ram_size / (1024 * 1024), PSRAM_BANKS_NO);
+
+    for (uint8_t bank = 0; bank < PSRAM_BANKS_NO; bank++)
+    {
+        printf("RAM%d: ", bank);
         if (psram_size[bank] == 0)
         {
-            printf(" [%d: not detected]", bank);
+            printf("[invalid]\n");
         }
         else
         {
-            printf(" [%d: %dMB]", bank, psram_size[bank] / (1024 * 1024));
+            printf("%dMB%s (%llx)%s\n", psram_size[bank] / (1024 * 1024),
+                   psram_readid_response[bank][0] == PSRAM_MF_AP ? " AP Memory" : "",
+                   *((uint64_t *)psram_readid_response[bank]) & 0xffffffffffff,
+                   psram_readid_response[bank][1] != PSRAM_KGD ? " [FAIL]" : "");
         }
     }
-    printf("\n");
 }

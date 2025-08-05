@@ -21,7 +21,7 @@ asm(".equ psram, 0x11000000");   // Addressable at 0x11000000 - 0x11ffffff
 // PSRAM chips
 #define PSRAM_BANKS_NO 2
 extern size_t psram_size[PSRAM_BANKS_NO];
-extern uint8_t psram_readid_response[8][PSRAM_BANKS_NO];
+extern uint8_t psram_readid_response[PSRAM_BANKS_NO][8];
 
 // The xstack is:
 // 512 bytes, enough to hold a CC65 stack frame, two strings for a

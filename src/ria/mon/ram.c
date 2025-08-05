@@ -229,8 +229,8 @@ void ram_mon_test(const char *args, size_t len)
             // Copied from: https://gist.github.com/eightycc/b61813c05899281ce7d2a2f86490be3b
             printf("PSRAM size: %d bytes\n", psram_size[bank]);
             printf("PSRAM read ID: %02x %02x %02x %02x %02x %02x %02x %02x\n",
-                   psram_readid_response[0][bank], psram_readid_response[1][bank], psram_readid_response[2][bank], psram_readid_response[3][bank],
-                   psram_readid_response[4][bank], psram_readid_response[5][bank], psram_readid_response[6][bank], psram_readid_response[7][bank]);
+                   psram_readid_response[bank][0], psram_readid_response[bank][1], psram_readid_response[bank][2], psram_readid_response[bank][3],
+                   psram_readid_response[bank][4], psram_readid_response[bank][5], psram_readid_response[bank][6], psram_readid_response[bank][7]);
             printf("\n");
 
             // Copy SRAM -> SRAM and verify

@@ -363,11 +363,11 @@ void out_init(void)
 void out_print_status(void)
 {
     const float clk = (float)(clock_get_hz(clk_sys));
-    printf("CLK: %.1fMHz\n", clk / MHZ);
+    printf("CLK : %.1fMHz\n", clk / MHZ);
 
     const float hstx_div = (float)(clocks_hw->clk[clk_hstx].div >> 16);
     const float refresh_hz = clk / hstx_div * 2 / 10 / MODE_H_TOTAL_PIXELS / MODE_V_TOTAL_LINES;
-    printf("DVI: %dx%d@%.1fHz/24bpp\n", MODE_H_ACTIVE_PIXELS, MODE_V_ACTIVE_LINES, refresh_hz);
+    printf("DVI : %dx%d@%.1fHz/24bpp\n", MODE_H_ACTIVE_PIXELS, MODE_V_ACTIVE_LINES, refresh_hz);
 
 #if 0
     uint f_pll_sys = frequency_count_khz(CLOCKS_FC0_SRC_VALUE_PLL_SYS_CLKSRC_PRIMARY);
