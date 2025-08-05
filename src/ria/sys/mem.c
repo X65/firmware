@@ -31,18 +31,20 @@ uint8_t psram_readid_response[PSRAM_BANKS_NO][8];
 //
 
 // For PSRAM timing calculations - to use int math, we work in femto seconds (fs) (1e-15),
-#define SFE_SEC_TO_FS 1000000000000000ll
+#define SEC_TO_FS 1000000000000000ll
 
 // max select pulse width = 8us => 8e6 ns => 8000 ns => 8000 * 1e6 fs => 8000e6 fs
 // Additionally, the MAX select is in units of 64 clock cycles - will use a constant that
 // takes this into account - so 8000e6 fs / 64 = 125e6 fs
-const uint32_t SFE_PSRAM_MAX_SELECT_FS64 = 125000000;
+#define RP2350_PSRAM_MAX_SELECT_FS64 (125000000)
 
 // min deselect pulse width = 50ns => 50 * 1e6 fs => 50e7 fs
-const uint32_t SFE_PSRAM_MIN_DESELECT_FS = 50000000;
+#define RP2350_PSRAM_MIN_DESELECT_FS (50000000)
 
-// from psram datasheet - max Freq with VDDat 3.3v
-const uint32_t SFE_PSRAM_MAX_SCK_HZ = 109000000;
+#define RP2350_PSRAM_RX_DELAY_FS (3333333)
+
+// from psram datasheet - max Freq with VDDat 3.3v (Vcc = 3.0v +/- 10%)
+const uint32_t RP2350_PSRAM_MAX_SCK_HZ = 133000000;
 
 // PSRAM SPI command codes
 const uint8_t PSRAM_CMD_QUAD_END = 0xF5;
@@ -65,7 +67,7 @@ static void __no_inline_not_in_flash_func(setup_psram)(uint8_t bank)
     psram_size[bank] = 0;
 
     // Get secs / cycle for the system clock - get before disabling interrupts.
-    uint32_t sysHz = (uint32_t)clock_get_hz(clk_sys);
+    uint32_t sysHz = clock_get_hz(clk_sys);
 
     uint32_t save_irq_status = save_and_disable_interrupts();
     // Try and read the PSRAM ID via direct_csr.
@@ -181,26 +183,36 @@ static void __no_inline_not_in_flash_func(setup_psram)(uint8_t bank)
     qmi_hw->direct_csr &= ~(QMI_DIRECT_CSR_ASSERT_CS1N_BITS | QMI_DIRECT_CSR_EN_BITS);
 
     // Calculate the clock divider - goal to get clock used for PSRAM <= what
-    // the PSRAM IC can handle - which is defined in SFE_PSRAM_MAX_SCK_HZ
-    volatile uint8_t clockDivider = (sysHz + SFE_PSRAM_MAX_SCK_HZ - 1) / SFE_PSRAM_MAX_SCK_HZ;
+    // the PSRAM IC can handle - which is defined in RP2350_PSRAM_MAX_SCK_HZ
+    volatile uint8_t clockDivider = (sysHz + RP2350_PSRAM_MAX_SCK_HZ - 1) / RP2350_PSRAM_MAX_SCK_HZ;
 
     // Get the clock femto seconds per cycle.
-    uint32_t fsPerCycle = SFE_SEC_TO_FS / sysHz;
+    uint32_t fsPerCycle = SEC_TO_FS / sysHz;
+    uint32_t fsPerHalfCycle = fsPerCycle / 2;
 
     // the maxSelect value is defined in units of 64 clock cycles
-    // So maxFS / (64 * fsPerCycle) = maxSelect = SFE_PSRAM_MAX_SELECT_FS64/fsPerCycle
-    volatile uint8_t maxSelect = SFE_PSRAM_MAX_SELECT_FS64 / fsPerCycle;
+    // So maxFS / (64 * fsPerCycle) = maxSelect = RP2350_PSRAM_MAX_SELECT_FS64/fsPerCycle
+    volatile uint8_t maxSelect = RP2350_PSRAM_MAX_SELECT_FS64 / fsPerCycle;
 
     // minDeselect time - in system clock cycles
     // Must be higher than 50ns (min deselect time for PSRAM) so add a fsPerCycle - 1 to round up
-    // So minFS/fsPerCycle = minDeselect = SFE_PSRAM_MIN_DESELECT_FS/fsPerCycle
+    // So minFS/fsPerCycle = minDeselect = RP2350_PSRAM_MIN_DESELECT_FS/fsPerCycle
 
-    volatile uint8_t minDeselect = (SFE_PSRAM_MIN_DESELECT_FS + fsPerCycle - 1) / fsPerCycle;
+    volatile uint8_t minDeselect = (RP2350_PSRAM_MIN_DESELECT_FS + fsPerCycle - 1) / fsPerCycle;
+
+    // RX delay (RP2350 datasheet 12.14.3.1) delay between between rising edge of SCK and
+    // the start of RX sampling. Expressed in 0.5 system clock cycles. Smallest value
+    // >= 3.3ns.
+    volatile uint8_t rxDelay = (RP2350_PSRAM_RX_DELAY_FS + fsPerHalfCycle - 1) / fsPerHalfCycle;
+
+    // printf("syshz=%u fsPerCycle=%u fsPerHalfCycle=%u RP2350_PSRAM_RX_DELAY_FS=%u\n", sysHz, fsPerCycle, fsPerHalfCycle, RP2350_PSRAM_RX_DELAY_FS);
+    // printf("Max Select: %d, Min Deselect: %d, RX delay: %d, clock divider: %d\n", maxSelect, minDeselect, rxDelay, clockDivider);
+    // printf("PSRAM clock rate %.1fMHz\n", (float)sysHz / clockDivider / 1e6);
 
     qmi_hw->m[1].timing = QMI_M1_TIMING_PAGEBREAK_VALUE_1024 << QMI_M1_TIMING_PAGEBREAK_LSB // Break between pages.
                           | 3 << QMI_M1_TIMING_SELECT_HOLD_LSB                              // Delay releasing CS for 3 extra system cycles.
                           | 1 << QMI_M1_TIMING_COOLDOWN_LSB
-                          | clockDivider << QMI_M1_TIMING_RXDELAY_LSB // The faster the clock, the longer the delay.
+                          | (rxDelay + clockDivider / 2) << QMI_M1_TIMING_RXDELAY_LSB // Delay between SCK and RX sampling.
                           | maxSelect << QMI_M1_TIMING_MAX_SELECT_LSB
                           | minDeselect << QMI_M1_TIMING_MIN_DESELECT_LSB
                           | clockDivider << QMI_M1_TIMING_CLKDIV_LSB;
@@ -332,7 +344,12 @@ void mem_print_status(void)
     {
         total_ram_size += psram_size[bank];
     }
-    printf("RAM : %dMB, %d banks\n", total_ram_size / (1024 * 1024), PSRAM_BANKS_NO);
+    uint32_t sysHz = clock_get_hz(clk_sys);
+    printf("RAM : %dMB, %d banks, %.1fMHz\n",
+           total_ram_size / (1024 * 1024),
+           PSRAM_BANKS_NO,
+           (float)sysHz / (qmi_hw->m[1].timing & 0xFF) / 1e6);
+    setup_psram(0);
 
     for (uint8_t bank = 0; bank < PSRAM_BANKS_NO; bank++)
     {
