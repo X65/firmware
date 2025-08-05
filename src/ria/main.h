@@ -44,7 +44,7 @@ bool main_api(uint8_t operation);
 /* Overclock
  */
 #define MAIN_VREG_VSEL     VREG_VOLTAGE_1_30
-#define MAIN_SYS_CLOCK_KHZ 366000
+#define MAIN_SYS_CLOCK_KHZ 240000
 
 /* All pin assignments
  */

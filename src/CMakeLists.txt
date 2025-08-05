@@ -71,7 +71,6 @@ target_sources(rp816 PRIVATE
     ria/sys/mem.c
     ria/sys/out.c
     ria/sys/sys.c
-    ria/sys/psram.c
     ria/term/color.c
     ria/term/font.c
     ria/term/term.c

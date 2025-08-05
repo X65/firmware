@@ -11,7 +11,6 @@
 #include "hardware/structs/bus_ctrl.h"
 #include "hardware/structs/hstx_ctrl.h"
 #include "hardware/structs/hstx_fifo.h"
-#include "hardware/vreg.h"
 #include "pico/multicore.h"
 
 #include "cgia/cgia.h"
@@ -358,12 +357,6 @@ void out_post_reclock(void)
 
 void out_init(void)
 {
-    main_pre_reclock();
-    vreg_set_voltage(MAIN_VREG_VSEL);
-    sleep_ms(10);
-    set_sys_clock_khz(MAIN_SYS_CLOCK_KHZ, true);
-    main_post_reclock();
-
     multicore_launch_core1(out_core1_main);
 }
 

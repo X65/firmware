@@ -9,6 +9,8 @@
 #include "api/clk.h"
 #include "api/oem.h"
 #include "cgia/cgia.h"
+#include "hardware/clocks.h"
+#include "hardware/vreg.h"
 #include "mon/fil.h"
 #include "mon/mon.h"
 #include "mon/rom.h"
@@ -265,6 +267,13 @@ bool main_active(void)
 int main(void)
 {
     init();
+
+    // Trigger a reclock
+    main_pre_reclock();
+    vreg_set_voltage(MAIN_VREG_VSEL);
+    sleep_ms(10);
+    set_sys_clock_khz(MAIN_SYS_CLOCK_KHZ, true);
+    main_post_reclock();
 
     while (true)
     {

@@ -13,6 +13,8 @@
 #include <stdint.h>
 
 // 16MB of XIP QPI PSRAM interface
+#define XIP_PSRAM_CACHED  0x11000000
+#define XIP_PSRAM_NOCACHE 0x15000000
 extern uint8_t psram[0x1000000]; // 16 MB of PSRAM address space
 asm(".equ psram, 0x11000000");   // Addressable at 0x11000000 - 0x11ffffff
 
