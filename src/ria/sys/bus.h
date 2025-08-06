@@ -15,4 +15,6 @@ void bus_task(void);
 void bus_run(void);
 void bus_stop(void);
 
+void bus_print_status(void);
+
 #endif /* _BUS_H_ */

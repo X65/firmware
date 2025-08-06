@@ -7,6 +7,7 @@
 #include "bus.h"
 #include "bus.pio.h"
 #include "cgia/cgia.h"
+#include "hardware/clocks.h"
 #include "hardware/gpio.h"
 #include "hardware/pio.h"
 #include "hardware/structs/bus_ctrl.h"
@@ -16,7 +17,9 @@
 #include "sys/com.h"
 #include "sys/cpu.h"
 #include "sys/mem.h"
+
 #include <stdbool.h>
+#include <stdio.h>
 
 // bus.pio requires PIO clock at 111MHz
 // 336MHz / 111MHz => ~3x divider
@@ -484,4 +487,11 @@ void bus_task(void)
         mem_cpu_address_bus_history_index = 0;
 #endif
 #endif
+}
+
+// bus.pio implementation takes about 16 PIO instructions at minimum for one full CPU cycle
+#define BUS_PIO_MIN_INST_CYCLE (16)
+void bus_print_status(void)
+{
+    printf("CPU : ~%.1fMHz\n", (float)SYS_CLK_HZ / MEM_BUS_PIO_CLKDIV_INT / BUS_PIO_MIN_INST_CYCLE / MHZ);
 }

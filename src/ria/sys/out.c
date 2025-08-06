@@ -365,7 +365,7 @@ void out_init(void)
 void out_print_status(void)
 {
     const float clk = (float)(clock_get_hz(clk_sys));
-    printf("CLK : %.1fMHz\n", clk / MHZ);
+    printf("CORE: %.1fMHz\n", clk / MHZ);
 
     const float hstx_div = (float)(clocks_hw->clk[clk_hstx].div >> 16);
     const float refresh_hz = OUT_HSTX_HZ / hstx_div * 2 / 10 / MODE_H_TOTAL_PIXELS / MODE_V_TOTAL_LINES;

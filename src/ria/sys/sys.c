@@ -9,6 +9,7 @@
 #include "hardware/watchdog.h"
 #include "main.h"
 #include "sys/aud.h"
+#include "sys/bus.h"
 #include "sys/ext.h"
 #include "sys/mem.h"
 #include "sys/out.h"
@@ -49,6 +50,7 @@ void sys_mon_status(const char *args, size_t len)
     (void)(args);
     (void)(len);
     sys_print_status();
+    bus_print_status();
     out_print_status();
     mem_print_status();
     aud_print_status();
