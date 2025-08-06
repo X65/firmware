@@ -20,7 +20,11 @@
 
 // bus.pio requires PIO clock at 111MHz
 // 336MHz / 111MHz => ~3x divider
-#define MEM_BUS_PIO_CLKDIV_INT   (3)
+// FIXME: BUT (3) will spin the CPU so fast, that the ARM Core0 will do nothing
+// but service the PIO interrupts. :-(
+// So we are setting it to (5) which is lowest that works.
+// TODO: Add yet another ARM CPU core to RP micro-controller.
+#define MEM_BUS_PIO_CLKDIV_INT   (5)
 #define MEM_BUS_PIO_CLKDIV_FRAC8 (0)
 
 volatile uint8_t
