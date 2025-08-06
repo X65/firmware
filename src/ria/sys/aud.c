@@ -879,7 +879,7 @@ void aud_task(void)
 
 void aud_print_status(void)
 {
-    printf("I2S : ");
+    printf("DADC: ");
     int id = aud_read_i2s_register(SGTL_CHIP_ID);
     if (id < 0)
     {

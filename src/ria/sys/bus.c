@@ -18,7 +18,10 @@
 #include "sys/mem.h"
 #include <stdbool.h>
 
-#define MEM_BUS_PIO_CLKDIV_INT 10
+// bus.pio requires PIO clock at 111MHz
+// 336MHz / 111MHz => ~3x divider
+#define MEM_BUS_PIO_CLKDIV_INT   (3)
+#define MEM_BUS_PIO_CLKDIV_FRAC8 (0)
 
 volatile uint8_t
     __attribute__((aligned(4)))
@@ -386,7 +389,7 @@ static void mem_bus_pio_init(void)
     // PIO to manage PHI2 clock and 65816 address/data bus
     uint offset = pio_add_program(MEM_BUS_PIO, &mem_bus_program);
     pio_sm_config config = mem_bus_program_get_default_config(offset);
-    sm_config_set_clkdiv_int_frac(&config, MEM_BUS_PIO_CLKDIV_INT, 0); // FIXME: remove?
+    sm_config_set_clkdiv_int_frac(&config, MEM_BUS_PIO_CLKDIV_INT, MEM_BUS_PIO_CLKDIV_FRAC8);
     sm_config_set_in_shift(&config, true, true, 32);
     sm_config_set_out_shift(&config, true, false, 0);
     sm_config_set_sideset_pins(&config, BUS_CTL_PIN_BASE);
@@ -403,7 +406,7 @@ static void mem_bus_pio_init(void)
     pio_sm_init(MEM_BUS_PIO, MEM_BUS_SM, offset, &config);
     irq_set_exclusive_handler(PIO_IRQ_NUM(MEM_BUS_PIO, MEM_BUS_PIO_IRQ), mem_bus_pio_irq_handler);
     irq_set_enabled(PIO_IRQ_NUM(MEM_BUS_PIO, MEM_BUS_PIO_IRQ), true);
-    pio_sm_set_enabled(MEM_BUS_PIO, MEM_BUS_SM, true);
+    pio_sm_set_enabled(MEM_BUS_PIO, MEM_BUS_SM, false);
 }
 
 void bus_init(void)
@@ -438,10 +441,12 @@ void bus_init(void)
 
 void bus_run(void)
 {
+    pio_sm_set_enabled(MEM_BUS_PIO, MEM_BUS_SM, true);
 }
 
 void bus_stop(void)
 {
+    pio_sm_set_enabled(MEM_BUS_PIO, MEM_BUS_SM, false);
     irq_enabled = false;
     gpio_put(RIA_IRQB_PIN, true);
     gpio_put(RIA_NMIB_PIN, true);
