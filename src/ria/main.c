@@ -10,6 +10,9 @@
 #include "api/oem.h"
 #include "cgia/cgia.h"
 #include "hardware/clocks.h"
+#include "hid/kbd.h"
+#include "hid/mou.h"
+#include "hid/pad.h"
 #include "mon/fil.h"
 #include "mon/mon.h"
 #include "mon/rom.h"
@@ -27,9 +30,8 @@
 #include "sys/sys.h"
 #include "term/font.h"
 #include "term/term.h"
-#include "usb/kbd.h"
-#include "usb/mou.h"
-#include "usb/pad.h"
+#include "usb/hid.h"
+#include "usb/usb.h"
 #include "usb/xin.h"
 
 /**************************************/
@@ -64,18 +66,16 @@ static void init(void)
     oem_init();
     sys_init();
 
-    // Misc kernel modules, add yours here
+    // Misc kernel modules, add yours here.
+    usb_init();
+    led_init();
     aud_init();
     kbd_init();
     mou_init();
     pad_init();
     mdm_init();
     rom_init();
-    led_init();
     clk_init();
-
-    // TinyUSB
-    tuh_init(TUH_OPT_RHPORT);
 
     led_set_hartbeat(true);
 
@@ -91,7 +91,8 @@ static void init(void)
 // Calling FatFs in here may cause undefined behavior.
 void main_task(void)
 {
-    tuh_task();
+    led_task();
+    usb_task();
     cpu_task();
     bus_task();
     term_task();
@@ -100,8 +101,8 @@ void main_task(void)
     ext_task();
     mdm_task();
     kbd_task();
+    hid_task();
     xin_task();
-    led_task();
 }
 
 // Tasks that call FatFs should be here instead of main_task().

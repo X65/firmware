@@ -15,7 +15,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#define TIMEOUT_MS 200
+#define TIMEOUT_MS 500
 
 bool is_active = false;
 

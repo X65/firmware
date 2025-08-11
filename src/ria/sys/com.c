@@ -7,12 +7,12 @@
 #include "sys/com.h"
 #include "hardware/gpio.h"
 #include "hardware/uart.h"
+#include "hid/kbd.h"
 #include "main.h"
 #include "pico/stdio.h"
 #include "pico/stdio/driver.h"
 #include "pico/time.h"
 #include "sys/cpu.h"
-#include "usb/kbd.h"
 #include <stdint.h>
 #include <stdio.h>
 

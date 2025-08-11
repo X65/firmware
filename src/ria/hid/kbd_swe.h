@@ -12,12 +12,12 @@
 // KEYCODE to Unicode Conversion
 // {without shift, with shift, with altGr, with shift and altGr}
 
-#define HID_KEYCODE_TO_UNICODE_SV        HID_KEYCODE_TO_UNICODE_SWE_QWERTY
-#define HID_KEYCODE_TO_UNICODE_SV_QWERTY HID_KEYCODE_TO_UNICODE_SWE_QWERTY
-#define HID_KEYCODE_TO_UNICODE_SWE       HID_KEYCODE_TO_UNICODE_SWE_QWERTY
+#define HID_KEYCODE_TO_UNICODE_SV         HID_KEYCODE_TO_UNICODE_SWE_QWERTY
+#define HID_KEYCODE_TO_UNICODE_SV_QWERTY  HID_KEYCODE_TO_UNICODE_SWE_QWERTY
+#define HID_KEYCODE_TO_UNICODE_SWE        HID_KEYCODE_TO_UNICODE_SWE_QWERTY
 
 #define HID_KEYCODE_TO_UNICODE_SWE_QWERTY       \
-    /* 0x00 */ {0, 0, 0, 0},                    \
+        /* 0x00 */ {0, 0, 0, 0},                \
         /* 0x01 */ {0, 0, 0, 0},                \
         /* 0x02 */ {0, 0, 0, 0},                \
         /* 0x03 */ {0, 0, 0, 0},                \
@@ -53,10 +53,10 @@
         /* 0x21 */ {'4', '\xa4', '$', 0},       \
         /* 0x22 */ {'5', '%', 0, 0},            \
         /* 0x23 */ {'6', '&', 0, 0},            \
-        /* 0x24 */ {'7', '/', '{', 0},          \
+        /* 0x24 */ {'7', '/', '{', 0},	        \
         /* 0x25 */ {'8', '(', '[', 0},          \
         /* 0x26 */ {'9', ')', ']', 0},          \
-        /* 0x27 */ {'0', '=', '}', 0},          \
+        /* 0x27 */ {'0', '=', '}', 0},	        \
         /* 0x28 */ {'\r', '\r', 0, 0},          \
         /* 0x29 */ {'\x1b', '\x1b', 0, 0},      \
         /* 0x2a */ {'\x7f', '\x7f', 0, 0},      \
@@ -66,7 +66,7 @@
         /* 0x2e */ {'\xb4', '`', '\xb1', 0},    \
         /* 0x2f */ {'\xe5', '\xc5', 0, 0},      \
         /* 0x30 */ {'\xa8', '^', '~', 0},       \
-        /* 0x31 */ {'\x27', '*', 0, 0},         \
+        /* 0x31 */ {'\x27','*', 0, 0},          \
         /* 0x32 */ {0, 0, 0, 0},                \
         /* 0x33 */ {'\xf6', '\xd6', 0, 0},      \
         /* 0x34 */ {'\xe4', '\xc4', 0, 0},      \

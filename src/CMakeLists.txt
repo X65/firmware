@@ -28,6 +28,7 @@ target_compile_definitions(rp816 PRIVATE
 
 target_compile_options(rp816 PRIVATE
     -Wall -Wextra
+    $<$<CONFIG:Release>:-Os>
 )
 
 target_link_libraries(rp816 PRIVATE
@@ -60,6 +61,10 @@ target_sources(rp816 PRIVATE
     ria/api/clk.c
     ria/api/oem.c
     ria/mon/at.c
+    ria/hid/des.c
+    ria/hid/kbd.c
+    ria/hid/mou.c
+    ria/hid/pad.c
     ria/mon/fil.c
     ria/mon/hlp.c
     ria/mon/mon.c
@@ -84,12 +89,9 @@ target_sources(rp816 PRIVATE
     ria/cgia/cgia.c
     ria/cgia/cgia_encode.S
     ria/cgia/cgia_sprites.S
-    ria/usb/des.c
     ria/usb/hid.c
-    ria/usb/kbd.c
-    ria/usb/mou.c
     ria/usb/msc.c
-    ria/usb/pad.c
+    ria/usb/usb.c
     ria/usb/xin.c
     fatfs/ff.c
     fatfs/ffunicode.c

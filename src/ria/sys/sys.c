@@ -15,6 +15,7 @@
 #include "sys/out.h"
 #include "usb/hid.h"
 #include "usb/msc.h"
+#include "usb/usb.h"
 #include <stdio.h>
 #include <string.h>
 
@@ -55,8 +56,7 @@ void sys_mon_status(const char *args, size_t len)
     mem_print_status();
     aud_print_status();
     clk_print_status();
-    hid_print_status();
-    msc_print_status();
+    usb_print_status();
     // gpx_dump_registers();
     ext_bus_scan();
 }
