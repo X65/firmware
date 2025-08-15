@@ -132,15 +132,6 @@ union cgia_plane_regs_t
 #define PLANE_MASK_BORDER_TRANSPARENT 0b00001000
 #define PLANE_MASK_DOUBLE_WIDTH       0b00010000
 
-struct cgia_pwm_t
-{
-    uint16_t freq;
-    uint8_t duty;
-    uint8_t _reserved;
-};
-
-#define CGIA_PWMS (2)
-
 struct cgia_t
 {
     uint8_t mode;
@@ -179,10 +170,6 @@ struct cgia_t
 #define CGIA_REG_INT_STATUS  (offsetof(struct cgia_t, int_status))
 #define CGIA_REG_PLANES      (offsetof(struct cgia_t, planes))
 #define CGIA_REG_BACK_COLOR  (offsetof(struct cgia_t, back_color))
-#define CGIA_REG_PWM_0_FREQ  (0x20) // PWM channel 0 frequency.
-#define CGIA_REG_PWM_0_DUTY  (0x22) // PWM channel 0 duty-cycle.
-#define CGIA_REG_PWM_1_FREQ  (0x24) // PWM channel 1 frequency.
-#define CGIA_REG_PWM_1_DUTY  (0x26) // PWM channel 1 duty-cycle.
 
 #define CGIA_REG_INT_FLAG_VBI 0b10000000
 #define CGIA_REG_INT_FLAG_DLI 0b01000000

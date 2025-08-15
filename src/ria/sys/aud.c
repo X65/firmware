@@ -74,12 +74,6 @@ static const struct reg_default sgtl5000_reg_defaults[] = {
     {SGTL_CHIP_ANA_TEST2, 0x0000},
 };
 
-// --- PWM - to be removed ------------------
-// stubs:
-#define AUD_CHANGE_DURATION_MS 10
-void aud_pwm_set_channel(size_t channel, uint16_t freq, uint8_t duty) { };
-void aud_pwm_set_channel_duty(size_t channel, uint8_t duty) { };
-
 // --- FM synth ------------------
 static inline void aud_fm_select(void)
 {
@@ -785,6 +779,8 @@ void aud_stop(void)
 {
     aud_mix_reset();
 }
+
+#define AUD_CHANGE_DURATION_MS 10
 
 void aud_task(void)
 {

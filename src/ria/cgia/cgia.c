@@ -183,21 +183,6 @@ inline __attribute__((always_inline)) __attribute__((optimize("O3"))) void cgia_
         int_mask = 0x00;
         break;
 
-    case CGIA_REG_PWM_0_FREQ:
-    case CGIA_REG_PWM_0_FREQ + 1:
-        aud_pwm_set_channel(0, CGIA.pwm[0].freq, CGIA.pwm[0].duty);
-        break;
-    case CGIA_REG_PWM_0_DUTY:
-        aud_pwm_set_channel_duty(0, CGIA.pwm[0].duty);
-        break;
-    case CGIA_REG_PWM_1_FREQ:
-    case CGIA_REG_PWM_1_FREQ + 1:
-        aud_pwm_set_channel(1, CGIA.pwm[1].freq, CGIA.pwm[1].duty);
-        break;
-    case CGIA_REG_PWM_1_DUTY:
-        aud_pwm_set_channel_duty(1, CGIA.pwm[1].duty);
-        break;
-
     case CGIA_REG_PLANES + CGIA_PLANE_REGS_NO * 0: // .plane[0].sprite.active ?
         if (CGIA.planes & (0x10 << 0))
             plane_int[0].sprites_need_update = true;
