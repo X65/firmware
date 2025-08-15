@@ -5,6 +5,8 @@
  * SPDX-License-Identifier: BSD-3-Clause
  */
 
+#include <stdio.h>
+
 #include "pico.h"
 #ifdef PICO_SDK_VERSION_MAJOR
 #include "hardware/interp.h"
@@ -18,8 +20,6 @@
 
 #include "./color.h"
 #include "./term.h"
-
-#include <stdio.h>
 
 // This terminal emulator supports a subset of xterm/ANSI codes.
 // It is designed to support 115200 bps without any flow control.
@@ -155,7 +155,7 @@ static void term_clean_task(term_state_t *term)
     // Clean only one line per task
     if (term->cleaned)
         return;
-    for (uint8_t i = 0; i < term->height; i++)
+    for (size_t i = 0; i < term->height; i++)
         if (term->dirty[i])
         {
             term_clean_line(term, i);
@@ -166,7 +166,7 @@ static void term_clean_task(term_state_t *term)
 
 static void term_out_FF(term_state_t *term)
 {
-    for (uint8_t i = 0; i < term->height; i++)
+    for (size_t i = 0; i < term->height; i++)
     {
         term->wrapped[i] = false;
         term->dirty[i] = true;
@@ -220,7 +220,8 @@ static void term_cursor_set_inv(term_state_t *term, bool inv)
 
 static void sgr_color(term_state_t *term, uint8_t idx, uint32_t *color)
 {
-    if (idx + 2 < term->csi_param_count && term->csi_param[idx + 1] == 5)
+    if (idx + 2 < term->csi_param_count
+        && term->csi_param[idx + 1] == 5)
     {
         // e.g. ESC[38;5;255m - Indexed color
         if (color)
@@ -230,19 +231,30 @@ static void sgr_color(term_state_t *term, uint8_t idx, uint32_t *color)
                 *color = color_256[color_idx];
         }
     }
-    else if (idx + 4 < term->csi_param_count && term->csi_separator[idx] == ';' && term->csi_param[idx + 1] == 2)
+    else if (idx + 4 < term->csi_param_count
+             && term->csi_separator[idx] == ';'
+             && term->csi_param[idx + 1] == 2)
     {
         // e.g. ESC[38;2;255;255;255m - RBG color
         if (color)
-            *color = PICO_SCANVIDEO_ALPHA_MASK | PICO_SCANVIDEO_PIXEL_FROM_RGB8(term->csi_param[idx + 2], term->csi_param[idx + 3], term->csi_param[idx + 4]);
+            *color = PICO_SCANVIDEO_ALPHA_MASK
+                     | PICO_SCANVIDEO_PIXEL_FROM_RGB8(
+                         term->csi_param[idx + 2],
+                         term->csi_param[idx + 3],
+                         term->csi_param[idx + 4]);
     }
     else if (idx + 5 < term->csi_param_count && term->csi_separator[idx] == ':' && term->csi_param[idx + 1] == 2)
     {
         // e.g. ESC[38:2::255:255:255:::m - RBG color (ITU)
         if (color)
-            *color = PICO_SCANVIDEO_ALPHA_MASK | PICO_SCANVIDEO_PIXEL_FROM_RGB8(term->csi_param[idx + 3], term->csi_param[idx + 4], term->csi_param[idx + 5]);
+            *color = PICO_SCANVIDEO_ALPHA_MASK
+                     | PICO_SCANVIDEO_PIXEL_FROM_RGB8(
+                         term->csi_param[idx + 3],
+                         term->csi_param[idx + 4],
+                         term->csi_param[idx + 5]);
     }
-    else if (idx + 1 < term->csi_param_count && term->csi_param[idx + 1] == 1)
+    else if (idx + 1 < term->csi_param_count
+             && term->csi_param[idx + 1] == 1)
     {
         // e.g. ESC[38;1m - transparent
         if (color)
@@ -367,14 +379,20 @@ static void term_out_RCP(term_state_t *term)
 // Device Status Report
 static void term_out_DSR(term_state_t *term)
 {
-    if (term->csi_param[0] == 6 /* TODO: !tud_cdc_connected() */)
+    if (term->csi_param[0] == 6) /* TODO: !tud_cdc_connected() */
     {
-        int x = term->x;
-        int y = term->y;
-        if (x == term->width)
-            x--;
-
-        printf("\33[%u;%uR", y + 1, x + 1);
+        // int16_t height = vga_canvas_height();
+        // if ((height == 180 || height == 240)
+        //         ? term->width == 40
+        //         : term->width == 80)
+        {
+            int x = term->x;
+            int y = term->y;
+            if (x == term->width)
+                x--;
+            // std_in_write_ansi_CPR(y + 1, x + 1);
+            printf("\33[%u;%uR", y + 1, x + 1);
+        }
     }
 }
 
@@ -541,7 +559,7 @@ static void term_out_CUB(term_state_t *term)
 // Delete characters
 static void term_out_DCH(term_state_t *term)
 {
-    uint16_t max_chars = term->width - term->x;
+    unsigned max_chars = term->width - term->x;
     for (unsigned i = term->y; i < term->height - 1; i++)
         if (term->wrapped[i])
             max_chars += term->width;
@@ -872,7 +890,7 @@ static void term_out_chars(const char *buf, int length)
         {
             term_out_char(&term_96, buf[i]);
         }
-        term_96.timer = get_absolute_time();
+        term_96.timer = make_timeout_time_us(2000);
     }
 }
 

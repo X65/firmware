@@ -10,7 +10,7 @@
 #define CFG_TUSB_RHPORT0_MODE OPT_MODE_HOST
 
 #ifndef CFG_TUSB_MCU
-#define CFG_TUSB_MCU OPT_MCU_RP2040
+#error CFG_TUSB_MCU must be defined
 #endif
 
 #ifndef CFG_TUSB_OS

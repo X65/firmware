@@ -4,13 +4,14 @@
  * SPDX-License-Identifier: BSD-3-Clause
  */
 
-#include "usb/msc.h"
+#include <math.h>
+
 #include "fatfs/diskio.h"
 #include "fatfs/ff.h"
 #include "main.h"
 #include "pico/aon_timer.h"
 #include "tusb.h"
-#include <math.h>
+#include "usb/msc.h"
 
 // Validate essential settings in ffconf.h
 static_assert(sizeof(TCHAR) == sizeof(char));
@@ -141,7 +142,8 @@ static bool inquiry_complete_cb(uint8_t dev_addr, tuh_msc_complete_data_t const 
 {
     uint8_t vol;
     for (vol = 0; vol < FF_VOLUMES; vol++)
-        if (msc_volume_status[vol] == msc_volume_inquiring && msc_volume_dev_addr[vol] == dev_addr)
+        if (msc_volume_status[vol] == msc_volume_inquiring
+            && msc_volume_dev_addr[vol] == dev_addr)
             break;
     if (vol == FF_VOLUMES)
         return false;
@@ -196,7 +198,8 @@ void tuh_msc_umount_cb(uint8_t dev_addr)
 {
     for (uint8_t vol = 0; vol < FF_VOLUMES; vol++)
     {
-        if (msc_volume_status[vol] == msc_volume_mounted && msc_volume_dev_addr[vol] == dev_addr)
+        if (msc_volume_status[vol] == msc_volume_mounted
+            && msc_volume_dev_addr[vol] == dev_addr)
         {
             msc_volume_status[vol] = msc_volume_free;
             TCHAR volstr[6] = "USB0:";
