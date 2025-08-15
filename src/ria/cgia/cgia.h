@@ -1,6 +1,6 @@
 #pragma once
 
-#include "sys/types.h"
+#include <sys/types.h>
 
 #define CGIA_COLUMN_PX (8)
 
@@ -113,6 +113,7 @@ union cgia_plane_regs_t
         uint8_t border_columns;
         uint8_t start_y;
         uint8_t stop_y;
+        uint8_t reserved[12];
     } sprite;
 
     uint8_t reg[CGIA_PLANE_REGS_NO];
@@ -138,22 +139,27 @@ struct cgia_t
 
     uint8_t bckgnd_bank;
     uint8_t sprite_bank;
-    uint8_t _reserved[16 - 3];
-
+    uint8_t _ctl_reserved[16 - 3];
+    // -------------------------------------------------------------------
     uint16_t raster;
-    uint8_t _raster_res1[6];
+    uint8_t _rst_reserved1[8 - 2];
+
     uint16_t int_raster; // Line to generate raster interrupt.
     uint8_t int_enable;  // Interrupt flags. [VBI DLI RSI x x x x x]
     uint8_t int_status;  // Interrupt flags. [VBI DLI RSI x x x x x]
-    uint8_t _raster_res2[4];
-
-    struct cgia_pwm_t pwm[CGIA_PWMS];
-    struct cgia_pwm_t _reserved_pwm[4 - CGIA_PWMS];
-
+    uint8_t _rst_reserved2[8 - 4];
+    // -------------------------------------------------------------------
+    uint8_t _reserved[16];
+    // -------------------------------------------------------------------
     uint8_t planes; // [TTTTEEEE] EEEE - enable bits, TTTT - type (0 bckgnd, 1 sprite)
+    uint8_t order;  // [xxxOOOOO] OOOOO - plane order permutation
+    uint8_t _pln_reserved1[4 - 2];
+
     uint8_t back_color;
-    uint8_t _reserved_planes[8 - 2];
+    uint8_t _pln_reserved[4 - 1];
+
     uint16_t offset[CGIA_PLANES]; // DisplayList or SpriteDescriptor table start
+    // -------------------------------------------------------------------
     union cgia_plane_regs_t plane[CGIA_PLANES];
 };
 
