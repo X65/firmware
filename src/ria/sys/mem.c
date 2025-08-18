@@ -6,6 +6,7 @@
  */
 
 #include "mem.h"
+#include "cgia/cgia.h"
 #include "hardware/clocks.h"
 #include "hardware/gpio.h"
 #include "hardware/regs/qmi.h"
@@ -307,18 +308,44 @@ void mem_post_reclock(void)
 {
 }
 
+uint8_t mem_read_byte(uint32_t addr)
+{
+    if (addr >= 0xFF00 && addr < 0xFF80) // CGIA registers
+    {
+        return cgia_reg_read((uint8_t)addr);
+    }
+    else if (addr >= 0xFFC0 && addr < 0x10000) // RIA registers
+    {
+        return REGS(addr);
+    }
+    else
+    {
+        return psram[addr & 0xFFFFFF];
+    }
+}
+
+void mem_write_byte(uint32_t addr, uint8_t data)
+{
+    if (addr >= 0xFF00 && addr < 0xFF80) // CGIA registers
+    {
+        cgia_reg_write((uint8_t)addr, data);
+    }
+    else if (addr >= 0xFFC0 && addr < 0x10000) // RIA registers
+    {
+        REGS(addr) = data;
+    }
+    else
+    {
+        psram[addr & 0xFFFFFF] = data;
+        cgia_ram_write(addr, data); // Sync write to CGIA L1 cache
+    }
+}
+
 void mem_read_buf(uint32_t addr)
 {
     for (size_t i = 0; i < mbuf_len; ++i, ++addr)
     {
-        if (addr >= 0xFFC0 && addr < 0x10000)
-        {
-            mbuf[i] = REGS(addr);
-        }
-        else
-        {
-            mbuf[i] = psram[addr & 0xFFFFFF];
-        }
+        mbuf[i] = mem_read_byte(addr);
     }
 }
 
@@ -326,14 +353,7 @@ void mem_write_buf(uint32_t addr)
 {
     for (size_t i = 0; i < mbuf_len; ++i, ++addr)
     {
-        if (addr >= 0xFFC0 && addr < 0x10000)
-        {
-            REGS(addr) = mbuf[i];
-        }
-        else
-        {
-            psram[addr & 0xFFFFFF] = mbuf[i];
-        }
+        mem_write_byte(addr, mbuf[i]);
     }
 }
 

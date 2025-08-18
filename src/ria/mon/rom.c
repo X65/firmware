@@ -191,16 +191,7 @@ static bool rom_ram_writing(bool test)
 
         if (!test)
         {
-            uint8_t data = mbuf[i++];
-            // TODO: unify with mem_write_buf() ?
-            if (addr >= 0xFFC0 && addr < 0x10000)
-            {
-                REGS(addr) = data;
-            }
-            else
-            {
-                psram[addr] = data;
-            }
+            mem_write_byte(addr, mbuf[i++]);
         }
     }
     return (int)mbuf_len > 0;
@@ -428,7 +419,7 @@ void rom_task(void)
         rom_loading();
         break;
     case ROM_WRITING:
-        if (!rom_ram_writing(false))
+        if (!rom_ram_writing(rom_start == 0xFC00))
             rom_state = ROM_LOADING;
         break;
     }

@@ -344,6 +344,7 @@ mem_bus_pio_irq_handler(void)
                     { // CPU is writing
                         // Store bus D0-7 to RAM
                         psram[addr] = bus_data;
+                        // Sync write to CGIA L1 cache
                         cgia_ram_write(addr, bus_data);
                     }
                 }

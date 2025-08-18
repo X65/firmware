@@ -57,6 +57,11 @@ void mem_print_status(void);
 // Select PSRAM bank
 void mem_use_bank(uint8_t bank);
 
+// Read/Write memory or overlaying memory mapped device.
+// Similar function as the CPU BUS mapper, but for firmware code.
+uint8_t mem_read_byte(uint32_t addr);
+void mem_write_byte(uint32_t addr, uint8_t data);
+
 // Move data from the RAM to mbuf.
 void mem_read_buf(uint32_t addr);
 
