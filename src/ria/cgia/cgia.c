@@ -30,6 +30,11 @@
 _Static_assert(CGIA_REGS_NO == sizeof(struct cgia_t), "Incorrect CGIA_REGS_NO");
 
 // --- Globals ---
+// two "banks" to mirror PSRAM content for fast CGIA access
+uint8_t
+    __attribute__((aligned(4)))
+    vram_cache[CGIA_VRAM_BANKS][0x10000];
+
 uint8_t
     __attribute__((aligned(4)))
     __scratch_y("") regs_int[CGIA_REGS_NO]
@@ -62,14 +67,6 @@ static uint8_t
     __attribute__((aligned(4)))
     __scratch_y("")
         sprite_line_data[SPRITE_MAX_WIDTH];
-
-// two "banks" to mirror PSRAM content for fast CGIA access
-// let's assume we do not use such high memory
-// (we might need to actually create linker script to reserve it)
-extern uint8_t vram_cache[2][256 * 256];
-#ifdef PICO_SDK_VERSION_MAJOR
-asm(".equ vram_cache, 0x20060000"); // Addressable at 0x20060000 - 0x2007ffff
-#endif
 
 // store which PSRAM bank is currently mirrored in cache
 // stored as bitmask for easy use during ram write call

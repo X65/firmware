@@ -5,7 +5,7 @@
  * SPDX-License-Identifier: BSD-3-Clause
  */
 
-#include "main.h"
+#include "cgia/cgia.h"
 #include "str.h"
 #include "sys/com.h"
 #include "sys/mem.h"
@@ -144,11 +144,11 @@ bool ram_active(void)
 #include "hardware/xip_cache.h"
 #include "pico/rand.h"
 
-#define BUF_SIZE            (128 * 1024)
+#define BUF_SIZE            (sizeof vram_cache[0])
 #define FLASH_TARGET_OFFSET (1024 * 1024) // +1MB should be safe to use
 
-static volatile uint32_t random_buf[BUF_SIZE / 4];
-static volatile uint32_t copy_buf[BUF_SIZE / 4];
+volatile uint32_t *random_buf = (volatile uint32_t *)vram_cache[0];
+volatile uint32_t *copy_buf = (volatile uint32_t *)vram_cache[1];
 
 // Flash erase and program function trampolines
 static bool verify_buffer(const uint32_t *src, const uint32_t *dst, size_t len)
