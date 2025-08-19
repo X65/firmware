@@ -16,8 +16,10 @@
 .cpu cortex-m33
 .thumb
 
-.data
-cell_colors: .skip 4*4  // Reserve 4 words for the multi color array
+.section .scratch_y, "aw", %nobits
+.align 4
+cell_colors:
+  .space 4*4  // Reserve 4 words for the multi color array
 
 
 // Put every function in its own ELF section, to permit linker GC

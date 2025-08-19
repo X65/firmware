@@ -487,7 +487,7 @@ void __attribute__((optimize("O3"))) cgia_render(uint16_t y, uint32_t *rgbbuf)
 
                         uint8_t *dst = sprite_line_data;
                         uint8_t *src = sprite_bank + sprite->data_offset;
-                        if (sprite->flags & SPRITE_MASK_MIRROR_X)
+                        if (sprite->flags & SPRITE_MASK_MIRROR_X) // TODO: inc/dec inside renderer
                         {
                             src += sprite_offset + sprite_width;
                             do

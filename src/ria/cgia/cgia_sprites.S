@@ -4,11 +4,15 @@
 .cpu cortex-m33
 .thumb
 
-.data
+.section .scratch_x, "aw", %nobits
+.align 4
+sprite_colors:
+  .space 4*4  // Reserve 4 words for the sprites color array
+
 
 // Put every function in its own ELF section, to permit linker GC
 .macro decl_func name
-.section .scratch_y.\name, "ax"
+.section .scratch_x.\name, "ax"
 .global \name
 .type \name,%function
 .thumb_func
@@ -21,7 +25,6 @@
 #define SPRITE_POS_Y_OFFS   2
 #define SPRITE_LINES_Y_OFFS 4
 #define SPRITE_FLAGS_OFFS   6
-#define SPRITE_COLORS_OFFS  7   // COLOR 0 is not used, so point one byte before color table
 #define SPRITE_COLOR_1_OFFS 8
 #define SPRITE_COLOR_2_OFFS 9
 #define SPRITE_COLOR_3_OFFS 10
@@ -29,12 +32,11 @@
 #define CGIA_SPRITES     8
 #define SPRITE_MAX_WIDTH 8
 
-#define SPRITE_MASK_WIDTH        0b00000011
+#define SPRITE_MASK_WIDTH        0b00000111
 #define SPRITE_MASK_MULTICOLOR   0b00001000
 #define SPRITE_MASK_DOUBLE_WIDTH 0b00010000
 #define SPRITE_MASK_MIRROR_X     0b00100000
 #define SPRITE_MASK_MIRROR_Y     0b01000000
-#define SPRITE_MASK_ACTIVE       0b10000000
 
 // r0 is output RGB buffer
 // r1 is sprite color indices array
@@ -43,54 +45,62 @@
 // r9 is palette begin address
 
 // changes r0
-.macro write_sprite_bmp
+.macro write_sprite_bmp double
   // need bit shift/test first
   bcc 1f
-  // bit is 1 - draw foreground pixel
+  // bit is 1 - draw foreground pixel(s)
   stmia r0!, {r4}
-  tst r5, SPRITE_MASK_DOUBLE_WIDTH
-  beq 2f
+.if \double
   stmia r0!, {r4}
+.endif
   b 2f
-1:  // bit is 0 - draw background pixel
+1:  // bit is 0 - draw transparent pixel(s)
+.if \double
+  adds r0, #8     // move 2 screen pixels
+.else
   adds r0, #4     // move 1 screen pixel
-  tst r5, SPRITE_MASK_DOUBLE_WIDTH
-  beq 2f
-  adds r0, #4     // move second screen pixel
+.endif
 2:
 .endm
 
 // changes r0,r3
-.macro write_sprite_bmp_ltr
-  lsls r3, #1        // shift-out 1 left bit
-  write_sprite_bmp
+.macro write_sprite_bmp_ltr double
+  lsls r3, #1        // shift-out left 1 bit
+  write_sprite_bmp \double
 .endm
 
 // changes r0,r3
-.macro write_sprite_bmp_rtl
+.macro write_sprite_bmp_rtl double
   lsrs r3, #1        // shift-out right 1 bit
-  write_sprite_bmp
+  write_sprite_bmp \double
 .endm
 
 // changes r0,r4
-.macro write_sprite_multi sh_amt
+.macro write_sprite_multi sh_amt double
   mov r4, r3
   lsrs r4, #\sh_amt
   ands r4, 3        // 00000011 mask
   beq 1f            // do not set 00 pixel
-  ldrb r4, [r1, r4] // load sprite color // FIXME: preload color values to separate array
-  ldr r4, [r9, r4, LSL #2]  // load palette entry
+  ldr r4, [r9, r4, LSL #2]  // load sprite color entry
   stmia r0!, {r4}
-  tst r5, SPRITE_MASK_DOUBLE_WIDTH  // FIXME: these tests should be outside loop
-  beq 2f
+.if \double
   stmia r0!, {r4}
+.endif
   b 2f
 1:
+.if \double
+  adds r0, #8     // move 2 screen pixels
+.else
   adds r0, #4     // move 1 screen pixel
-  tst r5, SPRITE_MASK_DOUBLE_WIDTH
-  beq 2f
-  adds r0, #4     // move second screen pixel
+.endif
 2:
+.endm
+
+.macro spr_next loop
+  adds r2, #1   // move to next bitmap byte
+  subs ip, #1
+  bpl \loop
+  b enc_spr_exit
 .endm
 
 // r0 is output RGB buffer
@@ -104,81 +114,149 @@ decl_func cgia_encode_sprite
   mov r6, r10
   push {r4-r6}
 
-  ldr r9, =cgia_rgb_palette
-
   ldrh r6, [r1, #SPRITE_POS_X_OFFS]
-  sxth r6, r6   //sign-extend the 16-bit value
+  sxth r6, r6   // sign-extend the 16-bit value
   cmp r6, 768   // check if past RGB buffer
-  bge 6f
-  cmp r6, -SPRITE_MAX_WIDTH*8*2  // check if visible (sprite max width is 4x 8 doubled pixels)
-  blt 6f
+  bge enc_spr_exit
+  cmp r6, -SPRITE_MAX_WIDTH*8*2  // check if visible (sprite max width * 8x doubled pixels)
+  blt enc_spr_exit
+
+  ldr r9, =cgia_rgb_palette
 
   lsls r6, #2   // 4 bytes per pixel (one word of 2px)
   adds r0, r6   // move RGB buffer pointer to correct position in line
 
-  adds r1, #SPRITE_COLORS_OFFS    // move r1 to point to flags/color data
   mov ip, r3    // iterate this times
 
-5:
-  ldrb r3, [r2] // load bitmap byte
+  ldrb r5, [r1, #SPRITE_FLAGS_OFFS]
 
-  ldrb r5, [r1] // FIXME: these tests should be outside loop
   tst r5, SPRITE_MASK_MULTICOLOR
   beq spr_bmp
 
-  tst r5, SPRITE_MASK_MIRROR_X
-  beq spr_multi
-
-  // multicolor sprite mirrored X
-  write_sprite_multi 0
-  write_sprite_multi 2
-  write_sprite_multi 4
-  write_sprite_multi 6
-  b spr_next
-
+// ----- multicolor sprites -----
 spr_multi:
-  write_sprite_multi 6
-  write_sprite_multi 4
-  write_sprite_multi 2
-  write_sprite_multi 0
-  b spr_next
+  ldrb r4, [r1, SPRITE_COLOR_1_OFFS]    // load sprite color 1
+  ldr r6, [r9, r4, LSL #2]              // load palette entry
+  ldrb r4, [r1, SPRITE_COLOR_2_OFFS]    // load sprite color 2
+  ldr r7, [r9, r4, LSL #2]              // load palette entry
+  ldrb r4, [r1, SPRITE_COLOR_3_OFFS]    // load sprite color 3
+  ldr r8, [r9, r4, LSL #2]              // load palette entry
+  ldr r9, =sprite_colors
+  stmia r9, {r5-r8}   // entry 00 is not used, so just dummy write r5
 
+  tst r5, SPRITE_MASK_MIRROR_X
+  beq spr_multi_ltr
+
+// multi color sprite right-to-left
+spr_multi_rtl:
+  tst r5, SPRITE_MASK_DOUBLE_WIDTH
+  beq spr_multi_rtl_single
+
+spr_multi_rtl_double:
+  ldrb r3, [r2]   // load bitmap byte
+  write_sprite_multi 0 1
+  write_sprite_multi 2 1
+  write_sprite_multi 4 1
+  write_sprite_multi 6 1
+  spr_next spr_multi_rtl_double
+spr_multi_rtl_single:
+  ldrb r3, [r2]   // load bitmap byte
+  write_sprite_multi 0 0
+  write_sprite_multi 2 0
+  write_sprite_multi 4 0
+  write_sprite_multi 6 0
+  spr_next spr_multi_rtl_single
+
+// multi color sprite left-to-right
+spr_multi_ltr:
+  tst r5, SPRITE_MASK_DOUBLE_WIDTH
+  beq spr_multi_ltr_single
+
+spr_multi_ltr_double:
+  ldrb r3, [r2]   // load bitmap byte
+  write_sprite_multi 6 1
+  write_sprite_multi 4 1
+  write_sprite_multi 2 1
+  write_sprite_multi 0 1
+  spr_next spr_multi_ltr_double
+spr_multi_ltr_single:
+  ldrb r3, [r2]   // load bitmap byte
+  write_sprite_multi 6 0
+  write_sprite_multi 4 0
+  write_sprite_multi 2 0
+  write_sprite_multi 0 0
+  spr_next spr_multi_ltr_single
+
+// ----- bitmap (single color) sprites -----
 spr_bmp:
-  ldrb r4, [r1, #1]         // load sprite color 1
+  ldrb r4, [r1, SPRITE_COLOR_1_OFFS]         // load sprite color 1
   ldr r4, [r9, r4, LSL #2]  // load palette entry
 
   tst r5, SPRITE_MASK_MIRROR_X
   beq spr_bmp_ltr
-  // single color sprite right-to-left
-  write_sprite_bmp_rtl
-  write_sprite_bmp_rtl
-  write_sprite_bmp_rtl
-  write_sprite_bmp_rtl
-  write_sprite_bmp_rtl
-  write_sprite_bmp_rtl
-  write_sprite_bmp_rtl
-  write_sprite_bmp_rtl
-  b spr_next
 
+// single color sprite right-to-left
+spr_bmp_rtl:
+  tst r5, SPRITE_MASK_DOUBLE_WIDTH
+  beq spr_bmp_rtl_single
+
+spr_bmp_rtl_double:
+  ldrb r3, [r2]   // load bitmap byte
+  write_sprite_bmp_rtl 1
+  write_sprite_bmp_rtl 1
+  write_sprite_bmp_rtl 1
+  write_sprite_bmp_rtl 1
+  write_sprite_bmp_rtl 1
+  write_sprite_bmp_rtl 1
+  write_sprite_bmp_rtl 1
+  write_sprite_bmp_rtl 1
+  spr_next spr_bmp_rtl_double
+spr_bmp_rtl_single:
+  ldrb r3, [r2]   // load bitmap byte
+  write_sprite_bmp_rtl 0
+  write_sprite_bmp_rtl 0
+  write_sprite_bmp_rtl 0
+  write_sprite_bmp_rtl 0
+  write_sprite_bmp_rtl 0
+  write_sprite_bmp_rtl 0
+  write_sprite_bmp_rtl 0
+  write_sprite_bmp_rtl 0
+  spr_next spr_bmp_rtl_single
+
+// single color sprite left-to-right
 spr_bmp_ltr:
-  lsls r3, #24        // move LSB to MSB
-  write_sprite_bmp_ltr
-  write_sprite_bmp_ltr
-  write_sprite_bmp_ltr
-  write_sprite_bmp_ltr
-  write_sprite_bmp_ltr
-  write_sprite_bmp_ltr
-  write_sprite_bmp_ltr
-  write_sprite_bmp_ltr
+  tst r5, SPRITE_MASK_DOUBLE_WIDTH
+  beq spr_bmp_ltr_single
 
-spr_next:
-  adds r2, #1   // move to next bitmap byte
-  subs ip, #1
-  bpl 5b
+spr_bmp_ltr_double:
+  ldrb r3, [r2]   // load bitmap byte
+  lsls r3, #24    // move LSB to MSB
+  write_sprite_bmp_ltr 1
+  write_sprite_bmp_ltr 1
+  write_sprite_bmp_ltr 1
+  write_sprite_bmp_ltr 1
+  write_sprite_bmp_ltr 1
+  write_sprite_bmp_ltr 1
+  write_sprite_bmp_ltr 1
+  write_sprite_bmp_ltr 1
+  spr_next spr_bmp_ltr_double
+spr_bmp_ltr_single:
+  ldrb r3, [r2]   // load bitmap byte
+  lsls r3, #24    // move LSB to MSB
+  write_sprite_bmp_ltr 0
+  write_sprite_bmp_ltr 0
+  write_sprite_bmp_ltr 0
+  write_sprite_bmp_ltr 0
+  write_sprite_bmp_ltr 0
+  write_sprite_bmp_ltr 0
+  write_sprite_bmp_ltr 0
+  write_sprite_bmp_ltr 0
+  spr_next spr_bmp_ltr_single
 
-6:
+enc_spr_exit:
   pop {r4-r6}
   mov r8, r4
   mov r9, r5
   mov r10, r6
   pop {r4-r7, pc}
+
