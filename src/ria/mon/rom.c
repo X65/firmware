@@ -189,6 +189,10 @@ static bool rom_ram_writing(bool test)
         if (addr == 0xFFFD)
             rom_FFFD = true;
 
+        // do not allow wrap-around
+        if (rom_start == 0)
+            rom_start = 0xFFFF;
+
         if (!test)
         {
             mem_write_byte(addr, mbuf[i++]);
