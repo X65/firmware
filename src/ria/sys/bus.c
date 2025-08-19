@@ -365,11 +365,6 @@ void ria_trigger_irq(void)
         gpio_put(RIA_IRQB_PIN, false);
 }
 
-void ria_trigger_nmi(void)
-{
-    gpio_put(RIA_NMIB_PIN, false);
-}
-
 static void mem_bus_int_init(void)
 {
     // drive IRQ pin
@@ -377,7 +372,7 @@ static void mem_bus_int_init(void)
     gpio_set_dir(RIA_IRQB_PIN, true);
     gpio_set_pulls(RIA_IRQB_PIN, false, false);
     gpio_put(RIA_IRQB_PIN, true);
-    // drive NMI pin
+    // drive NMI pin (used by CGIA only)
     gpio_init(RIA_NMIB_PIN);
     gpio_set_dir(RIA_NMIB_PIN, true);
     gpio_set_pulls(RIA_NMIB_PIN, false, false);
@@ -457,7 +452,6 @@ void bus_stop(void)
     pio_sm_set_enabled(MEM_BUS_PIO, MEM_BUS_SM, false);
     irq_enabled = false;
     gpio_put(RIA_IRQB_PIN, true);
-    gpio_put(RIA_NMIB_PIN, true);
 #ifdef MEM_CPU_ADDRESS_BUS_HISTORY_LENGTH
     mem_cpu_address_bus_history_index = 0;
 #ifdef ABORT_ON_IRQ_BRK_READ

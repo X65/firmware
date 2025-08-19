@@ -1,6 +1,7 @@
 #include "pico.h"
 #ifdef PICO_SDK_VERSION_MAJOR
 #include "hardware/dma.h"
+#include "hardware/gpio.h"
 #include "hardware/interp.h"
 
 #include "cgia.h"
@@ -197,6 +198,11 @@ inline __attribute__((always_inline)) __attribute__((optimize("O3"))) void cgia_
             plane_int[3].sprites_need_update = true;
         break;
     }
+}
+
+static inline __attribute__((always_inline)) void cpu_set_nmi(void)
+{
+    gpio_put(RIA_NMIB_PIN, !CGIA.int_status);
 }
 
 struct dma_control_block
@@ -985,12 +991,16 @@ void __attribute__((optimize("O3"))) cgia_render(uint16_t y, uint32_t *rgbbuf)
     {
         CGIA.int_status |= CGIA_REG_INT_FLAG_DLI;
     }
+
+    cpu_set_nmi();
 }
 
 static void _cgia_transfer_vcache_bank(uint8_t bank);
 
 void cgia_task(void)
 {
+    cpu_set_nmi();
+
     _cgia_transfer_vcache_bank(0);
     _cgia_transfer_vcache_bank(1);
 }
