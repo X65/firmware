@@ -37,7 +37,7 @@ uint8_t
 
 uint8_t
     __attribute__((aligned(4)))
-    __scratch_y("") regs_int[CGIA_REGS_NO]
+    __scratch_x("") regs_int[CGIA_REGS_NO]
     = {0};
 #define CGIA (*((struct cgia_t *)regs_int))
 
@@ -54,32 +54,32 @@ struct cgia_plane_internal
 };
 struct cgia_plane_internal
     __attribute__((aligned(4)))
-    __scratch_y("")
+    __scratch_x("")
         plane_int[CGIA_PLANES]
     = {0};
 
 static uint16_t
     __attribute__((aligned(4)))
-    __scratch_y("")
+    __scratch_x("")
         sprite_dsc_offsets[CGIA_PLANES][CGIA_SPRITES]
     = {0};
 static uint8_t
     __attribute__((aligned(4)))
-    __scratch_y("")
+    __scratch_x("")
         sprite_line_data[SPRITE_MAX_WIDTH];
 
 // store which PSRAM bank is currently mirrored in cache
 // stored as bitmask for easy use during ram write call
 uint32_t
     __attribute__((aligned(4)))
-    __scratch_y("")
+    __scratch_x("")
         vram_cache_bank_mask[CGIA_VRAM_BANKS]
     = {0, 0};
 
 // store in which vram cache bank a cgia bank (backgnd/sprite) is stored
 // these may be shared - backgnd and sprites in same bank
 uint8_t *
-    __scratch_y("")
+    __scratch_x("")
         vram_cache_ptr[CGIA_VRAM_BANKS]
     = {vram_cache[0], vram_cache[0]};
 
@@ -100,7 +100,7 @@ inline __attribute__((always_inline)) __attribute__((optimize("O3"))) void cgia_
 // used to trigger DMA transfer during cgia_run() workloop
 uint32_t
     __attribute__((aligned(4)))
-    __scratch_y("")
+    __scratch_x("")
         vram_wanted_bank_mask[CGIA_VRAM_BANKS]
     = {0, 0};
 
@@ -278,7 +278,7 @@ void cgia_init(void)
 
 static uint8_t
     __attribute__((aligned(4)))
-    __scratch_y("")
+    __scratch_x("")
         log2_tab[256]
     = {
         0x00, 0x01, 0x02, 0x02, 0x03, 0x03, 0x03, 0x03, //

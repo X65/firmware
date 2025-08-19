@@ -32,7 +32,7 @@
 
 volatile uint8_t
     __attribute__((aligned(4)))
-    __scratch_x("")
+    __scratch_y("")
         __regs[0x40];
 
 static volatile bool irq_enabled = false;
