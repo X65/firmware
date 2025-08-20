@@ -38,7 +38,8 @@ uint8_t
 
 uint8_t
     __attribute__((aligned(4)))
-    __scratch_x("") regs_int[CGIA_REGS_NO]
+    __scratch_x("")
+        regs_int[CGIA_REGS_NO]
     = {0};
 #define CGIA (*((struct cgia_t *)regs_int))
 
@@ -138,6 +139,8 @@ void cgia_set_bank(uint8_t cgia_bank_id, uint8_t mem_bank_no)
 // DLI - next DL instruction is loaded
 uint8_t int_mask = 0;
 
+#define INT_STATUS_MASKED (regs_int[CGIA_REG_INT_STATUS] & regs_int[CGIA_REG_INT_ENABLE] & int_mask)
+
 inline __attribute__((always_inline)) __attribute__((optimize("O3"))) void cgia_vbi(void)
 {
     int_mask |= CGIA_REG_INT_FLAG_VBI;
@@ -154,7 +157,7 @@ inline __attribute__((always_inline)) __attribute__((optimize("O3"))) uint8_t cg
     switch (reg)
     {
     case CGIA_REG_INT_STATUS:
-        return regs_int[CGIA_REG_INT_STATUS] & regs_int[CGIA_REG_INT_ENABLE] & int_mask;
+        return INT_STATUS_MASKED;
     }
 
     return regs_int[reg];
@@ -175,6 +178,7 @@ inline __attribute__((always_inline)) __attribute__((optimize("O3"))) void cgia_
         break;
     case CGIA_REG_INT_ENABLE:
         regs_int[reg] = value & 0b11100000;
+        int_mask &= ~(value & 0b11100000);
         break;
     case CGIA_REG_INT_STATUS:
         CGIA.int_status = 0x00;
@@ -202,7 +206,7 @@ inline __attribute__((always_inline)) __attribute__((optimize("O3"))) void cgia_
 
 static inline __attribute__((always_inline)) void cpu_set_nmi(void)
 {
-    gpio_put(RIA_NMIB_PIN, !CGIA.int_status);
+    gpio_put(RIA_NMIB_PIN, !INT_STATUS_MASKED);
 }
 
 struct dma_control_block
@@ -284,8 +288,8 @@ void cgia_init(void)
 
 static uint8_t
     __attribute__((aligned(4)))
-    __scratch_x("")
-        log2_tab[256]
+    // __scratch_x("")
+    log2_tab[256]
     = {
         0x00, 0x01, 0x02, 0x02, 0x03, 0x03, 0x03, 0x03, //
         0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, //
