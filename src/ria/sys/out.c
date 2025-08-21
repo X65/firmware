@@ -336,7 +336,7 @@ void __not_in_flash_func(out_core1_main)(void)
 
 // * 10 : TMDS symbol bits
 // / 2  : DDR - two bits per clock on each edge
-#define OUT_HSTX_HZ (MODE_V_FREQ_HZ * MODE_V_TOTAL_LINES * MODE_H_TOTAL_PIXELS * 10 / 2)
+#define OUT_HSTX_HZ (MODE_BIT_CLK_HZ * 10 / 2)
 
 void out_post_reclock(void)
 {

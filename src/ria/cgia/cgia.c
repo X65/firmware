@@ -1,10 +1,11 @@
-#include "pico.h"
+#include "cgia.h"
+
 #ifdef PICO_SDK_VERSION_MAJOR
 #include "hardware/dma.h"
 #include "hardware/gpio.h"
 #include "hardware/interp.h"
+#include "pico.h"
 
-#include "cgia.h"
 #include "cgia_encode.h"
 #define CGIA_PALETTE_IMPL
 #include "cgia_palette.h"
@@ -15,8 +16,6 @@
 // #include "sys/mem.h"
 #include "sys/out.h"
 #endif
-
-#include <string.h>
 
 #define DISPLAY_WIDTH_PIXELS (MODE_H_ACTIVE_PIXELS / FB_H_REPEAT)
 #define MAX_BORDER_COLUMNS   (DISPLAY_WIDTH_PIXELS / CGIA_COLUMN_PX / 2 /* borders */)
