@@ -1,10 +1,10 @@
 #include "cgia.h"
 
+#include "pico.h"
 #ifdef PICO_SDK_VERSION_MAJOR
 #include "hardware/dma.h"
 #include "hardware/gpio.h"
 #include "hardware/interp.h"
-#include "pico.h"
 
 #include "cgia_encode.h"
 #define CGIA_PALETTE_IMPL
@@ -15,6 +15,8 @@
 #include "sys/aud.h"
 // #include "sys/mem.h"
 #include "sys/out.h"
+
+#include <string.h>
 #endif
 
 #define DISPLAY_WIDTH_PIXELS (MODE_H_ACTIVE_PIXELS / FB_H_REPEAT)
