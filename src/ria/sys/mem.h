@@ -51,7 +51,14 @@ void mem_post_reclock(void);
 void mem_print_status(void);
 
 // Select PSRAM bank
-void mem_use_bank(uint8_t bank);
+void mem_select_bank(uint8_t bank);
+
+// If set, someone is using the PSRAM bank
+// and you are not allowed to select another
+extern volatile int8_t acquired_bank;
+
+#define MEM_ADDR_TO_BANK(addr)    ((uint8_t)(addr >> 23))
+#define MEM_CAN_ACCESS_ADDR(addr) (acquired_bank < 0 || acquired_bank == MEM_ADDR_TO_BANK(addr))
 
 // 16MB of XIP QPI PSRAM interface
 uint8_t mem_read_psram(uint32_t addr);

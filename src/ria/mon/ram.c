@@ -223,7 +223,7 @@ void ram_mon_test(const char *args, size_t len)
         if (psram_size[bank] > 0)
         {
             printf("\n------- PSRAM BANK%d -------\n", bank);
-            mem_use_bank(bank);
+            mem_select_bank(bank);
 
             // Copied from: https://gist.github.com/eightycc/b61813c05899281ce7d2a2f86490be3b
             printf("PSRAM size: %d bytes\n", psram_size[bank]);
@@ -361,19 +361,19 @@ void ram_mon_test(const char *args, size_t len)
     {
         volatile uint32_t *psram_nocache = (volatile uint32_t *)XIP_PSRAM_NOCACHE;
 
-        mem_use_bank(0);
+        mem_select_bank(0);
         psram_nocache[0] = 0x56A90FF0;
-        mem_use_bank(1);
+        mem_select_bank(1);
         psram_nocache[0] = 0xF00F659A;
 
-        mem_use_bank(0);
+        mem_select_bank(0);
         volatile uint32_t readback0 = psram_nocache[0];
-        mem_use_bank(1);
+        mem_select_bank(1);
         volatile uint32_t readback1 = psram_nocache[0];
         if (readback0 == readback1)
         {
             printf("\nCross-bank test failed: same data in both banks [%08lX]\n", readback0);
         }
     }
-    mem_use_bank(0);
+    mem_select_bank(0);
 }

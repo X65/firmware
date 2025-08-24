@@ -37,6 +37,14 @@ volatile uint8_t
 
 static volatile bool irq_enabled = false;
 
+static enum state {
+    BUS_PENDING_NOTHING,
+    BUS_PENDING_READ,
+    BUS_PENDING_WRITE,
+} volatile bus_pending_operation;
+static uint32_t bus_pending_addr;
+static uint8_t bus_pending_data;
+
 // #define MEM_CPU_ADDRESS_BUS_HISTORY_LENGTH 50
 // // #define MEM_CPU_ADDRESS_BUS_DUMP
 // #define ABORT_ON_IRQ_BRK_READ              2
@@ -334,6 +342,22 @@ mem_bus_pio_irq_handler(void)
                 else
                 {
                     const uint32_t addr = bus_address & 0xFFFFFF;
+                    if (!MEM_CAN_ACCESS_ADDR(addr))
+                    {
+                        // something acquired a PSRAM bank, so we need to
+                        // stop the PIO to halt the CPU
+                        // and configure a pending operation
+                        pio_sm_set_enabled(MEM_BUS_PIO, MEM_BUS_SM, false);
+
+                        bus_pending_operation = (bus_address & CPU_RWB_MASK) ? BUS_PENDING_READ : BUS_PENDING_WRITE;
+                        bus_pending_addr = addr;
+                        bus_pending_data = bus_data;
+
+                        // Clear the interrupt request and exit
+                        pio_interrupt_clear(MEM_BUS_PIO, MEM_BUS_PIO_IRQ);
+                        return;
+                    }
+
                     // normal memory access
                     if (bus_address & CPU_RWB_MASK)
                     { // CPU is reading
@@ -440,6 +464,8 @@ void bus_init(void)
     mem_bus_int_init();
     mem_bus_intctl_init();
     mem_bus_pio_init();
+
+    bus_pending_operation = BUS_PENDING_NOTHING;
 }
 
 void bus_run(void)
@@ -474,6 +500,24 @@ void dump_cpu_history(void)
 
 void bus_task(void)
 {
+    if (bus_pending_operation != BUS_PENDING_NOTHING
+        && MEM_CAN_ACCESS_ADDR(bus_pending_addr))
+    {
+        // PSRAM bank acquire was released,
+        // so we can now do a pending operation
+        if (bus_pending_operation == BUS_PENDING_READ)
+        {
+            MEM_BUS_PIO->txf[MEM_BUS_SM] = mem_read_psram(bus_pending_addr);
+        }
+        if (bus_pending_operation == BUS_PENDING_WRITE)
+        {
+            mem_write_psram(bus_pending_addr, bus_pending_data);
+        }
+        // and re-enable CPU bus PIO
+        bus_pending_operation = BUS_PENDING_NOTHING;
+        pio_sm_set_enabled(MEM_BUS_PIO, MEM_BUS_SM, true);
+    }
+
 #ifdef MEM_CPU_ADDRESS_BUS_HISTORY_LENGTH
     if (mem_cpu_address_bus_history_index >= MEM_CPU_ADDRESS_BUS_HISTORY_LENGTH)
 #ifdef MEM_CPU_ADDRESS_BUS_DUMP

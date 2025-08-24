@@ -16,6 +16,7 @@
 #include "hardware/sync.h"
 #include "littlefs/lfs_util.h"
 #include "main.h"
+
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -25,6 +26,8 @@ asm(".equ _psram, 0x11000000");   // Addressable at 0x11000000 - 0x11ffffff
 
 size_t psram_size[PSRAM_BANKS_NO];
 uint8_t psram_readid_response[PSRAM_BANKS_NO][8];
+
+volatile int8_t acquired_bank;
 
 // DETAILS/
 //      apmemory APS6404L-3SQR-ZR
@@ -284,8 +287,11 @@ inline uint32_t mbuf_crc32(void)
     return ~lfs_crc(~0, mbuf, mbuf_len);
 }
 
-void mem_use_bank(uint8_t bank)
+void mem_select_bank(uint8_t bank)
 {
+    while (acquired_bank >= 0 && acquired_bank != bank)
+        tight_loop_contents();
+
     gpio_put(QMI_PSRAM_BS_PIN, (bool)bank);
 }
 
@@ -296,15 +302,18 @@ void mem_init(void)
     gpio_set_dir(QMI_PSRAM_BS_PIN, true);
     gpio_set_pulls(QMI_PSRAM_BS_PIN, false, false);
 
+    // No bank is acquired yet
+    acquired_bank = -1;
+
     // Setup PSRAM controller and chips
     for (uint8_t bank = 0; bank < PSRAM_BANKS_NO; bank++)
     {
-        mem_use_bank(bank);
+        mem_select_bank(bank);
         setup_psram(bank);
     }
 
     // Select BANK0 for now
-    mem_use_bank(0);
+    mem_select_bank(0);
 }
 
 void mem_post_reclock(void)
@@ -313,11 +322,13 @@ void mem_post_reclock(void)
 
 uint8_t mem_read_psram(uint32_t addr)
 {
+    mem_select_bank(MEM_ADDR_TO_BANK(addr));
     return _psram[addr & 0x7FFFFF];
 }
 
 void mem_write_psram(uint32_t addr, uint8_t data)
 {
+    mem_select_bank(MEM_ADDR_TO_BANK(addr));
     _psram[addr & 0x7FFFFF] = data;
 }
 
