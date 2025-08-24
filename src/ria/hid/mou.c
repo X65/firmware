@@ -86,7 +86,7 @@ bool mou_xreg(uint16_t word)
         return false;
     mou_xram = word;
     if (mou_xram != 0xFFFF)
-        memcpy(&psram[mou_xram], &mou_state, sizeof(mou_state));
+        mem_cpy_psram(mou_xram, &mou_state, sizeof(mou_state));
     return true;
 }
 
@@ -224,5 +224,5 @@ void mou_report(int slot, void const *data, size_t size)
 
     // Update XRAM with new state
     if (mou_xram != 0xFFFF)
-        memcpy(&psram[mou_xram], &mou_state, sizeof(mou_state));
+        mem_cpy_psram(mou_xram, &mou_state, sizeof(mou_state));
 }

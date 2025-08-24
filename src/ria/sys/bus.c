@@ -338,12 +338,12 @@ mem_bus_pio_irq_handler(void)
                     if (bus_address & CPU_RWB_MASK)
                     { // CPU is reading
                         // Push 1 byte from RAM to PIO tx FIFO
-                        MEM_BUS_PIO->txf[MEM_BUS_SM] = psram[addr];
+                        MEM_BUS_PIO->txf[MEM_BUS_SM] = mem_read_psram(addr);
                     }
                     else
                     { // CPU is writing
                         // Store bus D0-7 to RAM
-                        psram[addr] = bus_data;
+                        mem_write_psram(addr, bus_data);
                         // Sync write to CGIA L1 cache
                         cgia_ram_write(addr, bus_data);
                     }

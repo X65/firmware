@@ -732,8 +732,8 @@ static void pad_reset_xram(int player)
         return;
     pad_xram_t gamepad_report;
     pad_parse_report(player, 0, 0, &gamepad_report); // get blank
-    memcpy(&psram[pad_xram + player * (sizeof(pad_xram_t))],
-           &gamepad_report, sizeof(pad_xram_t));
+    mem_cpy_psram(pad_xram + player * (sizeof(pad_xram_t)),
+                  &gamepad_report, sizeof(pad_xram_t));
 }
 
 bool pad_xreg(uint16_t word)
@@ -813,8 +813,8 @@ void pad_report(int slot, uint8_t const *data, uint16_t len)
     {
         pad_xram_t gamepad_report;
         pad_parse_report(player, report_data, report_data_len, &gamepad_report);
-        memcpy(&psram[pad_xram + player * (sizeof(pad_xram_t))],
-               &gamepad_report, sizeof(pad_xram_t));
+        mem_cpy_psram(pad_xram + player * (sizeof(pad_xram_t)),
+                      &gamepad_report, sizeof(pad_xram_t));
     }
 }
 
@@ -833,11 +833,12 @@ void pad_home_button(int slot, bool pressed)
     // Update the home button bit in psram
     if (pad_xram != 0xFFFF)
     {
-        uint8_t *button1 = &psram[pad_xram + player * (sizeof(pad_xram_t)) + 3];
+        uint32_t addr = pad_xram + player * (sizeof(pad_xram_t)) + 3;
+        uint8_t button1 = mem_read_psram(addr);
         if (pressed)
-            *button1 |= (1 << (PAD_HOME_BUTTON - 8));
+            mem_write_psram(addr, button1 | (1 << (PAD_HOME_BUTTON - 8)));
         else
-            *button1 &= ~(1 << (PAD_HOME_BUTTON - 8));
+            mem_write_psram(addr, button1 & ~(1 << (PAD_HOME_BUTTON - 8)));
     }
 }
 

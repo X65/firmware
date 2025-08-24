@@ -12,16 +12,12 @@
 #include <stddef.h>
 #include <stdint.h>
 
-// 16MB of XIP QPI PSRAM interface
-#define XIP_PSRAM_CACHED  0x11000000
-#define XIP_PSRAM_NOCACHE 0x15000000
-extern uint8_t psram[0x1000000]; // 16 MB of PSRAM address space
-asm(".equ psram, 0x11000000");   // Addressable at 0x11000000 - 0x11ffffff
-
 // PSRAM chips
 #define PSRAM_BANKS_NO 2
 extern size_t psram_size[PSRAM_BANKS_NO];
 extern uint8_t psram_readid_response[PSRAM_BANKS_NO][8];
+#define XIP_PSRAM_CACHED  0x11000000
+#define XIP_PSRAM_NOCACHE 0x15000000
 
 // The xstack is:
 // 512 bytes, enough to hold a CC65 stack frame, two strings for a
@@ -56,6 +52,11 @@ void mem_print_status(void);
 
 // Select PSRAM bank
 void mem_use_bank(uint8_t bank);
+
+// 16MB of XIP QPI PSRAM interface
+uint8_t mem_read_psram(uint32_t addr);
+void mem_write_psram(uint32_t addr, uint8_t data);
+void mem_cpy_psram(uint32_t dest_addr, const void *src, size_t n);
 
 // Read/Write memory or overlaying memory mapped device.
 // Similar function as the CPU BUS mapper, but for firmware code.

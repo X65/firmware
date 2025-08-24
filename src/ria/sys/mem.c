@@ -20,6 +20,9 @@
 #include <stdint.h>
 #include <stdio.h>
 
+extern uint8_t _psram[0x1000000]; // 16 MB of PSRAM address space
+asm(".equ _psram, 0x11000000");   // Addressable at 0x11000000 - 0x11ffffff
+
 size_t psram_size[PSRAM_BANKS_NO];
 uint8_t psram_readid_response[PSRAM_BANKS_NO][8];
 
@@ -281,6 +284,11 @@ inline uint32_t mbuf_crc32(void)
     return ~lfs_crc(~0, mbuf, mbuf_len);
 }
 
+void mem_use_bank(uint8_t bank)
+{
+    gpio_put(QMI_PSRAM_BS_PIN, (bool)bank);
+}
+
 void mem_init(void)
 {
     // PSRAM Bank-Select pin
@@ -299,13 +307,29 @@ void mem_init(void)
     mem_use_bank(0);
 }
 
-void mem_use_bank(uint8_t bank)
-{
-    gpio_put(QMI_PSRAM_BS_PIN, (bool)bank);
-}
-
 void mem_post_reclock(void)
 {
+}
+
+uint8_t mem_read_psram(uint32_t addr)
+{
+    return _psram[addr & 0x7FFFFF];
+}
+
+void mem_write_psram(uint32_t addr, uint8_t data)
+{
+    _psram[addr & 0x7FFFFF] = data;
+}
+
+void mem_cpy_psram(uint32_t dest_addr, const void *src, size_t n)
+{
+    const uint8_t *ptr = (const uint8_t *)src;
+    while (n--)
+    {
+        mem_write_psram(dest_addr, *ptr);
+        ++ptr;
+        ++dest_addr;
+    }
 }
 
 uint8_t mem_read_byte(uint32_t addr)
@@ -320,7 +344,7 @@ uint8_t mem_read_byte(uint32_t addr)
     }
     else
     {
-        return psram[addr & 0xFFFFFF];
+        return mem_read_psram(addr);
     }
 }
 
@@ -336,7 +360,7 @@ void mem_write_byte(uint32_t addr, uint8_t data)
     }
     else
     {
-        psram[addr & 0xFFFFFF] = data;
+        mem_write_psram(addr, data);
         cgia_ram_write(addr, data); // Sync write to CGIA L1 cache
     }
 }

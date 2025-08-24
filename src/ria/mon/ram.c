@@ -106,9 +106,8 @@ static void sys_com_rx_mbuf(bool timeout, const char *buf, size_t length)
     uint32_t addr = rw_addr;
     while (length--)
     {
-        // FIXME: should use mem_write_buf() instead of writing directly to psram
         printf("rx_mbuf: 0x%06lX <- 0x%02X\n", addr, *buf);
-        psram[addr++ & 0xFFFFFF] = *(buf++);
+        mem_write_byte(addr++ & 0xFFFFFF, *(buf++));
     }
 }
 
