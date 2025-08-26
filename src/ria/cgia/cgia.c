@@ -10,10 +10,7 @@
 #define CGIA_PALETTE_IMPL
 #include "cgia_palette.h"
 #include "main.h"
-#include "term/term.h"
-
-#include "sys/aud.h"
-// #include "sys/mem.h"
+#include "sys/mem.h"
 #include "sys/out.h"
 
 #include <string.h>
@@ -225,6 +222,10 @@ int data_chan;
 // DMA channel to fill raster line with background color
 int back_chan;
 
+// DMA channel to sync CGIA VRAM CACHE bank
+int vcache_chan;
+int vcache_transfer; // records which bank is being transferred
+
 void cgia_init(void)
 {
     memset(&CGIA, 0, CGIA_REGS_NO);
@@ -241,8 +242,7 @@ void cgia_init(void)
 
 #ifdef PICO_SDK_VERSION_MAJOR
     // DMA
-    ctrl_chan
-        = dma_claim_unused_channel(true);
+    ctrl_chan = dma_claim_unused_channel(true);
     data_chan = dma_claim_unused_channel(true);
 
     dma_channel_config c = dma_channel_get_default_config(ctrl_chan);
@@ -284,6 +284,26 @@ void cgia_init(void)
         NULL,
         DISPLAY_WIDTH_PIXELS,
         false);
+
+    vcache_chan = dma_claim_unused_channel(true);
+    c = dma_channel_get_default_config(vcache_chan);
+    channel_config_set_transfer_data_size(&c, DMA_SIZE_32);
+    channel_config_set_read_increment(&c, true);
+    channel_config_set_write_increment(&c, true);
+
+    dma_channel_configure(
+        vcache_chan,
+        &c,
+        NULL,
+        NULL,
+        0x10000 / 4,
+        false);
+
+    vcache_transfer = -1;
+    vram_wanted_bank_mask[0] = CGIA.bckgnd_bank = 0;
+    vram_wanted_bank_mask[1] = CGIA.sprite_bank = 0;
+    vram_cache_bank_mask[0] = 0xFF; // Force initial transfer of bank
+    vram_cache_bank_mask[1] = 0;
 #endif
 }
 
@@ -1011,17 +1031,37 @@ void cgia_task(void)
 }
 
 #ifdef PICO_SDK_VERSION_MAJOR
-static void _cgia_transfer_vcache_bank(uint8_t bank)
+static void _cgia_transfer_vcache_bank(uint8_t vcache_bank)
 {
-    if (vram_wanted_bank_mask[bank] != vram_cache_bank_mask[bank])
+    if (!dma_channel_is_busy(vcache_chan))
     {
-        // TODO: start DMA transfer from PSRAM to VRAM
-        // - store bank id and destination being trasferred
+        // Start DMA transfer from PSRAM to VRAM CACHE:
         // - do not start if transfer already in progress
+        // - store vcache id of destination being trasferred
         // - allocate PSRAM chip, so CPU gets blocked until transfer is done
         // - update vram_cache_bank_mask when transfer is done with stored value
         //   - vram_wanted_bank_mask might already have changed and next transfer
-        //   - will be started next tick
+        //     will be started next tick
+
+        if (vcache_transfer >= 0)
+        {
+            // ongoing transfer finished
+            acquired_bank = -1;
+
+            vram_cache_bank_mask[vcache_transfer] = vram_wanted_bank_mask[vcache_transfer];
+            vram_cache_ptr[vcache_transfer] = vram_cache[vcache_transfer];
+            vcache_transfer = -1;
+        }
+
+        if (vram_wanted_bank_mask[vcache_bank] != vram_cache_bank_mask[vcache_bank]
+            && MEM_CAN_ACCESS_ADDR(vram_wanted_bank_mask[vcache_bank]))
+        {
+            // start memory transfer
+            vcache_transfer = vcache_bank;
+            acquired_bank = MEM_ADDR_TO_BANK(vram_wanted_bank_mask[vcache_bank]);
+            dma_channel_set_read_addr(vcache_chan, (void *)(XIP_PSRAM_CACHED | vram_wanted_bank_mask[vcache_bank]), false);
+            dma_channel_set_write_addr(vcache_chan, vram_cache[vcache_bank], true);
+        }
     }
 }
 #endif

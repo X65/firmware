@@ -27,6 +27,7 @@ asm(".equ _psram, 0x11000000");   // Addressable at 0x11000000 - 0x11ffffff
 size_t psram_size[PSRAM_BANKS_NO];
 uint8_t psram_readid_response[PSRAM_BANKS_NO][8];
 
+// 0 or 1 (of PSRAM_BANKS_NO)
 volatile int8_t acquired_bank;
 
 // DETAILS/

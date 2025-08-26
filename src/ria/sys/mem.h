@@ -55,6 +55,7 @@ void mem_select_bank(uint8_t bank);
 
 // If set, someone is using the PSRAM bank
 // and you are not allowed to select another
+// NOTE: This is used by Main CPU Core only, thus does not require mutex
 extern volatile int8_t acquired_bank;
 
 #define MEM_ADDR_TO_BANK(addr)    ((uint8_t)(addr >> 23))
