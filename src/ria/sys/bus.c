@@ -109,22 +109,25 @@ mem_bus_pio_irq_handler(void)
                 // I/O area access
                 if ((bus_address & 0xFFFFC0) == 0x00FFC0) // RP816 RIA registers
                 {
-                    // ------ FFF0 - FFFF ------
+                    // ------ FFF0 - FFFF ------ (API, EXT CTL)
                     if ((bus_address & 0xFFF0) == 0xFFF0)
                         switch (bus_address & (CPU_IODEV_MASK | CPU_RWB_MASK))
                         {
                         case CASE_WRIT(0xFFF0): // xstack
+
                             // if (xstack_ptr)
                             //     xstack[--xstack_ptr] = bus_data;
                             // API_STACK = xstack[xstack_ptr];
                             break;
                         case CASE_READ(0xFFF0): // xstack
+
                             // if (xstack_ptr < XSTACK_SIZE)
                             //     ++xstack_ptr;
                             // API_STACK = xstack[xstack_ptr];
+                            MEM_BUS_PIO->txf[MEM_BUS_SM] = 0xEA; // READ MUST return something
                             break;
 
-                        case CASE_WRIT(0xFFF1): // OS function call
+                        case CASE_WRIT(0xFFF1): // API call
 
                             // api_return_blocked();
                             // if (bus_data == 0x00) // zxstack()
@@ -141,51 +144,31 @@ mem_bus_pio_irq_handler(void)
                             }
                             break;
 
-                        case CASE_READ(0xFFF4): // COP_L
-                        case CASE_READ(0xFFF5): // COP_H
-                        case CASE_READ(0xFFF8): // ABORTB_L
-                        case CASE_READ(0xFFF9): // ABORTB_H
-                        case CASE_READ(0xFFFA): // NMIB_L
-                        case CASE_READ(0xFFFB): // NMIB_H
-                        case CASE_READ(0xFFFC): // RESETB_L
-                        case CASE_READ(0xFFFD): // RESETB_H
-                        case CASE_READ(0xFFFE): // IRQB/BRK_L
-                        case CASE_READ(0xFFFF): // IRQB/BRK_H
-                            MEM_BUS_PIO->txf[MEM_BUS_SM] = REGS(bus_address);
-#ifdef ABORT_ON_IRQ_BRK_READ
-                            if ((bus_address & 0xFFFFFF) == 0xFFFF)
-                            {
-                                if (++irq_brk_read >= ABORT_ON_IRQ_BRK_READ)
-                                {
-                                    printf("\nIRQ/BRK vector read (%d) - aborting...\n", irq_brk_read);
-                                    gpio_put(CPU_RESB_PIN, false);
-                                    main_stop();
-                                    dump_cpu_history();
-                                }
-                            }
-#endif
+                        case CASE_READ(0xFFF6): // EXTIO
+                            MEM_BUS_PIO->txf[MEM_BUS_SM] = 0x00;
                             break;
-                        case CASE_WRIT(0xFFF4): // COP_L
-                        case CASE_WRIT(0xFFF5): // COP_H
-                        case CASE_WRIT(0xFFF8): // ABORTB_L
-                        case CASE_WRIT(0xFFF9): // ABORTB_H
-                        case CASE_WRIT(0xFFFA): // NMIB_L
-                        case CASE_WRIT(0xFFFB): // NMIB_H
-                        case CASE_WRIT(0xFFFC): // RESETB_L
-                        case CASE_WRIT(0xFFFD): // RESETB_H
-                        case CASE_WRIT(0xFFFE): // IRQB/BRK_L
-                        case CASE_WRIT(0xFFFF): // IRQB/BRK_H
+                        case CASE_WRIT(0xFFF6): // EXTIO
+                            REGS(bus_address) = bus_data;
+                            break;
+                        case CASE_READ(0xFFF7): // EXTMEM
+                            MEM_BUS_PIO->txf[MEM_BUS_SM] = 0x00;
+                            break;
+                        case CASE_WRIT(0xFFF7): // EXTMEM
                             REGS(bus_address) = bus_data;
                             break;
 
+                        // COP ABORTB NMIB RESETB IRQB/BRK
                         default:
                             if (bus_address & CPU_RWB_MASK)
                             {
-                                // CPU is waiting for some data - push NOP
-                                MEM_BUS_PIO->txf[MEM_BUS_SM] = 0xEA;
+                                MEM_BUS_PIO->txf[MEM_BUS_SM] = REGS(bus_address);
+                            }
+                            else
+                            {
+                                REGS(bus_address) = bus_data;
                             }
                         }
-                    // ------ FFE0 - FFEF ------
+                    // ------ FFE0 - FFEF ------ (UART, RNG, IRQ CTL)
                     else if ((bus_address & 0xFFF0) == 0xFFE0)
                         switch (bus_address & (CPU_IODEV_MASK | CPU_RWB_MASK))
                         {
@@ -233,39 +216,31 @@ mem_bus_pio_irq_handler(void)
                             break;
                         }
 
-                        case CASE_READ(0xFFE4): // COP_L
-                        case CASE_READ(0xFFE5): // COP_H
-                        case CASE_READ(0xFFE6): // BRK_L
-                        case CASE_READ(0xFFE7): // BRK_H
-                        case CASE_READ(0xFFE8): // ABORTB_L
-                        case CASE_READ(0xFFE9): // ABORTB_H
-                        case CASE_READ(0xFFEA): // NMIB_L
-                        case CASE_READ(0xFFEB): // NMIB_H
-                        case CASE_READ(0xFFEE): // IRQB_L
-                        case CASE_READ(0xFFEF): // IRQB_H
-                            MEM_BUS_PIO->txf[MEM_BUS_SM] = REGS(bus_address);
+                        case CASE_READ(0xFFEC): // IRQ_STATUS
+                            MEM_BUS_PIO->txf[MEM_BUS_SM] = 0x00;
                             break;
-                        case CASE_WRIT(0xFFE4): // COP_L
-                        case CASE_WRIT(0xFFE5): // COP_H
-                        case CASE_WRIT(0xFFE6): // BRK_L
-                        case CASE_WRIT(0xFFE7): // BRK_H
-                        case CASE_WRIT(0xFFE8): // ABORTB_L
-                        case CASE_WRIT(0xFFE9): // ABORTB_H
-                        case CASE_WRIT(0xFFEA): // NMIB_L
-                        case CASE_WRIT(0xFFEB): // NMIB_H
-                        case CASE_WRIT(0xFFEE): // IRQB_L
-                        case CASE_WRIT(0xFFEF): // IRQB_H
+                        case CASE_WRIT(0xFFEC): // IRQ_STATUS
+                            REGS(bus_address) = bus_data;
+                            break;
+                        case CASE_READ(0xFFED): // IRQ_ENABLE
+                            MEM_BUS_PIO->txf[MEM_BUS_SM] = 0x00;
+                            break;
+                        case CASE_WRIT(0xFFED): // IRQ_ENABLE
                             REGS(bus_address) = bus_data;
                             break;
 
+                        // COP BRK ABORTB NMIB IRQB
                         default:
                             if (bus_address & CPU_RWB_MASK)
                             {
-                                // CPU is waiting for some data - push NOP
-                                MEM_BUS_PIO->txf[MEM_BUS_SM] = 0xEA;
+                                MEM_BUS_PIO->txf[MEM_BUS_SM] = REGS(bus_address);
+                            }
+                            else
+                            {
+                                REGS(bus_address) = bus_data;
                             }
                         }
-                    // ------ FFD0 - FFDF ------
+                    // ------ FFD0 - FFDF ------ (DMA, FS)
                     else if ((bus_address & 0xFFF0) == 0xFFD0)
                         switch (bus_address & (CPU_IODEV_MASK | CPU_RWB_MASK))
                         {
@@ -279,7 +254,7 @@ mem_bus_pio_irq_handler(void)
                                 MEM_BUS_PIO->txf[MEM_BUS_SM] = 0xEA;
                             }
                         }
-                    // ------ FFC0 - FFCF ------
+                    // ------ FFC0 - FFCF ------ (MUL/DIV, TOD)
                     else if ((bus_address & 0xFFF0) == 0xFFC0)
                         switch (bus_address & (CPU_IODEV_MASK | CPU_RWB_MASK))
                         {
@@ -296,16 +271,24 @@ mem_bus_pio_irq_handler(void)
                         case CASE_READ(0xFFC3):
                             MEM_BUS_PIO->txf[MEM_BUS_SM] = REGS(bus_address);
                             break;
-                        // OPERA * OPERB
+                        // OPERA * OPERB - multiplication accelerator
                         case CASE_READ(0xFFC4):
                         case CASE_READ(0xFFC5):
-                            MEM_BUS_PIO->txf[MEM_BUS_SM] = 0; // FIXME: implement
-                            break;
-                        // Signed OPERA / unsigned OPERB
+                        {
+                            uint16_t mul = REGSW(0xFFC0) * REGSW(0xFFC2);
+                            MEM_BUS_PIO->txf[MEM_BUS_SM] = (bus_address & 1) ? (mul >> 8) : (mul & 0xFF);
+                        }
+                        break;
+                        // Signed OPERA / unsigned OPERB - division accelerator
                         case CASE_READ(0xFFC6):
                         case CASE_READ(0xFFC7):
-                            MEM_BUS_PIO->txf[MEM_BUS_SM] = 0; // FIXME: implement
-                            break;
+                        {
+                            const int16_t oper_a = (int16_t)REGSW(0xFFC0);
+                            const uint16_t oper_b = (uint16_t)REGSW(0xFFC2);
+                            uint16_t div = oper_b ? (oper_a / oper_b) : 0xFFFF;
+                            MEM_BUS_PIO->txf[MEM_BUS_SM] = (bus_address & 1) ? (div >> 8) : (div & 0xFF);
+                        }
+                        break;
 
                         // monotonic clock
                         case CASE_READ(0xFFC8):
@@ -342,6 +325,14 @@ mem_bus_pio_irq_handler(void)
                 else
                 {
                     const uint32_t addr = bus_address & 0xFFFFFF;
+                    bool cpu_is_reading = bus_address & CPU_RWB_MASK;
+
+                    if (!cpu_is_reading)
+                    {
+                        // Sync write to CGIA L1 cache
+                        cgia_ram_write(addr, bus_data);
+                    }
+
                     if (!MEM_CAN_ACCESS_ADDR(addr))
                     {
                         // something acquired a PSRAM bank, so we need to
@@ -349,7 +340,7 @@ mem_bus_pio_irq_handler(void)
                         // and configure a pending operation
                         pio_sm_set_enabled(MEM_BUS_PIO, MEM_BUS_SM, false);
 
-                        bus_pending_operation = (bus_address & CPU_RWB_MASK) ? BUS_PENDING_READ : BUS_PENDING_WRITE;
+                        bus_pending_operation = cpu_is_reading ? BUS_PENDING_READ : BUS_PENDING_WRITE;
                         bus_pending_addr = addr;
                         bus_pending_data = bus_data;
 
@@ -359,7 +350,7 @@ mem_bus_pio_irq_handler(void)
                     }
 
                     // normal memory access
-                    if (bus_address & CPU_RWB_MASK)
+                    if (cpu_is_reading)
                     { // CPU is reading
                         // Push 1 byte from RAM to PIO tx FIFO
                         MEM_BUS_PIO->txf[MEM_BUS_SM] = mem_read_psram(addr);
@@ -368,8 +359,6 @@ mem_bus_pio_irq_handler(void)
                     { // CPU is writing
                         // Store bus D0-7 to RAM
                         mem_write_psram(addr, bus_data);
-                        // Sync write to CGIA L1 cache
-                        cgia_ram_write(addr, bus_data);
                     }
                 }
             }

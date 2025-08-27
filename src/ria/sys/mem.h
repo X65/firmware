@@ -31,8 +31,8 @@ extern volatile size_t xstack_ptr;
 // RP816 RIA "internal" registers
 extern volatile uint8_t __regs[0x40];
 #define REGS(addr)   (__regs[(addr) & 0x3F])
-#define REGSW(addr)  (((uint16_t *)&REGS(addr))[0])
-#define REGSDW(addr) (((uint32_t *)&REGS(addr))[0])
+#define REGSW(addr)  (((volatile uint16_t *)&REGS(addr))[0])
+#define REGSDW(addr) (((volatile uint32_t *)&REGS(addr))[0])
 
 // Misc memory buffer for moving things around.
 // FS <-> RAM, USB <-> RAM, UART <-> RAM, etc.
