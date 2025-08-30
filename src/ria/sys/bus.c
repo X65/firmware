@@ -327,12 +327,6 @@ mem_bus_pio_irq_handler(void)
                     const uint32_t addr = bus_address & 0xFFFFFF;
                     bool cpu_is_reading = bus_address & CPU_RWB_MASK;
 
-                    if (!cpu_is_reading)
-                    {
-                        // Sync write to CGIA L1 cache
-                        cgia_ram_write(addr, bus_data);
-                    }
-
                     if (!MEM_CAN_ACCESS_ADDR(addr))
                     {
                         // something acquired a PSRAM bank, so we need to

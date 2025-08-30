@@ -331,6 +331,9 @@ void mem_write_psram(uint32_t addr, uint8_t data)
 {
     mem_select_bank(MEM_ADDR_TO_BANK(addr));
     _psram[addr & 0x7FFFFF] = data;
+
+    // Sync write to CGIA L1 cache
+    cgia_ram_write(addr, data);
 }
 
 void mem_cpy_psram(uint32_t dest_addr, const void *src, size_t n)
@@ -373,7 +376,6 @@ void mem_write_byte(uint32_t addr, uint8_t data)
     else
     {
         mem_write_psram(addr, data);
-        cgia_ram_write(addr, data); // Sync write to CGIA L1 cache
     }
 }
 
