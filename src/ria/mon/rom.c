@@ -24,6 +24,7 @@ static uint16_t rom_start;
 static uint16_t rom_end;
 static bool rom_FFFC;
 static bool rom_FFFD;
+static bool skip_chunk;
 static bool is_reading_fat;
 static bool lfs_file_open;
 static lfs_file_t lfs_file;
@@ -134,7 +135,9 @@ static bool rom_next_chunk(void)
             printf("?Invalid XEX block header\n");
             return false;
         }
-        // printf("Loading XEX block: $%04X - $%04X\n", rom_start, rom_end);
+        skip_chunk = rom_start == 0xFC00 && rom_bank == 0x00;
+        // printf("%s XEX block: %02X $%04X - $%04X\n",
+        //        skip_chunk ? "Skippng" : "Loading", rom_bank, rom_start, rom_end);
     }
 
     uint16_t rom_len = rom_end - rom_start + 1;
@@ -423,7 +426,7 @@ void rom_task(void)
         rom_loading();
         break;
     case ROM_WRITING:
-        if (!rom_ram_writing(rom_start == 0xFC00))
+        if (!rom_ram_writing(skip_chunk))
             rom_state = ROM_LOADING;
         break;
     }
