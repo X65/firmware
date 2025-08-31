@@ -68,6 +68,10 @@ static uint8_t
     __scratch_x("")
         sprite_line_data[SPRITE_MAX_WIDTH];
 
+static uint32_t
+    __attribute__((aligned(4)))
+    stored_line_data[DISPLAY_WIDTH_PIXELS];
+
 // store which PSRAM bank is currently mirrored in cache
 // stored as bitmask for easy use during ram write call
 uint32_t
@@ -216,15 +220,18 @@ struct dma_control_block
 
 // DMA channels to copy blocks of data
 // ctrl_chan loads control blocks into data_chan, which executes them.
-int ctrl_chan;
-int data_chan;
+static int ctrl_chan;
+static int data_chan;
 
 // DMA channel to fill raster line with background color
-int back_chan;
+static int back_chan;
+
+// DMA channel to store line buffer for duplication
+static int store_chan;
 
 // DMA channel to sync CGIA VRAM CACHE bank
-int vcache_chan;
-int vcache_transfer; // records which bank is being transferred
+static int vcache_chan;
+static int vcache_transfer; // records which bank is being transferred
 
 void cgia_init(void)
 {
@@ -281,6 +288,20 @@ void cgia_init(void)
         back_chan,
         &c,
         NULL,
+        NULL,
+        DISPLAY_WIDTH_PIXELS,
+        false);
+
+    store_chan = dma_claim_unused_channel(true);
+    c = dma_channel_get_default_config(store_chan);
+    channel_config_set_transfer_data_size(&c, DMA_SIZE_32);
+    channel_config_set_read_increment(&c, true);
+    channel_config_set_write_increment(&c, true);
+
+    dma_channel_configure(
+        store_chan,
+        &c,
+        stored_line_data,
         NULL,
         DISPLAY_WIDTH_PIXELS,
         false);
@@ -353,10 +374,34 @@ static inline __attribute__((always_inline)) uint32_t *fill_back(
     uint32_t color_idx)
 {
     dma_channel_wait_for_finish_blocking(back_chan);
-    dma_channel_set_write_addr(back_chan, buf, false);
     dma_channel_set_read_addr(back_chan, &cgia_rgb_palette[color_idx], false);
+    dma_channel_set_write_addr(back_chan, buf, false);
     const uint pixels = columns * CGIA_COLUMN_PX;
     dma_channel_set_trans_count(back_chan, pixels, true);
+    return buf + pixels;
+}
+
+static inline __attribute__((always_inline)) void store_back(
+    uint32_t *buf,
+    uint32_t columns)
+{
+    dma_channel_wait_for_finish_blocking(store_chan);
+    dma_channel_set_read_addr(store_chan, buf, false);
+    dma_channel_set_write_addr(store_chan, stored_line_data, false);
+    const uint pixels = columns * CGIA_COLUMN_PX;
+    dma_channel_set_trans_count(store_chan, pixels, true);
+}
+
+static inline __attribute__((always_inline)) uint32_t *restore_back(
+    uint32_t *buf,
+    uint32_t columns)
+{
+    dma_channel_wait_for_finish_blocking(store_chan);
+    dma_channel_set_read_addr(store_chan, stored_line_data, false);
+    dma_channel_set_write_addr(store_chan, buf, false);
+    const uint pixels = columns * CGIA_COLUMN_PX;
+    dma_channel_set_trans_count(store_chan, pixels, true);
+    dma_channel_wait_for_finish_blocking(store_chan);
     return buf + pixels;
 }
 
@@ -496,8 +541,9 @@ void __attribute__((optimize("O3"))) cgia_render(uint16_t y, uint32_t *rgbbuf)
             uint8_t sprite_index = 7;
             uint8_t mask = 0b10000000;
 
-            // wait until back fill is done, as it may overwrite sprites on the right side
+            // wait until back fill and store is done, as it may overwrite sprites on the right side
             dma_channel_wait_for_finish_blocking(back_chan);
+            dma_channel_wait_for_finish_blocking(store_chan);
 
             while (mask)
             {
@@ -622,6 +668,11 @@ void __attribute__((optimize("O3"))) cgia_render(uint16_t y, uint32_t *rgbbuf)
                 line_background_filled = true;
             }
 
+            uint8_t border_columns = plane->bckgnd.border_columns;
+            if (border_columns > MAX_BORDER_COLUMNS)
+                border_columns = MAX_BORDER_COLUMNS;
+            uint8_t row_columns = FRAME_CHARS - 2 * border_columns;
+
             // first process instructions - they need less preparation and can be shortcutted
             if (!(dl_instr & CGIA_DL_MODE_BIT))
             {
@@ -641,15 +692,18 @@ void __attribute__((optimize("O3"))) cgia_render(uint16_t y, uint32_t *rgbbuf)
 
                 case 0x1: // INSTR1 - duplicate lines
                     dl_row_lines = dl_instr >> 4;
-                    (void)fill_back(rgbbuf, DISPLAY_WIDTH_PIXELS / CGIA_COLUMN_PX, UNHANDLED_DL_COLOR);
-                    // FIXME: for now leave RGB buffer as is - will display it again
-                    // TODO: store last RGB buffer pointer at the end of the frame and copy to current one
+                    {
+                        (void)restore_back(rgbbuf + border_columns * CGIA_COLUMN_PX, row_columns);
+                    }
                     goto plane_epilogue;
 
                 case 0x2: // INSTR1 - JMP
                     // Load DL address
-                    *plane_offset = (uint16_t)((bckgnd_bank[++*plane_offset])
-                                               | (bckgnd_bank[++*plane_offset] << 8));
+                    {
+                        uint16_t offset = bckgnd_bank[++*plane_offset];
+                        offset |= bckgnd_bank[++*plane_offset] << 8;
+                        *plane_offset = offset;
+                    }
                     plane_data->row_line_count = 0; // will start new row
 
                     if (dl_instr & CGIA_DL_DLI_BIT)
@@ -665,23 +719,27 @@ void __attribute__((optimize("O3"))) cgia_render(uint16_t y, uint32_t *rgbbuf)
                 case 0x3: // Load Memory
                     if (dl_instr & 0b00010000)
                     {
-                        plane_data->memory_scan = (uint16_t)((bckgnd_bank[++*plane_offset])
-                                                             | (bckgnd_bank[++*plane_offset] << 8));
+                        uint16_t offset = bckgnd_bank[++*plane_offset];
+                        offset |= bckgnd_bank[++*plane_offset] << 8;
+                        plane_data->memory_scan = offset;
                     }
                     if (dl_instr & 0b00100000)
                     {
-                        plane_data->colour_scan = (uint16_t)((bckgnd_bank[++*plane_offset])
-                                                             | (bckgnd_bank[++*plane_offset] << 8));
+                        uint16_t offset = bckgnd_bank[++*plane_offset];
+                        offset |= bckgnd_bank[++*plane_offset] << 8;
+                        plane_data->colour_scan = offset;
                     }
                     if (dl_instr & 0b01000000)
                     {
-                        plane_data->backgr_scan = (uint16_t)((bckgnd_bank[++*plane_offset])
-                                                             | (bckgnd_bank[++*plane_offset] << 8));
+                        uint16_t offset = bckgnd_bank[++*plane_offset];
+                        offset |= bckgnd_bank[++*plane_offset] << 8;
+                        plane_data->backgr_scan = offset;
                     }
                     if (dl_instr & 0b10000000)
                     {
-                        plane_data->char_gen_offset = (uint16_t)((bckgnd_bank[++*plane_offset])
-                                                                 | (bckgnd_bank[++*plane_offset] << 8));
+                        uint16_t offset = bckgnd_bank[++*plane_offset];
+                        offset |= bckgnd_bank[++*plane_offset] << 8;
+                        plane_data->char_gen_offset = offset;
                     }
                     ++*plane_offset; // Move to next DL instruction
                     goto process_instruction;
@@ -711,11 +769,6 @@ void __attribute__((optimize("O3"))) cgia_render(uint16_t y, uint32_t *rgbbuf)
             }
             else
             {
-                uint8_t border_columns = plane->bckgnd.border_columns;
-                if (border_columns > MAX_BORDER_COLUMNS)
-                    border_columns = MAX_BORDER_COLUMNS;
-                uint8_t row_columns = FRAME_CHARS - 2 * border_columns;
-
                 if (row_columns)
                 {
                     // ------- Mode Rows --------------
@@ -937,6 +990,12 @@ void __attribute__((optimize("O3"))) cgia_render(uint16_t y, uint32_t *rgbbuf)
                         dl_row_lines = plane_data->row_line_count; // force moving to next DL instruction
                         goto plane_epilogue;
                     }
+                }
+
+                // should store line for duplication?
+                if (dl_instr & CGIA_DL_STORE_BIT)
+                {
+                    store_back(rgbbuf + border_columns * CGIA_COLUMN_PX, row_columns);
                 }
 
                 // borders

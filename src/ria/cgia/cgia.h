@@ -37,8 +37,9 @@
     bit 7 - trigger DLI - Display List Interrupt
 */
 
-#define CGIA_DL_MODE_BIT 0b00001000
-#define CGIA_DL_DLI_BIT  0b10000000
+#define CGIA_DL_MODE_BIT  0b00001000
+#define CGIA_DL_DLI_BIT   0b10000000
+#define CGIA_DL_STORE_BIT 0b01000000
 
 // https://csbruce.com/cbm/hacking/hacking12.txt
 /*
