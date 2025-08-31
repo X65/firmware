@@ -35,8 +35,6 @@ static io_rw_32 cur_line_ptr;
 static uint gen_scanline = UINT_MAX;
 static io_rw_32 gen_line_ptr;
 
-static bool trigger_vbl = false;
-
 static uint pixel_doubling = FB_H_REPEAT ? 1 : 0;
 
 // ----------------------------------------------------------------------------
@@ -153,6 +151,9 @@ void __isr
     }
     else if (v_scanline < MODE_V_FRONT_PORCH + MODE_V_SYNC_WIDTH + MODE_V_BACK_PORCH)
     {
+        if (v_scanline == 0)
+            cgia_vbi();
+
         ch->read_addr = (uintptr_t)vblank_line_vsync_off;
         ch->transfer_count = count_of(vblank_line_vsync_off);
 
@@ -186,8 +187,6 @@ void __isr
         if (v_scanline >= MODE_V_TOTAL_LINES)
         {
             v_scanline = 0;
-
-            trigger_vbl = true;
         }
     }
 }
@@ -302,12 +301,6 @@ void __not_in_flash_func(out_core1_main)(void)
 
     while (true)
     {
-        if (trigger_vbl)
-        {
-            cgia_vbi();
-            trigger_vbl = false;
-        }
-
         static uint active_scanline = UINT_MAX;
         if (a_scanline != active_scanline)
         {

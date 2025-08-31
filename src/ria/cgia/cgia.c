@@ -143,6 +143,11 @@ uint8_t int_mask = 0;
 
 #define INT_STATUS_MASKED (regs_int[CGIA_REG_INT_STATUS] & regs_int[CGIA_REG_INT_ENABLE] & int_mask)
 
+static inline __attribute__((always_inline)) void cpu_set_nmi(void)
+{
+    gpio_put(RIA_NMIB_PIN, !INT_STATUS_MASKED);
+}
+
 inline __attribute__((always_inline)) __attribute__((optimize("O3"))) void cgia_vbi(void)
 {
     int_mask |= CGIA_REG_INT_FLAG_VBI;
@@ -151,6 +156,8 @@ inline __attribute__((always_inline)) __attribute__((optimize("O3"))) void cgia_
     {
         CGIA.int_status |= CGIA_REG_INT_FLAG_VBI;
     }
+
+    cpu_set_nmi();
 }
 
 inline __attribute__((always_inline)) __attribute__((optimize("O3"))) uint8_t cgia_reg_read(uint8_t reg_no)
@@ -204,11 +211,6 @@ inline __attribute__((always_inline)) __attribute__((optimize("O3"))) void cgia_
             plane_int[3].sprites_need_update = true;
         break;
     }
-}
-
-static inline __attribute__((always_inline)) void cpu_set_nmi(void)
-{
-    gpio_put(RIA_NMIB_PIN, !INT_STATUS_MASKED);
 }
 
 struct dma_control_block
@@ -477,9 +479,8 @@ void __attribute__((optimize("O3"))) cgia_render(uint16_t y, uint32_t *rgbbuf)
     static uint8_t max_instr_count;
 
     CGIA.raster = y;
-    int_mask |= CGIA_REG_INT_FLAG_RSI;
-    if (y == 0)
-        int_mask |= CGIA_REG_INT_FLAG_VBI;
+
+    int_mask |= CGIA_REG_INT_FLAG_RSI; // new line starts
 
     // track whether we need to fill line with background color
     // for transparent or sprite planes
