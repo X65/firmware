@@ -7,6 +7,7 @@
 #include "api/oem.h"
 #include "api/api.h"
 #include "sys/cfg.h"
+#include "term/font.h"
 #include <fatfs/ff.h>
 
 #if defined(DEBUG_RIA_API) || defined(DEBUG_RIA_API_OEM)
@@ -69,6 +70,20 @@ bool oem_api_codepage(void)
     if (!cp)
         cp = cfg_get_codepage();
     return api_return_ax(oem_set_codepage(cp));
+}
+
+bool oem_api_get_chargen(void)
+{
+    uint16_t addr;
+    if (!api_pop_uint16(&addr))
+        return api_return_errno(API_EINVAL);
+    uint8_t bank;
+    if (!api_pop_uint8_end(&bank))
+        return api_return_errno(API_EINVAL);
+
+    mem_cpy_psram((bank << 16) | addr, font8, 256 * 8);
+
+    return api_return_ax(0);
 }
 
 void oem_stop(void)

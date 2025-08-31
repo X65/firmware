@@ -188,6 +188,9 @@ bool main_api(uint8_t operation)
     // case 0x0F:
     //     return clk_api_clock();
     //     break;
+    case API_OP_OEM_GET_CHARGEN:
+        return oem_api_get_chargen();
+        break;
     case API_OP_CLK_GET_RES:
         return clk_api_get_res();
         break;

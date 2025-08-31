@@ -62,7 +62,7 @@ void api_stop(void);
  */
 #define API_OP_ZXSTACK           (0x00)
 #define API_OP_OEM_CODEPAGE      (0x03)
-#define API_OP_GET_CHARGEN       (0x10)
+#define API_OP_OEM_GET_CHARGEN   (0x10)
 #define API_OP_CLK_GET_RES       (0X20)
 #define API_OP_CLK_GET_TIME      (0X21)
 #define API_OP_CLK_SET_TIME      (0X22)

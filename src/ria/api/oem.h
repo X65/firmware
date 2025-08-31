@@ -28,5 +28,7 @@ uint16_t oem_set_codepage(uint16_t cp);
 
 // API set or query the codepage.
 bool oem_api_codepage(void);
+// API to fetch character generator data from firmware.
+bool oem_api_get_chargen(void);
 
 #endif /* _RIA_API_OEM_H_ */
