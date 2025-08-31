@@ -692,6 +692,13 @@ void __attribute__((optimize("O3"))) cgia_render(uint16_t y, uint32_t *rgbbuf)
 
                 case 0x1: // INSTR1 - duplicate lines
                     dl_row_lines = dl_instr >> 4;
+                    if (border_columns && !(plane->bckgnd.flags & PLANE_MASK_BORDER_TRANSPARENT))
+                    {
+                        uint32_t *buf = fill_back(rgbbuf, border_columns, CGIA.back_color);
+                        buf = restore_back(buf, row_columns);
+                        fill_back(buf, border_columns, CGIA.back_color);
+                    }
+                    else
                     {
                         (void)restore_back(rgbbuf + border_columns * CGIA_COLUMN_PX, row_columns);
                     }
