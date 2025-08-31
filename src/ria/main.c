@@ -91,7 +91,6 @@ static void init(void)
 // Calling FatFs in here may cause undefined behavior.
 void main_task(void)
 {
-    led_task();
     usb_task();
     cpu_task();
     bus_task();
@@ -103,12 +102,14 @@ void main_task(void)
     kbd_task();
     hid_task();
     xin_task();
+    led_task();
+    com_task();
 }
 
 // Tasks that call FatFs should be here instead of main_task().
 static void task(void)
 {
-    com_task();
+    api_task();
     mon_task();
     fil_task();
     rom_task();
@@ -117,8 +118,9 @@ static void task(void)
 // Event to start running the CPU.
 static void run(void)
 {
+    api_run();
     clk_run();
-    bus_run();
+    bus_run(); // Must be immediately before cpu
     cpu_run(); // Must be last
 }
 
@@ -174,7 +176,7 @@ bool main_api(uint8_t operation)
     // case 0x02:
     //     return cpu_api_phi2();
     //     break;
-    case 0x03:
+    case API_OP_OEM_CODEPAGE:
         return oem_api_codepage();
         break;
     // case 0x04:
@@ -183,19 +185,19 @@ bool main_api(uint8_t operation)
     // case 0x05:
     //     return cpu_api_stdin_opt();
     //     break;
-    case 0x0F:
-        return clk_api_clock();
-        break;
-    case 0x10:
+    // case 0x0F:
+    //     return clk_api_clock();
+    //     break;
+    case API_OP_CLK_GET_RES:
         return clk_api_get_res();
         break;
-    case 0x11:
+    case API_OP_CLK_GET_TIME:
         return clk_api_get_time();
         break;
-    case 0x12:
+    case API_OP_CLK_SET_TIME:
         return clk_api_set_time();
         break;
-    case 0x13:
+    case API_OP_CLK_GET_TIME_ZONE:
         return clk_api_get_time_zone();
         break;
         // case 0x14:

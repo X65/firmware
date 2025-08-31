@@ -309,8 +309,8 @@ void cgia_init(void)
 
 static uint8_t
     __attribute__((aligned(4)))
-    // __scratch_x("")
-    log2_tab[256]
+    __scratch_x("")
+        log2_tab[256]
     = {
         0x00, 0x01, 0x02, 0x02, 0x03, 0x03, 0x03, 0x03, //
         0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, //
@@ -641,6 +641,7 @@ void __attribute__((optimize("O3"))) cgia_render(uint16_t y, uint32_t *rgbbuf)
 
                 case 0x1: // INSTR1 - duplicate lines
                     dl_row_lines = dl_instr >> 4;
+                    (void)fill_back(rgbbuf, DISPLAY_WIDTH_PIXELS / CGIA_COLUMN_PX, UNHANDLED_DL_COLOR);
                     // FIXME: for now leave RGB buffer as is - will display it again
                     // TODO: store last RGB buffer pointer at the end of the frame and copy to current one
                     goto plane_epilogue;

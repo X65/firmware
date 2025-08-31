@@ -6,8 +6,18 @@
 
 #include "api/oem.h"
 #include "api/api.h"
-#include "fatfs/ff.h"
 #include "sys/cfg.h"
+#include <fatfs/ff.h>
+
+#if defined(DEBUG_RIA_API) || defined(DEBUG_RIA_API_OEM)
+#include <stdio.h>
+#define DBG(...) fprintf(stderr, __VA_ARGS__)
+#else
+static inline void DBG(const char *fmt, ...)
+{
+    (void)fmt;
+}
+#endif
 
 // Only the code page specified by RP6502_CODE_PAGE is installed to flash.
 // To include all code pages, set RP6502_CODE_PAGE to 0 (CMmakeLists.txt).
@@ -52,7 +62,10 @@ uint16_t oem_set_codepage(uint16_t cp)
 
 bool oem_api_codepage(void)
 {
-    uint16_t cp = API_AX;
+    uint16_t cp;
+    if (!api_pop_uint16_end(&cp))
+        return api_return_errno(API_EINVAL);
+
     if (!cp)
         cp = cfg_get_codepage();
     return api_return_ax(oem_set_codepage(cp));

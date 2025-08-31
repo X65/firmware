@@ -5,6 +5,7 @@
  */
 
 #include "bus.h"
+#include "api/api.h"
 #include "bus.pio.h"
 #include "cgia/cgia.h"
 #include "hardware/clocks.h"
@@ -114,34 +115,41 @@ mem_bus_pio_irq_handler(void)
                         switch (bus_address & (CPU_IODEV_MASK | CPU_RWB_MASK))
                         {
                         case CASE_WRIT(0xFFF0): // xstack
-
-                            // if (xstack_ptr)
-                            //     xstack[--xstack_ptr] = bus_data;
-                            // API_STACK = xstack[xstack_ptr];
+                            if (xstack_ptr)
+                                xstack[--xstack_ptr] = bus_data;
                             break;
                         case CASE_READ(0xFFF0): // xstack
-
-                            // if (xstack_ptr < XSTACK_SIZE)
-                            //     ++xstack_ptr;
-                            // API_STACK = xstack[xstack_ptr];
-                            MEM_BUS_PIO->txf[MEM_BUS_SM] = 0xEA; // READ MUST return something
+                            MEM_BUS_PIO->txf[MEM_BUS_SM] = xstack[xstack_ptr];
+                            if (xstack_ptr < XSTACK_SIZE)
+                                ++xstack_ptr;
                             break;
-
+                        case CASE_READ(0xFFF1): // API return value
+                            MEM_BUS_PIO->txf[MEM_BUS_SM] = API_OP;
+                            break;
                         case CASE_WRIT(0xFFF1): // API call
-
-                            // api_return_blocked();
-                            // if (bus_data == 0x00) // zxstack()
-                            // {
-                            //     API_STACK = 0;
-                            //     xstack_ptr = XSTACK_SIZE;
-                            //     api_return_ax(0);
-                            // }
-                            // else
-                            if (bus_data == 0xFF) // exit()
+                            API_OP = bus_data;
+                            api_set_regs_blocked();
+                            if (bus_data == API_OP_ZXSTACK)
+                            {
+                                API_STACK = 0;
+                                xstack_ptr = XSTACK_SIZE;
+                                api_return_ax(0);
+                            }
+                            else if (bus_data == API_OP_HALT)
                             {
                                 gpio_put(CPU_RESB_PIN, false);
                                 main_stop();
                             }
+                            break;
+                        case CASE_READ(0xFFF2): // API ERRNO
+                            MEM_BUS_PIO->txf[MEM_BUS_SM] = API_ERRNO;
+                            break;
+                        case CASE_WRIT(0xFFF2): // ignore write
+                            break;
+                        case CASE_READ(0xFFF3): // API BUSY
+                            MEM_BUS_PIO->txf[MEM_BUS_SM] = API_BUSY;
+                            break;
+                        case CASE_WRIT(0xFFF3): // ignore write
                             break;
 
                         case CASE_READ(0xFFF6): // EXTIO
@@ -210,7 +218,7 @@ mem_bus_pio_irq_handler(void)
                             break;
 
                         case CASE_READ(0xFFE3): // Random Number Generator
-                        case CASE_READ(0xFFE2): // Two bytes to allow 16 bit instructions
+                        case CASE_READ(0xFFE2): // Two bytes to allow 16 bit values
                         {
                             MEM_BUS_PIO->txf[MEM_BUS_SM] = get_rand_32();
                             break;

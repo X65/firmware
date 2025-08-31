@@ -4,11 +4,25 @@
  * SPDX-License-Identifier: BSD-3-Clause
  */
 
-#ifndef _API_H_
-#define _API_H_
+#ifndef _RIA_API_API_H_
+#define _RIA_API_API_H_
+
+/* The API driver manages function calls from the 6502.
+ * This header includes helpers for API implementations.
+ */
 
 #include "sys/mem.h"
+#include <stdbool.h>
+#include <stddef.h>
+#include <stdint.h>
 #include <string.h>
+
+/* Kernel events
+ */
+
+void api_task(void);
+void api_run(void);
+void api_stop(void);
 
 /* The 18 base errors come directly from CC65. Use them when you can.
  * FatFs has its own errors, which should be used when obtained from FatFs.
@@ -39,23 +53,21 @@
 
 /* RIA fastcall registers
  */
+#define API_OP    REGS(0xFFF1)
+#define API_ERRNO REGSW(0xFFF2)
+#define API_STACK REGS(0xFFF0)
+#define API_BUSY  (REGS(0xFFF3) & 0x80)
 
-#define API_OP     REGS(0xFFEF)
-#define API_ERRNO  REGSW(0xFFED)
-#define API_STACK  REGS(0xFFEC)
-#define API_BUSY   (REGS(0xFFF2) & 0x80)
-#define API_A      REGS(0xFFF4)
-#define API_X      REGS(0xFFF6)
-#define API_SREG   REGSW(0xFFF8)
-#define API_AX     (API_A | (API_X << 8))
-#define API_AXSREG (API_AX | (API_SREG << 16))
-
-/* Kernel events
+/* RIA API operation codes
  */
-
-void api_task(void);
-void api_run(void);
-void api_stop(void);
+#define API_OP_ZXSTACK           (0x00)
+#define API_OP_OEM_CODEPAGE      (0x03)
+#define API_OP_GET_CHARGEN       (0x10)
+#define API_OP_CLK_GET_RES       (0X20)
+#define API_OP_CLK_GET_TIME      (0X21)
+#define API_OP_CLK_SET_TIME      (0X22)
+#define API_OP_CLK_GET_TIME_ZONE (0X23)
+#define API_OP_HALT              (0xFF)
 
 // How to build an API handler:
 // 1. The last fastcall argument is in API_A, API_AX or API_AXSREG.
@@ -174,64 +186,48 @@ static inline bool api_is_xstack_empty(void)
     return xstack_ptr == XSTACK_SIZE;
 }
 
-// Return works by manipulating 10 bytes of registers.
-// FFF0 EA      NOP
-// FFF1 80 FE   BRA -2
-// FFF3 A9 FF   LDA #$FF
-// FFF5 A2 FF   LDX #$FF
-// FFF7 60      RTS
-// FFF8 FF FF   .SREG $FF $FF
-
-static inline void api_return_blocked()
+static inline void api_set_regs_blocked()
 {
-    REGSDW(0x10) = 0xA9FE80EA;
+    REGS(0xFFF3) = 0xFE;
 }
-static inline void api_return_released()
+static inline void api_set_regs_released()
 {
-    REGSDW(0x10) = 0xA90080EA;
+    REGS(0xFFF3) = 0x00;
 }
 
-static inline void api_set_ax(uint16_t val)
+static inline void api_set_ax(uint8_t val)
 {
-    REGSDW(0x14) = 0x6000A200 | (val & 0xFF) | ((val << 8) & 0xFF0000);
-}
-
-static inline void api_set_axsreg(uint32_t val)
-{
-    api_set_ax(val);
-    API_SREG = val >> 16;
+    API_OP = val;
 }
 
 // Call one of these at the very end. These signal
 // the 6502 that the operation is complete.
 
-static inline bool api_return_ax(uint16_t val)
+static inline bool api_return_ax(uint8_t val)
 {
     api_set_ax(val);
-    api_return_released();
+    api_set_regs_released();
     return false;
 }
 
-static inline bool api_return_axsreg(uint32_t val)
-{
-    api_set_axsreg(val);
-    api_return_released();
-    return false;
-}
-
-static inline bool api_return_errno(uint16_t errno)
+static inline bool api_return_errno(uint8_t errno)
 {
     api_zxstack();
     API_ERRNO = errno;
-    api_return_axsreg(-1);
+    return api_return_ax(-1);
+}
+
+static inline bool api_return(void)
+{
+    api_set_regs_released();
     return false;
 }
 
 // Helper that returns true to make code more readable.
 
-static inline bool api_working()
+static inline bool api_working(void)
 {
     return true;
 }
 
-#endif /* _API_H_ */
+#endif /* _RIA_API_API_H_ */

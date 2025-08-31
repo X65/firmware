@@ -8,12 +8,24 @@
 #include "main.h"
 #include "sys/cpu.h"
 
-static uint8_t api_active_op = 0;
+#if defined(DEBUG_RIA_API) || defined(DEBUG_RIA_API_API)
+#include <stdio.h>
+#define DBG(...) fprintf(stderr, __VA_ARGS__)
+#else
+static inline void DBG(const char *fmt, ...)
+{
+    (void)fmt;
+}
+#endif
+
+static uint8_t api_active_op;
 
 void api_task(void)
 {
     // Latch called op in case 6502 app misbehaves
-    if (cpu_active() && !api_active_op && API_BUSY && API_OP != 0x00 && API_OP != 0xFF)
+    if (cpu_active()
+        && !api_active_op && API_BUSY
+        && API_OP != 0x00 && API_OP != 0xFF)
         api_active_op = API_OP;
     if (api_active_op && !main_api(api_active_op))
         api_active_op = 0;
@@ -22,14 +34,10 @@ void api_task(void)
 void api_run(void)
 {
     // All registers reset to a known state
-    // FIXME:
-    for (int i = 0; i < 16; i++)
-        if (i != 3) // Skip VSYNC
-            REGS(i) = 0;
-    // *(int8_t *)&REGS(0xFFE5) = 1; // STEP0
-    // REGS(0xFFE4) = xram[0];       // RW0
-    // *(int8_t *)&REGS(0xFFE9) = 1; // STEP1
-    // REGS(0xFFE8) = xram[0];       // RW1
+    REGS(0xFFF0) = 0;
+    REGS(0xFFF1) = 0;
+    REGS(0xFFF2) = 0;
+    REGS(0xFFF3) = 0;
     api_return_errno(0);
 }
 
