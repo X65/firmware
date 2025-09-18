@@ -19,7 +19,8 @@ if (EXISTS ${picoVscode})
 endif()
 # ====================================================================================
 
-set(PICO_BOARD pico2 CACHE STRING "Board type")
+set(PICO_BOARD pimoroni_pga2350 CACHE STRING "Board type")
+set(PICO_FLASH_SIZE_BYTES 4194304 CACHE STRING "Flash size")
 
 include(pico_sdk_import.cmake)
 

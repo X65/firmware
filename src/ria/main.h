@@ -72,7 +72,6 @@ bool main_api(uint8_t operation);
 #define AUD_SPI_CS_PIN   (AUD_SPI_PIN_BASE + 1)
 #define AUD_SPI_SCK_PIN  (AUD_SPI_PIN_BASE + 2)
 #define AUD_SPI_TX_PIN   (AUD_SPI_PIN_BASE + 3)
-// #define AUD_CLOCK_PIN    21 // CLOCK_GPOUT0 - not used: X65 PCB has separate clock IC
 
 #define AUD_I2S_PIN_BASE  44
 #define AUD_I2S_DIN_PIN   (AUD_I2S_PIN_BASE + 0)
@@ -133,7 +132,7 @@ bool main_api(uint8_t operation);
 #define MIX_I2C_ADDRESS 0x40 // Address of Mixer on I2C bus
 #define I2S_I2C_ADDRESS 0x0A // Address of I2S DAC/ADC on I2C bus
 
-// #define RASPBERRY_PICO_2
+// #define PIMORONI_PICO_PLUS_2
 
 #if defined(RASPBERRY_PICO_2)
 #undef CPU_RESB_PIN
@@ -222,6 +221,9 @@ bool main_api(uint8_t operation);
 #define COM_UART_TX_PIN 0
 #undef COM_UART_RX_PIN
 #define COM_UART_RX_PIN 1
+#undef QMI_PSRAM_BS_PIN
+#define QMI_PSRAM_BS_PIN 38
+#define AUD_CLOCK_PIN    21 // CLOCK_GPOUT0 - proto-boards do not have clock IC
 #endif
 
 #endif /* _MAIN_H_ */

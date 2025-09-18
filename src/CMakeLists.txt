@@ -24,6 +24,7 @@ target_compile_definitions(rp816 PRIVATE
     LFS_NO_ASSERT=1
     LFS_NO_MALLOC=1
     LFS_NAME_MAX=16
+    # PARAM_ASSERTIONS_ENABLED_HARDWARE_PIO=1
 )
 
 target_compile_options(rp816 PRIVATE

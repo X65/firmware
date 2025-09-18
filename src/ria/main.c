@@ -53,7 +53,6 @@ static void init(void)
     term_init();
     cgia_init();
     com_init();
-    ext_init(); // before aud_init (shared I2C init)
 
     // Print startup message
     sys_init();
@@ -69,6 +68,7 @@ static void init(void)
     // Misc kernel modules, add yours here.
     usb_init();
     led_init();
+    ext_init(); // before aud_init (shared I2C init)
     aud_init();
     kbd_init();
     mou_init();
@@ -96,8 +96,8 @@ void main_task(void)
     bus_task();
     term_task();
     cgia_task();
-    aud_task();
     ext_task();
+    aud_task();
     mdm_task();
     kbd_task();
     hid_task();
@@ -284,7 +284,7 @@ int main(void)
                     CLOCKS_CLK_USB_CTRL_AUXSRC_VALUE_CLKSRC_PLL_SYS,
                     SYS_CLK_HZ,
                     48 * MHZ);
-    // Stop ADC clock (we do not use) which it is based off USB PLL.
+    // Stop ADC clock (we do not use) which is based off USB PLL.
     clock_stop(clk_adc);
 
     // Now we can use USB PLL to drive HSTX to achieve perfect 60Hz display refresh rate.

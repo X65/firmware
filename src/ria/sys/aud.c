@@ -16,6 +16,7 @@
 
 #include "aud.pio.h"
 
+#include <pico/rand.h>
 #include <stdio.h>
 
 #define ARRAY_SIZE(x) ((sizeof x) / (sizeof *x))
@@ -141,7 +142,7 @@ static inline void aud_fm_init(void)
 
 static void aud_fm_dump_registers(void)
 {
-    printf("\nSD-1 .0..1..2..3..4..5..6..7..8..9..A..B..C..D..E..F");
+    printf("\nSD-1 .0 .1 .2 .3 .4 .5 .6 .7 .8 .9 .A .B .C .D .E .F");
     for (uint8_t i = 0; i <= 80; ++i)
     {
         ;
@@ -183,10 +184,12 @@ static void aud_fm_init825(void)
 
 static inline void aud_fm_reclock(void)
 {
+#ifdef AUD_CLOCK_PIN
     clock_configure(clk_gpout0,
                     CLOCKS_CLK_REF_CTRL_SRC_VALUE_XOSC_CLKSRC, 0,
                     clock_get_hz(clk_sys),
                     AUD_CLOCK_FREQUENCY_KHZ * 1000);
+#endif
 
     spi_set_baudrate(AUD_SPI, AUD_BAUDRATE_HZ);
 }
@@ -481,10 +484,12 @@ enum
 
 static inline void aud_i2s_pio_init(void)
 {
+    pio_set_gpio_base(AUD_I2S_PIO, 16);
+
     uint i2s_pins[] = {
-        AUD_I2S_LRCLK_PIN,
-        AUD_I2S_SCLK_PIN,
         AUD_I2S_DIN_PIN,
+        AUD_I2S_SCLK_PIN,
+        AUD_I2S_LRCLK_PIN,
         AUD_I2S_DOUT_PIN,
     };
 
@@ -495,31 +500,22 @@ static inline void aud_i2s_pio_init(void)
         pio_gpio_init(AUD_I2S_PIO, pin);
         gpio_set_pulls(pin, false, false);
         gpio_set_input_hysteresis_enabled(pin, false);
-        hw_set_bits(&AUD_I2S_PIO->input_sync_bypass, 1u << pin);
     }
-
-    pio_gpio_init(AUD_I2S_PIO, AUD_I2S_DOUT_PIN);
-    pio_gpio_init(AUD_I2S_PIO, AUD_I2S_PIN_BASE);
-    pio_gpio_init(AUD_I2S_PIO, AUD_I2S_PIN_BASE + 1);
-    pio_gpio_init(AUD_I2S_PIO, AUD_I2S_PIN_BASE + 2);
 
     uint offset = pio_add_program(AUD_I2S_PIO, &aud_i2s_program);
     pio_sm_config sm_config = aud_i2s_program_get_default_config(offset);
     sm_config_set_out_pins(&sm_config, AUD_I2S_DOUT_PIN, 1);
     sm_config_set_in_pins(&sm_config, AUD_I2S_PIN_BASE);
-    sm_config_set_jmp_pin(&sm_config, AUD_I2S_PIN_BASE + 2);
+    sm_config_set_jmp_pin(&sm_config, AUD_I2S_LRCLK_PIN);
     sm_config_set_out_shift(&sm_config, false, false, 0);
     sm_config_set_in_shift(&sm_config, false, false, 0);
     pio_sm_init(AUD_I2S_PIO, AUD_I2S_SM, offset + aud_i2s_offset_entry_point, &sm_config);
 
     // Setup output pins
-    uint32_t pin_mask = (1u << AUD_I2S_DOUT_PIN);
-    pio_sm_set_pins_with_mask(AUD_I2S_PIO, AUD_I2S_SM, 0, pin_mask);
-    pio_sm_set_pindirs_with_mask(AUD_I2S_PIO, AUD_I2S_SM, pin_mask, pin_mask);
+    pio_sm_set_consecutive_pindirs(AUD_I2S_PIO, AUD_I2S_SM, AUD_I2S_DOUT_PIN, 1, true);
 
     // Setup input pins
-    pin_mask = (7u << AUD_I2S_PIN_BASE); // Three input pins
-    pio_sm_set_pindirs_with_mask(AUD_I2S_PIO, AUD_I2S_SM, 0, pin_mask);
+    pio_sm_set_consecutive_pindirs(AUD_I2S_PIO, AUD_I2S_SM, AUD_I2S_PIN_BASE, 3, false);
 
     pio_sm_set_enabled(AUD_I2S_PIO, AUD_I2S_SM, true);
 }
@@ -570,8 +566,8 @@ static inline void aud_i2s_reg_init(void)
                  | SGTL5000_LINREG_SIMPLE_POWERUP);
     aud_write_i2s_register(SGTL_CHIP_ANA_POWER, ana_pwr);
 
-    /* Ensure sgtl5000 will start with sane register values */
-    sgtl5000_fill_defaults();
+    // /* Ensure sgtl5000 will start with sane register values */
+    // sgtl5000_fill_defaults();
 
     /* power up sgtl5000 */
     // ret = sgtl5000_set_power_regs(component);
@@ -731,7 +727,7 @@ static void dma_i2s_int_handler(void)
 static inline void aud_i2s_init(void)
 {
     // the inits
-    aud_i2s_reg_init();
+    sgtl5000_fill_defaults();
     aud_i2s_pio_init();
 
     // Set clocks
@@ -787,6 +783,8 @@ void aud_task(void)
     static bool done = false;
     if (!done)
     {
+        aud_i2s_reg_init(); // FIXME: split into init and unmute - avoiding sleep
+
         aud_fm_init825();
 
         // Configure playback
@@ -853,14 +851,10 @@ void aud_task(void)
         }
     }
 
-    // play sampled sound
-    static int16_t sample = 0;
+    // play "sampled" noise
     while (!pio_sm_is_tx_fifo_full(AUD_I2S_PIO, AUD_I2S_SM))
     {
-        // pio_sm_put_blocking(AUD_I2S_PIO, AUD_I2S_SM, get_rand_32());
-        // uint32_t s = sample >= 0 ? sample : 0;
-        pio_sm_put_blocking(AUD_I2S_PIO, AUD_I2S_SM, (sample & 0xFFFF) << 16 | (sample & 0xFFFF));
-        sample += 0x480;
+        pio_sm_put_blocking(AUD_I2S_PIO, AUD_I2S_SM, get_rand_32());
     }
     // // play sampled music
     // static size_t audio_data_offset = 0;
@@ -893,4 +887,6 @@ void aud_print_status(void)
             printf("Unknown (0x%04X)\n", id);
         }
     }
+
+    // aud_fm_dump_registers();
 }
