@@ -17,6 +17,7 @@
 #include "pico/time.h"
 #include "sys/com.h"
 #include "sys/cpu.h"
+#include "sys/ext.h"
 #include "sys/mem.h"
 
 #include <stdbool.h>
@@ -319,7 +320,22 @@ mem_bus_pio_irq_handler(void)
                             }
                         }
                 }
-                else if ((bus_address & 0xFFFF80) == 0x00FF00) // CGIA registers
+                // ------ FF80 - FF87 ------ (GPIO)
+                else if ((bus_address & 0xFFF8) == 0xFF80)
+                {
+                    uint8_t reg = (uint8_t)(bus_address & 0x7);
+                    if (bus_address & CPU_RWB_MASK)
+                    { // CPU is reading
+                        uint8_t val = ext_reg_read(IOE_I2C_ADDRESS, reg);
+                        MEM_BUS_PIO->txf[MEM_BUS_SM] = val;
+                    }
+                    else
+                    { // CPU is writing
+                        ext_reg_write(IOE_I2C_ADDRESS, reg, bus_data);
+                    }
+                }
+                // ------ FF00 - FF7F ------ (CGIA registers)
+                else if ((bus_address & 0xFFFF80) == 0x00FF00)
                 {
                     if (bus_address & CPU_RWB_MASK)
                     { // CPU is reading

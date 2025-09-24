@@ -21,8 +21,10 @@ void ext_task(void);
  */
 void ext_bus_scan(void);
 
-// GPIO EXTender
-uint8_t gpx_read(uint8_t reg);
+// EXTension register read/write
+uint8_t ext_reg_read(uint8_t addr, uint8_t reg);
+void ext_reg_write(uint8_t addr, uint8_t reg, uint8_t data);
+
 void gpx_dump_registers(void);
 
 #endif /* _EXT_H_ */

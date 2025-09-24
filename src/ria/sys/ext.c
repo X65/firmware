@@ -11,13 +11,33 @@
 #include "main.h"
 #include <stdio.h>
 
-uint8_t gpx_read(uint8_t reg)
+#define EXT_I2C_OPERATION_TIMEOUT_US 1000 // 1 ms
+
+void ext_reg_write(uint8_t addr, uint8_t reg, uint8_t data)
 {
-    i2c_write_blocking(EXT_I2C, IOE_I2C_ADDRESS, &reg, 1, true);
-    absolute_time_t timeout = make_timeout_time_us(10000); // 0.01 second
-    int ret = i2c_read_blocking_until(EXT_I2C, IOE_I2C_ADDRESS, &reg, 1, false, timeout);
+    uint8_t buf[2];
+    buf[0] = reg;
+    buf[1] = data;
+    int ret = i2c_write_blocking_until(EXT_I2C, addr, buf, 2, false, make_timeout_time_ms(EXT_I2C_OPERATION_TIMEOUT_US));
+    if (ret != 2)
+    {
+        // printf("Error writing I2C register %02x with %02x: %d\n", reg, data, ret);
+        return;
+    }
+}
+uint8_t ext_reg_read(uint8_t addr, uint8_t reg)
+{
+    int ret = i2c_write_blocking(EXT_I2C, addr, &reg, 1, true);
     if (ret != 1)
     {
+        // printf("Error reading I2C register %02x (write): %d\n", reg, ret);
+        return (uint8_t)ret;
+    }
+
+    ret = i2c_read_blocking_until(EXT_I2C, addr, &reg, 1, false, make_timeout_time_us(EXT_I2C_OPERATION_TIMEOUT_US));
+    if (ret != 1)
+    {
+        // printf("Error reading I2C register %02x (read): %d\n", reg, ret);
         return (uint8_t)ret;
     }
     return reg;
@@ -25,29 +45,15 @@ uint8_t gpx_read(uint8_t reg)
 
 void gpx_dump_registers(void)
 {
-    printf("\nMCP registers dump\n");
-    printf("IODIRA\t\t%02x\n", gpx_read(0x00));
-    printf("IODIRB\t\t%02x\n", gpx_read(0x01));
-    printf("IPOLA\t\t%02x\n", gpx_read(0x02));
-    printf("IPOLB\t\t%02x\n", gpx_read(0x03));
-    printf("GPINTENA\t%02x\n", gpx_read(0x04));
-    printf("GPINTENB\t%02x\n", gpx_read(0x05));
-    printf("DEFVALA\t\t%02x\n", gpx_read(0x06));
-    printf("DEFVALB\t\t%02x\n", gpx_read(0x07));
-    printf("INTCONA\t\t%02x\n", gpx_read(0x08));
-    printf("INTCONB\t\t%02x\n", gpx_read(0x09));
-    printf("IOCONA\t\t%02x\n", gpx_read(0x0A));
-    printf("IOCONB\t\t%02x\n", gpx_read(0x0B));
-    printf("GPPUA\t\t%02x\n", gpx_read(0x0C));
-    printf("GPPUB\t\t%02x\n", gpx_read(0x0D));
-    printf("INTFA\t\t%02x\n", gpx_read(0x0E));
-    printf("INTFB\t\t%02x\n", gpx_read(0x00F));
-    printf("INTCAPA\t\t%02x\n", gpx_read(0x10));
-    printf("INTCAPB\t\t%02x\n", gpx_read(0x11));
-    printf("GPIOA\t\t%02x\n", gpx_read(0x12));
-    printf("GPIOB\t\t%02x\n", gpx_read(0x13));
-    printf("OLATA\t\t%02x\n", gpx_read(0x14));
-    printf("OLATB\t\t%02x\n", gpx_read(0x15));
+    printf("\nI/O Expander registers dump\n");
+    printf("Input Port 0\t\t%02x\n", ext_reg_read(IOE_I2C_ADDRESS, 0x00));
+    printf("Input Port 1\t\t%02x\n", ext_reg_read(IOE_I2C_ADDRESS, 0x01));
+    printf("Output Port 0\t\t%02x\n", ext_reg_read(IOE_I2C_ADDRESS, 0x02));
+    printf("Output Port 1\t\t%02x\n", ext_reg_read(IOE_I2C_ADDRESS, 0x03));
+    printf("Polarity Inversion 0\t%02x\n", ext_reg_read(IOE_I2C_ADDRESS, 0x04));
+    printf("Polarity Inversion 1\t%02x\n", ext_reg_read(IOE_I2C_ADDRESS, 0x05));
+    printf("Configuration 0\t\t%02x\n", ext_reg_read(IOE_I2C_ADDRESS, 0x06));
+    printf("Configuration 1\t\t%02x\n", ext_reg_read(IOE_I2C_ADDRESS, 0x07));
 }
 
 // I2C reserves some addresses for special purposes. We exclude these from the scan.
@@ -81,6 +87,9 @@ void ext_bus_scan(void)
             ret = PICO_ERROR_GENERIC;
         // Mixer is write-only, but we know it's there
         else if (addr == MIX_I2C_ADDRESS)
+            ret = 0xff;
+        // GPIO extender is not answering in RESET, so fake it too
+        else if (addr == IOE_I2C_ADDRESS && gpio_get(CPU_RESB_PIN) == false)
             ret = 0xff;
         else
             ret = i2c_read_blocking_until(EXT_I2C, addr, &rxdata, 1, false, make_timeout_time_ms(500));
