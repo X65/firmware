@@ -33,6 +33,7 @@ static const char __in_flash("helptext") hlp_text_help[] =
     "UNLINK file|dir     - Delete a file or empty directory.\n"
     "UPLOAD file         - Write file. Binary chunks follow.\n"
     "BINARY addr len crc - Write memory. Binary data follows.\n"
+    "AT ...              - Send AT+command to WiFi modem.\n"
     "MEMTEST             - Test PSRAM memory.\n"
     "0000 (00 00 ...)    - Read or write memory.";
 
@@ -179,7 +180,7 @@ static const char __in_flash("helptext") hlp_text_at[] =
     "NOTICE: Typing 'AT +XYZ=1' sends 'AT+XYZ=1' command.\n"
     "The modem is an ESP-AT instance. For full AT commands list, see\n"
     "ESP-AT documentation at:\n"
-    "https://docs.espressif.com/projects/esp-at/en/release-v3.4.0.0/esp32/AT_Command_Set/";
+    "https://docs.espressif.com/projects/esp-at/en/release-v4.0.0.0/esp32/AT_Command_Set/";
 
 static struct
 {
