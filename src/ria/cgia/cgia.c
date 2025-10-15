@@ -321,11 +321,11 @@ void cgia_init(void)
         false);
 
     vcache_transfer = -1;
+#endif
     vram_wanted_bank_mask[0] = CGIA.bckgnd_bank = 0;
     vram_wanted_bank_mask[1] = CGIA.sprite_bank = 0;
     vram_cache_bank_mask[0] = 0xFF; // Force initial transfer of bank
     vram_cache_bank_mask[1] = 0;
-#endif
 }
 
 static uint8_t
