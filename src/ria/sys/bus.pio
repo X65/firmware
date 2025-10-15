@@ -140,6 +140,8 @@
 ; 62ns / 7 = 9ns
 ; Which leaves us with minimum 9ns per PIO instruction => 111,111MHz
 
+.define WRITE_DELAY 17
+
 .program mem_bus
 
 .side_set 4
@@ -172,8 +174,9 @@ start:
 write:
     ; CPU is writing (RWB is LOW)
     ; need to wait tMDS (40ns) after PHI2 transition HIGH
-    set x, 15           side 0b0101     ; loop to get create delay
+    set x, WRITE_DELAY  side 0b0101     ; loop to get create delay
 loop:
+    nop                 side 0b0101 [1]
     jmp x-- loop        side 0b0101 [1]
     in  pins, 32        side 0b0100     ; read BA0-BA7, set clock LOW
     jmp start           side 0b0000     ; continue to next cycle
