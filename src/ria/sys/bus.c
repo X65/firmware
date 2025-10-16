@@ -28,9 +28,13 @@
 // FIXME: BUT (3) will spin the CPU so fast, that the ARM Core0 will do nothing
 // but service the PIO interrupts. :-(
 // So we are setting it to (5) which is lowest that works.
-// TODO: Add yet another ARM CPU core to RP micro-controller.
+// TODO: Add yet another ARM CPU core to RP micro-controller. ;-)
 #define MEM_BUS_PIO_CLKDIV_INT   (5)
 #define MEM_BUS_PIO_CLKDIV_FRAC8 (0)
+
+// NOTE: these timings are CPU clock dependant!
+#define IRQ_CTL_CLKDIV_INT (MEM_BUS_PIO_CLKDIV_INT * 20)
+#define IRQ_CTL_DELAY      (70)
 
 volatile uint8_t
     __attribute__((aligned(4)))
@@ -43,9 +47,11 @@ static enum state {
     BUS_PENDING_NOTHING,
     BUS_PENDING_READ,
     BUS_PENDING_WRITE,
+    BUS_PENDING_DELAY,
 } volatile bus_pending_operation;
 static uint32_t bus_pending_addr;
 static uint8_t bus_pending_data;
+static uint32_t bus_pending_delay;
 
 // #define MEM_CPU_ADDRESS_BUS_HISTORY_LENGTH 50
 // // #define MEM_CPU_ADDRESS_BUS_DUMP
@@ -225,20 +231,42 @@ mem_bus_pio_irq_handler(void)
                             break;
                         }
 
-                        case CASE_READ(0xFFEC): // IRQ_STATUS
-                            MEM_BUS_PIO->txf[MEM_BUS_SM] = 0x00;
-                            break;
-                        case CASE_WRIT(0xFFEC): // IRQ_STATUS
-                            REGS(bus_address) = bus_data;
-                            break;
-                        case CASE_READ(0xFFED): // IRQ_ENABLE
-                            MEM_BUS_PIO->txf[MEM_BUS_SM] = 0x00;
-                            break;
-                        case CASE_WRIT(0xFFED): // IRQ_ENABLE
-                            REGS(bus_address) = bus_data;
+                        case CASE_READ(0xFFED): // IRQ_STATUS
+                        {
+                            // 1. turn off all BUS buffers
+                            gpio_set_outover(BUS_BE0_PIN, GPIO_OVERRIDE_HIGH);
+                            gpio_set_outover(BUS_BE1_PIN, GPIO_OVERRIDE_HIGH);
+                            // 2. turn on INT CTL buffer
+                            gpio_put(INT_CTL_EN_PIN, false);
+                            // 3. Slow-down BUS PIO, so we can reliably wait for BUS_DIR_PIN
+                            pio_sm_set_clkdiv_int_frac8(MEM_BUS_PIO, MEM_BUS_SM, IRQ_CTL_CLKDIV_INT, MEM_BUS_PIO_CLKDIV_FRAC8);
+                            // 4. push fake data to trigger PIO run
+                            MEM_BUS_PIO->txf[MEM_BUS_SM] = 0x5a;
+                            // 5. wait until PIO stops reading
+                            while (gpio_get(BUS_DIR_PIN))
+                                tight_loop_contents();
+                            // 6. stop BUS PIO
+                            pio_sm_set_enabled(MEM_BUS_PIO, MEM_BUS_SM, false);
+                            // 7. restore BUS PIO speed
+                            pio_sm_set_clkdiv_int_frac8(MEM_BUS_PIO, MEM_BUS_SM, MEM_BUS_PIO_CLKDIV_INT, MEM_BUS_PIO_CLKDIV_FRAC8);
+                            // 8. turn off INT CTL buffer
+                            gpio_put(INT_CTL_EN_PIN, true);
+                            // 9. give back BE0 and BE1 to PIO
+                            gpio_set_outover(BUS_BE0_PIN, GPIO_OVERRIDE_NORMAL);
+                            gpio_set_outover(BUS_BE1_PIN, GPIO_OVERRIDE_NORMAL);
+                            // 10. schedule BUS PIO restart after some delay
+                            bus_pending_operation = BUS_PENDING_DELAY;
+                            bus_pending_delay = IRQ_CTL_DELAY;
+                            // 11. Clear the interrupt request and exit
+                            pio_interrupt_clear(MEM_BUS_PIO, MEM_BUS_PIO_IRQ);
+                            return;
+                        }
+                        break;
+                        case CASE_WRIT(0xFFED): // IRQ_STATUS
+                            // do nothing
                             break;
 
-                        // COP BRK ABORTB NMIB IRQB
+                        // COP BRK ABORTB NMIB IRQB, IRQ_ENABLE
                         default:
                             if (bus_address & CPU_RWB_MASK)
                             {
@@ -507,22 +535,42 @@ void dump_cpu_history(void)
 
 void bus_task(void)
 {
-    if (bus_pending_operation != BUS_PENDING_NOTHING
-        && MEM_CAN_ACCESS_ADDR(bus_pending_addr))
+    if (bus_pending_operation != BUS_PENDING_NOTHING)
     {
+        switch (bus_pending_operation)
+        {
         // PSRAM bank acquire was released,
         // so we can now do a pending operation
-        if (bus_pending_operation == BUS_PENDING_READ)
-        {
-            MEM_BUS_PIO->txf[MEM_BUS_SM] = mem_read_psram(bus_pending_addr);
+        case BUS_PENDING_READ:
+            if (MEM_CAN_ACCESS_ADDR(bus_pending_addr))
+            {
+                MEM_BUS_PIO->txf[MEM_BUS_SM] = mem_read_psram(bus_pending_addr);
+                bus_pending_operation = BUS_PENDING_NOTHING;
+            }
+            break;
+        case BUS_PENDING_WRITE:
+            if (MEM_CAN_ACCESS_ADDR(bus_pending_addr))
+            {
+                mem_write_psram(bus_pending_addr, bus_pending_data);
+                bus_pending_operation = BUS_PENDING_NOTHING;
+            }
+            break;
+        case BUS_PENDING_DELAY:
+            if (--bus_pending_delay == 0)
+            {
+                bus_pending_operation = BUS_PENDING_NOTHING;
+            }
+            break;
+        case BUS_PENDING_NOTHING:
+            bus_pending_operation = BUS_PENDING_NOTHING;
+            break;
         }
-        if (bus_pending_operation == BUS_PENDING_WRITE)
+
+        if (bus_pending_operation == BUS_PENDING_NOTHING)
         {
-            mem_write_psram(bus_pending_addr, bus_pending_data);
+            // re-enable CPU bus PIO
+            pio_sm_set_enabled(MEM_BUS_PIO, MEM_BUS_SM, true);
         }
-        // and re-enable CPU bus PIO
-        bus_pending_operation = BUS_PENDING_NOTHING;
-        pio_sm_set_enabled(MEM_BUS_PIO, MEM_BUS_SM, true);
     }
 
 #ifdef MEM_CPU_ADDRESS_BUS_HISTORY_LENGTH
@@ -537,5 +585,5 @@ void bus_task(void)
 
 void bus_print_status(void)
 {
-    printf("CPU : ~%.2fMHz\n", (float)SYS_CLK_HZ / MEM_BUS_PIO_CLKDIV_INT / (WRITE_DELAY * 2.16) / MHZ);
+    printf("CPU : ~%.2fMHz\n", (float)SYS_CLK_HZ / MEM_BUS_PIO_CLKDIV_INT / (WRITE_DELAY * 2.1644) / MHZ);
 }
