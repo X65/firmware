@@ -537,5 +537,5 @@ void bus_task(void)
 
 void bus_print_status(void)
 {
-    printf("CPU : ~%.2fMHz\n", (float)SYS_CLK_HZ / MEM_BUS_PIO_CLKDIV_INT / (WRITE_DELAY * 2.25) / MHZ);
+    printf("CPU : ~%.2fMHz\n", (float)SYS_CLK_HZ / MEM_BUS_PIO_CLKDIV_INT / (WRITE_DELAY * 2.2) / MHZ);
 }
