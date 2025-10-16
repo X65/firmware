@@ -33,8 +33,7 @@
 #define MEM_BUS_PIO_CLKDIV_FRAC8 (0)
 
 // NOTE: these timings are CPU clock dependant!
-#define IRQ_CTL_CLKDIV_INT (MEM_BUS_PIO_CLKDIV_INT * 20)
-#define IRQ_CTL_DELAY      (70)
+#define IRQ_CTL_DELAY (70)
 
 volatile uint8_t
     __attribute__((aligned(4)))
@@ -233,31 +232,27 @@ mem_bus_pio_irq_handler(void)
 
                         case CASE_READ(0xFFED): // IRQ_STATUS
                         {
-                            // 1. turn off all BUS buffers
+                            // 1. stop BUS PIO
+                            MEM_BUS_PIO->irq_force = (1u << GATE_IRQ); // raise gating IRQ
+                            // 2. turn off all BUS buffers
                             gpio_set_outover(BUS_BE0_PIN, GPIO_OVERRIDE_HIGH);
                             gpio_set_outover(BUS_BE1_PIN, GPIO_OVERRIDE_HIGH);
-                            // 2. turn on INT CTL buffer
+                            // 3. turn on INT CTL buffer
                             gpio_put(INT_CTL_EN_PIN, false);
-                            // 3. Slow-down BUS PIO, so we can reliably wait for BUS_DIR_PIN
-                            pio_sm_set_clkdiv_int_frac8(MEM_BUS_PIO, MEM_BUS_SM, IRQ_CTL_CLKDIV_INT, MEM_BUS_PIO_CLKDIV_FRAC8);
                             // 4. push fake data to trigger PIO run
                             MEM_BUS_PIO->txf[MEM_BUS_SM] = 0x5a;
                             // 5. wait until PIO stops reading
                             while (gpio_get(BUS_DIR_PIN))
                                 tight_loop_contents();
-                            // 6. stop BUS PIO
-                            pio_sm_set_enabled(MEM_BUS_PIO, MEM_BUS_SM, false);
-                            // 7. restore BUS PIO speed
-                            pio_sm_set_clkdiv_int_frac8(MEM_BUS_PIO, MEM_BUS_SM, MEM_BUS_PIO_CLKDIV_INT, MEM_BUS_PIO_CLKDIV_FRAC8);
-                            // 8. turn off INT CTL buffer
+                            // 6. turn off INT CTL buffer
                             gpio_put(INT_CTL_EN_PIN, true);
-                            // 9. give back BE0 and BE1 to PIO
+                            // 7. give back BE0 and BE1 to PIO
                             gpio_set_outover(BUS_BE0_PIN, GPIO_OVERRIDE_NORMAL);
                             gpio_set_outover(BUS_BE1_PIN, GPIO_OVERRIDE_NORMAL);
-                            // 10. schedule BUS PIO restart after some delay
+                            // 8. schedule BUS PIO restart after some delay
                             bus_pending_operation = BUS_PENDING_DELAY;
                             bus_pending_delay = IRQ_CTL_DELAY;
-                            // 11. Clear the interrupt request and exit
+                            // 9. Clear the interrupt request and exit
                             pio_interrupt_clear(MEM_BUS_PIO, MEM_BUS_PIO_IRQ);
                             return;
                         }
@@ -384,7 +379,7 @@ mem_bus_pio_irq_handler(void)
                         // something acquired a PSRAM bank, so we need to
                         // stop the PIO to halt the CPU
                         // and configure a pending operation
-                        pio_sm_set_enabled(MEM_BUS_PIO, MEM_BUS_SM, false);
+                        MEM_BUS_PIO->irq_force = (1u << GATE_IRQ); // raise gating IRQ
 
                         bus_pending_operation = cpu_is_reading ? BUS_PENDING_READ : BUS_PENDING_WRITE;
                         bus_pending_addr = addr;
@@ -468,7 +463,8 @@ static void mem_bus_pio_init(void)
     pio_sm_init(MEM_BUS_PIO, MEM_BUS_SM, offset, &config);
     irq_set_exclusive_handler(PIO_IRQ_NUM(MEM_BUS_PIO, MEM_BUS_PIO_IRQ), mem_bus_pio_irq_handler);
     irq_set_enabled(PIO_IRQ_NUM(MEM_BUS_PIO, MEM_BUS_PIO_IRQ), true);
-    pio_sm_set_enabled(MEM_BUS_PIO, MEM_BUS_SM, false);
+    MEM_BUS_PIO->irq_force = (1u << GATE_IRQ); // raise gating IRQ
+    pio_sm_set_enabled(MEM_BUS_PIO, MEM_BUS_SM, true);
 }
 
 void bus_init(void)
@@ -505,12 +501,12 @@ void bus_init(void)
 
 void bus_run(void)
 {
-    pio_sm_set_enabled(MEM_BUS_PIO, MEM_BUS_SM, true);
+    MEM_BUS_PIO->irq = (1u << GATE_IRQ); // clear gating IRQ
 }
 
 void bus_stop(void)
 {
-    pio_sm_set_enabled(MEM_BUS_PIO, MEM_BUS_SM, false);
+    MEM_BUS_PIO->irq_force = (1u << GATE_IRQ); // raise gating IRQ
     irq_enabled = false;
     gpio_put(RIA_IRQB_PIN, true);
 #ifdef MEM_CPU_ADDRESS_BUS_HISTORY_LENGTH
@@ -569,7 +565,7 @@ void bus_task(void)
         if (bus_pending_operation == BUS_PENDING_NOTHING)
         {
             // re-enable CPU bus PIO
-            pio_sm_set_enabled(MEM_BUS_PIO, MEM_BUS_SM, true);
+            MEM_BUS_PIO->irq = (1u << GATE_IRQ); // clear gating IRQ
         }
     }
 

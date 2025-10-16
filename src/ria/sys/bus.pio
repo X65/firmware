@@ -140,6 +140,8 @@
 ; 62ns / 7 = 9ns
 ; Which leaves us with minimum 9ns per PIO instruction => 111,111MHz
 
+.define PUBLIC GATE_IRQ 7
+
 .define PUBLIC WRITE_DELAY 17
 
 .program mem_bus
@@ -152,7 +154,9 @@
 
 .wrap_target
 start:
-    mov osr, null       side 0b0000 [1] ; 00000000 to OSR, clock LOW, BUFF0, Read
+    wait 0 irq GATE_IRQ side 0b0000     ; gate running on IRQ 7
+
+    mov osr, null       side 0b0000     ; 00000000 to OSR, clock LOW, BUFF0, Read
     out pindirs, 8      side 0b0000 [1] ; set D0-D7 as inputs
     nop                 side 0b0000 [1] ; nop to get 40ns of delay (tADS,tBAS) (6 cycles + 1 from jmp/wrap)
 
