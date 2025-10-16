@@ -535,9 +535,7 @@ void bus_task(void)
 #endif
 }
 
-// bus.pio implementation takes about 16 PIO instructions at minimum for one full CPU cycle
-#define BUS_PIO_MIN_INST_CYCLE (16)
 void bus_print_status(void)
 {
-    printf("CPU : ~%.1fMHz\n", (float)SYS_CLK_HZ / MEM_BUS_PIO_CLKDIV_INT / BUS_PIO_MIN_INST_CYCLE / MHZ);
+    printf("CPU : ~%.2fMHz\n", (float)SYS_CLK_HZ / MEM_BUS_PIO_CLKDIV_INT / (WRITE_DELAY * 2.25) / MHZ);
 }
