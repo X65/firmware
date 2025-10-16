@@ -184,10 +184,13 @@ loop:
 read:
     ; CPU is reading (RWB is HIGH)
     ; need to wait tACC (70ns) since tADS until CPU is ready to read data bus (15,68 cycles)
-    mov osr, ~null      side 0b0101     ; 11111111 to OSR
+    mov osr, ~null      side 0b1101     ; 11111111 to OSR
     out pindirs, 8      side 0b1101     ; D0-D7 are outputs, clock still HIGH, BUFF2 Write
     pull                side 0b1101 [1] ; pull CPU reply to OSR
-    nop                 side 0b1101 [1] ; need 3 more cycles of delay (tACC) (2 here + 1 above)
+                                        ; need 3 more cycles of delay (tACC) (2 here + 1 above)
+                                        ; nop                 side 0b1101 [1]
+                                        ; but the memory access handling takes more time
+                                        ; so we can skip it
     out pins, 8         side 0b1101 [1] ; drive data bus
     nop                 side 0b1101 [1] ; wait ~10ns (tDSR) for data bus to stabilize (2+1)
     nop                 side 0b0000     ; clock LOW
