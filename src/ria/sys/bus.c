@@ -71,6 +71,9 @@ void dump_cpu_history(void);
 #define CASE_READ(addr) (CPU_RWB_MASK | (addr & CPU_IODEV_MASK))
 #define CASE_WRIT(addr) (addr & CPU_IODEV_MASK)
 
+static const uint8_t BIT8_MASK[] = {
+    0x01, 0x02, 0x04, 0x08, 0x10, 0x20, 0x40, 0x80};
+
 static void __isr __attribute__((optimize("O3")))
 mem_bus_pio_irq_handler(void)
 {
@@ -369,6 +372,35 @@ mem_bus_pio_irq_handler(void)
                         cgia_reg_write((uint8_t)bus_address, bus_data);
                     }
                 }
+                // ------ FC00 - FDFF ------ (EXT I/O registers)
+                else if ((bus_address & 0xFFFE00) == 0x00FC00 &&
+                         // check whether chunk is enabled for EXT I/O
+                         (REGS(0x00FFF6) & BIT8_MASK[(bus_address >> 6) & 0x07]))
+                {
+                    // same as IRQ_STATUS above
+                    MEM_BUS_PIO->irq_force = (1u << GATE_IRQ); // raise gating IRQ
+                    gpio_set_outover(BUS_BE0_PIN, GPIO_OVERRIDE_HIGH);
+                    gpio_set_outover(BUS_BE1_PIN, GPIO_OVERRIDE_HIGH);
+
+                    // enable EXT I/O
+                    gpio_put(EXT_IO_CS_PIN, false);
+                    gpio_put(EXT_IO_BE0_PIN, bus_address & (1 << 7));
+                    gpio_put(EXT_IO_BE1_PIN, bus_address & (1 << 8));
+
+                    MEM_BUS_PIO->txf[MEM_BUS_SM] = 0x5a;
+                    while (gpio_get(BUS_DIR_PIN))
+                        tight_loop_contents();
+
+                    // turn off EXT I/O
+                    gpio_put(EXT_IO_CS_PIN, true);
+
+                    gpio_set_outover(BUS_BE0_PIN, GPIO_OVERRIDE_NORMAL);
+                    gpio_set_outover(BUS_BE1_PIN, GPIO_OVERRIDE_NORMAL);
+                    bus_pending_operation = BUS_PENDING_DELAY;
+                    bus_pending_delay = IRQ_CTL_DELAY;
+                    pio_interrupt_clear(MEM_BUS_PIO, MEM_BUS_PIO_IRQ);
+                    return;
+                }
                 else
                 {
                     const uint32_t addr = bus_address & 0xFFFFFF;
@@ -467,6 +499,23 @@ static void mem_bus_pio_init(void)
     pio_sm_set_enabled(MEM_BUS_PIO, MEM_BUS_SM, true);
 }
 
+static void bus_ext_io_init()
+{
+    const uint ext_io_pins[] = {
+        EXT_IO_CS_PIN,
+        EXT_IO_BE0_PIN,
+        EXT_IO_BE1_PIN,
+    };
+    for (size_t i = 0; i < sizeof(ext_io_pins) / sizeof(ext_io_pins[0]); i++)
+    {
+        uint pin = ext_io_pins[i];
+        gpio_init(pin);
+        gpio_put(pin, true);
+        gpio_set_pulls(pin, false, false);
+        gpio_set_dir(pin, true);
+    }
+}
+
 void bus_init(void)
 {
     // Lower CPU0 on crossbar by raising others
@@ -494,6 +543,7 @@ void bus_init(void)
     // the inits
     mem_bus_int_init();
     mem_bus_intctl_init();
+    bus_ext_io_init();
     mem_bus_pio_init();
 
     bus_pending_operation = BUS_PENDING_NOTHING;
