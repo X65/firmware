@@ -153,7 +153,7 @@ struct cgia_t
     uint8_t _reserved[16];
     // -------------------------------------------------------------------
     uint8_t planes; // [TTTTEEEE] EEEE - enable bits, TTTT - type (0 bckgnd, 1 sprite)
-    uint8_t order;  // [xxxOOOOO] OOOOO - plane order permutation
+    uint8_t order;  // plane order permutation - SJT ordering
     uint8_t _pln_reserved1[4 - 2];
 
     uint8_t back_color;

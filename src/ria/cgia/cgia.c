@@ -367,6 +367,17 @@ static uint8_t
         0x08, 0x08, 0x08, 0x08, 0x08, 0x08, 0x08, 0x08, //
 };
 
+static uint16_t
+    __attribute__((aligned(4)))
+    __scratch_x("")
+        plane_order_tab[24] // SJT order
+    = {
+        0x3210, 0x2310, 0x2130, 0x2103, 0x1203, 0x1230, //
+        0x1320, 0x3120, 0x3102, 0x1302, 0x1032, 0x1023, //
+        0x0123, 0x0132, 0x0312, 0x3012, 0x3021, 0x0321, //
+        0x0231, 0x0213, 0x2013, 0x2031, 0x2301, 0x3201, //
+};
+
 #ifdef PICO_SDK_VERSION_MAJOR
 static inline __attribute__((always_inline)) uint32_t *fill_back(
     uint32_t *buf,
@@ -475,6 +486,8 @@ void __attribute__((optimize("O3"))) cgia_render(uint16_t y, uint32_t *rgbbuf)
     static struct cgia_plane_internal *plane_data;
     static uint16_t (*sprite_dscs)[CGIA_SPRITES];
     static uint8_t max_instr_count;
+    static uint16_t plane_order;
+    static uint p;
 
     CGIA.raster = y;
     int_mask |= CGIA_REG_INT_FLAG_RSI;
@@ -485,11 +498,18 @@ void __attribute__((optimize("O3"))) cgia_render(uint16_t y, uint32_t *rgbbuf)
     // for transparent or sprite planes
     bool line_background_filled = false;
 
+    // get plane ordering at the start of the line
+    plane_order = plane_order_tab[CGIA.order % (sizeof(plane_order_tab) / sizeof(plane_order_tab[0]))];
+
     // should trigger DLI after rasterizing the line?
     bool trigger_dli = false;
 
-    for (uint p = 0; p < CGIA_PLANES; ++p)
+    for (uint idx = 0; idx < CGIA_PLANES; ++idx)
     {
+        // get next plane index
+        p = plane_order & 0x000F;
+        plane_order >>= 4;
+
         if (CGIA.planes & (0x10u << p))
         {
             /* --- SPRITES --- */
