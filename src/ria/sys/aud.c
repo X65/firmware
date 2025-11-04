@@ -194,51 +194,6 @@ static inline void aud_fm_reclock(void)
     spi_set_baudrate(AUD_SPI, AUD_BAUDRATE_HZ);
 }
 
-static void aud_fm_set_tone(void)
-{
-    unsigned char tone_data[35] = {
-        0x81, // header
-        // T_ADR 0
-        0x01, 0x85,                               //
-        0x00, 0x7F, 0xF4, 0xBB, 0x00, 0x10, 0x40, //
-        0x00, 0xAF, 0xA0, 0x0E, 0x03, 0x10, 0x40, //
-        0x00, 0x2F, 0xF3, 0x9B, 0x00, 0x20, 0x41, //
-        0x00, 0xAF, 0xA0, 0x0E, 0x01, 0x10, 0x40, //
-        0x80, 0x03, 0x81, 0x80,                   //
-    };
-
-    // Reset sequencer
-    aud_write_fm_register(0x08, 0xF6);
-    sleep_ms(1);
-    aud_write_fm_register(0x08, 0x00);
-
-    aud_write_fm_register_multiple(0x07, &tone_data[0], 35); // write to FIFO
-}
-
-static void aud_fm_set_ch(void)
-{
-    aud_write_fm_register(0x0B, 0x00); // voice num
-    aud_write_fm_register(0x0F, 0x30); // keyon = 0
-    aud_write_fm_register(0x10, 0x71); // chvol
-    aud_write_fm_register(0x11, 0x00); // XVB
-    aud_write_fm_register(0x12, 0x08); // FRAC
-    aud_write_fm_register(0x13, 0x00); // FRAC
-}
-
-static void aud_fm_keyon(unsigned char fnumh, unsigned char fnuml)
-{
-    aud_write_fm_register(0x0B, 0x00);  // voice num
-    aud_write_fm_register(0x0C, 0x54);  // vovol
-    aud_write_fm_register(0x0D, fnumh); // fnum
-    aud_write_fm_register(0x0E, fnuml); // fnum
-    aud_write_fm_register(0x0F, 0x40);  // keyon = 1
-}
-
-static void aud_fm_keyoff(void)
-{
-    aud_write_fm_register(0x0F, 0x00); // keyon = 0
-}
-
 // --- I2S audio codec ---------------------
 int aud_read_i2s_register(uint16_t reg)
 {
@@ -771,51 +726,34 @@ void aud_post_reclock(void)
     aud_mix_reclock();
 }
 
+static enum state {
+    stopped,
+    starting,
+    running
+} volatile aud_state;
+
+void aud_run(void)
+{
+    aud_state = starting;
+}
+
 void aud_stop(void)
 {
     aud_mix_reset();
+    aud_state = stopped;
 }
 
 #define AUD_CHANGE_DURATION_MS 10
 
 void aud_task(void)
 {
-    static bool done = false;
-    if (!done)
+    // Wait for getting out of reset
+    if (aud_state == starting && gpio_get(CPU_RESB_PIN))
     {
-        aud_i2s_reg_init(); // FIXME: split into init and unmute - avoiding sleep
-
+        sleep_ms(10); // wait for chip stabilization
         aud_fm_init825();
 
-        // Configure playback
-        // Set MASTER_VOL to +9dB
-        aud_write_fm_register(0x19, 0b11110000);
-        // Enable mute interpolation
-        aud_write_fm_register(0x1B, 0b00111111);
-        // Turn on interpolation
-        aud_write_fm_register(0x14, 0x00);
-        // Set speaker amplifier gain to 6.5dB (reset value)
-        aud_write_fm_register(0x03, 0x01);
-
-        // Reset sequencer
-        aud_write_fm_register(0x08, 0b11110110);
-        sleep_ms(21);
-        aud_write_fm_register(0x08, 0x00);
-
-        // Set sequencer volume
-        aud_write_fm_register(0x09, 0b11111000);
-        // Set sequence SIZE
-        aud_write_fm_register(0x0A, 0x00);
-
-        // Set sequencer time unit - MS_S
-        aud_write_fm_register(0x17, 0x40);
-        aud_write_fm_register(0x18, 0x00);
-
-        aud_fm_set_tone();
-        aud_fm_set_ch();
-
-        // aud_fm_dump_registers();
-
+        aud_mix_init();
         // aud_mix_init_volume
         uint8_t buf[] = {0x28,
                          // Set volume (gain / attenuation) on all IN to 0dB
@@ -824,38 +762,23 @@ void aud_task(void)
                          0b11111100, 0b11111100, 0b11111100, 0b00000000, 0b00000000, 0b00000000};
         i2c_write_blocking_until(EXT_I2C, MIX_I2C_ADDRESS, buf, 13, false, make_timeout_time_ms(500));
 
+        aud_state = running;
+    }
+
+    static bool done = false;
+    if (!done)
+    {
+        aud_i2s_reg_init(); // FIXME: split into init and unmute - avoiding sleep
+
         done = true;
     }
 
-    // heartbeat
-    static bool was_on = false;
-    bool on = (time_us_32() / 100000) % AUD_CHANGE_DURATION_MS > 8;
-    if (was_on != on)
-    {
-        was_on = on;
-        if (on)
-        {
-            // FM do-re-mi
-            static uint8_t do_re_mi_fm[] = {
-                0x14, 0x65, //
-                0x1c, 0x11, //
-                0x1c, 0x42, //
-                0x1c, 0x5d, //
-                0x24, 0x17, //
-            };
-            static size_t idx = 0;
-            aud_fm_keyon(do_re_mi_fm[idx], do_re_mi_fm[idx + 1]);
-            idx += 2;
-            if (idx >= ARRAY_SIZE(do_re_mi_fm))
-                idx = 0;
-        }
-    }
+    // // play "sampled" noise
+    // while (!pio_sm_is_tx_fifo_full(AUD_I2S_PIO, AUD_I2S_SM))
+    // {
+    //     pio_sm_put_blocking(AUD_I2S_PIO, AUD_I2S_SM, get_rand_32());
+    // }
 
-    // play "sampled" noise
-    while (!pio_sm_is_tx_fifo_full(AUD_I2S_PIO, AUD_I2S_SM))
-    {
-        pio_sm_put_blocking(AUD_I2S_PIO, AUD_I2S_SM, get_rand_32());
-    }
     // // play sampled music
     // static size_t audio_data_offset = 0;
     // while (!pio_sm_is_tx_fifo_full(AUD_I2S_PIO, AUD_I2S_SM))

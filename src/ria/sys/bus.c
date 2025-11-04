@@ -15,6 +15,7 @@
 #include "main.h"
 #include "pico/rand.h"
 #include "pico/time.h"
+#include "sys/aud.h"
 #include "sys/com.h"
 #include "sys/cpu.h"
 #include "sys/ext.h"
@@ -370,6 +371,18 @@ mem_bus_pio_irq_handler(void)
                     else
                     { // CPU is writing
                         cgia_reg_write((uint8_t)bus_address, bus_data);
+                    }
+                }
+                // ------ FEC0 - FEFF ------ (SD-1 registers)
+                else if ((bus_address & 0xFFFFC0) == 0x00FEC0)
+                {
+                    if (bus_address & CPU_RWB_MASK)
+                    { // CPU is reading
+                        MEM_BUS_PIO->txf[MEM_BUS_SM] = aud_read_fm_register(bus_address & 0x3F);
+                    }
+                    else
+                    { // CPU is writing
+                        aud_write_fm_register(bus_address & 0x3F, bus_data);
                     }
                 }
                 // ------ FC00 - FDFF ------ (EXT I/O registers)

@@ -15,9 +15,13 @@
 
 void aud_init(void);
 void aud_post_reclock(void);
+void aud_run(void);
 void aud_stop(void);
 void aud_task(void);
 
 void aud_print_status(void);
+
+uint8_t aud_read_fm_register(uint8_t reg);
+void aud_write_fm_register(uint8_t reg, uint8_t data);
 
 #endif /* _AUD_H_ */

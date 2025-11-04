@@ -120,6 +120,7 @@ static void run(void)
 {
     api_run();
     clk_run();
+    aud_run();
     bus_run(); // Must be immediately before cpu
     cpu_run(); // Must be last
 }
