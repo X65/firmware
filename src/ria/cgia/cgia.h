@@ -10,7 +10,7 @@
     0 - empty lines filled with fill color
         bits 6-4 - how many
         bit 7 - DLI
-    1 - duplicate lines - copy last raster line n-times
+    1 - [TBD]
     2 - JMP Display List (Load DL offset address)
         - DLI bit set - wait for Vertical Blank
     3 - Load Memory - bits 4-7 flag which offsets will follow
@@ -25,10 +25,10 @@
 
     bit 3 set (8-F) - generate mode row:
     Bits 0-2 encode the mode:
-    0 - [TBD]
-    1 - [TBD]
-    2 - text/tile mode
-    3 - bitmap mode
+    0 - palette text/tile mode
+    1 - palette bitmap mode
+    2 - attribute text/tile mode
+    3 - attribute bitmap mode
     4 - multicolor text/tile mode
     5 - multicolor bitmap mode
     6 - Hold-and-Modify (HAM) mode
@@ -37,9 +37,8 @@
     bit 7 - trigger DLI - Display List Interrupt
 */
 
-#define CGIA_DL_MODE_BIT  0b00001000
-#define CGIA_DL_DLI_BIT   0b10000000
-#define CGIA_DL_STORE_BIT 0b01000000
+#define CGIA_DL_MODE_BIT 0b00001000
+#define CGIA_DL_DLI_BIT  0b10000000
 
 // https://csbruce.com/cbm/hacking/hacking12.txt
 /*
@@ -64,7 +63,7 @@
           11 - Modify Blue channel
 
           S: sign, 0 +delta, 1 -delta
-          DDD: delta (0 offsetted, so 000 means 1)
+          DDD: delta (2's complement, with above sign bit)
 */
 
 #define CGIA_PLANE_REGS_NO (16)

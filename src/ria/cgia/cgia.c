@@ -68,10 +68,6 @@ static uint8_t
     __scratch_x("")
         sprite_line_data[SPRITE_MAX_WIDTH];
 
-static uint32_t
-    __attribute__((aligned(4)))
-    stored_line_data[DISPLAY_WIDTH_PIXELS];
-
 // store which PSRAM bank is currently mirrored in cache
 // stored as bitmask for easy use during ram write call
 uint32_t
@@ -226,9 +222,6 @@ static int data_chan;
 // DMA channel to fill raster line with background color
 static int back_chan;
 
-// DMA channel to store line buffer for duplication
-static int store_chan;
-
 // DMA channel to sync CGIA VRAM CACHE bank
 static int vcache_chan;
 static int vcache_transfer; // records which bank is being transferred
@@ -288,20 +281,6 @@ void cgia_init(void)
         back_chan,
         &c,
         NULL,
-        NULL,
-        DISPLAY_WIDTH_PIXELS,
-        false);
-
-    store_chan = dma_claim_unused_channel(true);
-    c = dma_channel_get_default_config(store_chan);
-    channel_config_set_transfer_data_size(&c, DMA_SIZE_32);
-    channel_config_set_read_increment(&c, true);
-    channel_config_set_write_increment(&c, true);
-
-    dma_channel_configure(
-        store_chan,
-        &c,
-        stored_line_data,
         NULL,
         DISPLAY_WIDTH_PIXELS,
         false);
@@ -389,30 +368,6 @@ static inline __attribute__((always_inline)) uint32_t *fill_back(
     dma_channel_set_write_addr(back_chan, buf, false);
     const uint pixels = columns * CGIA_COLUMN_PX;
     dma_channel_set_trans_count(back_chan, pixels, true);
-    return buf + pixels;
-}
-
-static inline __attribute__((always_inline)) void store_back(
-    uint32_t *buf,
-    uint32_t columns)
-{
-    dma_channel_wait_for_finish_blocking(store_chan);
-    dma_channel_set_read_addr(store_chan, buf, false);
-    dma_channel_set_write_addr(store_chan, stored_line_data, false);
-    const uint pixels = columns * CGIA_COLUMN_PX;
-    dma_channel_set_trans_count(store_chan, pixels, true);
-}
-
-static inline __attribute__((always_inline)) uint32_t *restore_back(
-    uint32_t *buf,
-    uint32_t columns)
-{
-    dma_channel_wait_for_finish_blocking(store_chan);
-    dma_channel_set_read_addr(store_chan, stored_line_data, false);
-    dma_channel_set_write_addr(store_chan, buf, false);
-    const uint pixels = columns * CGIA_COLUMN_PX;
-    dma_channel_set_trans_count(store_chan, pixels, true);
-    dma_channel_wait_for_finish_blocking(store_chan);
     return buf + pixels;
 }
 
@@ -563,7 +518,6 @@ void __attribute__((optimize("O3"))) cgia_render(uint16_t y, uint32_t *rgbbuf)
 
             // wait until back fill and store is done, as it may overwrite sprites on the right side
             dma_channel_wait_for_finish_blocking(back_chan);
-            dma_channel_wait_for_finish_blocking(store_chan);
 
             while (mask)
             {
@@ -707,20 +661,6 @@ void __attribute__((optimize("O3"))) cgia_render(uint16_t y, uint32_t *rgbbuf)
                         // fill the whole line with background color
                         (void)fill_back(rgbbuf, DISPLAY_WIDTH_PIXELS / CGIA_COLUMN_PX, CGIA.back_color);
                         // line_background_filled = true; // set in plane_epilogue
-                    }
-                    goto plane_epilogue;
-
-                case 0x1: // INSTR1 - duplicate lines
-                    dl_row_lines = dl_instr >> 4;
-                    if (border_columns && !(plane->bckgnd.flags & PLANE_MASK_BORDER_TRANSPARENT))
-                    {
-                        uint32_t *buf = fill_back(rgbbuf, border_columns, CGIA.back_color);
-                        buf = restore_back(buf, row_columns);
-                        fill_back(buf, border_columns, CGIA.back_color);
-                    }
-                    else
-                    {
-                        (void)restore_back(rgbbuf + border_columns * CGIA_COLUMN_PX, row_columns);
                     }
                     goto plane_epilogue;
 
@@ -1017,12 +957,6 @@ void __attribute__((optimize("O3"))) cgia_render(uint16_t y, uint32_t *rgbbuf)
                         dl_row_lines = plane_data->row_line_count; // force moving to next DL instruction
                         goto plane_epilogue;
                     }
-                }
-
-                // should store line for duplication?
-                if (dl_instr & CGIA_DL_STORE_BIT)
-                {
-                    store_back(rgbbuf + border_columns * CGIA_COLUMN_PX, row_columns);
                 }
 
                 // borders
