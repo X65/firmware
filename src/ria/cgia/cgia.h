@@ -128,10 +128,18 @@ union cgia_plane_regs_t
 // 1-2 - [RESERVED]
 // 3 - border is transparent
 // 4 - double-width pixel
-// 5-7 - [RESERVED]
+// 5,6 - pixel bits: 00 - 1bit, 2 colors; 01 - 2bit, 4 colors;
+//                   10 - 3bit, 8 colors; 11 - 4bit, 8 colors + half-bright
+// 7 - [RESERVED]
 #define PLANE_MASK_TRANSPARENT        0b00000001
 #define PLANE_MASK_BORDER_TRANSPARENT 0b00001000
 #define PLANE_MASK_DOUBLE_WIDTH       0b00010000
+#define PLANE_MASK_PIXEL_BITS         0b01100000
+
+#define PLANE_BITS_1BPP (0b00 << 5)
+#define PLANE_BITS_2BPP (0b01 << 5)
+#define PLANE_BITS_3BPP (0b10 << 5)
+#define PLANE_BITS_4BPP (0b11 << 5)
 
 struct cgia_t
 {

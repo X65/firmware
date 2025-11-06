@@ -312,38 +312,262 @@ static uint8_t
     __scratch_x("")
         log2_tab[256]
     = {
-        0x00, 0x01, 0x02, 0x02, 0x03, 0x03, 0x03, 0x03, //
-        0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, //
-        0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05, //
-        0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05, //
-        0x06, 0x06, 0x06, 0x06, 0x06, 0x06, 0x06, 0x06, //
-        0x06, 0x06, 0x06, 0x06, 0x06, 0x06, 0x06, 0x06, //
-        0x06, 0x06, 0x06, 0x06, 0x06, 0x06, 0x06, 0x06, //
-        0x06, 0x06, 0x06, 0x06, 0x06, 0x06, 0x06, 0x06, //
-        0x07, 0x07, 0x07, 0x07, 0x07, 0x07, 0x07, 0x07, //
-        0x07, 0x07, 0x07, 0x07, 0x07, 0x07, 0x07, 0x07, //
-        0x07, 0x07, 0x07, 0x07, 0x07, 0x07, 0x07, 0x07, //
-        0x07, 0x07, 0x07, 0x07, 0x07, 0x07, 0x07, 0x07, //
-        0x07, 0x07, 0x07, 0x07, 0x07, 0x07, 0x07, 0x07, //
-        0x07, 0x07, 0x07, 0x07, 0x07, 0x07, 0x07, 0x07, //
-        0x07, 0x07, 0x07, 0x07, 0x07, 0x07, 0x07, 0x07, //
-        0x07, 0x07, 0x07, 0x07, 0x07, 0x07, 0x07, 0x07, //
-        0x08, 0x08, 0x08, 0x08, 0x08, 0x08, 0x08, 0x08, //
-        0x08, 0x08, 0x08, 0x08, 0x08, 0x08, 0x08, 0x08, //
-        0x08, 0x08, 0x08, 0x08, 0x08, 0x08, 0x08, 0x08, //
-        0x08, 0x08, 0x08, 0x08, 0x08, 0x08, 0x08, 0x08, //
-        0x08, 0x08, 0x08, 0x08, 0x08, 0x08, 0x08, 0x08, //
-        0x08, 0x08, 0x08, 0x08, 0x08, 0x08, 0x08, 0x08, //
-        0x08, 0x08, 0x08, 0x08, 0x08, 0x08, 0x08, 0x08, //
-        0x08, 0x08, 0x08, 0x08, 0x08, 0x08, 0x08, 0x08, //
-        0x08, 0x08, 0x08, 0x08, 0x08, 0x08, 0x08, 0x08, //
-        0x08, 0x08, 0x08, 0x08, 0x08, 0x08, 0x08, 0x08, //
-        0x08, 0x08, 0x08, 0x08, 0x08, 0x08, 0x08, 0x08, //
-        0x08, 0x08, 0x08, 0x08, 0x08, 0x08, 0x08, 0x08, //
-        0x08, 0x08, 0x08, 0x08, 0x08, 0x08, 0x08, 0x08, //
-        0x08, 0x08, 0x08, 0x08, 0x08, 0x08, 0x08, 0x08, //
-        0x08, 0x08, 0x08, 0x08, 0x08, 0x08, 0x08, 0x08, //
-        0x08, 0x08, 0x08, 0x08, 0x08, 0x08, 0x08, 0x08, //
+        0x00,
+        0x01,
+        0x02,
+        0x02,
+        0x03,
+        0x03,
+        0x03,
+        0x03, //
+        0x04,
+        0x04,
+        0x04,
+        0x04,
+        0x04,
+        0x04,
+        0x04,
+        0x04, //
+        0x05,
+        0x05,
+        0x05,
+        0x05,
+        0x05,
+        0x05,
+        0x05,
+        0x05, //
+        0x05,
+        0x05,
+        0x05,
+        0x05,
+        0x05,
+        0x05,
+        0x05,
+        0x05, //
+        0x06,
+        0x06,
+        0x06,
+        0x06,
+        0x06,
+        0x06,
+        0x06,
+        0x06, //
+        0x06,
+        0x06,
+        0x06,
+        0x06,
+        0x06,
+        0x06,
+        0x06,
+        0x06, //
+        0x06,
+        0x06,
+        0x06,
+        0x06,
+        0x06,
+        0x06,
+        0x06,
+        0x06, //
+        0x06,
+        0x06,
+        0x06,
+        0x06,
+        0x06,
+        0x06,
+        0x06,
+        0x06, //
+        0x07,
+        0x07,
+        0x07,
+        0x07,
+        0x07,
+        0x07,
+        0x07,
+        0x07, //
+        0x07,
+        0x07,
+        0x07,
+        0x07,
+        0x07,
+        0x07,
+        0x07,
+        0x07, //
+        0x07,
+        0x07,
+        0x07,
+        0x07,
+        0x07,
+        0x07,
+        0x07,
+        0x07, //
+        0x07,
+        0x07,
+        0x07,
+        0x07,
+        0x07,
+        0x07,
+        0x07,
+        0x07, //
+        0x07,
+        0x07,
+        0x07,
+        0x07,
+        0x07,
+        0x07,
+        0x07,
+        0x07, //
+        0x07,
+        0x07,
+        0x07,
+        0x07,
+        0x07,
+        0x07,
+        0x07,
+        0x07, //
+        0x07,
+        0x07,
+        0x07,
+        0x07,
+        0x07,
+        0x07,
+        0x07,
+        0x07, //
+        0x07,
+        0x07,
+        0x07,
+        0x07,
+        0x07,
+        0x07,
+        0x07,
+        0x07, //
+        0x08,
+        0x08,
+        0x08,
+        0x08,
+        0x08,
+        0x08,
+        0x08,
+        0x08, //
+        0x08,
+        0x08,
+        0x08,
+        0x08,
+        0x08,
+        0x08,
+        0x08,
+        0x08, //
+        0x08,
+        0x08,
+        0x08,
+        0x08,
+        0x08,
+        0x08,
+        0x08,
+        0x08, //
+        0x08,
+        0x08,
+        0x08,
+        0x08,
+        0x08,
+        0x08,
+        0x08,
+        0x08, //
+        0x08,
+        0x08,
+        0x08,
+        0x08,
+        0x08,
+        0x08,
+        0x08,
+        0x08, //
+        0x08,
+        0x08,
+        0x08,
+        0x08,
+        0x08,
+        0x08,
+        0x08,
+        0x08, //
+        0x08,
+        0x08,
+        0x08,
+        0x08,
+        0x08,
+        0x08,
+        0x08,
+        0x08, //
+        0x08,
+        0x08,
+        0x08,
+        0x08,
+        0x08,
+        0x08,
+        0x08,
+        0x08, //
+        0x08,
+        0x08,
+        0x08,
+        0x08,
+        0x08,
+        0x08,
+        0x08,
+        0x08, //
+        0x08,
+        0x08,
+        0x08,
+        0x08,
+        0x08,
+        0x08,
+        0x08,
+        0x08, //
+        0x08,
+        0x08,
+        0x08,
+        0x08,
+        0x08,
+        0x08,
+        0x08,
+        0x08, //
+        0x08,
+        0x08,
+        0x08,
+        0x08,
+        0x08,
+        0x08,
+        0x08,
+        0x08, //
+        0x08,
+        0x08,
+        0x08,
+        0x08,
+        0x08,
+        0x08,
+        0x08,
+        0x08, //
+        0x08,
+        0x08,
+        0x08,
+        0x08,
+        0x08,
+        0x08,
+        0x08,
+        0x08, //
+        0x08,
+        0x08,
+        0x08,
+        0x08,
+        0x08,
+        0x08,
+        0x08,
+        0x08, //
+        0x08,
+        0x08,
+        0x08,
+        0x08,
+        0x08,
+        0x08,
+        0x08,
+        0x08, //
 };
 
 static uint16_t
@@ -351,10 +575,30 @@ static uint16_t
     __scratch_x("")
         plane_order_tab[24] // SJT order
     = {
-        0x3210, 0x2310, 0x2130, 0x2103, 0x1203, 0x1230, //
-        0x1320, 0x3120, 0x3102, 0x1302, 0x1032, 0x1023, //
-        0x0123, 0x0132, 0x0312, 0x3012, 0x3021, 0x0321, //
-        0x0231, 0x0213, 0x2013, 0x2031, 0x2301, 0x3201, //
+        0x3210,
+        0x2310,
+        0x2130,
+        0x2103,
+        0x1203,
+        0x1230, //
+        0x1320,
+        0x3120,
+        0x3102,
+        0x1302,
+        0x1032,
+        0x1023, //
+        0x0123,
+        0x0132,
+        0x0312,
+        0x3012,
+        0x3021,
+        0x0321, //
+        0x0231,
+        0x0213,
+        0x2013,
+        0x2031,
+        0x2301,
+        0x3201, //
 };
 
 #ifdef PICO_SDK_VERSION_MAJOR
@@ -741,7 +985,173 @@ void __attribute__((optimize("O3"))) cgia_render(uint16_t y, uint32_t *rgbbuf)
                     // ------- Mode Rows --------------
                     switch (instr_code)
                     {
-                    case (0x2 | CGIA_DL_MODE_BIT): // MODE2 (A) - text/tile mode
+                    case (0x0 | CGIA_DL_MODE_BIT): // MODE0 (8) - palette text/tile mode
+                    {
+                        set_linear_scans(1,
+                                         bckgnd_bank + plane_data->memory_scan - 1,
+                                         bckgnd_bank + plane_data->colour_scan - 1,
+                                         bckgnd_bank + plane_data->backgr_scan - 1);
+                        uint8_t char_shift = log2_tab[plane->bckgnd.row_height];
+                        if (plane->bckgnd.flags & PLANE_MASK_TRANSPARENT)
+                        {
+                            switch (plane->bckgnd.flags & PLANE_MASK_PIXEL_BITS)
+                            {
+                            case PLANE_BITS_1BPP:
+                                cgia_encode_mode_0_1bpp_shared(
+                                    rgbbuf + border_columns * CGIA_COLUMN_PX + plane->bckgnd.scroll_x,
+                                    row_columns,
+                                    bckgnd_bank + plane_data->char_gen_offset + plane_data->row_line_count,
+                                    char_shift,
+                                    plane->bckgnd.shared_color);
+                                break;
+                            case PLANE_BITS_2BPP:
+                                cgia_encode_mode_0_2bpp_shared(
+                                    rgbbuf + border_columns * CGIA_COLUMN_PX + plane->bckgnd.scroll_x,
+                                    row_columns,
+                                    bckgnd_bank + plane_data->char_gen_offset + plane_data->row_line_count,
+                                    char_shift,
+                                    plane->bckgnd.shared_color);
+                                break;
+                            case PLANE_BITS_3BPP:
+                                cgia_encode_mode_0_3bpp_shared(
+                                    rgbbuf + border_columns * CGIA_COLUMN_PX + plane->bckgnd.scroll_x,
+                                    row_columns,
+                                    bckgnd_bank + plane_data->char_gen_offset + plane_data->row_line_count,
+                                    char_shift,
+                                    plane->bckgnd.shared_color);
+                                break;
+                            case PLANE_BITS_4BPP:
+                                cgia_encode_mode_0_4bpp_shared(
+                                    rgbbuf + border_columns * CGIA_COLUMN_PX + plane->bckgnd.scroll_x,
+                                    row_columns,
+                                    bckgnd_bank + plane_data->char_gen_offset + plane_data->row_line_count,
+                                    char_shift,
+                                    plane->bckgnd.shared_color);
+                                break;
+                            }
+                        }
+                        else
+                        {
+                            switch (plane->bckgnd.flags & PLANE_MASK_PIXEL_BITS)
+                            {
+                            case PLANE_BITS_1BPP:
+                                cgia_encode_mode_0_1bpp_mapped(
+                                    rgbbuf + border_columns * CGIA_COLUMN_PX + plane->bckgnd.scroll_x,
+                                    row_columns,
+                                    bckgnd_bank + plane_data->char_gen_offset + plane_data->row_line_count, char_shift,
+                                    plane->bckgnd.shared_color);
+                                break;
+                            case PLANE_BITS_2BPP:
+                                cgia_encode_mode_0_2bpp_mapped(
+                                    rgbbuf + border_columns * CGIA_COLUMN_PX + plane->bckgnd.scroll_x,
+                                    row_columns,
+                                    bckgnd_bank + plane_data->char_gen_offset + plane_data->row_line_count, char_shift,
+                                    plane->bckgnd.shared_color);
+                                break;
+                            case PLANE_BITS_3BPP:
+                                cgia_encode_mode_0_3bpp_mapped(
+                                    rgbbuf + border_columns * CGIA_COLUMN_PX + plane->bckgnd.scroll_x,
+                                    row_columns,
+                                    bckgnd_bank + plane_data->char_gen_offset + plane_data->row_line_count, char_shift,
+                                    plane->bckgnd.shared_color);
+                                break;
+                            case PLANE_BITS_4BPP:
+                                cgia_encode_mode_0_4bpp_mapped(
+                                    rgbbuf + border_columns * CGIA_COLUMN_PX + plane->bckgnd.scroll_x,
+                                    row_columns,
+                                    bckgnd_bank + plane_data->char_gen_offset + plane_data->row_line_count, char_shift,
+                                    plane->bckgnd.shared_color);
+                                break;
+                            }
+                        }
+                    }
+                    break;
+
+                    case (0x1 | CGIA_DL_MODE_BIT): // MODE1 (9) - palette bitmap mode
+                    {
+                        int offset_delta = plane->bckgnd.offset_x - 1;
+                        uint8_t row_height = plane->bckgnd.row_height;
+                        offset_delta <<= log2_tab[row_height];
+                        const uint8_t *ms = bckgnd_bank + plane_data->memory_scan + offset_delta;
+                        set_linear_scans(++row_height, ms,
+                                         bckgnd_bank + plane_data->colour_scan - 1,
+                                         bckgnd_bank + plane_data->backgr_scan - 1);
+
+                        uint8_t encode_columns = row_columns;
+                        if (plane->bckgnd.stride)
+                        {
+                            int8_t scr_delta = plane->bckgnd.scroll_x;
+                            if (scr_delta < 0)
+                                scr_delta -= 7;
+                            encode_columns = (uint8_t)(encode_columns - scr_delta / CGIA_COLUMN_PX);
+                        }
+                        if (plane->bckgnd.flags & PLANE_MASK_TRANSPARENT)
+                        {
+                            switch (plane->bckgnd.flags & PLANE_MASK_PIXEL_BITS)
+                            {
+                            case PLANE_BITS_1BPP:
+                                cgia_encode_mode_1_1bpp_shared(
+                                    rgbbuf + border_columns * CGIA_COLUMN_PX + plane->bckgnd.scroll_x,
+                                    encode_columns,
+                                    plane->bckgnd.shared_color);
+                                break;
+                            case PLANE_BITS_2BPP:
+                                cgia_encode_mode_1_2bpp_shared(
+                                    rgbbuf + border_columns * CGIA_COLUMN_PX + plane->bckgnd.scroll_x,
+                                    encode_columns,
+                                    plane->bckgnd.shared_color);
+                                break;
+                            case PLANE_BITS_3BPP:
+                                cgia_encode_mode_1_3bpp_shared(
+                                    rgbbuf + border_columns * CGIA_COLUMN_PX + plane->bckgnd.scroll_x,
+                                    encode_columns,
+                                    plane->bckgnd.shared_color);
+                                break;
+                            case PLANE_BITS_4BPP:
+                                cgia_encode_mode_1_4bpp_shared(
+                                    rgbbuf + border_columns * CGIA_COLUMN_PX + plane->bckgnd.scroll_x,
+                                    encode_columns,
+                                    plane->bckgnd.shared_color);
+                                break;
+                            }
+                        }
+                        else
+                        {
+                            switch (plane->bckgnd.flags & PLANE_MASK_PIXEL_BITS)
+                            {
+                            case PLANE_BITS_1BPP:
+                                cgia_encode_mode_1_1bpp_mapped(
+                                    rgbbuf + border_columns * CGIA_COLUMN_PX + plane->bckgnd.scroll_x,
+                                    encode_columns,
+                                    plane->bckgnd.shared_color);
+                                break;
+                            case PLANE_BITS_2BPP:
+                                cgia_encode_mode_1_2bpp_mapped(
+                                    rgbbuf + border_columns * CGIA_COLUMN_PX + plane->bckgnd.scroll_x,
+                                    encode_columns,
+                                    plane->bckgnd.shared_color);
+                                break;
+                            case PLANE_BITS_3BPP:
+                                cgia_encode_mode_1_3bpp_mapped(
+                                    rgbbuf + border_columns * CGIA_COLUMN_PX + plane->bckgnd.scroll_x,
+                                    encode_columns,
+                                    plane->bckgnd.shared_color);
+                                break;
+                            case PLANE_BITS_4BPP:
+                                cgia_encode_mode_1_4bpp_mapped(
+                                    rgbbuf + border_columns * CGIA_COLUMN_PX + plane->bckgnd.scroll_x,
+                                    encode_columns,
+                                    plane->bckgnd.shared_color);
+                                break;
+                            }
+                        }
+
+                        // next raster line starts with next byte
+                        ++plane_data->memory_scan;
+                    }
+                    break;
+
+                    case (0x2 | CGIA_DL_MODE_BIT): // MODE2 (A) - attribute text/tile mode
                     {
                         set_linear_scans(1,
                                          bckgnd_bank + plane_data->memory_scan - 1,
@@ -767,7 +1177,7 @@ void __attribute__((optimize("O3"))) cgia_render(uint16_t y, uint32_t *rgbbuf)
                     }
                     break;
 
-                    case (0x3 | CGIA_DL_MODE_BIT): // MODE3 (B) - bitmap mode
+                    case (0x3 | CGIA_DL_MODE_BIT): // MODE3 (B) - attribute bitmap mode
                     {
                         const uint8_t row_height = plane->bckgnd.row_height + 1;
                         set_linear_scans(row_height,
