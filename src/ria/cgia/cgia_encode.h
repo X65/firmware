@@ -3,30 +3,38 @@
 
 #include "pico.h"
 
-#define CGIA_ENCODE_MODE_0(pixels, doubled, shared)                             \
-    uint32_t *__not_in_flash_func(cgia_encode_mode_0##pixels##doubled##shared)( \
-        uint32_t *rgbbuf,                                                       \
-        uint32_t columns,                                                       \
-        uint8_t *character_generator,                                           \
-        uint32_t char_shift,                                                    \
+#define CGIA_ENCODE_MODE_0(multi, pixels, doubled, shared)                             \
+    uint32_t *__not_in_flash_func(cgia_encode_mode_0##multi##pixels##doubled##shared)( \
+        uint32_t *rgbbuf,                                                              \
+        uint32_t columns,                                                              \
+        uint8_t *character_generator,                                                  \
+        uint32_t char_shift,                                                           \
         uint8_t shared_colors[8])
 
-CGIA_ENCODE_MODE_0(_1bpp, , _shared);
-CGIA_ENCODE_MODE_0(_1bpp, , _mapped);
-CGIA_ENCODE_MODE_0(_1bpp, _doubled, _shared);
-CGIA_ENCODE_MODE_0(_1bpp, _doubled, _mapped);
-CGIA_ENCODE_MODE_0(_2bpp, , _shared);
-CGIA_ENCODE_MODE_0(_2bpp, , _mapped);
-CGIA_ENCODE_MODE_0(_2bpp, _doubled, _shared);
-CGIA_ENCODE_MODE_0(_2bpp, _doubled, _mapped);
-CGIA_ENCODE_MODE_0(_3bpp, , _shared);
-CGIA_ENCODE_MODE_0(_3bpp, , _mapped);
-CGIA_ENCODE_MODE_0(_3bpp, _doubled, _shared);
-CGIA_ENCODE_MODE_0(_3bpp, _doubled, _mapped);
-CGIA_ENCODE_MODE_0(_4bpp, , _shared);
-CGIA_ENCODE_MODE_0(_4bpp, , _mapped);
-CGIA_ENCODE_MODE_0(_4bpp, _doubled, _shared);
-CGIA_ENCODE_MODE_0(_4bpp, _doubled, _mapped);
+CGIA_ENCODE_MODE_0(, _1bpp, , _shared);
+CGIA_ENCODE_MODE_0(, _1bpp, , _mapped);
+CGIA_ENCODE_MODE_0(, _1bpp, _doubled, _shared);
+CGIA_ENCODE_MODE_0(, _1bpp, _doubled, _mapped);
+CGIA_ENCODE_MODE_0(, _2bpp, , _shared);
+CGIA_ENCODE_MODE_0(_multi, _2bpp, , _shared);
+CGIA_ENCODE_MODE_0(, _2bpp, , _mapped);
+CGIA_ENCODE_MODE_0(_multi, _2bpp, , _mapped);
+CGIA_ENCODE_MODE_0(, _2bpp, _doubled, _shared);
+CGIA_ENCODE_MODE_0(_multi, _2bpp, _doubled, _shared);
+CGIA_ENCODE_MODE_0(, _2bpp, _doubled, _mapped);
+CGIA_ENCODE_MODE_0(_multi, _2bpp, _doubled, _mapped);
+CGIA_ENCODE_MODE_0(, _3bpp, , _shared);
+CGIA_ENCODE_MODE_0(_multi, _3bpp, , _shared);
+CGIA_ENCODE_MODE_0(, _3bpp, , _mapped);
+CGIA_ENCODE_MODE_0(_multi, _3bpp, , _mapped);
+CGIA_ENCODE_MODE_0(, _3bpp, _doubled, _shared);
+CGIA_ENCODE_MODE_0(_multi, _3bpp, _doubled, _shared);
+CGIA_ENCODE_MODE_0(, _3bpp, _doubled, _mapped);
+CGIA_ENCODE_MODE_0(_multi, _3bpp, _doubled, _mapped);
+CGIA_ENCODE_MODE_0(, _4bpp, , _shared);
+CGIA_ENCODE_MODE_0(, _4bpp, , _mapped);
+CGIA_ENCODE_MODE_0(, _4bpp, _doubled, _shared);
+CGIA_ENCODE_MODE_0(, _4bpp, _doubled, _mapped);
 
 #define CGIA_ENCODE_MODE_1(pixels, doubled, shared)                             \
     uint32_t *__not_in_flash_func(cgia_encode_mode_1##pixels##doubled##shared)( \
