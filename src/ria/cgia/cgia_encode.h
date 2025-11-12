@@ -76,60 +76,20 @@ CGIA_ENCODE_MODE_2(_multi, _doubled, _shared);
 CGIA_ENCODE_MODE_2(, _doubled, _mapped);
 CGIA_ENCODE_MODE_2(_multi, _doubled, _mapped);
 
-uint32_t *__not_in_flash_func(cgia_encode_mode_3_shared)(
-    uint32_t *rgbbuf,
-    uint32_t columns);
-uint32_t *__not_in_flash_func(cgia_encode_mode_3_mapped)(
-    uint32_t *rgbbuf,
-    uint32_t columns);
+#define CGIA_ENCODE_MODE_3(multi, doubled, shared)                             \
+    uint32_t *__not_in_flash_func(cgia_encode_mode_3##multi##doubled##shared)( \
+        uint32_t *rgbbuf,                                                      \
+        uint32_t columns,                                                      \
+        uint8_t shared_colors[8])
 
-uint32_t *__not_in_flash_func(cgia_encode_mode_4_shared)(
-    uint32_t *rgbbuf,
-    uint32_t columns,
-    uint8_t *character_generator,
-    uint32_t char_shift,
-    uint8_t shared_colors[2]);
-
-uint32_t *__not_in_flash_func(cgia_encode_mode_4_mapped)(
-    uint32_t *rgbbuf,
-    uint32_t columns,
-    uint8_t *character_generator,
-    uint32_t char_shift,
-    uint8_t shared_colors[2]);
-
-uint32_t *__not_in_flash_func(cgia_encode_mode_4_doubled_shared)(
-    uint32_t *rgbbuf,
-    uint32_t columns,
-    uint8_t *character_generator,
-    uint32_t char_shift,
-    uint8_t shared_colors[2]);
-
-uint32_t *__not_in_flash_func(cgia_encode_mode_4_doubled_mapped)(
-    uint32_t *rgbbuf,
-    uint32_t columns,
-    uint8_t *character_generator,
-    uint32_t char_shift,
-    uint8_t shared_colors[2]);
-
-uint32_t *__not_in_flash_func(cgia_encode_mode_5_shared)(
-    uint32_t *rgbbuf,
-    uint32_t columns,
-    uint8_t shared_colors[2]);
-
-uint32_t *__not_in_flash_func(cgia_encode_mode_5_mapped)(
-    uint32_t *rgbbuf,
-    uint32_t columns,
-    uint8_t shared_colors[2]);
-
-uint32_t *__not_in_flash_func(cgia_encode_mode_5_doubled_shared)(
-    uint32_t *rgbbuf,
-    uint32_t columns,
-    uint8_t shared_colors[2]);
-
-uint32_t *__not_in_flash_func(cgia_encode_mode_5_doubled_mapped)(
-    uint32_t *rgbbuf,
-    uint32_t columns,
-    uint8_t shared_colors[2]);
+CGIA_ENCODE_MODE_3(, , _shared);
+CGIA_ENCODE_MODE_3(_multi, , _shared);
+CGIA_ENCODE_MODE_3(, , _mapped);
+CGIA_ENCODE_MODE_3(_multi, , _mapped);
+CGIA_ENCODE_MODE_3(, _doubled, _shared);
+CGIA_ENCODE_MODE_3(_multi, _doubled, _shared);
+CGIA_ENCODE_MODE_3(, _doubled, _mapped);
+CGIA_ENCODE_MODE_3(_multi, _doubled, _mapped);
 
 uint32_t *__not_in_flash_func(cgia_encode_mode_6)(
     uint32_t *rgbbuf,

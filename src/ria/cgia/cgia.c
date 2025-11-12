@@ -307,267 +307,44 @@ void cgia_init(void)
     vram_cache_bank_mask[1] = 0;
 }
 
+// clang-format off
 static uint8_t
     __attribute__((aligned(4)))
     __scratch_x("")
         log2_tab[256]
     = {
-        0x00,
-        0x01,
-        0x02,
-        0x02,
-        0x03,
-        0x03,
-        0x03,
-        0x03, //
-        0x04,
-        0x04,
-        0x04,
-        0x04,
-        0x04,
-        0x04,
-        0x04,
-        0x04, //
-        0x05,
-        0x05,
-        0x05,
-        0x05,
-        0x05,
-        0x05,
-        0x05,
-        0x05, //
-        0x05,
-        0x05,
-        0x05,
-        0x05,
-        0x05,
-        0x05,
-        0x05,
-        0x05, //
-        0x06,
-        0x06,
-        0x06,
-        0x06,
-        0x06,
-        0x06,
-        0x06,
-        0x06, //
-        0x06,
-        0x06,
-        0x06,
-        0x06,
-        0x06,
-        0x06,
-        0x06,
-        0x06, //
-        0x06,
-        0x06,
-        0x06,
-        0x06,
-        0x06,
-        0x06,
-        0x06,
-        0x06, //
-        0x06,
-        0x06,
-        0x06,
-        0x06,
-        0x06,
-        0x06,
-        0x06,
-        0x06, //
-        0x07,
-        0x07,
-        0x07,
-        0x07,
-        0x07,
-        0x07,
-        0x07,
-        0x07, //
-        0x07,
-        0x07,
-        0x07,
-        0x07,
-        0x07,
-        0x07,
-        0x07,
-        0x07, //
-        0x07,
-        0x07,
-        0x07,
-        0x07,
-        0x07,
-        0x07,
-        0x07,
-        0x07, //
-        0x07,
-        0x07,
-        0x07,
-        0x07,
-        0x07,
-        0x07,
-        0x07,
-        0x07, //
-        0x07,
-        0x07,
-        0x07,
-        0x07,
-        0x07,
-        0x07,
-        0x07,
-        0x07, //
-        0x07,
-        0x07,
-        0x07,
-        0x07,
-        0x07,
-        0x07,
-        0x07,
-        0x07, //
-        0x07,
-        0x07,
-        0x07,
-        0x07,
-        0x07,
-        0x07,
-        0x07,
-        0x07, //
-        0x07,
-        0x07,
-        0x07,
-        0x07,
-        0x07,
-        0x07,
-        0x07,
-        0x07, //
-        0x08,
-        0x08,
-        0x08,
-        0x08,
-        0x08,
-        0x08,
-        0x08,
-        0x08, //
-        0x08,
-        0x08,
-        0x08,
-        0x08,
-        0x08,
-        0x08,
-        0x08,
-        0x08, //
-        0x08,
-        0x08,
-        0x08,
-        0x08,
-        0x08,
-        0x08,
-        0x08,
-        0x08, //
-        0x08,
-        0x08,
-        0x08,
-        0x08,
-        0x08,
-        0x08,
-        0x08,
-        0x08, //
-        0x08,
-        0x08,
-        0x08,
-        0x08,
-        0x08,
-        0x08,
-        0x08,
-        0x08, //
-        0x08,
-        0x08,
-        0x08,
-        0x08,
-        0x08,
-        0x08,
-        0x08,
-        0x08, //
-        0x08,
-        0x08,
-        0x08,
-        0x08,
-        0x08,
-        0x08,
-        0x08,
-        0x08, //
-        0x08,
-        0x08,
-        0x08,
-        0x08,
-        0x08,
-        0x08,
-        0x08,
-        0x08, //
-        0x08,
-        0x08,
-        0x08,
-        0x08,
-        0x08,
-        0x08,
-        0x08,
-        0x08, //
-        0x08,
-        0x08,
-        0x08,
-        0x08,
-        0x08,
-        0x08,
-        0x08,
-        0x08, //
-        0x08,
-        0x08,
-        0x08,
-        0x08,
-        0x08,
-        0x08,
-        0x08,
-        0x08, //
-        0x08,
-        0x08,
-        0x08,
-        0x08,
-        0x08,
-        0x08,
-        0x08,
-        0x08, //
-        0x08,
-        0x08,
-        0x08,
-        0x08,
-        0x08,
-        0x08,
-        0x08,
-        0x08, //
-        0x08,
-        0x08,
-        0x08,
-        0x08,
-        0x08,
-        0x08,
-        0x08,
-        0x08, //
-        0x08,
-        0x08,
-        0x08,
-        0x08,
-        0x08,
-        0x08,
-        0x08,
-        0x08, //
-        0x08,
-        0x08,
-        0x08,
-        0x08,
-        0x08,
-        0x08,
-        0x08,
-        0x08, //
+        0x00, 0x01, 0x02, 0x02, 0x03, 0x03, 0x03, 0x03, //
+        0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, //
+        0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05, //
+        0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05, //
+        0x06, 0x06, 0x06, 0x06, 0x06, 0x06, 0x06, 0x06, //
+        0x06, 0x06, 0x06, 0x06, 0x06, 0x06, 0x06, 0x06, //
+        0x06, 0x06, 0x06, 0x06, 0x06, 0x06, 0x06, 0x06, //
+        0x06, 0x06, 0x06, 0x06, 0x06, 0x06, 0x06, 0x06, //
+        0x07, 0x07, 0x07, 0x07, 0x07, 0x07, 0x07, 0x07, //
+        0x07, 0x07, 0x07, 0x07, 0x07, 0x07, 0x07, 0x07, //
+        0x07, 0x07, 0x07, 0x07, 0x07, 0x07, 0x07, 0x07, //
+        0x07, 0x07, 0x07, 0x07, 0x07, 0x07, 0x07, 0x07, //
+        0x07, 0x07, 0x07, 0x07, 0x07, 0x07, 0x07, 0x07, //
+        0x07, 0x07, 0x07, 0x07, 0x07, 0x07, 0x07, 0x07, //
+        0x07, 0x07, 0x07, 0x07, 0x07, 0x07, 0x07, 0x07, //
+        0x07, 0x07, 0x07, 0x07, 0x07, 0x07, 0x07, 0x07, //
+        0x08, 0x08, 0x08, 0x08, 0x08, 0x08, 0x08, 0x08, //
+        0x08, 0x08, 0x08, 0x08, 0x08, 0x08, 0x08, 0x08, //
+        0x08, 0x08, 0x08, 0x08, 0x08, 0x08, 0x08, 0x08, //
+        0x08, 0x08, 0x08, 0x08, 0x08, 0x08, 0x08, 0x08, //
+        0x08, 0x08, 0x08, 0x08, 0x08, 0x08, 0x08, 0x08, //
+        0x08, 0x08, 0x08, 0x08, 0x08, 0x08, 0x08, 0x08, //
+        0x08, 0x08, 0x08, 0x08, 0x08, 0x08, 0x08, 0x08, //
+        0x08, 0x08, 0x08, 0x08, 0x08, 0x08, 0x08, 0x08, //
+        0x08, 0x08, 0x08, 0x08, 0x08, 0x08, 0x08, 0x08, //
+        0x08, 0x08, 0x08, 0x08, 0x08, 0x08, 0x08, 0x08, //
+        0x08, 0x08, 0x08, 0x08, 0x08, 0x08, 0x08, 0x08, //
+        0x08, 0x08, 0x08, 0x08, 0x08, 0x08, 0x08, 0x08, //
+        0x08, 0x08, 0x08, 0x08, 0x08, 0x08, 0x08, 0x08, //
+        0x08, 0x08, 0x08, 0x08, 0x08, 0x08, 0x08, 0x08, //
+        0x08, 0x08, 0x08, 0x08, 0x08, 0x08, 0x08, 0x08, //
+        0x08, 0x08, 0x08, 0x08, 0x08, 0x08, 0x08, 0x08, //
 };
 
 static uint16_t
@@ -575,31 +352,12 @@ static uint16_t
     __scratch_x("")
         plane_order_tab[24] // SJT order
     = {
-        0x3210,
-        0x2310,
-        0x2130,
-        0x2103,
-        0x1203,
-        0x1230, //
-        0x1320,
-        0x3120,
-        0x3102,
-        0x1302,
-        0x1032,
-        0x1023, //
-        0x0123,
-        0x0132,
-        0x0312,
-        0x3012,
-        0x3021,
-        0x0321, //
-        0x0231,
-        0x0213,
-        0x2013,
-        0x2031,
-        0x2301,
-        0x3201, //
+        0x3210, 0x2310, 0x2130, 0x2103, 0x1203, 0x1230, //
+        0x1320, 0x3120, 0x3102, 0x1302, 0x1032, 0x1023, //
+        0x0123, 0x0132, 0x0312, 0x3012, 0x3021, 0x0321, //
+        0x0231, 0x0213, 0x2013, 0x2031, 0x2301, 0x3201, //
 };
+// clang-format on
 
 #ifdef PICO_SDK_VERSION_MAJOR
 static inline __attribute__((always_inline)) uint32_t *fill_back(
@@ -988,8 +746,8 @@ void __attribute__((optimize("O3"))) cgia_render(uint16_t y, uint32_t *rgbbuf)
                     // ------- Mode Rows --------------
                     switch (instr_code)
                     {
-                    // text/tile modes
                     case (0x0 | CGIA_DL_MODE_BIT): // MODE0 (8) - palette text/tile mode
+                    case (0x1 | CGIA_DL_MODE_BIT): // MODE1 (9) - palette bitmap mode
                     case (0x2 | CGIA_DL_MODE_BIT): // MODE2 (A) - attribute text/tile mode
                     {
                         set_linear_scans(1,
@@ -1014,6 +772,10 @@ void __attribute__((optimize("O3"))) cgia_render(uint16_t y, uint32_t *rgbbuf)
         encode_columns,                                                         \
         bckgnd_bank + plane_data->char_gen_offset + plane_data->row_line_count, \
         char_shift, plane->bckgnd.color)
+#define cgia_encode_mode_1(pixels, doubled, shared)                        \
+    cgia_encode_mode_1##pixels##doubled##shared(                           \
+        rgbbuf + border_columns * CGIA_COLUMN_PX + plane->bckgnd.scroll_x, \
+        encode_columns, plane->bckgnd.color)
 #define cgia_encode_mode_2(multi, doubled, shared)                              \
     cgia_encode_mode_2##multi##doubled##shared(                                 \
         rgbbuf + border_columns * CGIA_COLUMN_PX + plane->bckgnd.scroll_x,      \
@@ -1023,7 +785,48 @@ void __attribute__((optimize("O3"))) cgia_render(uint16_t y, uint32_t *rgbbuf)
 
                         if (plane->bckgnd.flags & PLANE_MASK_TRANSPARENT)
                         {
-                            if (plane->bckgnd.flags & PLANE_MASK_MULTICOLOR)
+                            if (instr_code == (0x1 | CGIA_DL_MODE_BIT))
+                            {
+                                if (plane->bckgnd.flags & PLANE_MASK_DOUBLE_WIDTH)
+                                {
+                                    // this mode generates 16x8 cells, so requires 2x less columns
+                                    encode_columns >>= 1;
+                                    switch (plane->bckgnd.flags & PLANE_MASK_PIXEL_BITS)
+                                    {
+                                    case PLANE_BITS_1BPP:
+                                        cgia_encode_mode_1(_1bpp, _doubled, _shared);
+                                        break;
+                                    case PLANE_BITS_2BPP:
+                                        cgia_encode_mode_1(_2bpp, _doubled, _shared);
+                                        break;
+                                    case PLANE_BITS_3BPP:
+                                        cgia_encode_mode_1(_3bpp, _doubled, _shared);
+                                        break;
+                                    case PLANE_BITS_4BPP:
+                                        cgia_encode_mode_1(_4bpp, _doubled, _shared);
+                                        break;
+                                    }
+                                }
+                                else
+                                {
+                                    switch (plane->bckgnd.flags & PLANE_MASK_PIXEL_BITS)
+                                    {
+                                    case PLANE_BITS_1BPP:
+                                        cgia_encode_mode_1(_1bpp, , _shared);
+                                        break;
+                                    case PLANE_BITS_2BPP:
+                                        cgia_encode_mode_1(_2bpp, , _shared);
+                                        break;
+                                    case PLANE_BITS_3BPP:
+                                        cgia_encode_mode_1(_3bpp, , _shared);
+                                        break;
+                                    case PLANE_BITS_4BPP:
+                                        cgia_encode_mode_1(_4bpp, , _shared);
+                                        break;
+                                    }
+                                }
+                            }
+                            else if (plane->bckgnd.flags & PLANE_MASK_MULTICOLOR)
                             {
                                 if (plane->bckgnd.flags & PLANE_MASK_DOUBLE_WIDTH)
                                 {
@@ -1076,10 +879,10 @@ void __attribute__((optimize("O3"))) cgia_render(uint16_t y, uint32_t *rgbbuf)
                             {
                                 if (plane->bckgnd.flags & PLANE_MASK_DOUBLE_WIDTH)
                                 {
+                                    // this mode generates 16x8 cells, so requires 2x less columns
+                                    encode_columns >>= 1;
                                     if (instr_code == (0x0 | CGIA_DL_MODE_BIT))
                                     {
-                                        // this mode generates 16x8 cells, so requires 2x less columns
-                                        encode_columns >>= 1;
                                         switch (plane->bckgnd.flags & PLANE_MASK_PIXEL_BITS)
                                         {
                                         case PLANE_BITS_1BPP:
@@ -1131,6 +934,47 @@ void __attribute__((optimize("O3"))) cgia_render(uint16_t y, uint32_t *rgbbuf)
                         }
                         else
                         {
+                            if (instr_code == (0x1 | CGIA_DL_MODE_BIT))
+                            {
+                                if (plane->bckgnd.flags & PLANE_MASK_DOUBLE_WIDTH)
+                                {
+                                    // this mode generates 16x8 cells, so requires 2x less columns
+                                    encode_columns >>= 1;
+                                    switch (plane->bckgnd.flags & PLANE_MASK_PIXEL_BITS)
+                                    {
+                                    case PLANE_BITS_1BPP:
+                                        cgia_encode_mode_1(_1bpp, _doubled, _mapped);
+                                        break;
+                                    case PLANE_BITS_2BPP:
+                                        cgia_encode_mode_1(_2bpp, _doubled, _mapped);
+                                        break;
+                                    case PLANE_BITS_3BPP:
+                                        cgia_encode_mode_1(_3bpp, _doubled, _mapped);
+                                        break;
+                                    case PLANE_BITS_4BPP:
+                                        cgia_encode_mode_1(_4bpp, _doubled, _mapped);
+                                        break;
+                                    }
+                                }
+                                else
+                                {
+                                    switch (plane->bckgnd.flags & PLANE_MASK_PIXEL_BITS)
+                                    {
+                                    case PLANE_BITS_1BPP:
+                                        cgia_encode_mode_1(_1bpp, , _mapped);
+                                        break;
+                                    case PLANE_BITS_2BPP:
+                                        cgia_encode_mode_1(_2bpp, , _mapped);
+                                        break;
+                                    case PLANE_BITS_3BPP:
+                                        cgia_encode_mode_1(_3bpp, , _mapped);
+                                        break;
+                                    case PLANE_BITS_4BPP:
+                                        cgia_encode_mode_1(_4bpp, , _mapped);
+                                        break;
+                                    }
+                                }
+                            }
                             if (plane->bckgnd.flags & PLANE_MASK_MULTICOLOR)
                             {
                                 if (plane->bckgnd.flags & PLANE_MASK_DOUBLE_WIDTH)
@@ -1240,10 +1084,9 @@ void __attribute__((optimize("O3"))) cgia_render(uint16_t y, uint32_t *rgbbuf)
                     }
                     break;
 #undef cgia_encode_mode_0
+#undef cgia_encode_mode_1
 #undef cgia_encode_mode_2
 
-                    // bitmap modes
-                    case (0x1 | CGIA_DL_MODE_BIT): // MODE1 (9) - palette bitmap mode
                     case (0x3 | CGIA_DL_MODE_BIT): // MODE3 (B) - attribute bitmap mode
                     {
                         int offset_delta = plane->bckgnd.offset_x - 1;
@@ -1263,8 +1106,8 @@ void __attribute__((optimize("O3"))) cgia_render(uint16_t y, uint32_t *rgbbuf)
                             encode_columns = (uint8_t)(encode_columns - scr_delta / CGIA_COLUMN_PX);
                         }
 
-#define cgia_encode_mode_1(pixels, doubled, shared)                        \
-    cgia_encode_mode_1##pixels##doubled##shared(                           \
+#define cgia_encode_mode_3(multi, doubled, shared)                         \
+    cgia_encode_mode_3##multi##doubled##shared(                            \
         rgbbuf + border_columns * CGIA_COLUMN_PX + plane->bckgnd.scroll_x, \
         encode_columns, plane->bckgnd.color)
 
@@ -1274,121 +1117,29 @@ void __attribute__((optimize("O3"))) cgia_render(uint16_t y, uint32_t *rgbbuf)
                             {
                                 if (plane->bckgnd.flags & PLANE_MASK_DOUBLE_WIDTH)
                                 {
-                                    if (instr_code == (0x1 | CGIA_DL_MODE_BIT))
-                                    {
-                                        switch (plane->bckgnd.flags & PLANE_MASK_PIXEL_BITS)
-                                        {
-                                        case PLANE_BITS_1BPP:
-                                            cgia_encode_mode_1(_1bpp, _doubled, _shared);
-                                            break;
-                                        case PLANE_BITS_2BPP:
-                                            cgia_encode_mode_1(_2bpp, _doubled, _shared);
-                                            break;
-                                        case PLANE_BITS_3BPP:
-                                            cgia_encode_mode_1(_3bpp, _doubled, _shared);
-                                            break;
-                                        case PLANE_BITS_4BPP:
-                                            cgia_encode_mode_1(_4bpp, _doubled, _shared);
-                                            break;
-                                        }
-                                    }
-                                    else if (instr_code == (0x3 | CGIA_DL_MODE_BIT))
-                                    {
-                                        cgia_encode_mode_5_doubled_shared(
-                                            rgbbuf + border_columns * CGIA_COLUMN_PX + plane->bckgnd.scroll_x,
-                                            encode_columns,
-                                            plane->bckgnd.color);
-                                    }
+                                    cgia_encode_mode_3(_multi, _doubled, _shared);
+                                    // cgia_encode_mode_5_doubled_shared(
                                 }
                                 else
                                 {
-                                    if (instr_code == (0x1 | CGIA_DL_MODE_BIT))
-                                    {
-                                        switch (plane->bckgnd.flags & PLANE_MASK_PIXEL_BITS)
-                                        {
-                                        case PLANE_BITS_1BPP:
-                                            cgia_encode_mode_1(_1bpp, , _shared);
-                                            break;
-                                        case PLANE_BITS_2BPP:
-                                            cgia_encode_mode_1(_2bpp, , _shared);
-                                            break;
-                                        case PLANE_BITS_3BPP:
-                                            cgia_encode_mode_1(_3bpp, , _shared);
-                                            break;
-                                        case PLANE_BITS_4BPP:
-                                            cgia_encode_mode_1(_4bpp, , _shared);
-                                            break;
-                                        }
-                                    }
-                                    else if (instr_code == (0x3 | CGIA_DL_MODE_BIT))
-                                    {
-                                        cgia_encode_mode_3_shared(
-                                            rgbbuf + border_columns * CGIA_COLUMN_PX + plane->bckgnd.scroll_x,
-                                            row_columns);
-                                    }
-                                    else if (instr_code == (0x5 | CGIA_DL_MODE_BIT))
-                                    {
-                                        // this mode generates 4x8 cells, so requires 2x columns
-                                        encode_columns <<= 1;
-                                        cgia_encode_mode_5_shared(
-                                            rgbbuf + border_columns * CGIA_COLUMN_PX + plane->bckgnd.scroll_x,
-                                            encode_columns,
-                                            plane->bckgnd.color);
-                                    }
+                                    // this mode generates 4x8 cells, so requires 2x columns
+                                    encode_columns <<= 1;
+                                    cgia_encode_mode_3(_multi, , _shared);
+                                    // cgia_encode_mode_3_shared(
                                 }
                             }
                             else
                             {
                                 if (plane->bckgnd.flags & PLANE_MASK_DOUBLE_WIDTH)
                                 {
-                                    if (instr_code == (0x1 | CGIA_DL_MODE_BIT))
-                                    {
-                                        switch (plane->bckgnd.flags & PLANE_MASK_PIXEL_BITS)
-                                        {
-                                        case PLANE_BITS_1BPP:
-                                            cgia_encode_mode_1(_1bpp, _doubled, _shared);
-                                            break;
-                                        case PLANE_BITS_2BPP:
-                                            cgia_encode_mode_1(_2bpp, _doubled, _shared);
-                                            break;
-                                        case PLANE_BITS_3BPP:
-                                            cgia_encode_mode_1(_3bpp, _doubled, _shared);
-                                            break;
-                                        case PLANE_BITS_4BPP:
-                                            cgia_encode_mode_1(_4bpp, _doubled, _shared);
-                                            break;
-                                        }
-                                    }
-                                    else if (instr_code == (0x3 | CGIA_DL_MODE_BIT))
-                                    {
-                                    }
+                                    // this mode generates 16x8 cells, so requires 2x less columns
+                                    encode_columns >>= 1;
+                                    cgia_encode_mode_3(, _doubled, _shared);
                                 }
                                 else
                                 {
-                                    if (instr_code == (0x1 | CGIA_DL_MODE_BIT))
-                                    {
-                                        switch (plane->bckgnd.flags & PLANE_MASK_PIXEL_BITS)
-                                        {
-                                        case PLANE_BITS_1BPP:
-                                            cgia_encode_mode_1(_1bpp, , _shared);
-                                            break;
-                                        case PLANE_BITS_2BPP:
-                                            cgia_encode_mode_1(_2bpp, , _shared);
-                                            break;
-                                        case PLANE_BITS_3BPP:
-                                            cgia_encode_mode_1(_3bpp, , _shared);
-                                            break;
-                                        case PLANE_BITS_4BPP:
-                                            cgia_encode_mode_1(_4bpp, , _shared);
-                                            break;
-                                        }
-                                    }
-                                    else if (instr_code == (0x3 | CGIA_DL_MODE_BIT))
-                                    {
-                                        cgia_encode_mode_3_shared(
-                                            rgbbuf + border_columns * CGIA_COLUMN_PX + plane->bckgnd.scroll_x,
-                                            row_columns);
-                                    }
+                                    cgia_encode_mode_3(, , _shared);
+                                    // cgia_encode_mode_3_shared(
                                 }
                             }
                         }
@@ -1398,115 +1149,29 @@ void __attribute__((optimize("O3"))) cgia_render(uint16_t y, uint32_t *rgbbuf)
                             {
                                 if (plane->bckgnd.flags & PLANE_MASK_DOUBLE_WIDTH)
                                 {
-                                    if (instr_code == (0x1 | CGIA_DL_MODE_BIT))
-                                    {
-                                        switch (plane->bckgnd.flags & PLANE_MASK_PIXEL_BITS)
-                                        {
-                                        case PLANE_BITS_1BPP:
-                                            cgia_encode_mode_1(_1bpp, _doubled, _mapped);
-                                            break;
-                                        case PLANE_BITS_2BPP:
-                                            cgia_encode_mode_1(_2bpp, _doubled, _mapped);
-                                            break;
-                                        case PLANE_BITS_3BPP:
-                                            cgia_encode_mode_1(_3bpp, _doubled, _mapped);
-                                            break;
-                                        case PLANE_BITS_4BPP:
-                                            cgia_encode_mode_1(_4bpp, _doubled, _mapped);
-                                            break;
-                                        }
-                                    }
-                                    else if (instr_code == (0x3 | CGIA_DL_MODE_BIT))
-                                    {
-                                        cgia_encode_mode_5_doubled_mapped(
-                                            rgbbuf + border_columns * CGIA_COLUMN_PX + plane->bckgnd.scroll_x,
-                                            encode_columns,
-                                            plane->bckgnd.color);
-                                    }
+                                    cgia_encode_mode_3(_multi, _doubled, _mapped);
+                                    // cgia_encode_mode_5_doubled_mapped(
                                 }
                                 else
                                 {
-                                    if (instr_code == (0x1 | CGIA_DL_MODE_BIT))
-                                    {
-                                        switch (plane->bckgnd.flags & PLANE_MASK_PIXEL_BITS)
-                                        {
-                                        case PLANE_BITS_1BPP:
-                                            cgia_encode_mode_1(_1bpp, , _mapped);
-                                            break;
-                                        case PLANE_BITS_2BPP:
-                                            cgia_encode_mode_1(_2bpp, , _mapped);
-                                            break;
-                                        case PLANE_BITS_3BPP:
-                                            cgia_encode_mode_1(_3bpp, , _mapped);
-                                            break;
-                                        case PLANE_BITS_4BPP:
-                                            cgia_encode_mode_1(_4bpp, , _mapped);
-                                            break;
-                                        }
-                                    }
-                                    else if (instr_code == (0x3 | CGIA_DL_MODE_BIT))
-                                    {
-                                        // this mode generates 4x8 cells, so requires 2x columns
-                                        encode_columns <<= 1;
-                                        cgia_encode_mode_5_mapped(
-                                            rgbbuf + border_columns * CGIA_COLUMN_PX + plane->bckgnd.scroll_x,
-                                            encode_columns,
-                                            plane->bckgnd.color);
-                                    }
+                                    // this mode generates 4x8 cells, so requires 2x columns
+                                    encode_columns <<= 1;
+                                    cgia_encode_mode_3(_multi, , _mapped);
+                                    // cgia_encode_mode_5_mapped(
                                 }
                             }
                             else
                             {
                                 if (plane->bckgnd.flags & PLANE_MASK_DOUBLE_WIDTH)
                                 {
-                                    if (instr_code == (0x1 | CGIA_DL_MODE_BIT))
-                                    {
-                                        switch (plane->bckgnd.flags & PLANE_MASK_PIXEL_BITS)
-                                        {
-                                        case PLANE_BITS_1BPP:
-                                            cgia_encode_mode_1(_1bpp, _doubled, _mapped);
-                                            break;
-                                        case PLANE_BITS_2BPP:
-                                            cgia_encode_mode_1(_2bpp, _doubled, _mapped);
-                                            break;
-                                        case PLANE_BITS_3BPP:
-                                            cgia_encode_mode_1(_3bpp, _doubled, _mapped);
-                                            break;
-                                        case PLANE_BITS_4BPP:
-                                            cgia_encode_mode_1(_4bpp, _doubled, _mapped);
-                                            break;
-                                        }
-                                    }
-                                    else if (instr_code == (0x3 | CGIA_DL_MODE_BIT))
-                                    {
-                                    }
+                                    // this mode generates 16x8 cells, so requires 2x less columns
+                                    encode_columns >>= 1;
+                                    cgia_encode_mode_3(, _doubled, _mapped);
                                 }
                                 else
                                 {
-                                    if (instr_code == (0x1 | CGIA_DL_MODE_BIT))
-                                    {
-                                        switch (plane->bckgnd.flags & PLANE_MASK_PIXEL_BITS)
-                                        {
-                                        case PLANE_BITS_1BPP:
-                                            cgia_encode_mode_1(_1bpp, , _mapped);
-                                            break;
-                                        case PLANE_BITS_2BPP:
-                                            cgia_encode_mode_1(_2bpp, , _mapped);
-                                            break;
-                                        case PLANE_BITS_3BPP:
-                                            cgia_encode_mode_1(_3bpp, , _mapped);
-                                            break;
-                                        case PLANE_BITS_4BPP:
-                                            cgia_encode_mode_1(_4bpp, , _mapped);
-                                            break;
-                                        }
-                                    }
-                                    else if (instr_code == (0x3 | CGIA_DL_MODE_BIT))
-                                    {
-                                        cgia_encode_mode_3_mapped(
-                                            rgbbuf + border_columns * CGIA_COLUMN_PX + plane->bckgnd.scroll_x,
-                                            row_columns);
-                                    }
+                                    cgia_encode_mode_3(, , _mapped);
+                                    // cgia_encode_mode_3_mapped(
                                 }
                             }
                         }
@@ -1515,7 +1180,7 @@ void __attribute__((optimize("O3"))) cgia_render(uint16_t y, uint32_t *rgbbuf)
                         ++plane_data->memory_scan;
                     }
                     break;
-#undef cgia_encode_mode_1
+#undef cgia_encode_mode_3
 
                     case (0x6 | CGIA_DL_MODE_BIT): // MODE6 (E) - HAM mode
                     {
