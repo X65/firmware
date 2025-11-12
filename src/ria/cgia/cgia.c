@@ -1014,6 +1014,12 @@ void __attribute__((optimize("O3"))) cgia_render(uint16_t y, uint32_t *rgbbuf)
         encode_columns,                                                         \
         bckgnd_bank + plane_data->char_gen_offset + plane_data->row_line_count, \
         char_shift, plane->bckgnd.color)
+#define cgia_encode_mode_2(multi, doubled, shared)                              \
+    cgia_encode_mode_2##multi##doubled##shared(                                 \
+        rgbbuf + border_columns * CGIA_COLUMN_PX + plane->bckgnd.scroll_x,      \
+        encode_columns,                                                         \
+        bckgnd_bank + plane_data->char_gen_offset + plane_data->row_line_count, \
+        char_shift, plane->bckgnd.color)
 
                         if (plane->bckgnd.flags & PLANE_MASK_TRANSPARENT)
                         {
@@ -1037,12 +1043,8 @@ void __attribute__((optimize("O3"))) cgia_render(uint16_t y, uint32_t *rgbbuf)
                                     }
                                     else if (instr_code == (0x2 | CGIA_DL_MODE_BIT))
                                     {
-                                        cgia_encode_mode_4_doubled_shared(
-                                            rgbbuf + border_columns * CGIA_COLUMN_PX + plane->bckgnd.scroll_x,
-                                            encode_columns,
-                                            bckgnd_bank + plane_data->char_gen_offset + plane_data->row_line_count,
-                                            char_shift,
-                                            plane->bckgnd.color);
+                                        cgia_encode_mode_2(_multi, _doubled, _shared);
+                                        // cgia_encode_mode_4_doubled_shared(
                                     }
                                 }
                                 else
@@ -1065,12 +1067,8 @@ void __attribute__((optimize("O3"))) cgia_render(uint16_t y, uint32_t *rgbbuf)
                                     }
                                     else if (instr_code == (0x2 | CGIA_DL_MODE_BIT))
                                     {
-                                        cgia_encode_mode_4_shared(
-                                            rgbbuf + border_columns * CGIA_COLUMN_PX + plane->bckgnd.scroll_x,
-                                            encode_columns,
-                                            bckgnd_bank + plane_data->char_gen_offset + plane_data->row_line_count,
-                                            char_shift,
-                                            plane->bckgnd.color);
+                                        cgia_encode_mode_2(_multi, , _shared);
+                                        // cgia_encode_mode_4_shared(
                                     }
                                 }
                             }
@@ -1100,6 +1098,7 @@ void __attribute__((optimize("O3"))) cgia_render(uint16_t y, uint32_t *rgbbuf)
                                     }
                                     else if (instr_code == (0x2 | CGIA_DL_MODE_BIT))
                                     {
+                                        cgia_encode_mode_2(, _doubled, _shared);
                                     }
                                 }
                                 else
@@ -1124,11 +1123,8 @@ void __attribute__((optimize("O3"))) cgia_render(uint16_t y, uint32_t *rgbbuf)
                                     }
                                     else if (instr_code == (0x2 | CGIA_DL_MODE_BIT))
                                     {
-                                        cgia_encode_mode_2_shared(
-                                            rgbbuf + border_columns * CGIA_COLUMN_PX + plane->bckgnd.scroll_x,
-                                            encode_columns,
-                                            bckgnd_bank + plane_data->char_gen_offset + plane_data->row_line_count,
-                                            char_shift);
+                                        cgia_encode_mode_2(, , _shared);
+                                        // cgia_encode_mode_2_shared(
                                     }
                                 }
                             }
@@ -1155,11 +1151,8 @@ void __attribute__((optimize("O3"))) cgia_render(uint16_t y, uint32_t *rgbbuf)
                                     }
                                     else if (instr_code == (0x2 | CGIA_DL_MODE_BIT))
                                     {
-                                        cgia_encode_mode_4_doubled_mapped(
-                                            rgbbuf + border_columns * CGIA_COLUMN_PX + plane->bckgnd.scroll_x,
-                                            encode_columns,
-                                            bckgnd_bank + plane_data->char_gen_offset + plane_data->row_line_count, char_shift,
-                                            plane->bckgnd.color);
+                                        cgia_encode_mode_2(_multi, _doubled, _mapped);
+                                        // cgia_encode_mode_4_doubled_mapped(
                                     }
                                 }
                                 else
@@ -1182,11 +1175,8 @@ void __attribute__((optimize("O3"))) cgia_render(uint16_t y, uint32_t *rgbbuf)
                                     }
                                     else if (instr_code == (0x2 | CGIA_DL_MODE_BIT))
                                     {
-                                        cgia_encode_mode_4_mapped(
-                                            rgbbuf + border_columns * CGIA_COLUMN_PX + plane->bckgnd.scroll_x,
-                                            encode_columns,
-                                            bckgnd_bank + plane_data->char_gen_offset + plane_data->row_line_count, char_shift,
-                                            plane->bckgnd.color);
+                                        cgia_encode_mode_2(_multi, , _mapped);
+                                        // cgia_encode_mode_4_mapped(
                                     }
                                 }
                             }
@@ -1216,6 +1206,7 @@ void __attribute__((optimize("O3"))) cgia_render(uint16_t y, uint32_t *rgbbuf)
                                     }
                                     else if (instr_code == (0x2 | CGIA_DL_MODE_BIT))
                                     {
+                                        cgia_encode_mode_2(, _doubled, _mapped);
                                     }
                                 }
                                 else
@@ -1240,11 +1231,8 @@ void __attribute__((optimize("O3"))) cgia_render(uint16_t y, uint32_t *rgbbuf)
                                     }
                                     else if (instr_code == (0x2 | CGIA_DL_MODE_BIT))
                                     {
-                                        cgia_encode_mode_2_mapped(
-                                            rgbbuf + border_columns * CGIA_COLUMN_PX + plane->bckgnd.scroll_x,
-                                            encode_columns,
-                                            bckgnd_bank + plane_data->char_gen_offset + plane_data->row_line_count,
-                                            char_shift);
+                                        cgia_encode_mode_2(, , _mapped);
+                                        // cgia_encode_mode_2_mapped(
                                     }
                                 }
                             }
@@ -1252,6 +1240,7 @@ void __attribute__((optimize("O3"))) cgia_render(uint16_t y, uint32_t *rgbbuf)
                     }
                     break;
 #undef cgia_encode_mode_0
+#undef cgia_encode_mode_2
 
                     // bitmap modes
                     case (0x1 | CGIA_DL_MODE_BIT): // MODE1 (9) - palette bitmap mode
@@ -1526,6 +1515,7 @@ void __attribute__((optimize("O3"))) cgia_render(uint16_t y, uint32_t *rgbbuf)
                         ++plane_data->memory_scan;
                     }
                     break;
+#undef cgia_encode_mode_1
 
                     case (0x6 | CGIA_DL_MODE_BIT): // MODE6 (E) - HAM mode
                     {
