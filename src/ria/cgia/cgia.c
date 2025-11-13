@@ -750,12 +750,14 @@ void __attribute__((optimize("O3"))) cgia_render(uint16_t y, uint32_t *rgbbuf)
                     case (0x1 | CGIA_DL_MODE_BIT): // MODE1 (9) - palette bitmap mode
                     case (0x2 | CGIA_DL_MODE_BIT): // MODE2 (A) - attribute text/tile mode
                     {
-                        set_linear_scans(1,
-                                         bckgnd_bank + plane_data->memory_scan - 1,
-                                         bckgnd_bank + plane_data->colour_scan - 1,
-                                         bckgnd_bank + plane_data->backgr_scan - 1);
+                        const int offset_delta = plane->bckgnd.offset_x - 1;
+                        const uint8_t *ms = bckgnd_bank + plane_data->memory_scan + offset_delta;
+                        const int colour_delta = (instr_code == (0x2 | CGIA_DL_MODE_BIT) ? offset_delta : -1);
+                        const uint8_t *cs = bckgnd_bank + plane_data->colour_scan + colour_delta;
+                        const uint8_t *bs = bckgnd_bank + plane_data->backgr_scan + colour_delta;
+                        set_linear_scans(1, ms, cs, bs);
 
-                        uint8_t char_shift = log2_tab[plane->bckgnd.row_height];
+                        const uint8_t char_shift = log2_tab[plane->bckgnd.row_height];
 
                         uint8_t encode_columns = row_columns;
                         if (plane->bckgnd.stride)
@@ -1090,8 +1092,8 @@ void __attribute__((optimize("O3"))) cgia_render(uint16_t y, uint32_t *rgbbuf)
                     case (0x3 | CGIA_DL_MODE_BIT): // MODE3 (B) - attribute bitmap mode
                     {
                         int offset_delta = plane->bckgnd.offset_x - 1;
-                        const uint8_t *cs = bckgnd_bank + plane_data->colour_scan + (instr_code == (0x1 | CGIA_DL_MODE_BIT) ? -1 : offset_delta);
-                        const uint8_t *bs = bckgnd_bank + plane_data->backgr_scan + (instr_code == (0x3 | CGIA_DL_MODE_BIT) ? -1 : offset_delta);
+                        const uint8_t *cs = bckgnd_bank + plane_data->colour_scan + offset_delta;
+                        const uint8_t *bs = bckgnd_bank + plane_data->backgr_scan + offset_delta;
                         uint8_t row_height = plane->bckgnd.row_height;
                         offset_delta <<= log2_tab[row_height];
                         const uint8_t *ms = bckgnd_bank + plane_data->memory_scan + offset_delta;
