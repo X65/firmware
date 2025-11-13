@@ -7,7 +7,7 @@
     uint32_t *__not_in_flash_func(cgia_encode_mode_0##multi##pixels##doubled##shared)( \
         uint32_t *rgbbuf,                                                              \
         uint32_t columns,                                                              \
-        uint8_t *character_generator,                                                  \
+        const uint8_t *character_generator,                                            \
         uint32_t char_shift,                                                           \
         uint8_t shared_colors[8])
 
@@ -63,7 +63,7 @@ CGIA_ENCODE_MODE_1(_4bpp, _doubled, _mapped);
     uint32_t *__not_in_flash_func(cgia_encode_mode_2##multi##doubled##shared)( \
         uint32_t *rgbbuf,                                                      \
         uint32_t columns,                                                      \
-        uint8_t *character_generator,                                          \
+        const uint8_t *character_generator,                                    \
         uint32_t char_shift,                                                   \
         uint8_t shared_colors[8])
 
@@ -110,13 +110,13 @@ uint32_t *__not_in_flash_func(cgia_encode_mode_7)(
 uint32_t *__not_in_flash_func(cgia_encode_vt)(
     uint32_t *rgbbuf,
     uint32_t columns,
-    uint8_t *character_generator,
+    const uint8_t *character_generator,
     uint32_t char_shift);
 
 void __not_in_flash_func(cgia_encode_sprite)(
     uint32_t *rgbbuf,
-    uint32_t *descriptor,
-    uint8_t *line_data,
+    const uint32_t *descriptor,
+    const uint8_t *line_data,
     uint32_t width);
 
 #endif

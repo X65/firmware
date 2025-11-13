@@ -425,7 +425,7 @@ static inline __attribute__((always_inline)) void set_mode7_interp_config(union 
     interp1->base[1] = plane->affine.dy;
     interp1->base[2] = 0;
 }
-static inline __attribute__((always_inline)) void set_mode7_scans(union cgia_plane_regs_t *plane, uint8_t *memory_scan)
+static inline __attribute__((always_inline)) void set_mode7_scans(union cgia_plane_regs_t *plane, const uint8_t *memory_scan)
 {
     interp0->base[2] = (uintptr_t)memory_scan;
     const uint32_t xy = interp1->pop[2];
@@ -614,9 +614,9 @@ void __attribute__((optimize("O3"))) cgia_render(uint16_t y, uint32_t *rgbbuf)
                 continue; // and we're done
             }
 
-            uint8_t *bckgnd_bank = vram_cache_ptr[0];
-            uint8_t dl_instr = bckgnd_bank[*plane_offset];
-            uint8_t instr_code = dl_instr & 0b00001111;
+            const uint8_t *bckgnd_bank = vram_cache_ptr[0];
+            const uint8_t dl_instr = bckgnd_bank[*plane_offset];
+            const uint8_t instr_code = dl_instr & 0b00001111;
             int_mask |= CGIA_REG_INT_FLAG_DLI;
 
             if (vram_cache_bank_mask[0] != vram_wanted_bank_mask[0])
@@ -647,7 +647,7 @@ void __attribute__((optimize("O3"))) cgia_render(uint16_t y, uint32_t *rgbbuf)
             uint8_t border_columns = plane->bckgnd.border_columns;
             if (border_columns > MAX_BORDER_COLUMNS)
                 border_columns = MAX_BORDER_COLUMNS;
-            uint8_t row_columns = FRAME_CHARS - 2 * border_columns;
+            const uint8_t row_columns = FRAME_CHARS - 2 * border_columns;
 
             // first process instructions - they need less preparation and can be shortcutted
             if (!(dl_instr & CGIA_DL_MODE_BIT))
