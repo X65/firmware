@@ -1,22 +1,22 @@
 /*
- * Copyright (c) 2023 Rumbledethumps
+ * Copyright (c) 2025 Rumbledethumps
  *
  * SPDX-License-Identifier: BSD-3-Clause
  */
 
-#ifndef _KBD_SWE_H_
-#define _KBD_SWE_H_
+#ifndef _RIA_HID_KBD_SWE_H_
+#define _RIA_HID_KBD_SWE_H_
 
 // Swedish / Svenska
 
 // KEYCODE to Unicode Conversion
 // {without shift, with shift, with altGr, with shift and altGr}
 
-#define HID_KEYCODE_TO_UNICODE_SV         HID_KEYCODE_TO_UNICODE_SWE_QWERTY
-#define HID_KEYCODE_TO_UNICODE_SV_QWERTY  HID_KEYCODE_TO_UNICODE_SWE_QWERTY
-#define HID_KEYCODE_TO_UNICODE_SWE        HID_KEYCODE_TO_UNICODE_SWE_QWERTY
+#define KBD_HID_KEY_TO_UNICODE_SV         KBD_HID_KEY_TO_UNICODE_SWE_QWERTY
+#define KBD_HID_KEY_TO_UNICODE_SV_QWERTY  KBD_HID_KEY_TO_UNICODE_SWE_QWERTY
+#define KBD_HID_KEY_TO_UNICODE_SWE        KBD_HID_KEY_TO_UNICODE_SWE_QWERTY
 
-#define HID_KEYCODE_TO_UNICODE_SWE_QWERTY       \
+#define KBD_HID_KEY_TO_UNICODE_SWE_QWERTY       \
         /* 0x00 */ {0, 0, 0, 0},                \
         /* 0x01 */ {0, 0, 0, 0},                \
         /* 0x02 */ {0, 0, 0, 0},                \
@@ -122,4 +122,4 @@
         /* 0x66 */ {0, 0, 0, 0},                \
         /* 0x67 */ {'=', '=', 0, 0},
 
-#endif /* _KBD_SWE_H_ */
+#endif /* _RIA_HID_KBD_SWE_H_ */

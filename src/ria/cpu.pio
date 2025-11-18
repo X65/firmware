@@ -1,0 +1,126 @@
+/*
+ * Copyright (c) 2024 Tomasz Sterna
+ *
+ * SPDX-License-Identifier: BSD-3-Clause
+ */
+
+; Parallel RAM memory emulation on SPI SerialRAM
+;
+; CPU bus interface:
+;
+; -----+                                +-----
+;      | <---------- D0-D7 -----------> |
+;      |                                |
+;      | <---------- A0-A15 ----------> |
+;      |                                |
+; Pico |                                | 65816
+;  RIA |                                | CPU
+;      |                   NOR +--- VDA |
+;      | VAB <----------------o+--- VPA |
+;      |                                |
+;      | RWB <--------------------- RWB |
+; -----+                                +-----
+;
+
+; Timings:
+;
+; https://www.westerndesigncenter.com/wdc/documentation/w65c816s.pdf
+; WDC65C816 signals need:  (Min/Max) at 3.3V
+; tCYC : 125/--- ns - Full clock Cycle Time (this means 8MHz max)
+; tPWL :  63/    ns - Clock Pulse Width Low
+; tPWH :  62/    ns - Clock Pulse Width High
+; tF,tR: ---/  5 ns - Clock Fall/Rise Time
+; tAH  :  10/    ns - A0-A15 Hold Time  (old Axx after PHI2 gets low)
+; tADS :    / 40 ns - A0-A15 Setup Time (new Axx after PHI2 gets low)
+; tBH  :  10/    ns - BA0-BA7 Hold Time (old DATA after PHI2 gets low)
+; tBAS :    / 40 ns - BA0-BA7 Setup Time (high ADDRESS after PHI2 gets low)
+; tACC :  70/    ns - Access Time
+; tDHR :  10/    ns - Read Data Hold Time
+; tDSR :  15/    ns - Read Data Setup Time
+; tMDS :    / 40 ns - Write Data Delay Time
+; tDHW :  10/    ns - Write Data Hold Time
+; - Processor reads data bus on falling edge of PHI2 clock (read cycle).
+;   Data needs to be provided at least tDSR before PHI2 gets LOW
+;   and hold tDHR after PHI2 change, so CPU can read it stable.
+;   It can read (react to PHI2 change) as fast as tACC after setting the address bus (tADS).
+; - After PHI2 gets LOW, processor provides A0-A15 on the address bus (after tADS)
+;   and A16-A23 on the data bus (after tBAS) until clock gets HIGH again.
+; - When writing to memory, the processor provides data on data bus after tMDS
+;   up to the falling edge of PHI2 clock + tDHW. (write cycle)
+;
+; One Pico clock cycle @336MHz is ~2.97619ns.
+;
+; After the CPU address bus (tADS) and data bus (tBAS) are stable, it takes us
+; 1. 9 PIO instructions to be ready to get data bus (when CPU is writing)
+;   - 40 ns of tMDS => 4.(444) ns for one PIO instruction
+; 2. 14 PIO instructions to provide data bus data (when CPU is reading)
+;   - 70 ns of tACC => 5 ns for one PIO instruction
+;
+; With above timings we minimum workable PIO instruction time is 4.4ns.
+; But having minimum of 9 instructions per LOW half-cycle (TPWL)
+; and 7 instructions per HIGH half-cycle (tPWH), gives:
+; 63ns / 9 = 7ns
+; 62ns / 7 = 9ns
+; Which leaves us with minimum 9ns per PIO instruction => 111,111MHz
+
+; Note: VAB signal HIGH means that CPU is doing internal stuff and does not
+; provide valid address on bus. This can be used to short-circuit the loop
+; and proceed to next Φ2 immediately, without reading/writing memory.
+
+.define PUBLIC STALL_IRQ 7
+
+.define PUBLIC WRITE_DELAY 17
+
+.program cpu_bus
+
+.side_set 1
+; 1: PHI2
+
+.wrap_target
+start:
+    mov pindirs, null   side 0      ; set D0-D7 as inputs, clock LOW
+
+    wait 0 irq STALL_IRQ side 0     ; stall running on IRQ 7
+
+    ; Wait tADS (40ns) after PHI2 LOW before reading address bus
+    ; Wait tDHR (10ns) (above) + tBAS (40ns) before reading data bus
+
+    ; Wait at least tPWL (63ns) before setting PHI2 HIGH
+
+    in  pins, 32        side 1      ; read D0-D7,A0-A15,VAB,RWB,... set clock HIGH
+
+    ; At this point RX fifo is autopushed, and CPU core1 will process the access
+    ; While Pico is processing the data, we can make decision what to do next
+    mov osr, ~pins      side 1      ; load _negated_ pins
+    out null, 24        side 1      ; throw away data/address bus
+    out y, 1            side 1      ; shift VAB to Y
+    jmp !y, start       side 1      ; if address is invalid, proceed immediately to next cycle
+
+    out y, 1            side 1      ; shift RWB to Y
+    jmp !y, read        side 1      ; if _negated_ RWB is low, means Read
+
+write:  ; CPU is writing (RWB is LOW)
+
+    ; Wait tMDS (40ns) after PHI2 transition HIGH for CPU to drive data bus
+
+;     set x, WRITE_DELAY  side 1      ; loop to get create delay
+; loop:
+;     nop                 side 1  [1]
+;     jmp x-- loop        side 1  [1]
+
+    in  pins, 32        side 0      ; read D0-D7, set clock LOW
+    jmp start           side 0      ; continue to next cycle
+
+read:   ; CPU is reading (RWB is HIGH)
+
+    ; Wait tACC (70ns) since tADS until CPU is ready to read data bus (15,68 cycles)
+
+    mov pindirs, ~null  side 1      ; D0-D7 are outputs, clock still HIGH
+    pull                side 1      ; pull CPU reply to OSR (usually waits for PSRAM read)
+    out pins, 8         side 1      ; drive data bus
+
+    ; Wait tDSR (15ns) for CPU data bus to stabilize before driving PHI2 to LOW
+
+    ; Wait tDHR (10ns) after PHI2 LOW, so CPU can read data bus
+
+.wrap

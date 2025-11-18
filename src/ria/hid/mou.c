@@ -1,26 +1,21 @@
 /*
- * Copyright (c) 2023 Rumbledethumps
+ * Copyright (c) 2025 Rumbledethumps
  *
  * SPDX-License-Identifier: BSD-3-Clause
  */
 
-#include <pico.h>
-#include <string.h>
-
-#include "btstack_hid_parser.h"
-#include "hid/des.h"
+#include "hid/hid.h"
 #include "hid/mou.h"
 #include "sys/mem.h"
-#include "tusb_config.h"
+#include <btstack_hid_parser.h>
+#include <pico.h>
+#include <string.h>
 
 #if defined(DEBUG_RIA_HID) || defined(DEBUG_RIA_HID_MOU)
 #include <stdio.h>
 #define DBG(...) fprintf(stderr, __VA_ARGS__)
 #else
-static inline void DBG(const char *fmt, ...)
-{
-    (void)fmt;
-}
+static inline void DBG(const char *fmt, ...) { (void)fmt; }
 #endif
 
 #define MOU_MAX_MICE 4
@@ -86,7 +81,7 @@ bool mou_xreg(uint16_t word)
         return false;
     mou_xram = word;
     if (mou_xram != 0xFFFF)
-        mem_cpy_psram(mou_xram, &mou_state, sizeof(mou_state));
+        memcpy(&xram[mou_xram], &mou_state, sizeof(mou_state));
     return true;
 }
 
@@ -198,7 +193,7 @@ void mou_report(int slot, void const *data, size_t size)
     {
         if (conn->button_offsets[i] != 0xFFFF)
         {
-            uint32_t button_val = des_extract_bits(report_data, report_data_len,
+            uint32_t button_val = hid_extract_bits(report_data, report_data_len,
                                                    conn->button_offsets[i], 1);
             if (button_val)
                 buttons |= (1 << i);
@@ -208,21 +203,21 @@ void mou_report(int slot, void const *data, size_t size)
 
     // Extract movement data
     if (conn->x_size > 0)
-        mou_x += des_extract_signed(report_data, report_data_len,
+        mou_x += hid_extract_signed(report_data, report_data_len,
                                     conn->x_offset, conn->x_size);
     mou_state.x = mou_x >> 1;
     if (conn->y_size > 0)
-        mou_y += des_extract_signed(report_data, report_data_len,
+        mou_y += hid_extract_signed(report_data, report_data_len,
                                     conn->y_offset, conn->y_size);
     mou_state.y = mou_y >> 1;
     if (conn->wheel_size > 0)
-        mou_state.wheel += des_extract_signed(report_data, report_data_len,
+        mou_state.wheel += hid_extract_signed(report_data, report_data_len,
                                               conn->wheel_offset, conn->wheel_size);
     if (conn->pan_size > 0)
-        mou_state.pan += des_extract_signed(report_data, report_data_len,
+        mou_state.pan += hid_extract_signed(report_data, report_data_len,
                                             conn->pan_offset, conn->pan_size);
 
     // Update XRAM with new state
     if (mou_xram != 0xFFFF)
-        mem_cpy_psram(mou_xram, &mou_state, sizeof(mou_state));
+        memcpy(&xram[mou_xram], &mou_state, sizeof(mou_state));
 }

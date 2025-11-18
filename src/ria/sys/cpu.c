@@ -1,48 +1,31 @@
 /*
- * Copyright (c) 2023 Rumbledethumps
+ * Copyright (c) 2025 Rumbledethumps
  *
  * SPDX-License-Identifier: BSD-3-Clause
  */
 
 #include "sys/cpu.h"
-#include "hardware/gpio.h"
-#include "main.h"
-#include "pico/stdio.h"
-#include "pico/time.h"
-#include "sys/cfg.h"
-#include "sys/com.h"
-#include "sys/mem.h"
+#include "cpu.pio.h"
+#include "hw.h"
+#include <hardware/clocks.h>
+#include <hardware/pio.h>
+#include <pico/stdlib.h>
+#include <stdio.h>
+
+#define CPU_BUS_PIO_SPEED_KHZ (30000u) // 30 MHz
+
+#if defined(DEBUG_RIA_SYS) || defined(DEBUG_RIA_SYS_CPU)
+#include <stdio.h>
+#define DBG(...) fprintf(stderr, __VA_ARGS__)
+#else
+static inline void DBG(const char *fmt, ...)
+{
+    (void)fmt;
+}
+#endif
 
 static bool cpu_run_requested;
 static absolute_time_t cpu_resb_timer;
-
-volatile int cpu_rx_char;
-static size_t cpu_rx_tail;
-static size_t cpu_rx_head;
-static uint8_t cpu_rx_buf[32];
-#define CPU_RX_BUF(pos) cpu_rx_buf[(pos) & 0x1F]
-
-void cpu_init(void)
-{
-    // drive reset pin
-    gpio_init(CPU_RESB_PIN);
-    gpio_put(CPU_RESB_PIN, false);
-    gpio_set_pulls(CPU_RESB_PIN, false, false);
-    gpio_set_dir(CPU_RESB_PIN, true);
-}
-
-void cpu_post_reclock(void)
-{
-    if (!gpio_get(CPU_RESB_PIN))
-        cpu_resb_timer = delayed_by_us(get_absolute_time(), cpu_get_reset_us());
-}
-
-static int cpu_getchar_fifo(void)
-{
-    if (&CPU_RX_BUF(cpu_rx_head) != &CPU_RX_BUF(cpu_rx_tail))
-        return CPU_RX_BUF(++cpu_rx_tail);
-    return -1;
-}
 
 void cpu_task(void)
 {
@@ -53,28 +36,15 @@ void cpu_task(void)
         if (absolute_time_diff_us(now, cpu_resb_timer) < 0)
             gpio_put(CPU_RESB_PIN, true);
     }
-
-    // Move UART FIFO into action loop
-    if (cpu_rx_char < 0)
-        cpu_rx_char = cpu_getchar_fifo();
-}
-
-static void clear_com_rx_fifo(void)
-{
-    cpu_rx_char = -1;
-    cpu_rx_tail = cpu_rx_head = 0;
 }
 
 void cpu_run(void)
 {
     cpu_run_requested = true;
-    clear_com_rx_fifo();
 }
 
 void cpu_stop(void)
 {
-    clear_com_rx_fifo();
-
     cpu_run_requested = false;
     gpio_put(CPU_RESB_PIN, false);
     cpu_resb_timer = delayed_by_us(get_absolute_time(),
@@ -94,7 +64,7 @@ uint32_t cpu_get_reset_us(void)
     // If provided, use RP6502_RESB_US unless PHI2
     // speed needs longer for 2 clock cycles.
     // One extra microsecond to get ceil.
-    uint32_t reset_us = 2000 / 6000 + 1;
+    uint32_t reset_us = 2000 / CPU_PHI2_KHZ + 1;
     if (!RP6502_RESB_US)
         return reset_us;
     return RP6502_RESB_US < reset_us
@@ -102,39 +72,59 @@ uint32_t cpu_get_reset_us(void)
                : RP6502_RESB_US;
 }
 
-void cpu_com_rx(uint8_t ch)
+static void cpu_bus_pio_init(void)
 {
-    // discarding overflow
-    if (&CPU_RX_BUF(cpu_rx_head + 1) != &CPU_RX_BUF(cpu_rx_tail))
-        CPU_RX_BUF(++cpu_rx_head) = ch;
+    // PIO to manage PHI2 clock and memory bridge
+    uint offset = pio_add_program(CPU_BUS_PIO, &cpu_bus_program);
+    pio_sm_config config = cpu_bus_program_get_default_config(offset);
+    const float clkdiv = (float)(clock_get_hz(clk_sys)) / (CPU_BUS_PIO_SPEED_KHZ * KHZ);
+    sm_config_set_clkdiv(&config, clkdiv);
+    sm_config_set_in_shift(&config, true, true, 32);
+    sm_config_set_out_shift(&config, true, false, 0);
+    sm_config_set_sideset_pins(&config, CPU_CTL_PIN_BASE);
+    sm_config_set_in_pins(&config, CPU_BUS_PIN_BASE);
+    sm_config_set_in_pin_count(&config, CPU_BUS_PINS_USED);
+    sm_config_set_out_pins(&config, CPU_DATA_PIN_BASE, 8);
+    for (int i = CPU_BUS_PIN_BASE; i < CPU_BUS_PIN_BASE + CPU_BUS_PINS_USED; i++)
+        pio_gpio_init(CPU_BUS_PIO, i % 32);
+    for (int i = CPU_CTL_PIN_BASE; i < CPU_CTL_PIN_BASE + CPU_CTL_PINS_USED; i++)
+        pio_gpio_init(CPU_BUS_PIO, i);
+    pio_sm_set_consecutive_pindirs(CPU_BUS_PIO, CPU_BUS_SM, CPU_BUS_PIN_BASE, CPU_BUS_PINS_USED, false);
+    pio_sm_set_consecutive_pindirs(CPU_BUS_PIO, CPU_BUS_SM, CPU_CTL_PIN_BASE, CPU_CTL_PINS_USED, true);
+    // pio_set_irq1_source_enabled(CPU_BUS_PIO, pis_sm0_rx_fifo_not_empty, true);
+    // pio_interrupt_clear(CPU_BUS_PIO, MEM_BUS_PIO_IRQ);
+    pio_sm_init(CPU_BUS_PIO, CPU_BUS_SM, offset, &config);
+    // irq_set_exclusive_handler(PIO_IRQ_NUM(CPU_BUS_PIO, MEM_BUS_PIO_IRQ), mem_bus_pio_irq_handler);
+    // irq_set_enabled(PIO_IRQ_NUM(CPU_BUS_PIO, MEM_BUS_PIO_IRQ), true);
+    CPU_BUS_PIO->irq = (1u << STALL_IRQ); // clear gating IRQ
+    pio_sm_set_enabled(CPU_BUS_PIO, CPU_BUS_SM, true);
 }
 
-// Used by std.c to get stdin destined for the CPU.
-// Mixing RIA register input with read() calls isn't perfect,
-// should be considered undefined behavior, and is discouraged.
-// Even with a mutex, nulls may appear from RIA register.
-int cpu_getchar(void)
+void cpu_init(void)
 {
-    // Steal char from RIA register
-    if (REGS(0xFFE0) & 0b01000000)
+    // drive reset pin
+    gpio_init(CPU_RESB_PIN);
+    gpio_put(CPU_RESB_PIN, false);
+    gpio_set_dir(CPU_RESB_PIN, true);
+
+    if (!gpio_get(CPU_RESB_PIN))
+        cpu_resb_timer = delayed_by_us(get_absolute_time(), cpu_get_reset_us());
+
+    // Adjustments for GPIO performance. Important!
+    for (int i = CPU_BUS_PIN_BASE; i < CPU_BUS_PIN_BASE + CPU_BUS_PINS_USED; i++)
     {
-        REGS(0xFFE0) &= ~0b01000000;
-        uint8_t ch = REGS(0xFFE2);
-        // Replace char with null
-        REGS(0xFFE2) = 0;
-        return ch;
+        int idx = i % 32;
+        pio_gpio_init(CPU_BUS_PIO, idx);
+        gpio_set_pulls(idx, false, false);
+        gpio_set_input_hysteresis_enabled(idx, false);
+        hw_set_bits(&CPU_BUS_PIO->input_sync_bypass, 1u << idx);
     }
-    // Steal char from ria.c action loop queue
-    if (cpu_rx_char >= 0)
-    {
-        uint8_t ch = (uint8_t)cpu_rx_char;
-        cpu_rx_char = -1;
-        return ch;
-    }
-    // Get char from FIFO
-    int ch = cpu_getchar_fifo();
-    // Get char from UART
-    if (ch < 0)
-        ch = getchar_timeout_us(0);
-    return ch;
+
+    // PIO init
+    cpu_bus_pio_init();
+}
+
+void cpu_print_status(void)
+{
+    printf("CPU : ~%.2fMHz\n", (float)CPU_BUS_PIO_SPEED_KHZ / 12 / KHZ);
 }

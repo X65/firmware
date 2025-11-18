@@ -45,7 +45,7 @@ SUBSYSTEM=="usb", ATTRS{idVendor}=="2e8a", MODE="0666"
 Debug terminal:
 
 ```
-openocd -f interface/cmsis-dap.cfg -c "adapter speed 5000" -f target/rp2350.cfg -c "program build/src/rp816.elf verify reset exit"
+openocd -f interface/cmsis-dap.cfg -c "adapter speed 5000" -f target/rp2350.cfg -c "program build/src/x65_ria.elf verify reset exit"
 ```
 
 Console terminal:
@@ -71,6 +71,7 @@ command="service udev start"
 ```
 
 VSCode Serial Monitor doesn't yet send breaks or let you slow down a paste. Minicom is still useful\.
+
 ```
-$ minicom -c on -b 115200 -o -D /dev/ttyACM0
+minicom -c on -b 115200 -o -D /dev/ttyACM0
 ```

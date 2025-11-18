@@ -27,7 +27,7 @@ void at_mon_at(const char *args, size_t len)
     cmd_buf[send_size++] = '\r';
     cmd_buf[send_size++] = '\n';
 
-    int32_t ret = mdm_write_data_to_slave((uint8_t *)cmd_buf, send_size);
+    int32_t ret = -1; // mdm_write_data_to_slave((uint8_t *)cmd_buf, send_size);
     if (ret == -1)
     {
         printf("?not ready\n");

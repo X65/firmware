@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023 Rumbledethumps
+ * Copyright (c) 2025 Rumbledethumps
  *
  * SPDX-License-Identifier: BSD-3-Clause
  */
@@ -7,121 +7,110 @@
 #include "main.h"
 #include "api/api.h"
 #include "api/clk.h"
+#include "api/dir.h"
 #include "api/oem.h"
-#include "cgia/cgia.h"
-#include "hardware/clocks.h"
+#include "api/rng.h"
+#include "api/std.h"
 #include "hid/kbd.h"
 #include "hid/mou.h"
 #include "hid/pad.h"
 #include "mon/fil.h"
 #include "mon/mon.h"
+#include "mon/ram.h"
 #include "mon/rom.h"
-#include "sys/aud.h"
-#include "sys/bus.h"
 #include "sys/cfg.h"
 #include "sys/com.h"
 #include "sys/cpu.h"
-#include "sys/ext.h"
 #include "sys/led.h"
 #include "sys/lfs.h"
-#include "sys/mdm.h"
-#include "sys/mem.h"
-#include "sys/out.h"
+#include "sys/pix.h"
+#include "sys/ria.h"
+#include "sys/rln.h"
 #include "sys/sys.h"
-#include "term/font.h"
-#include "term/term.h"
-#include "usb/hid.h"
+#include "sys/vga.h"
 #include "usb/usb.h"
 #include "usb/xin.h"
 
 /**************************************/
-/* All kernel modules register below. */
+/* All device drivers register below. */
 /**************************************/
 
 // Many things are sensitive to order in obvious ways, like
-// starting the UART before printing. Please list subtleties.
+// starting stdio before printing. Please list subtleties.
 
 // Initialization event for power up, reboot command, or reboot button.
 static void init(void)
 {
-    // STDIO not available until after these inits
-
-    mem_init();
-    cpu_init();
-    bus_init();
-    font_init(); // before out_init (copies data from flash before overclocking)
-    term_init();
-    cgia_init();
+    // Bring up stdio dispatcher first.
     com_init();
 
-    // Print startup message
-    sys_init();
+    // PSRAM and L1 cache.
+    mem_init();
 
-    // Load config before we continue
+    // GPIO drivers.
+    cpu_init();
+    ria_init();
+    // pix_init();
+    // vga_init(); // Must be after PIX
+
+    // Load config before we continue.
     lfs_init();
-    cfg_init();
+    cfg_init(); // Config stored on lfs
 
-    // Print startup message after setting code page
+    // Print startup message after setting code page.
     oem_init();
-    sys_init();
+    sys_init(); // This clears screen
 
-    // Misc kernel modules, add yours here.
+    // Misc device drivers, add yours here.
     usb_init();
     led_init();
-    ext_init(); // before aud_init (shared I2C init)
-    aud_init();
     kbd_init();
     mou_init();
     pad_init();
-    mdm_init();
     rom_init();
     clk_init();
 
-    led_set_hartbeat(true);
-
-    // finally start video output
-    out_init();
+    // Enable LED heartbeat after all inits.
+    led_blink(true);
 }
 
-// Tasks events are repeatedly called by the main kernel loop.
-// They must not block. Use a state machine to do as
-// much work as you can until something blocks.
+// Tasks events are repeatedly called by the main loop.
+// They must not block. All drivers are state machines.
 
-// These tasks run when FatFs is blocking.
-// Calling FatFs in here may cause undefined behavior.
+// These tasks run while FatFs is blocking.
+// Calling FatFs in here will summon a dragon.
 void main_task(void)
 {
     usb_task();
     cpu_task();
-    bus_task();
-    term_task();
-    cgia_task();
-    ext_task();
-    aud_task();
-    mdm_task();
+    ria_task();
     kbd_task();
-    hid_task();
+    // vga_task();
+    com_task();
     xin_task();
     led_task();
-    com_task();
 }
 
 // Tasks that call FatFs should be here instead of main_task().
 static void task(void)
 {
-    api_task();
     mon_task();
+    api_task();
+    rln_task();
     fil_task();
     rom_task();
 }
 
-// Event to start running the CPU.
+// Event to start running the 6502.
 static void run(void)
 {
+    com_run();
+    std_run();
+    dir_run();
+    vga_run();
     api_run();
     clk_run();
-    aud_run();
-    bus_run(); // Must be immediately before cpu
+    ria_run(); // Must be immediately before cpu
     cpu_run(); // Must be last
 }
 
@@ -129,39 +118,50 @@ static void run(void)
 static void stop(void)
 {
     cpu_stop(); // Must be first
+    vga_stop(); // Must be before ria
+    com_stop();
     api_stop();
-    bus_stop();
-    aud_stop();
+    ria_stop();
+    pix_stop();
     oem_stop();
+    std_stop();
+    dir_stop();
     kbd_stop();
     mou_stop();
     pad_stop();
 }
 
 // Event for CTRL-ALT-DEL and UART breaks.
-static void reset(void)
+// Stop will be executed first if 6502 is running.
+static void break_(void) // break is keyword
 {
-    com_reset();
-    fil_reset();
-    mon_reset();
-    rom_reset();
+    fil_break();
+    mon_break();
+    ram_break();
+    rom_break();
+    vga_break();
+    rln_break();
 }
 
-void main_pre_reclock()
+// PIX XREG writes to the RIA device will dispatch here.
+bool main_xreg(uint8_t chan, uint8_t addr, uint16_t word)
 {
-    com_pre_reclock();
-}
-
-// Triggered once after init then after every PHI2 clock change.
-void main_post_reclock()
-{
-    com_post_reclock();
-    cpu_post_reclock();
-    mem_post_reclock();
-    out_post_reclock();
-    ext_post_reclock();
-    aud_post_reclock();
-    mdm_post_reclock();
+    (void)addr;
+    switch (chan * 256 + addr)
+    {
+    // Channel 0 for human interface devices.
+    case 0x000:
+        return kbd_xreg(word);
+    case 0x001:
+        return mou_xreg(word);
+    case 0x002:
+        return pad_xreg(word);
+    // Channel 1 for audio devices.
+    // case 0x100:
+    //     return psg_xreg(word);
+    default:
+        return false;
+    }
 }
 
 // API call implementations should return true if they have more
@@ -171,74 +171,89 @@ bool main_api(uint8_t operation)
 {
     switch (operation)
     {
-    // case 0x01:
-    //     return pix_api_xreg();
-    //     break;
+    case 0x01:
+        return pix_api_xreg();
     // case 0x02:
     //     return cpu_api_phi2();
-    //     break;
-    case API_OP_OEM_CODEPAGE:
-        return oem_api_codepage();
-        break;
-    // case 0x04:
-    //     return rng_api_lrand();
-    //     break;
-    // case 0x05:
-    //     return cpu_api_stdin_opt();
-    //     break;
-    // case 0x0F:
-    //     return clk_api_clock();
-    //     break;
-    case API_OP_OEM_GET_CHARGEN:
-        return oem_api_get_chargen();
-        break;
-    case API_OP_CLK_GET_RES:
+    case 0x03:
+        return oem_api_code_page();
+    case 0x04:
+        return rng_api_lrand();
+    case 0x05:
+        return std_api_stdin_opt();
+    case 0x06:
+        return 0xFF; // FIXME: api_api_errno_opt();
+    case 0x0F:
+        return clk_api_clock();
+    case 0x10:
         return clk_api_get_res();
-        break;
-    case API_OP_CLK_GET_TIME:
+    case 0x11:
         return clk_api_get_time();
-        break;
-    case API_OP_CLK_SET_TIME:
+    case 0x12:
         return clk_api_set_time();
-        break;
-    case API_OP_CLK_GET_TIME_ZONE:
+    case 0x13:
         return clk_api_get_time_zone();
-        break;
-        // case 0x14:
-        //     return std_api_open();
-        //     break;
-        // case 0x15:
-        //     return std_api_close();
-        //     break;
-        // case 0x16:
-        //     return std_api_read_xstack();
-        //     break;
-        // case 0x17:
-        //     return std_api_read_xram();
-        //     break;
-        // case 0x18:
-        //     return std_api_write_xstack();
-        //     break;
-        // case 0x19:
-        //     return std_api_write_xram();
-        //     break;
-        // case 0x1A:
-        //     return std_api_lseek();
-        //     break;
-        // case 0x1B:
-        //     return std_api_unlink();
-        //     break;
-        // case 0x1C:
-        //     return std_api_rename();
-        //     break;
+    case 0x14:
+        return std_api_open();
+    case 0x15:
+        return std_api_close();
+    case 0x16:
+        return std_api_read_xstack();
+    case 0x17:
+        return std_api_read_xram();
+    case 0x18:
+        return std_api_write_xstack();
+    case 0x19:
+        return std_api_write_xram();
+    case 0x1A:
+        return std_api_lseek_cc65();
+    case 0x1B:
+        return dir_api_unlink();
+    case 0x1C:
+        return dir_api_rename();
+    case 0x1D:
+        return std_api_lseek_llvm();
+    case 0x1E:
+        return std_api_syncfs();
+    case 0x1F:
+        return dir_api_stat();
+    case 0x20:
+        return dir_api_opendir();
+    case 0x21:
+        return dir_api_readdir();
+    case 0x22:
+        return dir_api_closedir();
+    case 0x23:
+        return dir_api_telldir();
+    case 0x24:
+        return dir_api_seekdir();
+    case 0x25:
+        return dir_api_rewinddir();
+    case 0x26:
+        return dir_api_chmod();
+    case 0x27:
+        return dir_api_utime();
+    case 0x28:
+        return dir_api_mkdir();
+    case 0x29:
+        return dir_api_chdir();
+    case 0x2A:
+        return dir_api_chdrive();
+    case 0x2B:
+        return dir_api_getcwd();
+    case 0x2C:
+        return dir_api_setlabel();
+    case 0x2D:
+        return dir_api_getlabel();
+    case 0x2E:
+        return dir_api_getfree();
     }
-    api_return_errno(API_ENOSYS);
-    return false;
+    return api_return_errno(API_ENOSYS);
 }
 
-/*********************************/
-/* This is the kernel scheduler. */
-/*********************************/
+/*****************************/
+/* This is the OS scheduler. */
+/*****************************/
 
 static bool is_breaking;
 static enum state {
@@ -276,22 +291,6 @@ int main(void)
 {
     init();
 
-    main_pre_reclock();
-
-    // Reconfigure clocks, that the USB 48MHz clock is derived from system clock.
-    // This requires that system clock is a multiple of 48 MHz. (no fractional divider)
-    clock_configure(clk_usb,
-                    0,
-                    CLOCKS_CLK_USB_CTRL_AUXSRC_VALUE_CLKSRC_PLL_SYS,
-                    SYS_CLK_HZ,
-                    48 * MHZ);
-    // Stop ADC clock (we do not use) which is based off USB PLL.
-    clock_stop(clk_adc);
-
-    // Now we can use USB PLL to drive HSTX to achieve perfect 60Hz display refresh rate.
-
-    main_post_reclock();
-
     while (true)
     {
         main_task();
@@ -305,21 +304,20 @@ int main(void)
         }
         if (main_state == starting)
         {
-            // printf("starting\n");
             run();
             main_state = running;
         }
         if (main_state == stopping)
         {
-            // printf("stopping\n");
             stop();
             main_state = stopped;
         }
         if (is_breaking)
         {
-            reset();
+            break_();
             is_breaking = false;
         }
     }
+
     __builtin_unreachable();
 }

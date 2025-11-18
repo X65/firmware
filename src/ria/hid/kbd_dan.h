@@ -1,22 +1,22 @@
 /*
- * Copyright (c) 2023 Rumbledethumps
+ * Copyright (c) 2025 Rumbledethumps
  *
  * SPDX-License-Identifier: BSD-3-Clause
  */
 
-#ifndef _KBD_DAN_H_
-#define _KBD_DAN_H_
+#ifndef _RIA_HID_KBD_DAN_H_
+#define _RIA_HID_KBD_DAN_H_
 
 // Danish / Dansk
 
 // KEYCODE to Unicode Conversion
 // {without shift, with shift, with altGr, with shift and altGr}
 
-#define HID_KEYCODE_TO_UNICODE_DA         HID_KEYCODE_TO_UNICODE_DA_DK_QWERTY
-#define HID_KEYCODE_TO_UNICODE_DA_QWERTY  HID_KEYCODE_TO_UNICODE_DA_DK_QWERTY
-#define HID_KEYCODE_TO_UNICODE_DA_DK      HID_KEYCODE_TO_UNICODE_DA_DK_QWERTY
+#define KBD_HID_KEY_TO_UNICODE_DA         KBD_HID_KEY_TO_UNICODE_DA_DK_QWERTY
+#define KBD_HID_KEY_TO_UNICODE_DA_QWERTY  KBD_HID_KEY_TO_UNICODE_DA_DK_QWERTY
+#define KBD_HID_KEY_TO_UNICODE_DA_DK      KBD_HID_KEY_TO_UNICODE_DA_DK_QWERTY
 
-#define HID_KEYCODE_TO_UNICODE_DA_DK_QWERTY			  \
+#define KBD_HID_KEY_TO_UNICODE_DA_DK_QWERTY			  \
 		/* 0x00:    0 */ {     0,      0,      0, 0}, \
 		/* 0x01:    0 */ {     0,      0,      0, 0}, \
 		/* 0x02:    0 */ {     0,      0,      0, 0}, \
@@ -119,4 +119,4 @@
 		/* 0x63:    , */ {   ',',      0,      0, 0}, \
 		/* 0x64:    < */ {   '<',    '>',   '\\', 0},
 
-#endif /* _KBD_DAN_H_ */
+#endif /* _RIA_HID_KBD_DAN_H_ */

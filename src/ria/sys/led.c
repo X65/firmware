@@ -1,68 +1,57 @@
 /*
- * The MIT License (MIT)
+ * Copyright (c) 2025 Rumbledethumps
  *
- * Copyright (c) 2021 a-pushkin on GitHub
- * Copyright (c) 2024 Tomasz Sterna
- *
- * Permission is hereby granted, free of charge, to any person obtaining a copy
- * of this software and associated documentation files (the "Software"), to deal
- * in the Software without restriction, including without limitation the rights
- * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
- * copies of the Software, and to permit persons to whom the Software is
- * furnished to do so, subject to the following conditions:
- *
- * The above copyright notice and this permission notice shall be included in
- * all copies or substantial portions of the Software.
- *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
- * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
- * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
- * THE SOFTWARE.
- *
+ * SPDX-License-Identifier: BSD-3-Clause
  */
 
-#include "led.h"
-#include "hardware/gpio.h"
-#include "hardware/timer.h"
-#include "main.h"
+#include "sys/led.h"
+#include "hw.h"
+#include <pico/stdlib.h>
 
-#define IS_RGBW false
+#if defined(DEBUG_RIA_SYS) || defined(DEBUG_RIA_SYS_LED)
+#include <stdio.h>
+#define DBG(...) fprintf(stderr, __VA_ARGS__)
+#else
+static inline void DBG(const char *fmt, ...)
+{
+    (void)fmt;
+}
+#endif
 
-static bool hearbeat_enabled = false;
+#define LED_BLINK_TIME_MS 100
+
+bool led_state;
+bool led_blinking;
+absolute_time_t led_blink_timer;
+
+static void led_set(bool on)
+{
+    led_state = on;
+#ifdef RIA_LED_PIN
+    gpio_init(RIA_LED_PIN);
+    gpio_set_dir(RIA_LED_PIN, GPIO_OUT);
+    gpio_put(RIA_LED_PIN, on);
+#endif
+}
 
 void led_init(void)
 {
-#ifdef RIA_LED_PIN
-    // LED
-    gpio_init(RIA_LED_PIN);
-    gpio_set_dir(RIA_LED_PIN, GPIO_OUT);
-    gpio_put(RIA_LED_PIN, 1);
-#endif
+    led_set(true);
 }
 
 void led_task(void)
 {
-    if (hearbeat_enabled)
+    if (led_blinking && absolute_time_diff_us(get_absolute_time(), led_blink_timer) < 0)
     {
-        // heartbeat
-        static bool was_on = false;
-        bool on = (time_us_32() / 100000) % 10 > 8;
-        if (was_on != on)
-        {
-#ifdef RIA_LED_PIN
-            // LED
-            gpio_put(RIA_LED_PIN, on);
-#endif
-
-            was_on = on;
-        }
+        led_state = !led_state;
+        led_set(led_state);
+        led_blink_timer = make_timeout_time_ms(LED_BLINK_TIME_MS);
     }
 }
 
-void led_set_hartbeat(bool enabled)
+void led_blink(bool on)
 {
-    hearbeat_enabled = enabled;
+    if (!on)
+        led_set(true);
+    led_blinking = on;
 }

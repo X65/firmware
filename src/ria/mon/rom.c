@@ -1,17 +1,29 @@
 /*
- * Copyright (c) 2023 Rumbledethumps
+ * Copyright (c) 2025 Rumbledethumps
  *
  * SPDX-License-Identifier: BSD-3-Clause
  */
 
-#include "fatfs/ff.h"
+#include "mon/rom.h"
 #include "main.h"
 #include "mon/hlp.h"
 #include "mon/mon.h"
-#include "str.h"
+#include "mon/str.h"
 #include "sys/cfg.h"
 #include "sys/lfs.h"
 #include "sys/mem.h"
+#include "sys/ria.h"
+#include <fatfs/ff.h>
+
+#if defined(DEBUG_RIA_MON) || defined(DEBUG_RIA_MON_ROM)
+#include <stdio.h>
+#define DBG(...) fprintf(stderr, __VA_ARGS__)
+#else
+static inline void DBG(const char *fmt, ...)
+{
+    (void)fmt;
+}
+#endif
 
 static enum {
     ROM_IDLE,
@@ -30,6 +42,44 @@ static bool lfs_file_open;
 static lfs_file_t lfs_file;
 LFS_FILE_CONFIG(lfs_file_config, static);
 static FIL fat_fil;
+
+static bool rom_read(uint32_t len);
+
+static bool rom_open(const char *name, bool is_fat)
+{
+    is_reading_fat = is_fat;
+    if (is_fat)
+    {
+        FRESULT result = f_open(&fat_fil, name, FA_READ);
+        if (result != FR_OK)
+        {
+            printf("?Unable to open file (%d)\n", result);
+            return false;
+        }
+    }
+    else
+    {
+        int lfsresult = lfs_file_opencfg(&lfs_volume, &lfs_file, name,
+                                         LFS_O_RDONLY, &lfs_file_config);
+        if (lfsresult < 0)
+        {
+            printf("?Unable to lfs_file_opencfg (%d)\n", lfsresult);
+            return false;
+        }
+        lfs_file_open = true;
+    }
+    if (!rom_read(2) || mbuf[0] != 0xFF || mbuf[1] != 0xFF)
+    {
+        printf("?Missing XEX header in ROM file\n");
+        rom_state = ROM_IDLE;
+        return false;
+    }
+    rom_FFFC = false;
+    rom_FFFD = false;
+    rom_start = 0xFFFF;
+    rom_bank = 0;
+    return true;
+}
 
 static bool rom_eof(void)
 {
@@ -65,42 +115,6 @@ static bool rom_read(uint32_t len)
         printf("?Unable to read binary data\n");
         return false;
     }
-    return true;
-}
-
-static bool rom_open(const char *name, bool is_fat)
-{
-    is_reading_fat = is_fat;
-    if (is_fat)
-    {
-        FRESULT result = f_open(&fat_fil, name, FA_READ);
-        if (result != FR_OK)
-        {
-            printf("?Unable to open file (%d)\n", result);
-            return false;
-        }
-    }
-    else
-    {
-        int lfsresult = lfs_file_opencfg(&lfs_volume, &lfs_file, name,
-                                         LFS_O_RDONLY, &lfs_file_config);
-        if (lfsresult < 0)
-        {
-            printf("?Unable to lfs_file_opencfg (%d)\n", lfsresult);
-            return false;
-        }
-        lfs_file_open = true;
-    }
-    if (!rom_read(2) || mbuf[0] != 0xFF || mbuf[1] != 0xFF)
-    {
-        printf("?Missing XEX header in ROM file\n");
-        rom_state = ROM_IDLE;
-        return false;
-    }
-    rom_FFFC = false;
-    rom_FFFD = false;
-    rom_start = 0xFFFF;
-    rom_bank = 0;
     return true;
 }
 
@@ -198,7 +212,7 @@ static bool rom_ram_writing(bool test)
 
         if (!test)
         {
-            mem_write_byte(addr, mbuf[i++]);
+            ria_write_mem(addr, mbuf[i++]);
         }
     }
     return (int)mbuf_len > 0;
@@ -231,7 +245,7 @@ void rom_mon_install(const char *args, size_t len)
     // Test for system conflicts
     if (!lfs_name_len
         || mon_command_exists(lfs_name, lfs_name_len)
-        || help_text_lookup(lfs_name, lfs_name_len))
+        || hlp_topic_exists(lfs_name, lfs_name_len))
     {
         printf("?Invalid ROM name.\n");
         return;
@@ -305,8 +319,8 @@ void rom_mon_install(const char *args, size_t len)
 void rom_mon_remove(const char *args, size_t len)
 {
     char lfs_name[LFS_NAME_MAX + 1];
-    if (parse_rom_name(&args, &len, lfs_name)
-        && parse_end(args, len))
+    if (str_parse_rom_name(&args, &len, lfs_name)
+        && str_parse_end(args, len))
     {
         const char *boot = cfg_get_boot();
         if (!strcmp(lfs_name, boot))
@@ -332,11 +346,11 @@ void rom_mon_load(const char *args, size_t len)
         rom_state = ROM_LOADING;
 }
 
-bool rom_load(const char *args, size_t len)
+bool rom_load_installed(const char *args, size_t len)
 {
     char lfs_name[LFS_NAME_MAX + 1];
-    if (parse_rom_name(&args, &len, lfs_name)
-        && parse_end(args, len))
+    if (str_parse_rom_name(&args, &len, lfs_name)
+        && str_parse_end(args, len))
     {
         struct lfs_info info;
         if (lfs_stat(&lfs_volume, lfs_name, &info) < 0)
@@ -376,8 +390,8 @@ void rom_mon_info(const char *args, size_t len)
 bool rom_help(const char *args, size_t len)
 {
     char lfs_name[LFS_NAME_MAX + 1];
-    if (parse_rom_name(&args, &len, lfs_name)
-        && parse_end(args, len))
+    if (str_parse_rom_name(&args, &len, lfs_name)
+        && str_parse_end(args, len))
     {
         struct lfs_info info;
         if (lfs_stat(&lfs_volume, lfs_name, &info) < 0)
@@ -409,7 +423,7 @@ void rom_init(void)
     // Try booting the set boot ROM
     char *boot = cfg_get_boot();
     size_t boot_len = strlen(boot);
-    if (rom_load((char *)boot, boot_len))
+    if (rom_load_installed((char *)boot, boot_len))
         rom_state = ROM_WAIT_LOAD;
 }
 
@@ -452,7 +466,7 @@ bool rom_active(void)
     return rom_state != ROM_IDLE;
 }
 
-void rom_reset(void)
+void rom_break(void)
 {
     rom_state = ROM_IDLE;
 }

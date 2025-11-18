@@ -1,34 +1,33 @@
 /*
- * Copyright (c) 2023 Rumbledethumps
+ * Copyright (c) 2025 Rumbledethumps
  * Copyright (c) 2024 Tomasz Sterna
  *
  * SPDX-License-Identifier: BSD-3-Clause
  */
 
-#include "mem.h"
-#include "cgia/cgia.h"
-#include "hardware/clocks.h"
-#include "hardware/gpio.h"
-#include "hardware/regs/qmi.h"
-#include "hardware/regs/xip.h"
-#include "hardware/structs/qmi.h"
-#include "hardware/structs/xip_ctrl.h"
-#include "hardware/sync.h"
+#include "sys/mem.h"
+#include "hw.h"
 #include "littlefs/lfs_util.h"
-#include "main.h"
-
-#include <stdbool.h>
-#include <stdint.h>
+#include <hardware/clocks.h>
+#include <hardware/gpio.h>
+#include <hardware/structs/qmi.h>
+#include <hardware/structs/xip.h>
+#include <hardware/sync.h>
+#include <pico.h>
 #include <stdio.h>
 
-extern uint8_t _psram[0x1000000]; // 16 MB of PSRAM address space
-asm(".equ _psram, 0x11000000");   // Addressable at 0x11000000 - 0x11ffffff
+#if defined(DEBUG_RIA_SYS) || defined(DEBUG_RIA_SYS_MEM)
+#include <stdio.h>
+#define DBG(...) fprintf(stderr, __VA_ARGS__)
+#else
+static inline void DBG(const char *fmt, ...)
+{
+    (void)fmt;
+}
+#endif
 
 size_t psram_size[PSRAM_BANKS_NO];
 uint8_t psram_readid_response[PSRAM_BANKS_NO][8];
-
-// 0 or 1 (of PSRAM_BANKS_NO)
-volatile int8_t acquired_bank;
 
 // DETAILS/
 //      apmemory APS6404L-3SQR-ZR
@@ -276,122 +275,67 @@ static void __no_inline_not_in_flash_func(setup_psram)(uint8_t bank)
     }
 }
 
+#ifdef NDEBUG
+uint8_t xram[0x10000] __attribute__((aligned(4)));
+#else
+// this struct of 4KB segments is because
+// a single 64KB array crashes my debugger
+static struct
+{
+    uint8_t _0[0x1000];
+    uint8_t _1[0x1000];
+    uint8_t _2[0x1000];
+    uint8_t _3[0x1000];
+    uint8_t _4[0x1000];
+    uint8_t _5[0x1000];
+    uint8_t _6[0x1000];
+    uint8_t _7[0x1000];
+    uint8_t _8[0x1000];
+    uint8_t _9[0x1000];
+    uint8_t _A[0x1000];
+    uint8_t _B[0x1000];
+    uint8_t _C[0x1000];
+    uint8_t _D[0x1000];
+    uint8_t _E[0x1000];
+    uint8_t _F[0x1000];
+} xram_blocks;
+uint8_t *const xram __attribute__((aligned(4))) = (uint8_t *)&xram_blocks;
+#endif
+
 uint8_t xstack[XSTACK_SIZE + 1];
 size_t volatile xstack_ptr;
 
 uint8_t mbuf[MBUF_SIZE] __attribute__((aligned(4)));
 size_t mbuf_len;
 
-inline uint32_t mbuf_crc32(void)
+uint32_t mbuf_crc32(void)
 {
     // use littlefs library
     return ~lfs_crc(~0, mbuf, mbuf_len);
 }
 
-void mem_select_bank(uint8_t bank)
-{
-    while (acquired_bank >= 0 && acquired_bank != bank)
-        tight_loop_contents();
+volatile uint8_t __uninitialized_ram(regs)[0x40]
+    __attribute__((aligned(0x40)));
 
+static inline __attribute__((always_inline)) void mem_select_bank(uint8_t bank)
+{
     gpio_put(QMI_PSRAM_BS_PIN, (bool)bank);
 }
 
 void mem_init(void)
 {
+    // safety check for compiler alignment
+    assert(!((uintptr_t)regs & 0x3F));
+
     // PSRAM Bank-Select pin
     gpio_init(QMI_PSRAM_BS_PIN);
     gpio_set_dir(QMI_PSRAM_BS_PIN, true);
-    gpio_set_pulls(QMI_PSRAM_BS_PIN, false, false);
-
-    // No bank is acquired yet
-    acquired_bank = -1;
 
     // Setup PSRAM controller and chips
     for (uint8_t bank = 0; bank < PSRAM_BANKS_NO; bank++)
     {
         mem_select_bank(bank);
         setup_psram(bank);
-    }
-
-    // Select BANK0 for now
-    mem_select_bank(0);
-}
-
-void mem_post_reclock(void)
-{
-}
-
-uint8_t mem_read_psram(uint32_t addr)
-{
-    mem_select_bank(MEM_ADDR_TO_BANK(addr));
-    return _psram[addr & 0x7FFFFF];
-}
-
-void mem_write_psram(uint32_t addr, uint8_t data)
-{
-    mem_select_bank(MEM_ADDR_TO_BANK(addr));
-    _psram[addr & 0x7FFFFF] = data;
-
-    // Sync write to CGIA L1 cache
-    cgia_ram_write(addr, data);
-}
-
-void mem_cpy_psram(uint32_t dest_addr, const void *src, size_t n)
-{
-    const uint8_t *ptr = (const uint8_t *)src;
-    while (n--)
-    {
-        mem_write_psram(dest_addr, *ptr);
-        ++ptr;
-        ++dest_addr;
-    }
-}
-
-uint8_t mem_read_byte(uint32_t addr)
-{
-    if (addr >= 0xFF00 && addr < 0xFF80) // CGIA registers
-    {
-        return cgia_reg_read((uint8_t)addr);
-    }
-    else if (addr >= 0xFFC0 && addr < 0x10000) // RIA registers
-    {
-        return REGS(addr);
-    }
-    else
-    {
-        return mem_read_psram(addr);
-    }
-}
-
-void mem_write_byte(uint32_t addr, uint8_t data)
-{
-    if (addr >= 0xFF00 && addr < 0xFF80) // CGIA registers
-    {
-        cgia_reg_write((uint8_t)addr, data);
-    }
-    else if (addr >= 0xFFC0 && addr < 0x10000) // RIA registers
-    {
-        REGS(addr) = data;
-    }
-    else
-    {
-        mem_write_psram(addr, data);
-    }
-}
-
-void mem_read_buf(uint32_t addr)
-{
-    for (size_t i = 0; i < mbuf_len; ++i, ++addr)
-    {
-        mbuf[i] = mem_read_byte(addr);
-    }
-}
-
-void mem_write_buf(uint32_t addr)
-{
-    for (size_t i = 0; i < mbuf_len; ++i, ++addr)
-    {
-        mem_write_byte(addr, mbuf[i]);
     }
 }
 
@@ -424,4 +368,16 @@ void mem_print_status(void)
                    psram_readid_response[bank][1] != PSRAM_KGD ? " [FAIL]" : "");
         }
     }
+}
+
+volatile uint8_t __uninitialized_ram(mem_cache)[128 * 1024]
+    __attribute__((aligned(4)));
+
+uint8_t mem_read_ram(uint32_t addr24)
+{
+    return mem_cache[addr24 & 0x1FFFF];
+}
+void mem_write_ram(uint32_t addr24, uint8_t data)
+{
+    mem_cache[addr24 & 0x1FFFF] = data;
 }

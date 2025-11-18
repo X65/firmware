@@ -1,22 +1,22 @@
 /*
- * Copyright (c) 2023 Rumbledethumps
+ * Copyright (c) 2025 Rumbledethumps
  *
  * SPDX-License-Identifier: BSD-3-Clause
  */
 
-#ifndef _KBD_DEU_H_
-#define _KBD_DEU_H_
+#ifndef _RIA_HID_KBD_DEU_H_
+#define _RIA_HID_KBD_DEU_H_
 
 // German / Deutsch
 
 // KEYCODE to Unicode Conversion
 // {without shift, with shift, with altGr, with shift and altGr}
 
-#define HID_KEYCODE_TO_UNICODE_DE         HID_KEYCODE_TO_UNICODE_DEU_QWERTZ
-#define HID_KEYCODE_TO_UNICODE_DE_QWERTZ  HID_KEYCODE_TO_UNICODE_DEU_QWERTZ
-#define HID_KEYCODE_TO_UNICODE_DEU        HID_KEYCODE_TO_UNICODE_DEU_QWERTZ
+#define KBD_HID_KEY_TO_UNICODE_DE         KBD_HID_KEY_TO_UNICODE_DEU_QWERTZ
+#define KBD_HID_KEY_TO_UNICODE_DE_QWERTZ  KBD_HID_KEY_TO_UNICODE_DEU_QWERTZ
+#define KBD_HID_KEY_TO_UNICODE_DEU        KBD_HID_KEY_TO_UNICODE_DEU_QWERTZ
 
-#define HID_KEYCODE_TO_UNICODE_DEU_QWERTZ                     \
+#define KBD_HID_KEY_TO_UNICODE_DEU_QWERTZ                     \
         {0, 0, 0, 0},             /* 0x00 */                  \
         {0, 0, 0, 0},             /* 0x01 */                  \
         {0, 0, 0, 0},             /* 0x02 */                  \
@@ -124,4 +124,4 @@
         {0, 0, 0, 0},       /* 0x66 */                        \
         {'=', '=', 0, 0},   /* 0x67 */
 
-#endif /* _KBD_DE_H_ */
+#endif /* _RIA_HID_KBD_DEU_H_ */

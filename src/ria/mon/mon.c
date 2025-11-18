@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023 Rumbledethumps
+ * Copyright (c) 2025 Rumbledethumps
  *
  * SPDX-License-Identifier: BSD-3-Clause
  */
@@ -12,16 +12,26 @@
 #include "mon/ram.h"
 #include "mon/rom.h"
 #include "mon/set.h"
-#include "pico/stdlib.h"
-#include "str.h"
-#include "sys/com.h"
-#include "sys/mem.h"
+#include "mon/str.h"
+#include "mon/tst.h"
+#include "sys/rln.h"
 #include "sys/sys.h"
+#include <pico.h>
 #include <stdio.h>
 #include <strings.h>
 
-static bool needs_newline = true;
-static bool needs_prompt = true;
+#if defined(DEBUG_RIA_MON) || defined(DEBUG_RIA_MON_MON)
+#include <stdio.h>
+#define DBG(...) fprintf(stderr, __VA_ARGS__)
+#else
+static inline void DBG(const char *fmt, ...)
+{
+    (void)fmt;
+}
+#endif
+
+static bool mon_needs_newline = true;
+static bool mon_needs_prompt = true;
 
 typedef void (*mon_function)(const char *, size_t);
 static struct
@@ -50,12 +60,12 @@ static struct
     {6, "unlink", fil_mon_unlink},
     {6, "binary", ram_mon_binary},
     {2, "at", at_mon_at},
-    {7, "memtest", ram_mon_test},
+    {7, "memtest", tst_mon_memtest},
 };
-static const size_t COMMANDS_COUNT = sizeof COMMANDS / sizeof COMMANDS[0];
+static const size_t COMMANDS_COUNT = sizeof COMMANDS / sizeof *COMMANDS;
 
 // Returns NULL if not found. Advances buf to start of args.
-static mon_function mon_command_lookup(const char **buf, uint8_t buflen)
+static mon_function mon_command_lookup(const char **buf, size_t buflen)
 {
     size_t i;
     for (i = 0; i < buflen; i++)
@@ -69,9 +79,9 @@ static mon_function mon_command_lookup(const char **buf, uint8_t buflen)
     for (; i < buflen; i++)
     {
         uint8_t ch = (*buf)[i];
-        if (char_is_hex(ch))
+        if (str_char_is_hex(ch))
             is_maybe_addr = true;
-        else if (ch == ' ' || ch == '+')
+        else if (ch == ' ')
             break;
         else
             is_not_addr = true;
@@ -92,8 +102,7 @@ static mon_function mon_command_lookup(const char **buf, uint8_t buflen)
         return ram_mon_address;
     }
     // *0:-*9: is chdrive
-    if (cmd_len >= 2 && cmd[cmd_len - 1] == ':'
-        && cmd[cmd_len - 2] >= '0' && cmd[cmd_len - 2] <= '9')
+    if (cmd_len >= 2 && cmd[cmd_len - 1] == ':' && cmd[cmd_len - 2] >= '0' && cmd[cmd_len - 2] <= '9')
     {
         *buf = cmd;
         return fil_mon_chdrive;
@@ -108,7 +117,7 @@ static mon_function mon_command_lookup(const char **buf, uint8_t buflen)
     return NULL;
 }
 
-bool mon_command_exists(const char *buf, uint8_t buflen)
+bool mon_command_exists(const char *buf, size_t buflen)
 {
     return !!mon_command_lookup(&buf, buflen);
 }
@@ -117,12 +126,12 @@ static void mon_enter(bool timeout, const char *buf, size_t length)
 {
     (void)timeout;
     assert(!timeout);
-    needs_prompt = true;
+    mon_needs_prompt = true;
     const char *args = buf;
     mon_function func = mon_command_lookup(&args, length);
     if (!func)
     {
-        if (!rom_load(buf, length))
+        if (!rom_load_installed(buf, length))
             for (const char *b = buf; b < args; b++)
                 if (b[0] != ' ')
                 {
@@ -146,20 +155,20 @@ static bool mon_suspended(void)
 
 void mon_task(void)
 {
-    if (needs_prompt && !mon_suspended())
+    if (mon_needs_prompt && !mon_suspended())
     {
         printf("\30\33[0m");
-        if (needs_newline)
+        if (mon_needs_newline)
             putchar('\n');
         putchar(']');
-        needs_prompt = false;
-        needs_newline = false;
-        com_read_line(0, mon_enter, 256, 0);
+        mon_needs_prompt = false;
+        mon_needs_newline = false;
+        rln_read_line(0, mon_enter, 256, 0);
     }
 }
 
-void mon_reset(void)
+void mon_break(void)
 {
-    needs_prompt = true;
-    needs_newline = true;
+    mon_needs_prompt = true;
+    mon_needs_newline = true;
 }

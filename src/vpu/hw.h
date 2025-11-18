@@ -1,0 +1,55 @@
+/*
+ * Copyright (c) 2025 Tomasz Sterna
+ *
+ * SPDX-License-Identifier: BSD-3-Clause
+ */
+
+#ifndef _VPU_HW_H_
+#define _VPU_HW_H_
+
+/* All pin assignments
+ */
+
+// UART connected to RIA
+#define COM_UART_TX_PIN 4
+#define COM_UART_RX_PIN 5
+
+#define VPU_NMIB_PIN 21
+
+#define VPU_LED_PIN 25
+
+// ---
+#define AUD_SPI_PIN_BASE 32
+#define AUD_SPI_RX_PIN   (AUD_SPI_PIN_BASE + 0)
+#define AUD_SPI_CS_PIN   (AUD_SPI_PIN_BASE + 1)
+#define AUD_SPI_SCK_PIN  (AUD_SPI_PIN_BASE + 2)
+#define AUD_SPI_TX_PIN   (AUD_SPI_PIN_BASE + 3)
+
+#define ESP_SPI_PIN_BASE 40
+#define ESP_SPI_RX_PIN   (ESP_SPI_PIN_BASE + 0)
+#define ESP_SPI_CS_PIN   (ESP_SPI_PIN_BASE + 1)
+#define ESP_SPI_SCK_PIN  (ESP_SPI_PIN_BASE + 2)
+#define ESP_SPI_TX_PIN   (ESP_SPI_PIN_BASE + 3)
+#define ESP_AT_HS_PIN    39 // SPI HANDSHAKE
+
+/* All resource assignments
+ */
+
+#define COM_UART_INTERFACE uart1
+#define COM_UART_BAUDRATE  115200
+
+// ---
+// DVI uses DMA in ping-ping setup
+#define DVI_DMACH_PING 0
+#define DVI_DMACH_PONG 1
+
+// FM chip SPI
+#define AUD_SPI                 spi0
+#define AUD_CLOCK_FREQUENCY_KHZ 12288
+#define AUD_BAUDRATE_HZ         1000000
+
+// ESP-AT modem SPI
+#define ESP_SPI         spi1
+#define ESP_BAUDRATE_HZ 10000000
+
+#endif /* _VPU_HW_H_ */

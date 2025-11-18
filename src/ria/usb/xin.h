@@ -4,15 +4,22 @@
  * SPDX-License-Identifier: BSD-3-Clause
  */
 
-#ifndef _XIN_H_
-#define _XIN_H_
+#ifndef _RIA_USB_XIN_H_
+#define _RIA_USB_XIN_H_
 
-#include <stdbool.h>
+/* USB XInput driver for XBox gamepads.
+ */
+
+#include <stddef.h>
 #include <stdint.h>
+#include <stdbool.h>
+
+/* Main events
+ */
 
 void xin_task(void);
-int xin_pad_count(void);
-bool xin_is_xbox_one(int slot);
-bool xin_is_xbox_360(int slot);
 
-#endif /* _XIN_H_ */
+// For monitor status command.
+int xin_pad_count(void);
+
+#endif /* _RIA_USB_XIN_H_ */

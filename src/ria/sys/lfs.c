@@ -1,12 +1,18 @@
 /*
- * Copyright (c) 2023 Rumbledethumps
+ * Copyright (c) 2025 Rumbledethumps
  *
  * SPDX-License-Identifier: BSD-3-Clause
  */
 
 #include "sys/lfs.h"
-#include "hardware/sync.h"
-#include "pico/printf.h"
+#include <pico/printf.h>
+
+#if defined(DEBUG_RIA_SYS) || defined(DEBUG_RIA_SYS_LFS)
+#include <stdio.h>
+#define DBG(...) fprintf(stderr, __VA_ARGS__)
+#else
+static inline void DBG(const char *fmt, ...) { (void)fmt; }
+#endif
 
 // 1MB for ROM storage
 #define LFS_DISK_BLOCKS 256
@@ -20,7 +26,7 @@ static int lfs_sync(const struct lfs_config *c);
 
 static_assert(!(LFS_DISK_BLOCKS % 8));
 #define LFS_LOOKAHEAD_SIZE (LFS_DISK_BLOCKS / 8)
-#define LFS_DISK_SIZE      (LFS_DISK_BLOCKS * FLASH_SECTOR_SIZE)
+#define LFS_DISK_SIZE (LFS_DISK_BLOCKS * FLASH_SECTOR_SIZE)
 
 lfs_t lfs_volume;
 static char lfs_read_buffer[FLASH_PAGE_SIZE];
@@ -52,7 +58,7 @@ static const struct lfs_config cfg = {
 // stepping back for a while is probably better.
 uint32_t lfs_get_bt_storage_offset(void)
 {
-#ifdef RASPBERRYPI_PICO2_W
+#ifdef RP6502_RIA_W
     // WARNING: Verify PICO_FLASH_BANK_TOTAL_SIZE matches btstack_flash_bank.h
     const uint32_t PICO_FLASH_BANK_TOTAL_SIZE = (FLASH_SECTOR_SIZE * 2u);
 #else
@@ -66,7 +72,10 @@ static int lfs_read(const struct lfs_config *c, lfs_block_t block,
 {
     (void)(c);
     memcpy(buffer,
-           (void *)XIP_NOCACHE_NOALLOC_BASE + (PICO_FLASH_SIZE_BYTES - LFS_DISK_SIZE) + (block * FLASH_SECTOR_SIZE) + off,
+           (void *)XIP_NOCACHE_NOALLOC_BASE +
+               (PICO_FLASH_SIZE_BYTES - LFS_DISK_SIZE) +
+               (block * FLASH_SECTOR_SIZE) +
+               off,
            size);
     return LFS_ERR_OK;
 }
@@ -75,23 +84,19 @@ static int __no_inline_not_in_flash_func(lfs_prog)(const struct lfs_config *c, l
                                                    lfs_off_t off, const void *buffer, lfs_size_t size)
 {
     (void)(c);
-    uint32_t flash_offs = (PICO_FLASH_SIZE_BYTES - LFS_DISK_SIZE)
-                          + (block * FLASH_SECTOR_SIZE)
-                          + off;
-    uint32_t interrupt_status = save_and_disable_interrupts();
+    uint32_t flash_offs = (PICO_FLASH_SIZE_BYTES - LFS_DISK_SIZE) +
+                          (block * FLASH_SECTOR_SIZE) +
+                          off;
     flash_range_program(flash_offs, buffer, size);
-    restore_interrupts(interrupt_status);
     return LFS_ERR_OK;
 }
 
 static int __no_inline_not_in_flash_func(lfs_erase)(const struct lfs_config *c, lfs_block_t block)
 {
     (void)(c);
-    uint32_t flash_offs = (PICO_FLASH_SIZE_BYTES - LFS_DISK_SIZE)
-                          + (block * FLASH_SECTOR_SIZE);
-    uint32_t interrupt_status = save_and_disable_interrupts();
+    uint32_t flash_offs = (PICO_FLASH_SIZE_BYTES - LFS_DISK_SIZE) +
+                          (block * FLASH_SECTOR_SIZE);
     flash_range_erase(flash_offs, FLASH_SECTOR_SIZE);
-    restore_interrupts(interrupt_status);
     return LFS_ERR_OK;
 }
 
@@ -148,8 +153,7 @@ int lfs_printf(lfs_t *lfs, lfs_file_t *file, const char *format, ...)
     struct lfs_printf_ctx ctx = {
         .lfs = lfs,
         .file = file,
-        .result = 0,
-    };
+        .result = 0};
     // vfctprintf is Marco Paland's "Tiny printf" from the Pi Pico SDK
     int result = vfctprintf(lfs_printf_cb, &ctx, format, va);
     if (ctx.result < 0)

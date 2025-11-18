@@ -1,62 +1,56 @@
 /*
- * Copyright (c) 2023 Rumbledethumps
+ * Copyright (c) 2025 Rumbledethumps
  *
  * SPDX-License-Identifier: BSD-3-Clause
  */
 
-#ifndef _COM_H_
-#define _COM_H_
+#ifndef _RIA_SYS_COM_H_
+#define _RIA_SYS_COM_H_
+
+/* Communications switchboard.
+ */
 
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
 
-/* Kernel events
+/* Main events
  */
 
 void com_task(void);
 void com_init(void);
-void com_reset(void);
-void com_pre_reclock(void);
-void com_post_reclock(void);
+void com_run(void);
+void com_stop(void);
 
-// Blocks until all buffers empty. Use sparingly.
-void com_flush(void);
+/* Expose the internals here because ria.c needs direct access
+ */
 
-// Both types of reads guarantee this callback unless a
-// break event happens. Timeout is true when input is idle too long.
-// Requesting a timeout of 0 ms will disable the idle timer.
-typedef void (*com_read_callback_t)(bool timeout, const char *buf, size_t length);
+// 1-byte message queue to the RIA action loop. -1 = empty
+extern volatile int com_rx_char;
 
-// Prepare to receive binary data of a known size.
-// This is one-shot. Data received after the provided known size will be
-// processed by com_read_line().
-void com_read_binary(uint32_t timeout_ms, com_read_callback_t callback, uint8_t *buf, size_t size);
-
-// Prepare the line editor. The com module can read entire lines
-// of input with basic editing on ANSI terminals.
-void com_read_line(uint32_t timeout_ms, com_read_callback_t callback, size_t size, uint32_t ctrl_bits);
-
+#define COM_TX_BUF_SIZE 32
+extern volatile uint8_t com_tx_buf[COM_TX_BUF_SIZE];
 extern volatile size_t com_tx_tail;
 extern volatile size_t com_tx_head;
-extern volatile uint8_t com_tx_buf[32];
 
 // Ensure space for newline expansion
 static inline bool com_tx_printable(void)
 {
     return (
-        (((com_tx_head + 1) & 0x1F) != (com_tx_tail & 0x1F)) && (((com_tx_head + 2) & 0x1F) != (com_tx_tail & 0x1F)));
+        (((com_tx_head + 1) % COM_TX_BUF_SIZE) != com_tx_tail) && (((com_tx_head + 2) % COM_TX_BUF_SIZE) != com_tx_tail));
 }
 
 // Ensure space for com_tx_write()
 static inline bool com_tx_writable(void)
 {
-    return (((com_tx_head + 1) & 0x1F) != (com_tx_tail & 0x1F));
+    return (((com_tx_head + 1) % COM_TX_BUF_SIZE) != com_tx_tail);
 }
 
+// Bypasses Pico SDK stdout newline expansion
 static inline void com_tx_write(char ch)
 {
-    com_tx_buf[++com_tx_head & 0x1F] = ch;
+    com_tx_head = (com_tx_head + 1) % COM_TX_BUF_SIZE;
+    com_tx_buf[com_tx_head] = ch;
 }
 
-#endif /* _COM_H_ */
+#endif /* _RIA_SYS_COM_H_ */

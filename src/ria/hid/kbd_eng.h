@@ -1,11 +1,11 @@
 /*
- * Copyright (c) 2023 Rumbledethumps
+ * Copyright (c) 2025 Rumbledethumps
  *
  * SPDX-License-Identifier: BSD-3-Clause
  */
 
-#ifndef _KBD_ENG_H_
-#define _KBD_ENG_H_
+#ifndef _RIA_HID_KBD_ENG_H_
+#define _RIA_HID_KBD_ENG_H_
 
 // English
 
@@ -15,13 +15,13 @@
 // Include both ISO_639-1 and ISO_639-2 codes
 // when submitting new keyboard layouts.
 
-#define HID_KEYCODE_TO_UNICODE_EN            HID_KEYCODE_TO_UNICODE_ENG_US_QWERTY
-#define HID_KEYCODE_TO_UNICODE_EN_US         HID_KEYCODE_TO_UNICODE_ENG_US_QWERTY
-#define HID_KEYCODE_TO_UNICODE_EN_US_QWERTY  HID_KEYCODE_TO_UNICODE_ENG_US_QWERTY
-#define HID_KEYCODE_TO_UNICODE_ENG           HID_KEYCODE_TO_UNICODE_ENG_US_QWERTY
-#define HID_KEYCODE_TO_UNICODE_ENG_US        HID_KEYCODE_TO_UNICODE_ENG_US_QWERTY
+#define KBD_HID_KEY_TO_UNICODE_EN            KBD_HID_KEY_TO_UNICODE_ENG_US_QWERTY
+#define KBD_HID_KEY_TO_UNICODE_EN_US         KBD_HID_KEY_TO_UNICODE_ENG_US_QWERTY
+#define KBD_HID_KEY_TO_UNICODE_EN_US_QWERTY  KBD_HID_KEY_TO_UNICODE_ENG_US_QWERTY
+#define KBD_HID_KEY_TO_UNICODE_ENG           KBD_HID_KEY_TO_UNICODE_ENG_US_QWERTY
+#define KBD_HID_KEY_TO_UNICODE_ENG_US        KBD_HID_KEY_TO_UNICODE_ENG_US_QWERTY
 
-#define HID_KEYCODE_TO_UNICODE_ENG_US_QWERTY \
+#define KBD_HID_KEY_TO_UNICODE_ENG_US_QWERTY \
     /*     0x00 */ {0, 0, 0, 0},            \
         /* 0x01 */ {0, 0, 0, 0},            \
         /* 0x02 */ {0, 0, 0, 0},            \
@@ -127,4 +127,4 @@
         /* 0x66 */ {0, 0, 0, 0},            \
         /* 0x67 */ {'=', '=', 0, 0},
 
-#endif /* _KBD_ENG_H_ */
+#endif /* _RIA_HID_KBD_ENG_H_ */

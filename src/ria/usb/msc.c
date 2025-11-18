@@ -1,17 +1,23 @@
 /*
- * Copyright (c) 2023 Rumbledethumps
+ * Copyright (c) 2025 Rumbledethumps
  *
  * SPDX-License-Identifier: BSD-3-Clause
  */
 
-#include <math.h>
-
-#include "fatfs/diskio.h"
-#include "fatfs/ff.h"
 #include "main.h"
-#include "pico/aon_timer.h"
 #include "tusb.h"
 #include "usb/msc.h"
+#include "fatfs/ff.h"
+#include "fatfs/diskio.h"
+#include "pico/aon_timer.h"
+#include <math.h>
+
+#if defined(DEBUG_RIA_USB) || defined(DEBUG_RIA_USB_MSC)
+#include <stdio.h>
+#define DBG(...) fprintf(stderr, __VA_ARGS__)
+#else
+static inline void DBG(const char *fmt, ...) { (void)fmt; }
+#endif
 
 // Validate essential settings in ffconf.h
 static_assert(sizeof(TCHAR) == sizeof(char));
@@ -43,7 +49,7 @@ static const char __in_flash("fatfs_vol") VolumeStrUSB4[] = "USB4";
 static const char __in_flash("fatfs_vol") VolumeStrUSB5[] = "USB5";
 static const char __in_flash("fatfs_vol") VolumeStrUSB6[] = "USB6";
 static const char __in_flash("fatfs_vol") VolumeStrUSB7[] = "USB7";
-__in_flash("fatfs_vols") const char *VolumeStr[FF_VOLUMES] = {
+const char __in_flash("fatfs_vols") * VolumeStr[FF_VOLUMES] = {
     VolumeStrUSB0, VolumeStrUSB1, VolumeStrUSB2, VolumeStrUSB3,
     VolumeStrUSB4, VolumeStrUSB5, VolumeStrUSB6, VolumeStrUSB7};
 
@@ -51,11 +57,16 @@ __in_flash("fatfs_vols") const char *VolumeStr[FF_VOLUMES] = {
 static const char __in_flash("msc_print") MSC_PRINT_MB[] = "MB";
 static const char __in_flash("msc_print") MSC_PRINT_GB[] = "GB";
 static const char __in_flash("msc_print") MSC_PRINT_TB[] = "TB";
-static const char __in_flash("msc_print") MSC_PRINT_COUNT[] = ", %d storage\n";
-static const char __in_flash("msc_print") MSC_PRINT_INQUIRING[] = "%s: inquiring\n";
-static const char __in_flash("msc_print") MSC_PRINT_MOUNTED[] = "%s: %.1f %s %.8s %.16s rev %.4s\n";
-static const char __in_flash("msc_print") MSC_PRINT_INQUIRY_FAILED[] = "%s: inquiry failed\n";
-static const char __in_flash("msc_print") MSC_PRINT_MOUNT_FAILED[] = "%s: mount failed (%d)\n";
+static const char __in_flash("msc_print") MSC_PRINT_COUNT[] =
+    ", %d storage\n";
+static const char __in_flash("msc_print") MSC_PRINT_INQUIRING[] =
+    "%s: inquiring\n";
+static const char __in_flash("msc_print") MSC_PRINT_MOUNTED[] =
+    "%s: %.1f %s %.8s %.16s rev %.4s\n";
+static const char __in_flash("msc_print") MSC_PRINT_INQUIRY_FAILED[] =
+    "%s: inquiry failed\n";
+static const char __in_flash("msc_print") MSC_PRINT_MOUNT_FAILED[] =
+    "%s: mount failed (%d)\n";
 
 typedef enum
 {
@@ -142,8 +153,8 @@ static bool inquiry_complete_cb(uint8_t dev_addr, tuh_msc_complete_data_t const 
 {
     uint8_t vol;
     for (vol = 0; vol < FF_VOLUMES; vol++)
-        if (msc_volume_status[vol] == msc_volume_inquiring
-            && msc_volume_dev_addr[vol] == dev_addr)
+        if (msc_volume_status[vol] == msc_volume_inquiring &&
+            msc_volume_dev_addr[vol] == dev_addr)
             break;
     if (vol == FF_VOLUMES)
         return false;
@@ -198,8 +209,8 @@ void tuh_msc_umount_cb(uint8_t dev_addr)
 {
     for (uint8_t vol = 0; vol < FF_VOLUMES; vol++)
     {
-        if (msc_volume_status[vol] == msc_volume_mounted
-            && msc_volume_dev_addr[vol] == dev_addr)
+        if (msc_volume_status[vol] == msc_volume_mounted &&
+            msc_volume_dev_addr[vol] == dev_addr)
         {
             msc_volume_status[vol] = msc_volume_free;
             TCHAR volstr[6] = "USB0:";
@@ -231,12 +242,12 @@ DWORD get_fattime(void)
         time_t t = (time_t)ts.tv_sec;
         localtime_r(&t, &tm);
         if (tm.tm_year + 1900 >= 1980 && tm.tm_year + 1900 <= 2107)
-            return ((DWORD)(tm.tm_year + 1900 - 1980) << 25)
-                   | ((DWORD)(tm.tm_mon + 1) << 21)
-                   | ((DWORD)tm.tm_mday << 16)
-                   | ((WORD)tm.tm_hour << 11)
-                   | ((WORD)tm.tm_min << 5)
-                   | ((WORD)(tm.tm_sec >> 1));
+            return ((DWORD)(tm.tm_year + 1900 - 1980) << 25) |
+                   ((DWORD)(tm.tm_mon + 1) << 21) |
+                   ((DWORD)tm.tm_mday << 16) |
+                   ((WORD)tm.tm_hour << 11) |
+                   ((WORD)tm.tm_min << 5) |
+                   ((WORD)(tm.tm_sec >> 1));
     }
     return ((DWORD)0 << 25 | (DWORD)1 << 21 | (DWORD)1 << 16);
 }

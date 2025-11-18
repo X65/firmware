@@ -1,23 +1,26 @@
 /*
- * Copyright (c) 2023 Rumbledethumps
+ * Copyright (c) 2025 Rumbledethumps
+ * Copyright (c) 2025 Tomasz Sterna
  *
  * SPDX-License-Identifier: BSD-3-Clause
  */
 
-#include "str.h"
 #include "mon/hlp.h"
 #include "mon/rom.h"
 #include "sys/lfs.h"
+
+#if defined(DEBUG_RIA_MON) || defined(DEBUG_RIA_MON_HLP)
+#include <stdio.h>
+#define DBG(...) fprintf(stderr, __VA_ARGS__)
+#else
+static inline void DBG(const char *fmt, ...) { (void)fmt; }
+#endif
 
 static const char __in_flash("helptext") hlp_text_help[] =
     "Commands:\n"
     "HELP (command|rom)  - This help or expanded help for command or rom.\n"
     "HELP ABOUT|SYSTEM   - About includes credits. System for general usage.\n"
-#ifdef RP6502_RIA_W
-    "STATUS              - Show status of system, WiFi, and USB devices.\n"
-#else
-    "STATUS              - Show status of system and USB devices.\n"
-#endif
+    "STATUS              - Show status of system and connected devices.\n"
     "SET (attr) (value)  - Change or show settings.\n"
     "LS (dir|drive)      - List contents of directory.\n"
     "CD (dir)            - Change or show current directory.\n"
@@ -45,8 +48,8 @@ static const char __in_flash("helptext") hlp_text_set[] =
     "SET CP (cp)         - Query or set code page.";
 
 static const char __in_flash("helptext") hlp_text_about[] =
-    "X65 microcomputer - Copyright (c) 2024 Tomasz Sterna, Xiaoka.com.\n"
-    "Picocomputer 6502 - Copyright (c) 2023 Rumbledethumps.\n"
+    "X65 microcomputer - Copyright (c) 2025 Tomasz Sterna, Xiaoka.com.\n"
+    "Picocomputer 6502 - Copyright (c) 2025 Rumbledethumps.\n"
     "     Pi Pico SDKs - Copyright (c) 2020 Raspberry Pi (Trading) Ltd.\n"
     "      Tiny printf - Copyright (c) 2014-2019 Marco Paland, PALANDesign.\n"
     "          TinyUSB - Copyright (c) 2018 hathach (tinyusb.org)\n"
@@ -60,9 +63,9 @@ static const char __in_flash("helptext") hlp_text_system[] =
     "The X65 computer does not use a traditional parallel ROM like a 27C64 or\n"
     "similar. Instead, this monitor is used to prepare the CPU RAM with software\n"
     "that would normally be on a ROM chip. The CPU is in-reset right now;\n"
-    "the RESB line is low. What you are seeing is coming from the RP816 RIA.\n"
+    "the RESB line is low. What you are seeing is coming from the RP-RIA.\n"
     "You can return to this monitor at any time by pressing CTRL-ALT-DEL or sending\n"
-    "a break to the serial port. Since these signals are handled by the RP816 RIA,\n"
+    "a break to the serial port. Since these signals are handled by the RP-RIA,\n"
     "they will always stop even a crashed CPU. This monitor can do scripted things\n"
     "that are useful for developing software. It also provides interactive commands\n"
     "like typing a hex address to see the corresponding RAM value:\n"
@@ -84,16 +87,16 @@ static const char __in_flash("helptext") hlp_text_mkdir[] =
 
 static const char __in_flash("helptext") hlp_text_load[] =
     "LOAD and INFO read ROM files from a USB drive. A ROM file contains both\n"
-    "ASCII information for the user, and binary information for the RP816.\n"
+    "ASCII information for the user, and binary information for the system.\n"
     "ROM file is an Atari XEX derived binary format. The file may contain\n"
     "many chunks loaded into different memory areas. The chunk marked for load\n"
-    "into area starting from $FC00 is special an contains HELP/INFO information,\n"
-    "which is not actually loaded into the RAM. It is used by the INFO command.\n"
+    "into area starting from $FC00 is special and contains HELP/INFO information,\n"
+    "which is not loaded into the RAM. It is used by the INFO command.\n"
     "If the ROM file contains data for the reset vector $FFFC-$FFFD then the\n"
     "CPU will be reset (started) immediately after loading.";
 
 static const char __in_flash("helptext") hlp_text_install[] =
-    "INSTALL and REMOVE manage the ROMs installed in the RP816 RIA flash memory.\n"
+    "INSTALL and REMOVE manage the ROMs installed in the RP-RIA flash memory.\n"
     "ROM files must contain a reset vector to be installed. A list of installed\n"
     "ROMs is shown on the base HELP screen. Once installed, these ROMs become an\n"
     "integrated part of the system and can be loaded manually by simply using their\n"
@@ -103,18 +106,18 @@ static const char __in_flash("helptext") hlp_text_install[] =
     "which will be stripped upon install.";
 
 static const char __in_flash("helptext") hlp_text_reboot[] =
-    "REBOOT will restart the RP816 RIA. It does the same thing as pressing a\n"
+    "REBOOT will restart the RP-RIA. It does the same thing as pressing a\n"
     "reset button attached to the Pi Pico or interrupting the power supply.";
 
 static const char __in_flash("helptext") hlp_text_reset[] =
     "RESET will restart the CPU by bringing RESB high. This is mainly used for\n"
-    "automated testing by a script on another system connected to the monitor.\n"
+    "automated testing by a script on another system connected to the console.\n"
     "For example, a build script can compile a program, upload it directly to\n"
     "CPU RAM, start it with this RESET, then optionally continue to send and\n"
     "receive data to ensure proper operation of the program.";
 
 static const char __in_flash("helptext") hlp_text_upload[] =
-    "UPLOAD is used to send a file from another system connected to the monitor.\n"
+    "UPLOAD is used to send a file from another system to the local filesystem.\n"
     "The file may be any type with any name and will overwrite an existing file\n"
     "of the same name. For example, you can send a ROM file along with other\n"
     "files containing graphics or level data for a game. Then you can LOAD the\n"
@@ -134,8 +137,7 @@ static const char __in_flash("helptext") hlp_text_upload[] =
 static const char __in_flash("helptext") hlp_text_unlink[] =
     "UNLINK removes a file. Its intended use is for scripting on another system\n"
     "connected to the monitor. For example, you might want to delete save data\n"
-    "as part of automated testing. You'll probably use this once manually after\n"
-    "attempting to use the UPLOAD command from a keyboard. ;)";
+    "as part of automated testing.";
 
 static const char __in_flash("helptext") hlp_text_binary[] =
     "BINARY is the fastest way to get code or data from your build system to the\n"
@@ -144,16 +146,17 @@ static const char __in_flash("helptext") hlp_text_binary[] =
     "You will return to a \"]\" prompt on success or \"?\" error on failure.";
 
 static const char __in_flash("helptext") hlp_text_status[] =
-    "STATUS will list all configurable settings and some system information\n"
-    "including a list of USB devices and their ID. The USB ID is also the drive\n"
-    "number for mass storage devices (MSC). Up to 8 devices are supported.";
+    "STATUS will show the status of all hardware in and connected to the RIA.";
+
+#define STR(x) #x
+#define XSTR(x) STR(x)
+#define FREQS XSTR(CPU_PHI2_MIN_KHZ) "-" XSTR(CPU_PHI2_MAX_KHZ)
 
 static const char __in_flash("helptext") hlp_text_set_boot[] =
     "BOOT selects an installed ROM to be automatically loaded and started when the\n"
     "system is powered up or rebooted. For example, you might want the system to\n"
-    "immediately boot into BASIC or an operating system CLI. This is used to\n"
-    "provide the instant-on experience of classic 8-bit computers. Using \"-\" for\n"
-    "the argument will have the system boot into the monitor you are using now.\n"
+    "immediately boot into BASIC or an operating system CLI. Using \"-\" for the\n"
+    "argument will have the system boot into the monitor you are using now.\n"
     "Setting is saved on the RIA flash.";
 
 static const char __in_flash("helptext") hlp_text_set_tz[] =
@@ -168,9 +171,7 @@ static const char __in_flash("helptext") hlp_text_set_cp[] =
     "866, 869, 932, 936, 949, 950.  Code pages 720, 932, 936, 949, 950 do not have\n"
     "VGA fonts."
 #if RP6502_CODE_PAGE
-#define xstr(s) str(s)
-#define str(s) #s
-    "\nThis is a development build. Only " xstr(RP6502_CODE_PAGE) " is available.";
+    "\nThis is a development build. Only " XSTR(RP6502_CODE_PAGE) " is available.";
 #else
     "";
 #endif
@@ -328,7 +329,7 @@ static void hlp_help(const char *args, size_t len)
 }
 
 // Returns NULL if not found.
-const char *help_text_lookup(const char *args, size_t len)
+static const char *help_text_lookup(const char *args, size_t len)
 {
     size_t cmd_len;
     for (cmd_len = 0; cmd_len < len; cmd_len++)
@@ -377,4 +378,9 @@ void hlp_mon_help(const char *args, size_t len)
         if (!rom_help(args, len))
             puts("?No help found.");
     }
+}
+
+bool hlp_topic_exists(const char *buf, size_t buflen)
+{
+    return !!help_text_lookup(buf, buflen);
 }

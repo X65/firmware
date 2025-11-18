@@ -1,14 +1,20 @@
 /*
- * Copyright (c) 2023 Rumbledethumps
+ * Copyright (c) 2025 Rumbledethumps
  *
  * SPDX-License-Identifier: BSD-3-Clause
  */
 
-#ifndef _LFS_H_
-#define _LFS_H_
+#ifndef _RIA_SYS_LFS_H_
+#define _RIA_SYS_LFS_H_
 
-#include "hardware/flash.h"
-#include "littlefs/lfs.h"
+/* Arm's littlefs for non-volatile storage.
+ */
+
+#include <stddef.h>
+#include <stdint.h>
+#include <stdbool.h>
+#include <hardware/flash.h>
+#include <littlefs/lfs.h>
 
 // Our only volume is mounted here for all to use.
 extern lfs_t lfs_volume;
@@ -21,12 +27,12 @@ extern lfs_t lfs_volume;
         .buffer = _LFS_FILE_CONFIG_NAME(name),                        \
     };
 
-/* Kernel events
+/* Main events
  */
 
 void lfs_init(void);
 
-// Test is file position is at the end of the file.
+// Test if file position is at the end of the file.
 int lfs_eof(lfs_file_t *file);
 
 // Print formatted characters to the file.
@@ -35,4 +41,4 @@ int lfs_printf(lfs_t *lfs, lfs_file_t *file, const char *format, ...);
 // Safe gets.
 char *lfs_gets(char *str, int n, lfs_t *lfs, lfs_file_t *file);
 
-#endif /* _LFS_H_ */
+#endif /* _RIA_SYS_LFS_H_ */

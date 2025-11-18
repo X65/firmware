@@ -4,8 +4,8 @@
  * SPDX-License-Identifier: BSD-3-Clause
  */
 
-#ifndef _MDM_H_
-#define _MDM_H_
+#ifndef _RIA_SYS_MDM_H_
+#define _RIA_SYS_MDM_H_
 
 #include <stddef.h>
 #include <stdint.h>
@@ -14,11 +14,10 @@
  */
 
 void mdm_init(void);
-void mdm_post_reclock(void);
 void mdm_task(void);
 
 /** API
  */
 int32_t mdm_write_data_to_slave(const uint8_t *data, size_t size);
 
-#endif /* _MDM_H_ */
+#endif /* _RIA_SYS_MDM_H_ */

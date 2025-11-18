@@ -1,13 +1,23 @@
 /*
- * Copyright (c) 2023 Rumbledethumps
+ * Copyright (c) 2025 Rumbledethumps
  *
  * SPDX-License-Identifier: BSD-3-Clause
  */
 
-#include "str.h"
+#include "mon/set.h"
+#include "mon/str.h"
 #include "sys/cfg.h"
-#include "sys/cpu.h"
 #include "sys/lfs.h"
+
+#if defined(DEBUG_RIA_MON) || defined(DEBUG_RIA_MON_SET)
+#include <stdio.h>
+#define DBG(...) fprintf(stderr, __VA_ARGS__)
+#else
+static inline void DBG(const char *fmt, ...)
+{
+    (void)fmt;
+}
+#endif
 
 static void set_print_boot(void)
 {
@@ -22,12 +32,12 @@ static void set_boot(const char *args, size_t len)
     if (len)
     {
         char lfs_name[LFS_NAME_MAX + 1];
-        if (args[0] == '-' && parse_end(++args, --len))
+        if (args[0] == '-' && str_parse_end(++args, --len))
         {
             cfg_set_boot("");
         }
-        else if (parse_rom_name(&args, &len, lfs_name)
-                 && parse_end(args, len))
+        else if (str_parse_rom_name(&args, &len, lfs_name)
+                 && str_parse_end(args, len))
         {
             struct lfs_info info;
             if (lfs_stat(&lfs_volume, lfs_name, &info) < 0)
@@ -46,12 +56,12 @@ static void set_boot(const char *args, size_t len)
     set_print_boot();
 }
 
-static void set_print_code_page(void)
+static void set_print_code_page()
 {
 #if (RP6502_CODE_PAGE)
     printf("CP  : %d (dev)\n", RP6502_CODE_PAGE);
 #else
-    printf("CP  : %d\n", cfg_get_codepage());
+    printf("CP  : %d\n", cfg_get_code_page());
 #endif
 }
 
@@ -60,7 +70,9 @@ static void set_code_page(const char *args, size_t len)
     uint32_t val;
     if (len)
     {
-        if (!parse_uint32(&args, &len, &val) || !parse_end(args, len) || !cfg_set_codepage(val))
+        if (!str_parse_uint32(&args, &len, &val)
+            || !str_parse_end(args, len)
+            || !cfg_set_code_page(val))
         {
             printf("?invalid argument\n");
             return;
@@ -79,8 +91,8 @@ static void set_time_zone(const char *args, size_t len)
     char tz[65];
     if (len)
     {
-        if (!parse_string(&args, &len, tz, sizeof(tz))
-            || !parse_end(args, len)
+        if (!str_parse_string(&args, &len, tz, sizeof(tz))
+            || !str_parse_end(args, len)
             || !cfg_set_time_zone(tz))
         {
             printf("?invalid argument\n");

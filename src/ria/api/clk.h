@@ -1,6 +1,5 @@
 /*
- * Copyright (c) 2023 Brentward
- * Copyright (c) 2023 Rumbledethumps
+ * Copyright (c) 2025 Rumbledethumps
  *
  * SPDX-License-Identifier: BSD-3-Clause
  */
@@ -11,11 +10,11 @@
 /* The CLK driver manages real-time counters.
  */
 
-#include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
+#include <stdbool.h>
 
-/* Kernel events
+/* Main events
  */
 
 void clk_init(void);
@@ -30,7 +29,7 @@ const char *clk_set_time_zone(const char *tz);
 /* The API implementation for time support
  */
 
-// bool clk_api_clock(void);
+bool clk_api_clock(void);
 bool clk_api_get_res(void);
 bool clk_api_get_time(void);
 bool clk_api_set_time(void);
