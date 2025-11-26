@@ -5,7 +5,7 @@
  */
 
 #include "term/font.h"
-#include "vpu/font_8.h"
+#include "font_8.h"
 #include <pico/stdlib.h>
 
 #include <stdio.h>

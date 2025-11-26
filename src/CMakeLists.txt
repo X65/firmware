@@ -2,20 +2,20 @@
 set(RP6502_RIA_W FALSE)
 
 
-# The X65 RIA
+# The X65 NorthBridge (including RIA)
 
-add_executable(x65_ria)
-pico_add_extra_outputs(x65_ria)
-pico_set_binary_type(x65_ria copy_to_ram)
-pico_set_program_name(x65_ria "X65 RIA")
+add_executable(x65_north)
+pico_add_extra_outputs(x65_north)
+pico_set_binary_type(x65_north copy_to_ram)
+pico_set_program_name(x65_north "X65 NorthBridge")
 
-target_include_directories(x65_ria PRIVATE
-    ${CMAKE_CURRENT_LIST_DIR}/ria
+target_include_directories(x65_north PRIVATE
+    ${CMAKE_CURRENT_LIST_DIR}/north
     ${CMAKE_CURRENT_LIST_DIR}
     ${CMAKE_CURRENT_LIST_DIR}/tinyusb/src
 )
 
-target_compile_definitions(x65_ria PRIVATE
+target_compile_definitions(x65_north PRIVATE
     PLL_SYS_REFDIV=1
     PLL_SYS_VCO_FREQ_HZ=1344000000
     PLL_SYS_POSTDIV1=6
@@ -30,11 +30,11 @@ target_compile_definitions(x65_ria PRIVATE
     LFS_NAME_MAX=16
 )
 
-target_compile_options(x65_ria PRIVATE
+target_compile_options(x65_north PRIVATE
     -Wall -Wextra
 )
 
-target_link_libraries(x65_ria PRIVATE
+target_link_libraries(x65_north PRIVATE
     pico_aon_timer
     pico_stdlib
     pico_multicore
@@ -47,94 +47,94 @@ target_link_libraries(x65_ria PRIVATE
     pico_btstack_ble
 )
 
-pico_generate_pio_header(x65_ria
-    ${CMAKE_CURRENT_LIST_DIR}/ria/cpu.pio
+pico_generate_pio_header(x65_north
+    ${CMAKE_CURRENT_LIST_DIR}/north/cpu.pio
 )
 
-pico_generate_pio_header(x65_ria
+pico_generate_pio_header(x65_north
     ${CMAKE_CURRENT_LIST_DIR}/pix.pio
 )
 
-target_sources(x65_ria PRIVATE
+target_sources(x65_north PRIVATE
     fatfs/ff.c
     fatfs/ffunicode.c
     littlefs/lfs.c
     littlefs/lfs_util.c
-    ria/main.c
-    ria/api/api.c
-    ria/api/clk.c
-    ria/api/dir.c
-    ria/api/oem.c
-    ria/api/rng.c
-    ria/api/std.c
-    ria/hid/hid.c
-    ria/hid/kbd.c
-    ria/hid/mou.c
-    ria/hid/pad.c
-    ria/mon/at.c
-    ria/mon/fil.c
-    ria/mon/hlp.c
-    ria/mon/mon.c
-    ria/mon/ram.c
-    ria/mon/rom.c
-    ria/mon/set.c
-    ria/mon/str.c
-    ria/mon/tst.c
-    ria/sys/cfg.c
-    ria/sys/com.c
-    ria/sys/cpu.c
-    ria/sys/led.c
-    ria/sys/lfs.c
-    ria/sys/mem.c
-    ria/sys/pix.c
-    ria/sys/ria.c
-    ria/sys/rln.c
-    ria/sys/sys.c
-    ria/sys/vga.c
-    ria/usb/msc.c
-    ria/usb/usb.c
-    ria/usb/xin.c
+    north/main.c
+    north/api/api.c
+    north/api/clk.c
+    north/api/dir.c
+    north/api/oem.c
+    north/api/rng.c
+    north/api/std.c
+    north/hid/hid.c
+    north/hid/kbd.c
+    north/hid/mou.c
+    north/hid/pad.c
+    north/mon/at.c
+    north/mon/fil.c
+    north/mon/hlp.c
+    north/mon/mon.c
+    north/mon/ram.c
+    north/mon/rom.c
+    north/mon/set.c
+    north/mon/str.c
+    north/mon/tst.c
+    north/sys/cfg.c
+    north/sys/com.c
+    north/sys/cpu.c
+    north/sys/led.c
+    north/sys/lfs.c
+    north/sys/mem.c
+    north/sys/pix.c
+    north/sys/ria.c
+    north/sys/rln.c
+    north/sys/sys.c
+    north/sys/vga.c
+    north/usb/msc.c
+    north/usb/usb.c
+    north/usb/xin.c
     ${CMAKE_CURRENT_BINARY_DIR}/version.h
 )
 
 
-# The X65 VPU
+# The X65 SouthBridge (including CGIA)
 
-add_executable(x65_vpu)
-pico_add_extra_outputs(x65_vpu)
-pico_set_program_name(x65_vpu "X65 VPU")
-pico_set_binary_type(x65_vpu copy_to_ram)
+add_executable(x65_south)
+pico_add_extra_outputs(x65_south)
+pico_set_program_name(x65_south "X65 SouthBridge")
+pico_set_binary_type(x65_south copy_to_ram)
 
-target_compile_options(x65_vpu PRIVATE
+target_compile_options(x65_south PRIVATE
     -Wall -Wextra
 )
 
-target_include_directories(x65_vpu PRIVATE
-    ${CMAKE_CURRENT_LIST_DIR}/vpu
+target_include_directories(x65_south PRIVATE
+    ${CMAKE_CURRENT_LIST_DIR}/south
     ${CMAKE_CURRENT_LIST_DIR}
     ${CMAKE_CURRENT_LIST_DIR}/tinyusb/src
 )
 
-target_sources(x65_vpu PRIVATE
-    vpu/main.c
-    vpu/cgia/cgia.c
-    vpu/cgia/cgia_encode.S
-    vpu/cgia/cgia_sprites.S
-    vpu/sys/com.c
-    vpu/sys/led.c
-    vpu/sys/out.c
-    vpu/sys/pix.c
-    vpu/sys/sys.c
-    vpu/term/color.c
-    vpu/term/font.c
-    vpu/term/term.c
-    vpu/usb/cdc.c
-    vpu/usb/descriptors.c
-    vpu/usb/usb.c
+target_sources(x65_south PRIVATE
+    south/main.c
+    south/cgia/cgia.c
+    south/cgia/cgia_encode.S
+    south/cgia/cgia_sprites.S
+    south/sys/com.c
+    south/sys/led.c
+    south/sys/out.c
+    south/sys/pix.c
+    south/sys/sys.c
+    south/term/color.c
+    south/term/font.c
+    south/term/term.c
+    south/usb/cdc.c
+    south/usb/descriptors.c
+    south/usb/usb.c
     ${CMAKE_CURRENT_BINARY_DIR}/version.h
 )
 
-target_link_libraries(x65_vpu PRIVATE
+target_link_libraries(x65_south PRIVATE
     pico_stdlib
     pico_multicore
     pico_unique_id
@@ -144,11 +144,11 @@ target_link_libraries(x65_vpu PRIVATE
     tinyusb_device
 )
 
-pico_generate_pio_header(x65_vpu
+pico_generate_pio_header(x65_south
     ${CMAKE_CURRENT_LIST_DIR}/pix.pio
 )
 
-target_compile_definitions(x65_vpu PRIVATE
+target_compile_definitions(x65_south PRIVATE
     PLL_SYS_REFDIV=1
     PLL_SYS_VCO_FREQ_HZ=1344000000
     PLL_SYS_POSTDIV1=4
@@ -161,34 +161,34 @@ target_compile_definitions(x65_vpu PRIVATE
 )
 
 
-# The X65 SPU
+# The X65 Custom Sound Processor
 
-add_executable(x65_spu)
-pico_add_extra_outputs(x65_spu)
-pico_set_program_name(x65_spu "X65 SPU")
-pico_set_binary_type(x65_spu copy_to_ram)
+add_executable(x65_xcsp)
+pico_add_extra_outputs(x65_xcsp)
+pico_set_program_name(x65_xcsp "X65 Custom Sound Processor")
+pico_set_binary_type(x65_xcsp copy_to_ram)
 
-target_compile_options(x65_spu PRIVATE
+target_compile_options(x65_xcsp PRIVATE
     -Wall -Wextra
 )
 
-target_include_directories(x65_spu PRIVATE
-    ${CMAKE_CURRENT_LIST_DIR}/spu
+target_include_directories(x65_xcsp PRIVATE
+    ${CMAKE_CURRENT_LIST_DIR}/xcsp
     ${CMAKE_CURRENT_LIST_DIR}
     ${CMAKE_CURRENT_LIST_DIR}/tinyusb/src
 )
 
-target_sources(x65_spu PRIVATE
-    spu/main.c
-    spu/sys/aud.c
-    spu/sys/led.c
-    spu/sys/sys.c
-    spu/usb/descriptors.c
-    spu/usb/usb.c
+target_sources(x65_xcsp PRIVATE
+    xcsp/main.c
+    xcsp/sys/aud.c
+    xcsp/sys/led.c
+    xcsp/sys/sys.c
+    xcsp/usb/descriptors.c
+    xcsp/usb/usb.c
     ${CMAKE_CURRENT_BINARY_DIR}/version.h
 )
 
-target_link_libraries(x65_spu PRIVATE
+target_link_libraries(x65_xcsp PRIVATE
     pico_stdlib
     pico_multicore
     pico_rand
@@ -200,11 +200,11 @@ target_link_libraries(x65_spu PRIVATE
     tinyusb_device
 )
 
-pico_generate_pio_header(x65_spu
-    ${CMAKE_CURRENT_LIST_DIR}/spu/aud.pio
+pico_generate_pio_header(x65_xcsp
+    ${CMAKE_CURRENT_LIST_DIR}/xcsp/aud.pio
 )
 
-target_compile_definitions(x65_spu PRIVATE
+target_compile_definitions(x65_xcsp PRIVATE
     PLL_SYS_REFDIV=1
     PLL_SYS_VCO_FREQ_HZ=1344000000
     PLL_SYS_POSTDIV1=4
@@ -221,7 +221,7 @@ target_compile_definitions(x65_spu PRIVATE
 # Please change name for hardware forks.
 # For release, set version string and set code page to 0.
 
-set_property(TARGET x65_ria x65_vpu x65_spu
+set_property(TARGET x65_north x65_south x65_xcsp
     APPEND PROPERTY COMPILE_DEFINITIONS
     RP6502_NAME="X65 microcomputer"
     RP6502_VERSION=""

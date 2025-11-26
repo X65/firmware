@@ -5,7 +5,7 @@
 ;
 .pio_version 1
 
-.program pix_ria
+.program pix_nb
 .side_set 1 ; SCK
 
 .wrap_target
@@ -20,7 +20,7 @@
 .wrap
 
 
-.program pix_vpu
+.program pix_sb
 .side_set 1 ; DTR
 
 .wrap_target

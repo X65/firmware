@@ -39,8 +39,8 @@ static enum state {
 void pix_init(void)
 {
     pio_set_gpio_base(PIX_PIO, 16);
-    uint offset = pio_add_program(PIX_PIO, &pix_ria_program);
-    pio_sm_config config = pix_ria_program_get_default_config(offset);
+    uint offset = pio_add_program(PIX_PIO, &pix_nb_program);
+    pio_sm_config config = pix_nb_program_get_default_config(offset);
     const float clkdiv = (float)(clock_get_hz(clk_sys)) / (PIX_BUS_PIO_SPEED_KHZ * KHZ);
     sm_config_set_clkdiv(&config, clkdiv);
     sm_config_set_out_pin_base(&config, PIX_PIN_BASE);

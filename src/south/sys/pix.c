@@ -8,7 +8,6 @@
 #include "../pix.h"
 #include "hw.h"
 #include "pix.pio.h"
-#include "ria/hw.h"
 #include "term/font.h"
 #include <hardware/clocks.h>
 #include <hardware/dma.h>
@@ -81,8 +80,8 @@ static bool pix_ch15_xreg(uint8_t addr, uint16_t word)
 void pix_init(void)
 {
     pio_set_gpio_base(PIX_PIO, 16);
-    uint offset = pio_add_program(PIX_PIO, &pix_vpu_program);
-    pio_sm_config config = pix_vpu_program_get_default_config(offset);
+    uint offset = pio_add_program(PIX_PIO, &pix_sb_program);
+    pio_sm_config config = pix_sb_program_get_default_config(offset);
     const float clkdiv = (float)(clock_get_hz(clk_sys)) / (PIX_BUS_PIO_SPEED_KHZ * KHZ);
     sm_config_set_clkdiv(&config, clkdiv);
     sm_config_set_out_pin_base(&config, PIX_PIN_BASE);
