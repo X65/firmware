@@ -73,12 +73,6 @@ void ria_task(void)
     }
 }
 
-#define RIA_RW0   REGS(0xFFE4)
-#define RIA_STEP0 *(int8_t *)&REGS(0xFFE5)
-#define RIA_ADDR0 REGSW(0xFFE6)
-#define RIA_RW1   REGS(0xFFE8)
-#define RIA_STEP1 *(int8_t *)&REGS(0xFFE9)
-#define RIA_ADDR1 REGSW(0xFFEA)
 // This becomes unstable every time I tried to get to O3 by trurning off
 // specific optimizations. The annoying bit is that different hardware doesn't
 // behave the same. I'm giving up and leaving this at O1, which is plenty fast.
@@ -205,40 +199,40 @@ __attribute__((optimize("O1"))) static void __no_inline_not_in_flash_func(act_lo
                         case CASE_READ(0xFFEC): // IRQ ACK
                             gpio_put(RIA_IRQB_PIN, true);
                             break;
-                        case CASE_WRIT(0xFFEB): // Set XRAM >ADDR1
-                            REGS(0xFFEB) = data;
-                            RIA_RW1 = xram[RIA_ADDR1];
-                            break;
-                        case CASE_WRIT(0xFFEA): // Set XRAM <ADDR1
-                            REGS(0xFFEA) = data;
-                            RIA_RW1 = xram[RIA_ADDR1];
-                            break;
-                        case CASE_WRIT(0xFFE8): // W XRAM1
-                            xram[RIA_ADDR1] = data;
-                            PIX_SEND_XRAM(RIA_ADDR1, data);
-                            RIA_RW0 = xram[RIA_ADDR0];
-                            __attribute__((fallthrough));
-                        case CASE_READ(0xFFE8): // R XRAM1
-                            RIA_ADDR1 += RIA_STEP1;
-                            RIA_RW1 = xram[RIA_ADDR1];
-                            break;
-                        case CASE_WRIT(0xFFE7): // Set XRAM >ADDR0
-                            REGS(0xFFE7) = data;
-                            RIA_RW0 = xram[RIA_ADDR0];
-                            break;
-                        case CASE_WRIT(0xFFE6): // Set XRAM <ADDR0
-                            REGS(0xFFE6) = data;
-                            RIA_RW0 = xram[RIA_ADDR0];
-                            break;
-                        case CASE_WRIT(0xFFE4): // W XRAM0
-                            xram[RIA_ADDR0] = data;
-                            PIX_SEND_XRAM(RIA_ADDR0, data);
-                            RIA_RW1 = xram[RIA_ADDR1];
-                            __attribute__((fallthrough));
-                        case CASE_READ(0xFFE4): // R XRAM0
-                            RIA_ADDR0 += RIA_STEP0;
-                            RIA_RW0 = xram[RIA_ADDR0];
-                            break;
+                        // case CASE_WRIT(0xFFEB): // Set XRAM >ADDR1
+                        //     REGS(0xFFEB) = data;
+                        //     RIA_RW1 = xram[RIA_ADDR1];
+                        //     break;
+                        // case CASE_WRIT(0xFFEA): // Set XRAM <ADDR1
+                        //     REGS(0xFFEA) = data;
+                        //     RIA_RW1 = xram[RIA_ADDR1];
+                        //     break;
+                        // case CASE_WRIT(0xFFE8): // W XRAM1
+                        //     xram[RIA_ADDR1] = data;
+                        //     PIX_SEND_XRAM(RIA_ADDR1, data);
+                        //     RIA_RW0 = xram[RIA_ADDR0];
+                        //     __attribute__((fallthrough));
+                        // case CASE_READ(0xFFE8): // R XRAM1
+                        //     RIA_ADDR1 += RIA_STEP1;
+                        //     RIA_RW1 = xram[RIA_ADDR1];
+                        //     break;
+                        // case CASE_WRIT(0xFFE7): // Set XRAM >ADDR0
+                        //     REGS(0xFFE7) = data;
+                        //     RIA_RW0 = xram[RIA_ADDR0];
+                        //     break;
+                        // case CASE_WRIT(0xFFE6): // Set XRAM <ADDR0
+                        //     REGS(0xFFE6) = data;
+                        //     RIA_RW0 = xram[RIA_ADDR0];
+                        //     break;
+                        // case CASE_WRIT(0xFFE4): // W XRAM0
+                        //     xram[RIA_ADDR0] = data;
+                        //     PIX_SEND_XRAM(RIA_ADDR0, data);
+                        //     RIA_RW1 = xram[RIA_ADDR1];
+                        //     __attribute__((fallthrough));
+                        // case CASE_READ(0xFFE4): // R XRAM0
+                        //     RIA_ADDR0 += RIA_STEP0;
+                        //     RIA_RW0 = xram[RIA_ADDR0];
+                        //     break;
                         case CASE_READ(0xFFE1): // UART Rx
                         {
                             const int ch = com_rx_char;

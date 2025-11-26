@@ -10,13 +10,18 @@
 /* All pin assignments
  */
 
+#define VPU_LED_PIN 25
+
 // UART connected to RIA
 #define COM_UART_TX_PIN 4
-#define COM_UART_RX_PIN 5
+#define COM_UART_RX_PIN (COM_UART_TX_PIN + 1)
+
+#define PIX_PIN_BASE  38 /* PIX0-PIX7, PIX_CLK, PIX_DTR */
+#define PIX_PIN_DTR   (PIX_PIN_BASE + 8)
+#define PIX_PIN_SCK   (PIX_PIN_BASE + 9)
+#define PIX_PINS_USED 10
 
 #define VPU_NMIB_PIN 21
-
-#define VPU_LED_PIN 25
 
 // ---
 #define AUD_SPI_PIN_BASE 32
@@ -37,6 +42,10 @@
 
 #define COM_UART_INTERFACE uart1
 #define COM_UART_BAUDRATE  115200
+
+// PIX bus
+#define PIX_PIO pio1
+#define PIX_SM  0
 
 // ---
 // DVI uses DMA in ping-ping setup

@@ -58,14 +58,14 @@ static void vga_backchannel_command(uint8_t byte)
         if (scalar < (vframe & 0xF))
             vframe = (vframe & 0xF0) + 0x10;
         vframe = (vframe & 0xF0) | scalar;
-        REGS(0xFFE3) = vframe;
+        // REGS(0xFFE3) = vframe;
         ria_trigger_irq();
         break;
     case 0x90:
-        pix_ack();
+        // pix_ack();
         break;
     case 0xA0:
-        pix_nak();
+        // pix_nak();
         break;
     }
 }
@@ -154,7 +154,7 @@ void vga_task(void)
     if (vga_needs_reset)
     {
         vga_needs_reset = false;
-        pix_send_blocking(PIX_DEVICE_VGA, 0xF, 0x00, 0);
+        // pix_send_blocking(PIX_DEVICE_VGA, 0xF, 0x00, 0);
     }
 }
 
@@ -181,7 +181,7 @@ void vga_break(void)
 
 bool vga_set_vga(uint32_t display_type)
 {
-    pix_send_blocking(PIX_DEVICE_VGA, 0xF, 0x00, display_type);
+    // pix_send_blocking(PIX_DEVICE_VGA, 0xF, 0x00, display_type);
     return true;
 }
 

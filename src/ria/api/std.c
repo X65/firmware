@@ -251,18 +251,18 @@ bool std_api_read_xram(void)
     //     std_count_mdm = -1;
     //     return api_working();
     // }
-    if (std_count_xram >= 0)
-    {
-        uint16_t xram_addr = std_buf_ptr - (char *)xram;
-        for (; std_count_xram && pix_ready(); --std_count_xram, ++xram_addr, ++std_buf_ptr)
-            pix_send(PIX_DEVICE_XRAM, 0, xram[xram_addr], xram_addr);
-        if (!std_count_xram)
-        {
-            std_count_xram = -1;
-            return api_return();
-        }
-        return api_working();
-    }
+    // if (std_count_xram >= 0)
+    // {
+    //     uint16_t xram_addr = std_buf_ptr - (char *)xram;
+    //     for (; std_count_xram && pix_ready(); --std_count_xram, ++xram_addr, ++std_buf_ptr)
+    //         pix_send(PIX_DEVICE_XRAM, 0, xram[xram_addr], xram_addr);
+    //     if (!std_count_xram)
+    //     {
+    //         std_count_xram = -1;
+    //         return api_return();
+    //     }
+    //     return api_working();
+    // }
     uint16_t count;
     uint16_t xram_addr;
     int16_t fd = API_A;

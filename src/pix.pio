@@ -1,0 +1,34 @@
+;
+; Copyright (c) 2025 Tomasz Sterna
+;
+; SPDX-License-Identifier: BSD-3-Clause
+;
+.pio_version 1
+
+.program pix_ria
+.side_set 1 ; SCK
+
+.wrap_target
+    mov pindirs, ~null  side 0      ; PIX0-PIX7 are outputs, clock LOW
+    pull block          side 0      ; wait for data to send
+    out pins, 8         side 0      ; set output data
+    wait 1 jmppin       side 0      ; wait for DTR (should already be up)
+    wait 0 jmppin       side 1      ; raise SCK line and wait for DTR-ACK
+    mov pindirs, null   side 1      ; PIX0-PIX7 are now inputs
+    wait 1 jmppin       side 1      ; wait for incoming data
+    in  pins, 8         side 0      ; read incoming data, lower SCK
+.wrap
+
+
+.program pix_vpu
+.side_set 1 ; DTR
+
+.wrap_target
+    mov pindirs, null   side 1      ; PIX0-PIX7 are inputs, ready to read
+    wait 1 jmppin       side 1      ; wait for SCK high
+    in  pins, 8         side 0      ; read incoming data, ACK by lowering DTR
+    mov pindirs, ~null  side 0      ; PIX0-PIX7 are outputs
+    pull block          side 0      ; wait for data to send
+    out pins, 8         side 0      ; set output data
+    wait 0 jmppin       side 1      ; raise DTR and wait for next SCK cycle
+.wrap

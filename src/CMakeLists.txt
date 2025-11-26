@@ -32,7 +32,6 @@ target_compile_definitions(x65_ria PRIVATE
 
 target_compile_options(x65_ria PRIVATE
     -Wall -Wextra
-    $<$<CONFIG:Release>:-Os>
 )
 
 target_link_libraries(x65_ria PRIVATE
@@ -53,7 +52,7 @@ pico_generate_pio_header(x65_ria
 )
 
 pico_generate_pio_header(x65_ria
-    ${CMAKE_CURRENT_LIST_DIR}/ria/ria.pio
+    ${CMAKE_CURRENT_LIST_DIR}/pix.pio
 )
 
 target_sources(x65_ria PRIVATE
@@ -146,7 +145,7 @@ target_link_libraries(x65_vpu PRIVATE
 )
 
 pico_generate_pio_header(x65_vpu
-    ${CMAKE_CURRENT_LIST_DIR}/vpu/vpu.pio
+    ${CMAKE_CURRENT_LIST_DIR}/pix.pio
 )
 
 target_compile_definitions(x65_vpu PRIVATE

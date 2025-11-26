@@ -10,17 +10,19 @@
 /* All pin assignments
  */
 
-// #define RIA_LED_PIN 25 - overlaps with CPU BUS
 #define RIA_LED_PIN 37
 
-#define PIX_PIN_BASE  38 /* PIX0-PIX7, PIX_CLK, PIX_DTR */
-#define PIX_PINS_USED 10
-
+// monitor console
 #define COM_UART_TX_PIN    32
-#define COM_UART_RX_PIN    33
+#define COM_UART_RX_PIN    (COM_UART_TX_PIN + 1)
 #define COM_UART_GPIO_FUNC GPIO_FUNC_UART
 
-#define RIA_IRQB_PIN 36 /* connected to RIAB (IRQ0) on interrupt controller  */
+#define PIX_PIN_BASE  38 /* PIX0-PIX7, PIX_CLK, PIX_DTR */
+#define PIX_PIN_DTR   (PIX_PIN_BASE + 8)
+#define PIX_PIN_SCK   (PIX_PIN_BASE + 9)
+#define PIX_PINS_USED 10
+
+#define RIA_IRQB_PIN 36 /* connected to IRQ0 on interrupt controller  */
 
 #define PSRAM_BANKS_NO   2
 #define QMI_PSRAM_CS_PIN 8

@@ -4,8 +4,8 @@
  * SPDX-License-Identifier: BSD-3-Clause
  */
 
-#include "api/api.h"
 #include "api/oem.h"
+#include "api/api.h"
 #include "sys/cfg.h"
 #include "sys/pix.h"
 #include <fatfs/ff.h>
@@ -14,7 +14,10 @@
 #include <stdio.h>
 #define DBG(...) fprintf(stderr, __VA_ARGS__)
 #else
-static inline void DBG(const char *fmt, ...) { (void)fmt; }
+static inline void DBG(const char *fmt, ...)
+{
+    (void)fmt;
+}
 #endif
 
 // Only the code page specified by RP6502_CODE_PAGE is installed to flash.
@@ -55,7 +58,7 @@ static uint16_t oem_find_code_page(uint16_t cp)
 uint16_t oem_set_code_page(uint16_t cp)
 {
     cp = oem_find_code_page(cp);
-    pix_send_blocking(PIX_DEVICE_VGA, 0xFu, 0x01u, cp);
+    // pix_send_blocking(PIX_DEVICE_VGA, 0xFu, 0x01u, cp);
     return cp;
 }
 

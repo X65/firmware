@@ -50,8 +50,8 @@ static void init(void)
     // GPIO drivers.
     cpu_init();
     ria_init();
-    // pix_init();
-    // vga_init(); // Must be after PIX
+    pix_init();
+    vga_init(); // Must be after PIX
 
     // Load config before we continue.
     lfs_init();
@@ -83,6 +83,7 @@ void main_task(void)
 {
     usb_task();
     cpu_task();
+    pix_task();
     ria_task();
     kbd_task();
     // vga_task();
@@ -171,8 +172,8 @@ bool main_api(uint8_t operation)
 {
     switch (operation)
     {
-    case 0x01:
-        return pix_api_xreg();
+    // case 0x01:
+    //     return pix_api_xreg();
     // case 0x02:
     //     return cpu_api_phi2();
     case 0x03:
