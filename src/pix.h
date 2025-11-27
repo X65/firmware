@@ -33,4 +33,23 @@ typedef enum pix
     PIX_DEV_READ,
 } pix_msg_type_t;
 
+#define PIX_MESSAGE(msg_type, msg_len) \
+    (((msg_type & 0b111) << 5) | ((msg_len - 1) & 0b11111))
+
+typedef enum pix_dev
+{
+    PIX_DEV_RIA = 0,
+    PIX_DEV_VPU = 1,
+} pix_dev_t;
+
+#define PIX_DEVICE_CMD(device, cmd) \
+    ((cmd & 0xF) | ((device & 0xF) << 4))
+
+typedef enum pix_vpu_cmd
+{
+    PIX_VPU_CMD_GET_STATUS = 0,
+    PIX_VPU_CMD_SET_MODE_VT,
+    PIX_VPU_CMD_SET_MODE_CGIA,
+} pix_vpu_cmd_t;
+
 #endif /* _PIX_H_ */

@@ -5,6 +5,7 @@
  */
 
 #include "sys/vga.h"
+#include "../pix.h"
 #include "sys/cpu.h"
 #include "sys/mem.h"
 #include "sys/pix.h"
@@ -160,18 +161,16 @@ void vga_task(void)
 
 void vga_run(void)
 {
-    // It's normal to lose signal during Pico VPU development.
-    // Attempt to restart when a 6502 program is run.
-    if (vga_state == VPU_LOST_SIGNAL && !cpu_active())
-        vga_connect();
+    // Switch to CGIA mode
+    pix_send_blocking(PIX_MESSAGE(PIX_DEV_CMD, 1));
+    pix_send_blocking(PIX_DEVICE_CMD(PIX_DEV_VPU, PIX_VPU_CMD_SET_MODE_CGIA));
 }
 
 void vga_stop(void)
 {
-    // We want to reset only when program stops,
-    // otherwise video flickers after every ria job.
-    if (!cpu_active())
-        vga_needs_reset = true;
+    // Switch to VT mode
+    pix_send_blocking(PIX_MESSAGE(PIX_DEV_CMD, 1));
+    pix_send_blocking(PIX_DEVICE_CMD(PIX_DEV_VPU, PIX_VPU_CMD_SET_MODE_VT));
 }
 
 void vga_break(void)
