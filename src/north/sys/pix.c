@@ -50,7 +50,7 @@ void pix_init(void)
     sm_config_set_sideset_pin_base(&config, PIX_PIN_SCK);
     sm_config_set_jmp_pin(&config, PIX_PIN_DTR);
     sm_config_set_out_shift(&config, true, false, 0);
-    sm_config_set_in_shift(&config, false, true, 8);
+    sm_config_set_in_shift(&config, false, true, 16);
     for (int i = 0; i < PIX_PINS_USED; i++)
         pio_gpio_init(PIX_PIO, PIX_PIN_BASE + i);
     pio_sm_init(PIX_PIO, PIX_SM, offset, &config);
@@ -64,18 +64,25 @@ void pix_init(void)
     // pix_send(PIX_DEVICE_IDLE, 0, 0, 0);
 }
 
-static uint32_t sent = 0x42;
+static uint32_t sent = 0;
 void pix_task(void)
 {
-    if (pio_sm_is_tx_fifo_empty(PIX_PIO, PIX_SM) && sent < 0x48)
+    if (pio_sm_is_tx_fifo_empty(PIX_PIO, PIX_SM) && !(sent & 1))
     {
-        pio_sm_put(PIX_PIO, PIX_SM, sent++);
-        // printf(".%d\n", ++sent);
+        const int msg_count = 31; // encoded as n-1
+        pio_sm_put(PIX_PIO, PIX_SM, (0x1 << 5) | (msg_count & 0b11111));
+        for (int i = 0; i <= msg_count; i++)
+        {
+            pio_sm_put_blocking(PIX_PIO, PIX_SM, 0x11 + i + sent);
+        }
+        ++sent;
     }
     while (!pio_sm_is_rx_fifo_empty(PIX_PIO, PIX_SM))
     {
         uint32_t raw = pio_sm_get(PIX_PIO, PIX_SM);
-        printf("<<<: %08X\n", raw);
+        printf("<<< %04lX\n", raw);
+        if (sent < 6)
+            ++sent;
     }
 }
 

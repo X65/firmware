@@ -90,7 +90,7 @@ void pix_init(void)
     sm_config_set_in_pin_count(&config, 8);
     sm_config_set_sideset_pin_base(&config, PIX_PIN_DTR);
     sm_config_set_jmp_pin(&config, PIX_PIN_SCK);
-    sm_config_set_out_shift(&config, true, false, 0);
+    sm_config_set_out_shift(&config, false, false, 0);
     sm_config_set_in_shift(&config, false, true, 8);
     for (int i = 0; i < PIX_PINS_USED; i++)
         pio_gpio_init(PIX_PIO, PIX_PIN_BASE + i);
@@ -101,21 +101,35 @@ void pix_init(void)
     pio_sm_set_enabled(PIX_PIO, PIX_SM, true);
 }
 
+uint8_t pix_buffer[32];
 void pix_task(void)
 {
-    while (!pio_sm_is_rx_fifo_empty(PIX_PIO, PIX_SM))
+    if (!pio_sm_is_rx_fifo_empty(PIX_PIO, PIX_SM))
     {
-        uint32_t raw = pio_sm_get(PIX_PIO, PIX_SM);
-        printf(">>>: %08X\n", raw);
-        pio_sm_put(PIX_PIO, PIX_SM, raw | 0x80); // echo back
-        // uint8_t ch = (raw & 0x0F000000) >> 24;
-        // uint8_t addr = (raw & 0x00FF0000) >> 16;
-        // uint16_t word = raw & 0xFFFF;
-        // // These return true on slow operations to
-        // // allow us to stay greedy on fast ones.
-        // if (ch == 0 && pix_ch0_xreg(addr, word))
-        //     break;
-        // if (ch == 15 && pix_ch15_xreg(addr, word))
-        //     break;
+        uint32_t header = pio_sm_get(PIX_PIO, PIX_SM);
+        uint8_t frame_count = header & 0b11111;
+        for (int i = 0; i <= frame_count; i++)
+        {
+            pix_buffer[i] = (uint8_t)pio_sm_get_blocking(PIX_PIO, PIX_SM);
+        }
+        printf(">>> %04lX: ", header);
+        for (int i = 0; i <= frame_count; i++)
+        {
+            printf("%02X ", pix_buffer[i]);
+        }
+        printf("\n");
+
+        // duplicate most significant bits using half-word write
+        *(io_rw_16 *)&PIX_PIO->txf[PIX_SM] = 0x1245;
     }
+
+    // uint8_t ch = (raw & 0x0F000000) >> 24;
+    // uint8_t addr = (raw & 0x00FF0000) >> 16;
+    // uint16_t word = raw & 0xFFFF;
+    // // These return true on slow operations to
+    // // allow us to stay greedy on fast ones.
+    // if (ch == 0 && pix_ch0_xreg(addr, word))
+    //     break;
+    // if (ch == 15 && pix_ch15_xreg(addr, word))
+    //     break;
 }
