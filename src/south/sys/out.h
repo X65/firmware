@@ -41,4 +41,16 @@
 void out_init(void);
 void out_print_status(void);
 
+typedef enum
+{
+    OUT_MODE_VT = 0,
+    OUT_MODE_CGIA,
+} out_mode_t;
+
+extern volatile out_mode_t out_mode;
+inline void out_set_mode(out_mode_t mode)
+{
+    out_mode = mode;
+}
+
 #endif /* _VGA_SYS_OUT_H_ */

@@ -5,6 +5,8 @@
 ;
 .pio_version 1
 
+.define public PIX_INT_NUM 0
+
 .program pix_nb
 .side_set 1 ; SCK
 ; jmppin is DTR
@@ -51,6 +53,7 @@ loop:
     in  pins, 5         side 1      ; read frame counter
     mov x, isr          side 1      ; store frame counter
     in  pins, 8         side 1      ; read (again) full header
+    irq set PIX_INT_NUM side 1      ; signal header received
     wait 0 jmppin       side 0      ; wait for next SCK
 loop:
     wait 1 jmppin       side 1      ; wait for SCK high

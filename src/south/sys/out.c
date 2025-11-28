@@ -36,7 +36,8 @@ static io_rw_32 gen_line_ptr;
 
 static bool trigger_vbl = false;
 
-static uint pixel_doubling = FB_H_REPEAT ? 1 : 0;
+volatile out_mode_t out_mode = OUT_MODE_VT;
+static volatile out_mode_t active_mode = OUT_MODE_CGIA;
 
 // ----------------------------------------------------------------------------
 // DVI constants
@@ -115,11 +116,6 @@ static uint v_scanline = 2;
 // post the command list, and another to post the pixels.
 static bool vactive_cmdlist_posted = false;
 
-static bool main_active(void)
-{
-    return false;
-}
-
 void __isr dma_irq_handler(void)
 {
     // dma_pong indicates the channel that just finished, which is the one
@@ -136,17 +132,17 @@ void __isr dma_irq_handler(void)
 
         a_scanline = 0;
 
-        if (!main_active() && pixel_doubling)
+        if (out_mode == OUT_MODE_VT && active_mode != OUT_MODE_VT)
         {
-            pixel_doubling = 0;
+            active_mode = OUT_MODE_VT;
             hstx_ctrl_hw->expand_shift = 1 << HSTX_CTRL_EXPAND_SHIFT_ENC_N_SHIFTS_LSB
                                          | 0 << HSTX_CTRL_EXPAND_SHIFT_ENC_SHIFT_LSB
                                          | 1 << HSTX_CTRL_EXPAND_SHIFT_RAW_N_SHIFTS_LSB
                                          | 0 << HSTX_CTRL_EXPAND_SHIFT_RAW_SHIFT_LSB;
         }
-        else if (main_active() && !pixel_doubling)
+        else if (out_mode == OUT_MODE_CGIA && active_mode != OUT_MODE_CGIA)
         {
-            pixel_doubling = 1;
+            active_mode = OUT_MODE_CGIA;
             hstx_ctrl_hw->expand_shift = 2 << HSTX_CTRL_EXPAND_SHIFT_ENC_N_SHIFTS_LSB
                                          | 0 << HSTX_CTRL_EXPAND_SHIFT_ENC_SHIFT_LSB
                                          | 1 << HSTX_CTRL_EXPAND_SHIFT_RAW_N_SHIFTS_LSB
@@ -176,7 +172,7 @@ void __isr dma_irq_handler(void)
             gen_line_ptr = ptr;
         }
         ch->read_addr = cur_line_ptr;
-        ch->transfer_count = MODE_H_ACTIVE_PIXELS >> pixel_doubling;
+        ch->transfer_count = MODE_H_ACTIVE_PIXELS >> (active_mode == OUT_MODE_CGIA ? 1 : 0);
         vactive_cmdlist_posted = false;
 
         ++a_scanline;
@@ -319,13 +315,14 @@ void __not_in_flash_func(out_core1_main)(void)
             uint16_t generated_raster = gen_scanline / FB_V_REPEAT;
             if (generated_raster != active_raster)
             {
-                if (pixel_doubling)
+                switch (active_mode)
                 {
-                    cgia_render((uint16_t)active_raster, (uint32_t *)gen_line_ptr);
-                }
-                else
-                {
+                case OUT_MODE_VT:
                     term_render(active_raster, (uint32_t *)gen_line_ptr);
+                    break;
+                case OUT_MODE_CGIA:
+                    cgia_render((uint16_t)active_raster, (uint32_t *)gen_line_ptr);
+                    break;
                 }
                 gen_scanline = active_scanline;
             }
