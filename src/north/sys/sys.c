@@ -10,7 +10,7 @@
 #include "sys/cpu.h"
 #include "sys/mem.h"
 #include "sys/ria.h"
-#include "sys/vga.h"
+#include "sys/vpu.h"
 #include "usb/usb.h"
 #include "version.h"
 #include <hardware/watchdog.h>
@@ -65,7 +65,7 @@ void sys_mon_status(const char *args, size_t len)
     sys_print_status();
     ria_print_status();
     cpu_print_status();
-    vga_print_status();
+    vpu_print_status();
     mem_print_status();
     clk_print_status();
     usb_print_status();
@@ -77,6 +77,6 @@ void sys_init(void)
     puts("\30\33c");
     // Hello, world.
     sys_print_status();
-    if (vga_connected())
-        vga_print_status();
+    if (vpu_connected())
+        vpu_print_status();
 }

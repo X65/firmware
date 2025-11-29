@@ -4,8 +4,8 @@
  * SPDX-License-Identifier: BSD-3-Clause
  */
 
-#ifndef _VGA_SYS_SYS_H_
-#define _VGA_SYS_SYS_H_
+#ifndef _SB_SYS_SYS_H_
+#define _SB_SYS_SYS_H_
 
 /* System Information
  */
@@ -14,7 +14,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
-// VGA version string
+// SB version string
 const char *sys_version(void);
 
-#endif /* _VGA_SYS_SYS_H_ */
+#endif /* _SB_SYS_SYS_H_ */

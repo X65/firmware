@@ -4,8 +4,8 @@
  * SPDX-License-Identifier: BSD-3-Clause
  */
 
-#ifndef _VGA_TERM_COLOR_H_
-#define _VGA_TERM_COLOR_H_
+#ifndef _SB_TERM_COLOR_H_
+#define _SB_TERM_COLOR_H_
 
 #include <stdbool.h>
 #include <stddef.h>
@@ -19,4 +19,4 @@
 
 extern const uint32_t color_256[256];
 
-#endif /* _VGA_TERM_COLOR_H_ */
+#endif /* _SB_TERM_COLOR_H_ */

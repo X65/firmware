@@ -11,7 +11,7 @@
 #include "main.h"
 #include "sys/pix.h"
 #include "sys/rln.h"
-#include "sys/vga.h"
+#include "sys/vpu.h"
 #include <pico/stdio/driver.h>
 #include <pico/stdlib.h>
 

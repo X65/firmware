@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: BSD-3-Clause
  */
 
-#include "sys/vga.h"
+#include "sys/vpu.h"
 #include "../pix.h"
 #include "sys/cpu.h"
 #include "sys/mem.h"
@@ -15,7 +15,7 @@
 #include <stdio.h>
 #include <strings.h>
 
-#if defined(DEBUG_RIA_SYS) || defined(DEBUG_RIA_SYS_VGA)
+#if defined(DEBUG_RIA_SYS) || defined(DEBUG_RIA_SYS_VPU)
 #include <stdio.h>
 #define DBG(...) fprintf(stderr, __VA_ARGS__)
 #else
@@ -37,24 +37,24 @@ static enum {
     VPU_CONNECTED,   // Connected and version string received
     VPU_NO_VERSION,  // Connected but no version string received
     VPU_LOST_SIGNAL, // Definitely an error condition
-} vga_state;
+} vpu_state;
 
-static absolute_time_t vga_vsync_timer;
-static absolute_time_t vga_version_timer;
+static absolute_time_t vpu_vsync_timer;
+static absolute_time_t vpu_version_timer;
 
 #define VPU_VERSION_MESSAGE_SIZE 80
-char vga_version_message[VPU_VERSION_MESSAGE_SIZE];
-size_t vga_version_message_length;
+char vpu_version_message[VPU_VERSION_MESSAGE_SIZE];
+size_t vpu_version_message_length;
 
-bool vga_needs_reset;
+bool vpu_needs_reset;
 
-static void vga_backchannel_command(uint8_t byte)
+static void vpu_backchannel_command(uint8_t byte)
 {
     uint8_t scalar = byte & 0xF;
     switch (byte & 0xF0)
     {
     case 0x80:
-        vga_vsync_timer = make_timeout_time_ms(VPU_VSYNC_WATCHDOG_MS);
+        vpu_vsync_timer = make_timeout_time_ms(VPU_VSYNC_WATCHDOG_MS);
         static uint8_t vframe;
         if (scalar < (vframe & 0xF))
             vframe = (vframe & 0xF0) + 0x10;
@@ -71,36 +71,36 @@ static void vga_backchannel_command(uint8_t byte)
     }
 }
 
-static void vga_rln_callback(bool timeout, const char *buf, size_t length)
+static void vpu_rln_callback(bool timeout, const char *buf, size_t length)
 {
     // VGA1 means VPU on PIX 1
     if (!timeout && length == 4 && !strncasecmp("VGA1", buf, 4))
-        vga_state = VPU_FOUND;
+        vpu_state = VPU_FOUND;
     else
-        vga_state = VPU_NOT_FOUND;
+        vpu_state = VPU_NOT_FOUND;
 }
 
-static void vga_connect(void)
+static void vpu_connect(void)
 {
     // // Test if VPU connected
-    // uint8_t vga_test_buf[4];
+    // uint8_t vpu_test_buf[4];
     // while (stdio_getchar_timeout_us(0) != PICO_ERROR_TIMEOUT)
     //     tight_loop_contents();
-    // rln_read_binary(VPU_BACKCHANNEL_ACK_MS, vga_rln_callback, vga_test_buf, sizeof(vga_test_buf));
-    // vga_pix_backchannel_request();
-    // vga_state = VPU_TESTING;
-    // while (vga_state == VPU_TESTING)
+    // rln_read_binary(VPU_BACKCHANNEL_ACK_MS, vpu_rln_callback, vpu_test_buf, sizeof(vpu_test_buf));
+    // vpu_pix_backchannel_request();
+    // vpu_state = VPU_TESTING;
+    // while (vpu_state == VPU_TESTING)
     //     rln_task();
-    // if (vga_state == VPU_NOT_FOUND)
-    //     return vga_pix_backchannel_disable();
+    // if (vpu_state == VPU_NOT_FOUND)
+    //     return vpu_pix_backchannel_disable();
 
     // // Turn on the backchannel
     // pio_gpio_init(VPU_BACKCHANNEL_PIO, VPU_BACKCHANNEL_PIN);
-    // vga_pix_backchannel_enable();
+    // vpu_pix_backchannel_enable();
 
     // // Wait for version
-    // vga_version_message_length = 0;
-    // vga_version_timer = make_timeout_time_ms(VPU_VERSION_WATCHDOG_MS);
+    // vpu_version_message_length = 0;
+    // vpu_version_timer = make_timeout_time_ms(VPU_VERSION_WATCHDOG_MS);
     // while (true)
     // {
     //     if (!pio_sm_is_rx_fifo_empty(VPU_BACKCHANNEL_PIO, VPU_BACKCHANNEL_SM))
@@ -108,98 +108,98 @@ static void vga_connect(void)
     //         uint8_t byte = pio_sm_get(VPU_BACKCHANNEL_PIO, VPU_BACKCHANNEL_SM) >> 24;
     //         if (!(byte & 0x80))
     //         {
-    //             vga_version_timer = make_timeout_time_ms(VPU_VERSION_WATCHDOG_MS);
+    //             vpu_version_timer = make_timeout_time_ms(VPU_VERSION_WATCHDOG_MS);
     //             if (byte == '\r' || byte == '\n')
     //             {
-    //                 if (vga_version_message_length > 0)
+    //                 if (vpu_version_message_length > 0)
     //                 {
-    //                     vga_vsync_timer = make_timeout_time_ms(VPU_VSYNC_WATCHDOG_MS);
-    //                     vga_state = VPU_CONNECTED;
+    //                     vpu_vsync_timer = make_timeout_time_ms(VPU_VSYNC_WATCHDOG_MS);
+    //                     vpu_state = VPU_CONNECTED;
     //                     break;
     //                 }
     //             }
-    //             else if (vga_version_message_length < VPU_VERSION_MESSAGE_SIZE - 1u)
+    //             else if (vpu_version_message_length < VPU_VERSION_MESSAGE_SIZE - 1u)
     //             {
-    //                 vga_version_message[vga_version_message_length] = byte;
-    //                 vga_version_message[++vga_version_message_length] = 0;
+    //                 vpu_version_message[vpu_version_message_length] = byte;
+    //                 vpu_version_message[++vpu_version_message_length] = 0;
     //             }
     //         }
     //     }
-    //     if (absolute_time_diff_us(get_absolute_time(), vga_version_timer) < 0)
+    //     if (absolute_time_diff_us(get_absolute_time(), vpu_version_timer) < 0)
     //     {
-    //         vga_vsync_timer = make_timeout_time_ms(VPU_VSYNC_WATCHDOG_MS);
-    //         vga_state = VPU_NO_VERSION;
+    //         vpu_vsync_timer = make_timeout_time_ms(VPU_VSYNC_WATCHDOG_MS);
+    //         vpu_state = VPU_NO_VERSION;
     //         break;
     //     }
     // }
 }
 
-void vga_init(void)
+void vpu_init(void)
 {
     // Reset Pico VPU
-    vga_needs_reset = true;
+    vpu_needs_reset = true;
 
     // Connect and establish backchannel
-    vga_connect();
+    vpu_connect();
 }
 
-void vga_task(void)
+void vpu_task(void)
 {
-    if ((vga_state == VPU_CONNECTED || vga_state == VPU_NO_VERSION) && absolute_time_diff_us(get_absolute_time(), vga_vsync_timer) < 0)
+    if ((vpu_state == VPU_CONNECTED || vpu_state == VPU_NO_VERSION) && absolute_time_diff_us(get_absolute_time(), vpu_vsync_timer) < 0)
     {
-        vga_state = VPU_LOST_SIGNAL;
+        vpu_state = VPU_LOST_SIGNAL;
         printf("?");
-        vga_print_status();
+        vpu_print_status();
     }
 
-    if (vga_needs_reset)
+    if (vpu_needs_reset)
     {
-        vga_needs_reset = false;
-        // pix_send_blocking(PIX_DEVICE_VGA, 0xF, 0x00, 0);
+        vpu_needs_reset = false;
+        // pix_send_blocking(PIX_DEVICE_VPU, 0xF, 0x00, 0);
     }
 }
 
-void vga_run(void)
+void vpu_run(void)
 {
     // Switch to CGIA mode
     pix_send_blocking(PIX_MESSAGE(PIX_DEV_CMD, 1));
     pix_send_blocking(PIX_DEVICE_CMD(PIX_DEV_VPU, PIX_VPU_CMD_SET_MODE_CGIA));
 }
 
-void vga_stop(void)
+void vpu_stop(void)
 {
     // Switch to VT mode
     pix_send_blocking(PIX_MESSAGE(PIX_DEV_CMD, 1));
     pix_send_blocking(PIX_DEVICE_CMD(PIX_DEV_VPU, PIX_VPU_CMD_SET_MODE_VT));
 }
 
-void vga_break(void)
+void vpu_break(void)
 {
-    vga_needs_reset = true;
+    vpu_needs_reset = true;
 }
 
-bool vga_set_vga(uint32_t display_type)
+bool vpu_set_vPU(uint32_t display_type)
 {
-    // pix_send_blocking(PIX_DEVICE_VGA, 0xF, 0x00, display_type);
+    // pix_send_blocking(PIX_DEVICE_VPU, 0xF, 0x00, display_type);
     return true;
 }
 
-bool vga_connected(void)
+bool vpu_connected(void)
 {
-    return vga_state == VPU_CONNECTED
-           || vga_state == VPU_NO_VERSION;
+    return vpu_state == VPU_CONNECTED
+           || vpu_state == VPU_NO_VERSION;
 }
 
-void vga_print_status(void)
+void vpu_print_status(void)
 {
     const char *msg = "VPU Searching";
-    switch (vga_state)
+    switch (vpu_state)
     {
     case VPU_FOUND:
     case VPU_TESTING:
         break;
     case VPU_CONNECTED:
-        msg = vga_version_message;
+        msg = vpu_version_message;
         break;
     case VPU_NO_VERSION:
         msg = "VPU Version Unknown";

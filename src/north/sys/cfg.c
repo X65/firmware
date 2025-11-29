@@ -11,7 +11,7 @@
 #include "sys/cpu.h"
 #include "sys/lfs.h"
 #include "sys/mem.h"
-#include "sys/vga.h"
+#include "sys/vpu.h"
 #include <ctype.h>
 
 #if defined(DEBUG_RIA_SYS) || defined(DEBUG_RIA_SYS_CFG)

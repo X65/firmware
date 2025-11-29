@@ -4,11 +4,11 @@
  * SPDX-License-Identifier: BSD-3-Clause
  */
 
-#ifndef _VGA_MAIN_H_
-#define _VGA_MAIN_H_
+#ifndef _SB_MAIN_H_
+#define _SB_MAIN_H_
 
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
 
-#endif /* _VGA_MAIN_H_ */
+#endif /* _SB_MAIN_H_ */

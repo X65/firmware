@@ -90,7 +90,7 @@ target_sources(x65_north PRIVATE
     north/sys/ria.c
     north/sys/rln.c
     north/sys/sys.c
-    north/sys/vga.c
+    north/sys/vpu.c
     north/usb/msc.c
     north/usb/usb.c
     north/usb/xin.c

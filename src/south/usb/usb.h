@@ -4,15 +4,15 @@
  * SPDX-License-Identifier: BSD-3-Clause
  */
 
-#ifndef _VGA_USB_USB_H_
-#define _VGA_USB_USB_H_
+#ifndef _SB_USB_USB_H_
+#define _SB_USB_USB_H_
 
 /* USB device driver
  */
 
+#include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
-#include <stdbool.h>
 
 /* Main events
  */
@@ -25,4 +25,4 @@ void usb_task(void);
 
 extern char serno[];
 
-#endif /* _VGA_USB_USB_H_ */
+#endif /* _SB_USB_USB_H_ */

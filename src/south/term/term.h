@@ -5,8 +5,8 @@
  * SPDX-License-Identifier: BSD-3-Clause
  */
 
-#ifndef _VGA_TERM_TERM_H_
-#define _VGA_TERM_TERM_H_
+#ifndef _SB_TERM_TERM_H_
+#define _SB_TERM_TERM_H_
 
 #include <stdbool.h>
 #include <stddef.h>
@@ -20,4 +20,4 @@ void term_task(void);
 
 void term_render(int16_t y, uint32_t *rgbbuf);
 
-#endif /* _VGA_TERM_TERM_H_ */
+#endif /* _SB_TERM_TERM_H_ */

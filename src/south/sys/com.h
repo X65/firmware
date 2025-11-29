@@ -4,8 +4,8 @@
  * SPDX-License-Identifier: BSD-3-Clause
  */
 
-#ifndef _VGA_SYS_COM_H_
-#define _VGA_SYS_COM_H_
+#ifndef _SB_SYS_COM_H_
+#define _SB_SYS_COM_H_
 
 /* Communications switchboard
  */
@@ -49,4 +49,4 @@ bool com_out_empty(void);
 char com_out_peek(void);
 char com_out_read(void);
 
-#endif /* _VGA_SYS_COM_H_ */
+#endif /* _SB_SYS_COM_H_ */

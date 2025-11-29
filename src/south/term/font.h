@@ -4,8 +4,8 @@
  * SPDX-License-Identifier: BSD-3-Clause
  */
 
-#ifndef _VGA_TERM_FONT_H_
-#define _VGA_TERM_FONT_H_
+#ifndef _SB_TERM_FONT_H_
+#define _SB_TERM_FONT_H_
 
 #include <stdbool.h>
 #include <stddef.h>
@@ -21,4 +21,4 @@ void font_init(void);
 
 void font_set_code_page(uint16_t cp);
 
-#endif /* _VGA_TERM_FONT_H_ */
+#endif /* _SB_TERM_FONT_H_ */

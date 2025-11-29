@@ -4,8 +4,8 @@
  * SPDX-License-Identifier: BSD-3-Clause
  */
 
-#ifndef _VGA_SYS_OUT_H_
-#define _VGA_SYS_OUT_H_
+#ifndef _SB_SYS_OUT_H_
+#define _SB_SYS_OUT_H_
 
 /** https://retrocomputing.stackexchange.com/a/13872
 > In standard bitmap mode the C64 outputs 320 pixels in 40µs.
@@ -53,4 +53,4 @@ inline void out_set_mode(out_mode_t mode)
     out_mode = mode;
 }
 
-#endif /* _VGA_SYS_OUT_H_ */
+#endif /* _SB_SYS_OUT_H_ */

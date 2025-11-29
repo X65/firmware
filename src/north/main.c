@@ -23,11 +23,12 @@
 #include "sys/cpu.h"
 #include "sys/led.h"
 #include "sys/lfs.h"
+#include "sys/mem.h"
 #include "sys/pix.h"
 #include "sys/ria.h"
 #include "sys/rln.h"
 #include "sys/sys.h"
-#include "sys/vga.h"
+#include "sys/vpu.h"
 #include "usb/usb.h"
 #include "usb/xin.h"
 
@@ -51,7 +52,7 @@ static void init(void)
     cpu_init();
     ria_init();
     pix_init();
-    vga_init(); // Must be after PIX
+    vpu_init(); // Must be after PIX
 
     // Load config before we continue.
     lfs_init();
@@ -86,7 +87,7 @@ void main_task(void)
     pix_task();
     ria_task();
     kbd_task();
-    // vga_task();
+    // vpu_task();
     com_task();
     xin_task();
     led_task();
@@ -108,7 +109,7 @@ static void run(void)
     com_run();
     std_run();
     dir_run();
-    vga_run();
+    vpu_run();
     api_run();
     clk_run();
     ria_run(); // Must be immediately before cpu
@@ -119,7 +120,7 @@ static void run(void)
 static void stop(void)
 {
     cpu_stop(); // Must be first
-    vga_stop(); // Must be before ria
+    vpu_stop(); // Must be before ria
     com_stop();
     api_stop();
     ria_stop();
@@ -140,7 +141,7 @@ static void break_(void) // break is keyword
     mon_break();
     ram_break();
     rom_break();
-    vga_break();
+    vpu_break();
     rln_break();
 }
 
