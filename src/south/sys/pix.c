@@ -81,12 +81,11 @@ static bool pix_ch15_xreg(uint8_t addr, uint16_t word)
     return false;
 }
 
-void __isr pix_irq_handler(void)
+static void __isr pix_irq_handler(void)
 {
     static uint8_t pix_buffer[32];
 
-    // pio_interrupt_clear(PIX_PIO, PIX_INT_NUM);
-    PIX_PIO->irq = (1u << PIX_INT_NUM);
+    PIX_PIO->irq = (1u << PIX_INT_NUM); // pio_interrupt_clear(PIX_PIO, PIX_INT_NUM);
 
     const uint8_t header = PIX_PIO->rxf[PIX_SM];
     const uint8_t frame_count = header & 0b11111;

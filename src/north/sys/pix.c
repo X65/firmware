@@ -36,6 +36,23 @@ static enum state {
 
 #define PIX_ACK_TIMEOUT_MS 2
 
+static void __isr pix_irq_handler(void)
+{
+    PIX_PIO->irq = (1u << PIX_INT_NUM); // pio_interrupt_clear(PIX_PIO, PIX_INT_NUM);
+
+    const uint16_t reply = PIX_PIO->rxf[PIX_SM];
+    const uint8_t code = (reply >> 12) & 0x0F;
+    const uint16_t payload = reply & 0x0FFF;
+
+    switch (code)
+    {
+    case 0x0: // ACK
+        break;
+    default:
+        printf("<<< %01X: %03X\n", code, payload);
+    }
+}
+
 void pix_init(void)
 {
     pio_set_gpio_base(PIX_PIO, 16);
@@ -56,34 +73,36 @@ void pix_init(void)
     pio_sm_init(PIX_PIO, PIX_SM, offset, &config);
     pio_sm_set_consecutive_pindirs(PIX_PIO, PIX_SM, PIX_PIN_BASE, PIX_PINS_USED, true);
     pio_sm_set_consecutive_pindirs(PIX_PIO, PIX_SM, PIX_PIN_DTR, 1, false);
-    // pio_sm_put(PIX_PIO, PIX_SM, PIX_MESSAGE(PIX_DEVICE_IDLE, 0, 0, 0));
-    pio_sm_set_enabled(PIX_PIO, PIX_SM, true);
 
-    // // Queue a couple sync frames for safety
-    // pix_send(PIX_DEVICE_IDLE, 0, 0, 0);
-    // pix_send(PIX_DEVICE_IDLE, 0, 0, 0);
+    pio_interrupt_clear(PIX_PIO, PIX_INT_NUM);
+    // Route PIO internal IRQ to PIO_IRQ_
+    pio_set_irq0_source_enabled(PIX_PIO, pis_interrupt0, true);
+    irq_set_exclusive_handler(PIO_IRQ_NUM(PIX_PIO, 0), pix_irq_handler);
+    irq_set_enabled(PIO_IRQ_NUM(PIX_PIO, 0), true);
+
+    pio_sm_set_enabled(PIX_PIO, PIX_SM, true);
 }
 
-static uint32_t sent = 0;
+// static uint32_t sent = 0;
 void pix_task(void)
 {
-    if (pio_sm_is_tx_fifo_empty(PIX_PIO, PIX_SM) && !(sent & 1))
-    {
-        const int msg_count = 31; // encoded as n-1
-        pio_sm_put(PIX_PIO, PIX_SM, (0x1 << 5) | (msg_count & 0b11111));
-        for (int i = 0; i <= msg_count; i++)
-        {
-            pio_sm_put_blocking(PIX_PIO, PIX_SM, 0x11 + i + sent);
-        }
-        ++sent;
-    }
-    while (!pio_sm_is_rx_fifo_empty(PIX_PIO, PIX_SM))
-    {
-        uint32_t raw = pio_sm_get(PIX_PIO, PIX_SM);
-        printf("<<< %04lX\n", raw);
-        if (sent < 6)
-            ++sent;
-    }
+    // if (pio_sm_is_tx_fifo_empty(PIX_PIO, PIX_SM) && !(sent & 1))
+    // {
+    //     const int msg_count = 31; // encoded as n-1
+    //     pio_sm_put(PIX_PIO, PIX_SM, (0x1 << 5) | (msg_count & 0b11111));
+    //     for (int i = 0; i <= msg_count; i++)
+    //     {
+    //         pio_sm_put_blocking(PIX_PIO, PIX_SM, 0x11 + i + sent);
+    //     }
+    //     ++sent;
+    // }
+    // while (!pio_sm_is_rx_fifo_empty(PIX_PIO, PIX_SM))
+    // {
+    //     uint32_t raw = pio_sm_get(PIX_PIO, PIX_SM);
+    //     printf("<<< %04lX\n", raw);
+    //     if (sent < 6)
+    //         ++sent;
+    // }
 }
 
 void pix_stop(void)

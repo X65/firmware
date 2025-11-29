@@ -35,6 +35,7 @@ loop:
     wait 0 jmppin       side 1      ; wait for DTR-ACK
     wait 1 jmppin       side 0      ; wait for incoming data
     in  pins, 8         side 0      ; read incoming data, ACK with SCK
+    irq set PIX_INT_NUM side 1      ; signal reply received
     wait 0 jmppin       side 1      ; wait for DTR-ACK
 .wrap
 
