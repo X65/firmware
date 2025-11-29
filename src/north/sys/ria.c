@@ -17,6 +17,7 @@
 #include <hardware/pio.h>
 #include <littlefs/lfs_util.h>
 #include <pico/multicore.h>
+#include <pico/rand.h>
 #include <pico/stdio.h>
 #include <stdint.h>
 
@@ -118,51 +119,11 @@ __attribute__((optimize("O1"))) static void __no_inline_not_in_flash_func(act_lo
                     if (addr >= 0xFFF0)
                         switch (rw_addr_bus & (CPU_RWB_MASK | (CPU_IODEV_MASK << 8)))
                         {
-                        case CASE_READ(0xFFF6): // action write
-                            // if (rw_pos < rw_end)
-                            // {
-                            //     if (rw_pos > 0)
-                            //     {
-                            //         REGS(0xFFF1) = mbuf[rw_pos];
-                            //         REGSW(0xFFF3) += 1;
-                            //     }
-                            //     if (++rw_pos == rw_end)
-                            //         REGS(0xFFF6) = 0x00;
-                            // }
-                            // else
-                            // {
-                            //     gpio_put(CPU_RESB_PIN, false);
-                            //     action_result = RIA_ACTION_RESULT_FINISHED;
-                            //     main_stop();
-                            // }
+                        case CASE_READ(0xFFF3): // API BUSY
+                            data = API_BUSY;
                             break;
-                        case CASE_WRIT(0xFFFD): // action read
-                            // if (rw_pos < rw_end)
-                            // {
-                            //     REGSW(0xFFF1) += 1;
-                            //     mbuf[rw_pos] = data;
-                            //     if (++rw_pos == rw_end)
-                            //     {
-                            //         gpio_put(CPU_RESB_PIN, false);
-                            //         action_result = RIA_ACTION_RESULT_FINISHED;
-                            //         main_stop();
-                            //     }
-                            // }
-                            break;
-                        case CASE_WRIT(0xFFFC): // action verify
-                            // if (rw_pos < rw_end)
-                            // {
-                            //     REGSW(0xFFF1) += 1;
-                            //     if (mbuf[rw_pos] != data && action_result < 0)
-                            //         action_result = REGSW(0xFFF1) - 1;
-                            //     if (++rw_pos == rw_end)
-                            //     {
-                            //         gpio_put(CPU_RESB_PIN, false);
-                            //         if (action_result < 0)
-                            //             action_result = RIA_ACTION_RESULT_FINISHED;
-                            //         main_stop();
-                            //     }
-                            // }
+                        case CASE_READ(0xFFF2): // API ERRNO
+                            data = API_ERRNO;
                             break;
                         case CASE_WRIT(0xFFF1): // RIA API function call
                             api_set_regs_blocked();
@@ -178,6 +139,9 @@ __attribute__((optimize("O1"))) static void __no_inline_not_in_flash_func(act_lo
                             }
                             mem_dump = true;
                             break;
+                        case CASE_READ(0xFFF1): // API return value
+                            data = API_OP;
+                            break;
                         case CASE_WRIT(0xFFF0): // xstack
                             if (xstack_ptr)
                                 xstack[--xstack_ptr] = data;
@@ -190,49 +154,24 @@ __attribute__((optimize("O1"))) static void __no_inline_not_in_flash_func(act_lo
                         }
                     // ------ FFE0 - FFEF ------ (UART, RNG, IRQ CTL)
                     else if (addr >= 0xFFE0)
-                    {
                         switch (rw_addr_bus & (CPU_RWB_MASK | (CPU_IODEV_MASK << 8)))
                         {
+                        case CASE_READ(0xFFED): // IRQ_STATUS
+                            data = 0xFF;
+                            break;
                         case CASE_WRIT(0xFFEC): // IRQ Enable
                             irq_enabled = data;
                             __attribute__((fallthrough));
                         case CASE_READ(0xFFEC): // IRQ ACK
                             gpio_put(RIA_IRQB_PIN, true);
                             break;
-                        // case CASE_WRIT(0xFFEB): // Set XRAM >ADDR1
-                        //     REGS(0xFFEB) = data;
-                        //     RIA_RW1 = xram[RIA_ADDR1];
-                        //     break;
-                        // case CASE_WRIT(0xFFEA): // Set XRAM <ADDR1
-                        //     REGS(0xFFEA) = data;
-                        //     RIA_RW1 = xram[RIA_ADDR1];
-                        //     break;
-                        // case CASE_WRIT(0xFFE8): // W XRAM1
-                        //     xram[RIA_ADDR1] = data;
-                        //     PIX_SEND_XRAM(RIA_ADDR1, data);
-                        //     RIA_RW0 = xram[RIA_ADDR0];
-                        //     __attribute__((fallthrough));
-                        // case CASE_READ(0xFFE8): // R XRAM1
-                        //     RIA_ADDR1 += RIA_STEP1;
-                        //     RIA_RW1 = xram[RIA_ADDR1];
-                        //     break;
-                        // case CASE_WRIT(0xFFE7): // Set XRAM >ADDR0
-                        //     REGS(0xFFE7) = data;
-                        //     RIA_RW0 = xram[RIA_ADDR0];
-                        //     break;
-                        // case CASE_WRIT(0xFFE6): // Set XRAM <ADDR0
-                        //     REGS(0xFFE6) = data;
-                        //     RIA_RW0 = xram[RIA_ADDR0];
-                        //     break;
-                        // case CASE_WRIT(0xFFE4): // W XRAM0
-                        //     xram[RIA_ADDR0] = data;
-                        //     PIX_SEND_XRAM(RIA_ADDR0, data);
-                        //     RIA_RW1 = xram[RIA_ADDR1];
-                        //     __attribute__((fallthrough));
-                        // case CASE_READ(0xFFE4): // R XRAM0
-                        //     RIA_ADDR0 += RIA_STEP0;
-                        //     RIA_RW0 = xram[RIA_ADDR0];
-                        //     break;
+                        case CASE_READ(0xFFE3): // Random Number Generator
+                        case CASE_READ(0xFFE2): // Two bytes to allow 16 bit values
+                        {
+                            data = (uint8_t)get_rand_32();
+                            break;
+                        }
+
                         case CASE_READ(0xFFE1): // UART Rx
                         {
                             const int ch = com_rx_char;
@@ -266,15 +205,54 @@ __attribute__((optimize("O1"))) static void __no_inline_not_in_flash_func(act_lo
                             break;
                         }
                         }
-                    }
+
                     // ------ FFD0 - FFDF ------ (DMA, FS)
                     else if (addr >= 0xFFD0)
-                    {
-                    }
+                        switch (rw_addr_bus & (CPU_RWB_MASK | (CPU_IODEV_MASK << 8)))
+                        {
+                        }
                     // ------ FFC0 - FFCF ------ (MUL/DIV, TOD)
                     else if (addr >= 0xFFC0)
-                    {
-                    }
+                        switch (rw_addr_bus & (CPU_RWB_MASK | (CPU_IODEV_MASK << 8)))
+                        {
+                        // unused - return 0xFF
+                        case CASE_READ(0xFFCF):
+                        case CASE_READ(0xFFCE):
+                            data = 0xFF;
+                            break;
+
+                        // monotonic clock
+                        case CASE_READ(0xFFCD):
+                        case CASE_READ(0xFFCC):
+                        case CASE_READ(0xFFCB):
+                        case CASE_READ(0xFFCA):
+                        case CASE_READ(0xFFC9):
+                        case CASE_READ(0xFFC8):
+                        {
+                            uint64_t us = to_us_since_boot(get_absolute_time());
+                            data = ((uint8_t *)&us)[addr & 0x07];
+                            break;
+                        }
+
+                        // Signed OPERA / unsigned OPERB - division accelerator
+                        case CASE_READ(0xFFC7):
+                        case CASE_READ(0xFFC6):
+                        {
+                            const int16_t oper_a = (int16_t)REGSW(0xFFC0);
+                            const uint16_t oper_b = (uint16_t)REGSW(0xFFC2);
+                            uint16_t div = oper_b ? (oper_a / oper_b) : 0xFFFF;
+                            data = (addr & 1) ? (div >> 8) : (div & 0xFF);
+                        }
+                        break;
+                        // OPERA * OPERB - multiplication accelerator
+                        case CASE_READ(0xFFC5):
+                        case CASE_READ(0xFFC4):
+                        {
+                            uint16_t mul = REGSW(0xFFC0) * REGSW(0xFFC2);
+                            data = (addr & 1) ? (mul >> 8) : (mul & 0xFF);
+                        }
+                        break;
+                        }
                 }
                 else
                 {
