@@ -10,6 +10,7 @@
 /* Pico Information eXchange bus driver.
  */
 
+#include "../pix.h"
 #include "hw.h"
 #include <hardware/pio.h>
 #include <stdbool.h>
@@ -79,5 +80,17 @@ static inline void pix_send_blocking(uint8_t byte)
         tight_loop_contents();
     pix_send(byte);
 }
+
+typedef struct
+{
+    uint8_t status;
+    uint16_t reply;
+} pix_response_t;
+
+// Asynchronous PIX request.
+// Reply will be inserted into resp when available.
+void pix_send_request(pix_msg_type_t msg_type,
+                      uint8_t req_len5, uint8_t *req_data,
+                      pix_response_t *resp);
 
 #endif /* _RIA_SYS_PIX_H_ */

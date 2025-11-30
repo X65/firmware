@@ -10,6 +10,7 @@
 /* Listens on the PIX bus
  */
 
+#include "../pix.h"
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>

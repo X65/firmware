@@ -5,10 +5,10 @@
  */
 
 #include "sys/pix.h"
-#include "../pix.h"
 #include "hw.h"
 #include "pix.pio.h"
 #include "sys/out.h"
+#include "sys/sys.h"
 #include "term/font.h"
 #include <hardware/clocks.h>
 #include <hardware/dma.h>
@@ -108,9 +108,19 @@ static void __isr pix_irq_handler(void)
         case PIX_DEV_VPU:
             switch (cmd)
             {
+            case PIX_VPU_CMD_GET_VERSION:
+            {
+                char ver_string[VPU_VERSION_MESSAGE_SIZE];
+                memset(ver_string, 0, VPU_VERSION_MESSAGE_SIZE);
+                strcpy(ver_string, sys_version());
+                uart_write_blocking(COM_UART_INTERFACE,
+                                    (const uint8_t *)ver_string, VPU_VERSION_MESSAGE_SIZE);
+                pix_ack();
+            }
+            break;
             case PIX_VPU_CMD_GET_STATUS:
                 printf("PIX_VPU_CMD_GET_STATUS\n");
-                // // Send status back
+                pix_ack();
                 break;
             case PIX_VPU_CMD_SET_MODE_VT:
                 out_set_mode(OUT_MODE_VT);
@@ -128,7 +138,7 @@ static void __isr pix_irq_handler(void)
     default:
     unknown:
     {
-        printf("PIX Unknown MSG: %02X\n", header);
+        printf("PIX Unknown MSG: %02X/%d\n", header, frame_count);
         // drain FIFO
         for (int i = 0; i <= frame_count; i++)
         {

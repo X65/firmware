@@ -5,7 +5,6 @@
  */
 
 #include "sys/pix.h"
-#include "../pix.h"
 #include "api/api.h"
 #include "hw.h"
 #include "pix.pio.h"
@@ -34,6 +33,8 @@ static enum state {
     pix_api_nak,
 } pix_api_state;
 
+static pix_response_t *pix_response = nullptr;
+
 #define PIX_ACK_TIMEOUT_MS 2
 
 static void __isr pix_irq_handler(void)
@@ -41,15 +42,21 @@ static void __isr pix_irq_handler(void)
     PIX_PIO->irq = (1u << PIX_INT_NUM); // pio_interrupt_clear(PIX_PIO, PIX_INT_NUM);
 
     const uint16_t reply = PIX_PIO->rxf[PIX_SM];
-    const uint8_t code = (reply >> 12) & 0x0F;
-    const uint16_t payload = reply & 0x0FFF;
+    const uint8_t code = PIX_REPLY_CODE(reply);
+    // printf("!!! %01X: %03X\n", code, PIX_REPLY_PAYLOAD(reply));
 
     switch (code)
     {
-    case 0x0: // ACK
+    case PIX_REPLY_ACK:
+        if (pix_response)
+        {
+            pix_response->reply = reply;
+            pix_response->status = 1;
+            pix_response = nullptr;
+        }
         break;
     default:
-        printf("<<< %01X: %03X\n", code, payload);
+        printf("<<< %01X: %03X\n", code, PIX_REPLY_PAYLOAD(reply));
     }
 }
 
@@ -121,6 +128,36 @@ void pix_nak(void)
 {
     if (pix_api_state == pix_api_waiting)
         pix_api_state = pix_api_nak;
+}
+
+void pix_send_request(pix_msg_type_t msg_type,
+                      uint8_t req_len5, uint8_t *req_data,
+                      pix_response_t *resp)
+{
+    assert(req_len5 > 0);
+    assert(req_data);
+
+    if (pix_response)
+    {
+        // Previous request still pending
+        printf("PIX Request Busy\n");
+        while (pix_response)
+            tight_loop_contents();
+    }
+    pix_response = resp;
+    pix_send_blocking(PIX_MESSAGE(msg_type, req_len5));
+    if (req_len5 == 1)
+    {
+        pix_send_blocking(*req_data);
+    }
+    else
+    {
+        // FIXME: this should be done by DMA hardware
+        while (req_len5--)
+        {
+            pix_send_blocking(*req_data++);
+        }
+    }
 }
 
 // bool pix_api_xreg(void)
