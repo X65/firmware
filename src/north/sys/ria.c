@@ -254,10 +254,15 @@ __attribute__((optimize("O1"))) static void __no_inline_not_in_flash_func(act_lo
                         break;
                         }
                 }
+                // devices Memory-MAPped by RIA
+                else if (addr >= 0xFF80)
+                {
+                    data = 0xFF;
+                }
+                // CGIA
                 else
                 {
-                    // other I/O devices
-                    data = 0xFF;
+                    data = 0xCA;
                 }
 
                 // handled - move along
@@ -301,7 +306,7 @@ void ria_init(void)
 void ria_print_status(void)
 {
     const float clk = (float)(clock_get_hz(clk_sys));
-    printf("RIA : %.1fMHz\n", clk / MHZ);
+    printf("CLKN: %.1fMHz\n", clk / MHZ);
 }
 
 uint8_t ria_read_mem(uint32_t addr24)

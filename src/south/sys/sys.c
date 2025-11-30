@@ -7,7 +7,7 @@
 #include "version.h"
 #include <pico.h>
 
-__in_flash("vpu_sys_sys") static const char SYS_VERSION[] = "CGIA "
+__in_flash("sb_sys_sys") static const char SYS_VERSION[] = "SBr "
 #if defined(GIT_TAG)
     GIT_TAG
 #else

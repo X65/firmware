@@ -27,14 +27,14 @@ static inline void DBG(const char *fmt, ...)
 }
 #endif
 
-__in_flash("ria_sys_sys") static const char SYS_VERSION[] = "RIA "
+__in_flash("nb_sys_sys") static const char SYS_VERSION[] = "NBr "
 #if defined(GIT_TAG)
     GIT_TAG
 #else
     GIT_REV "@" GIT_BRANCH
 #endif
 #ifdef RP6502_RIA_W
-                                                            " W"
+                                                           " W"
 #endif
     ;
 
