@@ -17,4 +17,6 @@
 // SB version string
 const char *sys_version(void);
 
+void sys_write_status(void);
+
 #endif /* _SB_SYS_SYS_H_ */

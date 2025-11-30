@@ -16,10 +16,12 @@
 #include <hardware/structs/bus_ctrl.h>
 #include <hardware/structs/hstx_ctrl.h>
 #include <hardware/structs/hstx_fifo.h>
+#include <hardware/uart.h>
 #include <pico/multicore.h>
 
 #include <limits.h>
 #include <stdio.h>
+#include <string.h>
 
 // ----------------------------------------------------------------------------
 #define LINE_BUFFER_PADDING (-SCHAR_MIN) // maximum scroll of signed 8 bit
@@ -366,14 +368,17 @@ void out_init(void)
     multicore_launch_core1(out_core1_main);
 }
 
-void out_print_status(void)
+void out_write_status(void)
 {
+    char buf[64];
     const float clk = (float)(clock_get_hz(clk_sys));
-    printf("CORE: %.1fMHz\n", clk / MHZ);
+    sprintf(buf, "CLKS: %.1fMHz\r\n", clk / MHZ);
+    uart_write_blocking(COM_UART_INTERFACE, (const uint8_t *)buf, strlen(buf));
 
     const float hstx_div = (float)(clocks_hw->clk[clk_hstx].div >> 16);
     const float refresh_hz = OUT_HSTX_HZ / hstx_div * 2 / 10 / MODE_H_TOTAL_PIXELS / MODE_V_TOTAL_LINES;
-    printf("DVI : %dx%d@%.1fHz/24bpp\n", MODE_H_ACTIVE_PIXELS, MODE_V_ACTIVE_LINES, refresh_hz);
+    sprintf(buf, "DVI : %dx%d@%.1fHz/24bpp\r\n", MODE_H_ACTIVE_PIXELS, MODE_V_ACTIVE_LINES, refresh_hz);
+    uart_write_blocking(COM_UART_INTERFACE, (const uint8_t *)buf, strlen(buf));
 
 #if 0
     uint f_pll_sys = frequency_count_khz(CLOCKS_FC0_SRC_VALUE_PLL_SYS_CLKSRC_PRIMARY);

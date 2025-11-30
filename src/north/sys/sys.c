@@ -65,6 +65,7 @@ void sys_mon_status(const char *args, size_t len)
     sys_print_status();
     vpu_print_status();
     ria_print_status();
+    vpu_fetch_status();
     cpu_print_status();
     mem_print_status();
     clk_print_status();

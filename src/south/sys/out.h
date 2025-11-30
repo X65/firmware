@@ -39,7 +39,7 @@
 #define FB_V_REPEAT 2
 
 void out_init(void);
-void out_print_status(void);
+void out_write_status(void);
 
 typedef enum
 {

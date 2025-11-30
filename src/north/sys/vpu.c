@@ -148,3 +148,37 @@ void vpu_print_status(void)
     }
     puts(msg);
 }
+
+static bool vpu_status_done;
+
+static void vpu_rln_status_callback(bool timeout, const char *buf, size_t length)
+{
+    if (timeout)
+        vpu_status_done = true;
+    else // reload for next line
+        rln_read_line(VPU_VERSION_WATCHDOG_MS, vpu_rln_status_callback,
+                      80, 0);
+}
+
+void vpu_fetch_status(void)
+{
+    if (vpu_state != VPU_FOUND)
+        return;
+
+    while (stdio_getchar_timeout_us(0) != PICO_ERROR_TIMEOUT)
+        tight_loop_contents();
+    rln_read_line(VPU_VERSION_WATCHDOG_MS, vpu_rln_status_callback,
+                  80, 0);
+    vpu_status_done = false;
+    pix_response_t resp = {0};
+    uint8_t req = PIX_DEVICE_CMD(PIX_DEV_VPU, PIX_VPU_CMD_GET_STATUS);
+    pix_send_request(PIX_DEV_CMD, 1, &req, &resp);
+    while (!resp.status)
+        tight_loop_contents();
+    if (PIX_REPLY_CODE(resp.reply) != PIX_REPLY_ACK)
+        return;
+    while (!vpu_status_done)
+    {
+        rln_task();
+    }
+}

@@ -28,6 +28,7 @@ bool vpu_connected(void);
 
 // For monitor status command.
 void vpu_print_status(void);
+void vpu_fetch_status(void);
 
 // Config handler.
 bool vpu_set_vga(uint32_t display_type);

@@ -119,7 +119,7 @@ static void __isr pix_irq_handler(void)
             }
             break;
             case PIX_VPU_CMD_GET_STATUS:
-                printf("PIX_VPU_CMD_GET_STATUS\n");
+                sys_write_status();
                 pix_ack();
                 break;
             case PIX_VPU_CMD_SET_MODE_VT:
