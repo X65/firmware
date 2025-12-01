@@ -24,14 +24,18 @@ static uint8_t __attribute__((aligned(4))) pix_buffer[32];
 
 static int pix_req_dma_chan;
 
-static inline __attribute__((always_inline)) void pix_ack(void)
+static inline void __attribute__((always_inline))
+pix_ack(void)
 {
-    *(io_rw_16 *)&PIX_PIO->txf[PIX_SM] = PIX_RESPONSE(PIX_ACK, cgia_reg_read(CGIA_REG_RASTER));
+    *(io_rw_16 *)&PIX_PIO->txf[PIX_SM]
+        = PIX_RESPONSE(PIX_ACK, cgia_reg_read(CGIA_REG_RASTER));
 }
 
-static inline __attribute__((always_inline)) void pix_nak(void)
+static inline void __attribute__((always_inline))
+pix_nak(void)
 {
-    *(io_rw_16 *)&PIX_PIO->txf[PIX_SM] = PIX_RESPONSE(PIX_NAK, cgia_reg_read(CGIA_REG_RASTER));
+    *(io_rw_16 *)&PIX_PIO->txf[PIX_SM]
+        = PIX_RESPONSE(PIX_NAK, cgia_reg_read(CGIA_REG_RASTER));
 }
 
 static bool pix_ch15_xreg(uint8_t addr, uint16_t word)
@@ -72,47 +76,32 @@ static void __isr pix_irq_handler(void)
     PIX_PIO->irq = (1u << PIX_INT_NUM); // pio_interrupt_clear(PIX_PIO, PIX_INT_NUM);
 
     const uint8_t header = PIX_PIO->rxf[PIX_SM];
-    const uint8_t frame_count = header & 0b11111;
+    const uint8_t frame_count = (header & 0b11111) + 1;
 
-    switch (frame_count)
+    dma_channel_set_transfer_count(pix_req_dma_chan, frame_count, false);
+    if (frame_count < 5)
     {
-    case 3:
-        pix_buffer[3] = pix_read_blocking();
-        [[fallthrough]];
-    case 2:
-        pix_buffer[2] = pix_read_blocking();
-        [[fallthrough]];
-    case 1:
-        pix_buffer[1] = pix_read_blocking();
-        [[fallthrough]];
-    case 0:
-        pix_buffer[0] = pix_read_blocking();
-        break;
-    default:
-        // drain FIFO
-        dma_channel_set_read_addr(pix_req_dma_chan, pix_buffer, false);
-        dma_channel_set_transfer_count(pix_req_dma_chan, frame_count + 1, true);
-        return;
+        // normal command - drain FIFO to buffer
+        dma_channel_set_write_addr(pix_req_dma_chan, pix_buffer, true);
+        dma_channel_wait_for_finish_blocking(pix_req_dma_chan);
     }
 
     switch (header >> 5)
     {
     case PIX_MEM_WRITE:
     {
-        if (frame_count != 3)
+        if (frame_count != 4)
             goto unknown;
         // printf("PIX_MEM_WRITE %06lX %02X\n",
-        //        pix_buffer[3] << 16 | pix_buffer[2] << 8 | pix_buffer[1], pix_buffer[0]);
-        cgia_ram_write(pix_buffer[3],
-                       (uint16_t)(pix_buffer[2] << 8 | pix_buffer[1]),
-                       pix_buffer[0]);
+        //        pix_buffer[0] << 16 | pix_buffer[1] << 8 | pix_buffer[2], pix_buffer[3]);
+        cgia_ram_write(pix_buffer[0],
+                       (uint16_t)(pix_buffer[1] << 8 | pix_buffer[2]),
+                       pix_buffer[3]);
         pix_ack();
     }
     break;
     case PIX_DEV_CMD:
     {
-        if ((header & 0b11111) != 0)
-            goto unknown;
         const uint8_t dev_cmd = pix_buffer[0];
         const uint8_t device = (dev_cmd >> 4) & 0x0F;
         const uint8_t cmd = dev_cmd & 0x0F;
@@ -145,6 +134,10 @@ static void __isr pix_irq_handler(void)
                 out_set_mode(OUT_MODE_CGIA);
                 pix_ack();
                 break;
+            case PIX_VPU_CMD_SET_CODE_PAGE:
+                font_set_code_page((uint16_t)(pix_buffer[1] << 8 | pix_buffer[2]));
+                pix_ack();
+                break;
             }
             break;
         }
@@ -156,7 +149,7 @@ static void __isr pix_irq_handler(void)
         printf("PIX Unknown MSG: %02X/%d\n", header, frame_count);
         dma_channel_wait_for_finish_blocking(pix_req_dma_chan);
         printf(">>> %02X: ", header);
-        for (int i = 0; i <= frame_count; i++)
+        for (int i = 0; i < frame_count; i++)
         {
             printf("%02X ", pix_buffer[i]);
         }

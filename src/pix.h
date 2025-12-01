@@ -62,6 +62,7 @@ typedef enum pix_vpu_cmd
     PIX_VPU_CMD_GET_STATUS,
     PIX_VPU_CMD_SET_MODE_VT,
     PIX_VPU_CMD_SET_MODE_CGIA,
+    PIX_VPU_CMD_SET_CODE_PAGE,
 } pix_vpu_cmd_t;
 
 #define VPU_VERSION_MESSAGE_SIZE 20
