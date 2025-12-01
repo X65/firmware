@@ -8,6 +8,7 @@
 #include "sys/mem.h"
 #include "hw.h"
 #include "littlefs/lfs_util.h"
+#include "sys/pix.h"
 #include <hardware/clocks.h>
 #include <hardware/gpio.h>
 #include <hardware/structs/qmi.h>
@@ -380,4 +381,7 @@ uint8_t mem_read_ram(uint32_t addr24)
 void mem_write_ram(uint32_t addr24, uint8_t data)
 {
     mem_cache[addr24 & 0x1FFFF] = data;
+
+    // Sync write to CGIA L1 cache
+    pix_mem_write(addr24, data);
 }

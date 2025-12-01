@@ -23,6 +23,9 @@ void vpu_run(void);
 void vpu_stop(void);
 void vpu_break(void);
 
+// Global VPU status
+extern uint16_t vpu_raster;
+
 // Fully connected with backchannel.
 bool vpu_connected(void);
 

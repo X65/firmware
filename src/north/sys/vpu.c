@@ -47,6 +47,8 @@ bool vpu_needs_reset;
 char vpu_version_message[VPU_VERSION_MESSAGE_SIZE];
 size_t vpu_version_message_length;
 
+uint16_t vpu_raster;
+
 static void vpu_rln_callback(bool timeout, const char *buf, size_t length)
 {
     if (!timeout && length == VPU_VERSION_MESSAGE_SIZE)
@@ -68,7 +70,7 @@ static void vpu_connect(void)
     pix_send_request(PIX_DEV_CMD, 1, &req, &resp);
     while (!resp.status)
         tight_loop_contents();
-    if (PIX_REPLY_CODE(resp.reply) != PIX_REPLY_ACK)
+    if (PIX_REPLY_CODE(resp.reply) != PIX_ACK)
     {
         vpu_state = VPU_NOT_FOUND;
         return;
@@ -175,7 +177,7 @@ void vpu_fetch_status(void)
     pix_send_request(PIX_DEV_CMD, 1, &req, &resp);
     while (!resp.status)
         tight_loop_contents();
-    if (PIX_REPLY_CODE(resp.reply) != PIX_REPLY_ACK)
+    if (PIX_REPLY_CODE(resp.reply) != PIX_ACK)
         return;
     while (!vpu_status_done)
     {

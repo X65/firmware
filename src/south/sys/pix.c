@@ -5,6 +5,7 @@
  */
 
 #include "sys/pix.h"
+#include "cgia/cgia.h"
 #include "hw.h"
 #include "pix.pio.h"
 #include "sys/out.h"
@@ -17,45 +18,16 @@
 #include <stdio.h>
 #include <string.h>
 
-#define PIX_CH0_XREGS_MAX 8
-static uint16_t xregs[PIX_CH0_XREGS_MAX];
-
 volatile const uint8_t xram[0x10000] __attribute__((aligned(0x10000)));
 
 static inline __attribute__((always_inline)) void pix_ack(void)
 {
-    *(io_rw_16 *)&PIX_PIO->txf[PIX_SM] = 0x0000;
+    *(io_rw_16 *)&PIX_PIO->txf[PIX_SM] = PIX_RESPONSE(PIX_ACK, cgia_reg_read(CGIA_REG_RASTER));
 }
 
 static inline __attribute__((always_inline)) void pix_nak(void)
 {
-    *(io_rw_16 *)&PIX_PIO->txf[PIX_SM] = 0xFFFF;
-}
-
-static bool pix_ch0_xreg(uint8_t addr, uint16_t word)
-{
-    if (addr < PIX_CH0_XREGS_MAX)
-        xregs[addr] = word;
-    if (addr == 0) // CANVAS
-    {
-        // if (vga_xreg_canvas(xregs))
-        //     pix_ack();
-        // else
-        pix_nak();
-    }
-    if (addr == 1) // MODE
-    {
-        // if (main_prog(xregs))
-        //     pix_ack();
-        // else
-        pix_nak();
-    }
-    if (addr == 0 || addr == 1)
-    {
-        memset(&xregs, 0, sizeof(xregs));
-        return true;
-    }
-    return false;
+    *(io_rw_16 *)&PIX_PIO->txf[PIX_SM] = PIX_RESPONSE(PIX_NAK, cgia_reg_read(CGIA_REG_RASTER));
 }
 
 static bool pix_ch15_xreg(uint8_t addr, uint16_t word)
@@ -66,7 +38,7 @@ static bool pix_ch15_xreg(uint8_t addr, uint16_t word)
         // Also performs a reset.
         // vga_xreg_canvas(NULL);
         // vga_set_display(word);
-        memset(&xregs, 0, sizeof(xregs));
+        // memset(&xregs, 0, sizeof(xregs));
         return true;
     case 0x01: // CODE_PAGE
         font_set_code_page(word);
@@ -81,6 +53,15 @@ static bool pix_ch15_xreg(uint8_t addr, uint16_t word)
     return false;
 }
 
+static inline uint8_t __attribute__((always_inline))
+__attribute__((optimize("O3")))
+pix_read_blocking()
+{
+    while (PIX_PIO->fstat & (1u << (PIO_FSTAT_RXEMPTY_LSB + PIX_SM)))
+        tight_loop_contents();
+    return PIX_PIO->rxf[PIX_SM];
+}
+
 static void __isr pix_irq_handler(void)
 {
     static uint8_t pix_buffer[32];
@@ -92,6 +73,19 @@ static void __isr pix_irq_handler(void)
 
     switch (header >> 5)
     {
+    case PIX_MEM_WRITE:
+    {
+        if (frame_count != 3)
+            goto unknown;
+        const uint8_t bank = pix_read_blocking();
+        const uint8_t hsb = pix_read_blocking();
+        const uint8_t lsb = pix_read_blocking();
+        const uint8_t data = pix_read_blocking();
+        // printf("PIX_MEM_WRITE %06lX %02X\n", bank << 16 | hsb << 8 | lsb, data);
+        cgia_ram_write(bank, (uint16_t)(hsb << 8 | lsb), data);
+        pix_ack();
+    }
+    break;
     case PIX_DEV_CMD:
     {
         if ((header & 0b11111) != 0)

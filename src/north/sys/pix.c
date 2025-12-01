@@ -8,6 +8,7 @@
 #include "api/api.h"
 #include "hw.h"
 #include "pix.pio.h"
+#include "sys/vpu.h"
 #include <hardware/clocks.h>
 #include <hardware/pio.h>
 #include <pico/time.h>
@@ -45,16 +46,21 @@ static void __isr pix_irq_handler(void)
     const uint8_t code = PIX_REPLY_CODE(reply);
     // printf("!!! %01X: %03X\n", code, PIX_REPLY_PAYLOAD(reply));
 
+    if (pix_response)
+    {
+        pix_response->reply = reply;
+        pix_response->status = 1;
+        pix_response = nullptr;
+    }
+
     switch (code)
     {
-    case PIX_REPLY_ACK:
-        if (pix_response)
-        {
-            pix_response->reply = reply;
-            pix_response->status = 1;
-            pix_response = nullptr;
-        }
+    case PIX_ACK:
+        vpu_raster = PIX_REPLY_PAYLOAD(reply);
         break;
+    case PIX_NAK:
+        vpu_raster = PIX_REPLY_PAYLOAD(reply);
+        [[fallthrough]];
     default:
         printf("<<< %01X: %03X\n", code, PIX_REPLY_PAYLOAD(reply));
     }
@@ -130,7 +136,7 @@ void pix_nak(void)
         pix_api_state = pix_api_nak;
 }
 
-void pix_send_request(pix_msg_type_t msg_type,
+void pix_send_request(pix_req_type_t msg_type,
                       uint8_t req_len5, uint8_t *req_data,
                       pix_response_t *resp)
 {
@@ -257,3 +263,14 @@ void pix_send_request(pix_msg_type_t msg_type,
 //     }
 //     return api_working();
 // }
+
+inline void __attribute__((always_inline)) __attribute__((optimize("O3")))
+pix_mem_write(uint32_t addr24, uint8_t data)
+{
+    pix_send_request(PIX_MEM_WRITE, 4,
+                     (uint8_t[]) {(uint8_t)(addr24 >> 16),
+                                  (uint8_t)(addr24 >> 8),
+                                  (uint8_t)(addr24 & 0xFF),
+                                  data},
+                     nullptr);
+}

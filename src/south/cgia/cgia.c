@@ -82,16 +82,17 @@ uint8_t *
         vram_cache_ptr[CGIA_VRAM_BANKS]
     = {vram_cache[0], vram_cache[0]};
 
-inline __attribute__((always_inline)) __attribute__((optimize("O3"))) void cgia_ram_write(uint32_t addr, uint8_t data)
+inline void __attribute__((always_inline)) __attribute__((optimize("O3")))
+cgia_ram_write(uint8_t bank, uint16_t addr, uint8_t data)
 {
-    const uint32_t bank_mask = addr & 0xFFFF0000;
+    const uint32_t bank_mask = bank << 16;
     if (bank_mask == vram_cache_bank_mask[0])
     {
-        vram_cache_ptr[0][addr & 0xFFFF] = data;
+        vram_cache_ptr[0][addr] = data;
     }
     if (bank_mask == vram_cache_bank_mask[1])
     {
-        vram_cache_ptr[1][addr & 0xFFFF] = data;
+        vram_cache_ptr[1][addr] = data;
     }
 }
 

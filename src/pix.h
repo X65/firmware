@@ -23,25 +23,26 @@
 typedef enum pix
 {
     PIX_PING = 0,
-    PIX_PONG,
-    PIX_STATUS,
     PIX_MEM_WRITE,
-    PIX_DMA_REQ,
     PIX_DMA_WRITE,
     PIX_DEV_CMD,
     PIX_DEV_WRITE,
     PIX_DEV_READ,
-} pix_msg_type_t;
+} pix_req_type_t;
 
-#define PIX_MESSAGE(msg_type, msg_len) \
-    (((msg_type & 0b111) << 5) | ((msg_len - 1) & 0b11111))
+#define PIX_MESSAGE(req_type, req_len) \
+    (((req_type & 0b111) << 5) | ((req_len - 1) & 0b11111))
 
 typedef enum
 {
-    PIX_REPLY_ACK = 0,
-    PIX_REPLY_NAK = 0xFF,
-} pix_reply_code_t;
+    PIX_ACK = 0,
+    PIX_PONG,
+    PIX_DMA_REQ,
+    PIX_NAK = 0xFF,
+} pix_rsp_code_t;
 
+#define PIX_RESPONSE(rsp_code, rsp_payload) \
+    (((rsp_code & 0xF) << 12) | (rsp_payload & 0x0FFF))
 #define PIX_REPLY_CODE(reply)    (((reply) >> 12) & 0x0F)
 #define PIX_REPLY_PAYLOAD(reply) ((reply) & 0x0FFF)
 
