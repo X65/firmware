@@ -169,7 +169,7 @@ static void __isr pix_irq_handler(void)
         {
             const uint8_t reg = pix_buffer[1];
             const uint8_t value = pix_buffer[2];
-            // printf("PIX_DEV_WRITE VPU REG %02X = %02X\n", reg, value);
+            // printf("%02X=%02X\n", reg, value);
             cgia_reg_write(reg, value);
             pix_ack();
         }

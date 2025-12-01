@@ -20,7 +20,7 @@
  * PIX protocol messages
  */
 
-typedef enum pix
+typedef enum
 {
     PIX_PING = 0,
     PIX_MEM_WRITE,

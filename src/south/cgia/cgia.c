@@ -33,7 +33,7 @@ uint8_t
     __attribute__((aligned(4)))
     vram_cache[CGIA_VRAM_BANKS][0x10000];
 
-uint8_t
+volatile uint8_t
     __attribute__((aligned(4)))
     __scratch_x("")
         regs_int[CGIA_REGS_NO]
@@ -240,6 +240,11 @@ void cgia_init(void)
     }
 
 #ifdef PICO_SDK_VERSION_MAJOR
+    // drive NMI pin (used by CGIA only)
+    gpio_init(VPU_NMIB_PIN);
+    gpio_set_dir(VPU_NMIB_PIN, true);
+    gpio_put(VPU_NMIB_PIN, true);
+
     // DMA
     ctrl_chan = dma_claim_unused_channel(true);
     data_chan = dma_claim_unused_channel(true);
