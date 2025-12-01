@@ -143,6 +143,40 @@ static void __isr pix_irq_handler(void)
         }
     }
     break;
+    case PIX_DEV_READ:
+    {
+        const uint8_t device = pix_buffer[0];
+        switch (device)
+        {
+        case PIX_DEV_VPU:
+        {
+            const uint8_t reg = pix_buffer[1];
+            const uint8_t value = cgia_reg_read(reg);
+            // printf("PIX_DEV_READ VPU REG %02X = %02X\n", reg, value);
+            *(io_rw_16 *)&PIX_PIO->txf[PIX_SM]
+                = PIX_RESPONSE(PIX_DEV_DATA, value);
+        }
+        break;
+        }
+    }
+    break;
+    case PIX_DEV_WRITE:
+    {
+        const uint8_t device = pix_buffer[0];
+        switch (device)
+        {
+        case PIX_DEV_VPU:
+        {
+            const uint8_t reg = pix_buffer[1];
+            const uint8_t value = pix_buffer[2];
+            // printf("PIX_DEV_WRITE VPU REG %02X = %02X\n", reg, value);
+            cgia_reg_write(reg, value);
+            pix_ack();
+        }
+        break;
+        }
+    }
+    break;
     default:
     unknown:
     {

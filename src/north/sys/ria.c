@@ -262,7 +262,24 @@ __attribute__((optimize("O1"))) static void __no_inline_not_in_flash_func(act_lo
                 // CGIA
                 else
                 {
-                    data = 0xCA;
+                    if (is_read)
+                    {
+                        pix_response_t resp = {0};
+                        pix_send_request(PIX_DEV_READ, 2,
+                                         (uint8_t[]) {PIX_DEV_VPU, addr & 0x7F},
+                                         &resp);
+                        while (!resp.status)
+                            tight_loop_contents();
+                        data = PIX_REPLY_CODE(resp.reply) == PIX_DEV_DATA
+                                   ? (uint8_t)PIX_REPLY_PAYLOAD(resp.reply)
+                                   : 0xFF;
+                    }
+                    else
+                    {
+                        pix_send_request(PIX_DEV_WRITE, 3,
+                                         (uint8_t[]) {PIX_DEV_VPU, addr & 0x7F, data},
+                                         nullptr);
+                    }
                 }
 
                 // handled - move along

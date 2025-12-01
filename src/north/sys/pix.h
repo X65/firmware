@@ -65,26 +65,10 @@ static inline bool pix_ready(void)
 //     return pio_sm_is_tx_fifo_empty(PIX_PIO, PIX_SM);
 // }
 
-// Unconditionally attempt to send a PIX message.
-// Meant for use with pix_ready() to fill the FIFO in a task handler.
-static inline void pix_send(uint8_t byte)
-{
-    pio_sm_put(PIX_PIO, PIX_SM, byte);
-}
-
-// Send a single PIX message, block if necessary. Normally, blocking is bad, but
-// this unblocks so fast that it's not a problem for a few messages.
-static inline void pix_send_blocking(uint8_t byte)
-{
-    while (!pix_ready())
-        tight_loop_contents();
-    pix_send(byte);
-}
-
 typedef struct
 {
-    uint8_t status;
-    uint16_t reply;
+    volatile uint8_t status;
+    volatile uint16_t reply;
 } pix_response_t;
 
 // Asynchronous PIX request.

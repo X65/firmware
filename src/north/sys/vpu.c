@@ -110,15 +110,17 @@ void vpu_task(void)
 void vpu_run(void)
 {
     // Switch to CGIA mode
-    pix_send_blocking(PIX_MESSAGE(PIX_DEV_CMD, 1));
-    pix_send_blocking(PIX_DEVICE_CMD(PIX_DEV_VPU, PIX_VPU_CMD_SET_MODE_CGIA));
+    pix_send_request(PIX_DEV_CMD, 1,
+                     (uint8_t[]) {PIX_DEVICE_CMD(PIX_DEV_VPU, PIX_VPU_CMD_SET_MODE_CGIA)},
+                     nullptr);
 }
 
 void vpu_stop(void)
 {
     // Switch to VT mode
-    pix_send_blocking(PIX_MESSAGE(PIX_DEV_CMD, 1));
-    pix_send_blocking(PIX_DEVICE_CMD(PIX_DEV_VPU, PIX_VPU_CMD_SET_MODE_VT));
+    pix_send_request(PIX_DEV_CMD, 1,
+                     (uint8_t[]) {PIX_DEVICE_CMD(PIX_DEV_VPU, PIX_VPU_CMD_SET_MODE_VT)},
+                     nullptr);
 }
 
 void vpu_break(void)

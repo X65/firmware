@@ -14,7 +14,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#define PIX_BUS_PIO_SPEED_KHZ 10000U
+#define PIX_BUS_PIO_SPEED_KHZ 8000U
 
 /*
  * PIX protocol messages
@@ -31,13 +31,14 @@ typedef enum pix
 } pix_req_type_t;
 
 #define PIX_MESSAGE(req_type, req_len) \
-    (((req_type & 0b111) << 5) | ((req_len - 1) & 0b11111))
+    (uint8_t)(((req_type & 0b111) << 5) | ((req_len - 1) & 0b11111))
 
 typedef enum
 {
     PIX_ACK = 0,
     PIX_PONG,
     PIX_DMA_REQ,
+    PIX_DEV_DATA,
     PIX_NAK = 0xFF,
 } pix_rsp_code_t;
 
@@ -54,7 +55,7 @@ typedef enum pix_dev
 } pix_dev_t;
 
 #define PIX_DEVICE_CMD(device, cmd) \
-    ((cmd & 0xF) | ((device & 0xF) << 4))
+    (uint8_t)((cmd & 0xF) | ((device & 0xF) << 4))
 
 typedef enum pix_vpu_cmd
 {

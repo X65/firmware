@@ -7,6 +7,7 @@
 #include "sys/pix.h"
 #include "api/api.h"
 #include "hw.h"
+#include "main.h"
 #include "pix.pio.h"
 #include "sys/vpu.h"
 #include <hardware/clocks.h>
@@ -34,9 +35,27 @@ static enum state {
     pix_api_nak,
 } pix_api_state;
 
-static pix_response_t *pix_response = nullptr;
+static volatile uint8_t pix_in_flight = 0;
+static volatile pix_response_t *pix_response = nullptr;
+static volatile uint8_t pix_response_skip = 0;
 
 #define PIX_ACK_TIMEOUT_MS 2
+
+// Unconditionally attempt to send a PIX message.
+// Meant for use with pix_ready() to fill the FIFO in a task handler.
+static inline __attribute__((always_inline)) void pix_send(uint8_t byte)
+{
+    pio_sm_put(PIX_PIO, PIX_SM, byte);
+}
+
+// Send a single PIX message, block if necessary. Normally, blocking is bad, but
+// this unblocks so fast that it's not a problem for a few messages.
+static inline __attribute__((always_inline)) void pix_send_blocking(uint8_t byte)
+{
+    while (!pix_ready())
+        tight_loop_contents();
+    pix_send(byte);
+}
 
 static void __isr pix_irq_handler(void)
 {
@@ -44,13 +63,14 @@ static void __isr pix_irq_handler(void)
 
     const uint16_t reply = PIX_PIO->rxf[PIX_SM];
     const uint8_t code = PIX_REPLY_CODE(reply);
-    // printf("!!! %01X: %03X\n", code, PIX_REPLY_PAYLOAD(reply));
+    // printf("!!! %2X: %03X\n", code, PIX_REPLY_PAYLOAD(reply));
 
-    if (pix_response)
+    if (pix_in_flight)
+        --pix_in_flight;
+    else
     {
-        pix_response->reply = reply;
-        pix_response->status = 1;
-        pix_response = nullptr;
+        printf("PIX Unexpected Reply with no requests: %04X\n", reply);
+        main_stop();
     }
 
     switch (code)
@@ -58,11 +78,56 @@ static void __isr pix_irq_handler(void)
     case PIX_ACK:
         vpu_raster = PIX_REPLY_PAYLOAD(reply);
         break;
+    case PIX_DEV_DATA:
+        if (!pix_response)
+        {
+            printf("PIX Unexpected PIX_DEV_DATA: %04X\n", reply);
+            main_stop();
+        }
+        break;
     case PIX_NAK:
         vpu_raster = PIX_REPLY_PAYLOAD(reply);
         [[fallthrough]];
     default:
-        printf("<<< %01X: %03X\n", code, PIX_REPLY_PAYLOAD(reply));
+        printf("<<< %2X: %03X\n", code, PIX_REPLY_PAYLOAD(reply));
+    }
+
+    if (pix_response && pix_response_skip-- == 0)
+    {
+        pix_response->reply = reply;
+        pix_response->status = 1;
+        pix_response = nullptr;
+    }
+}
+
+void pix_send_request(pix_req_type_t msg_type,
+                      uint8_t req_len5, uint8_t *req_data,
+                      pix_response_t *resp)
+{
+    assert(req_len5 > 0);
+    assert(req_data);
+
+    if (pix_response)
+    {
+        // Previous request still pending
+        printf("PIX Request Busy\n");
+        while (pix_response)
+            tight_loop_contents();
+    }
+    pix_response = resp;
+    pix_response_skip = pix_in_flight++;
+    pix_send_blocking(PIX_MESSAGE(msg_type, req_len5));
+    if (req_len5 == 1)
+    {
+        pix_send_blocking(*req_data);
+    }
+    else
+    {
+        // FIXME: this should be done by DMA hardware
+        while (req_len5--)
+        {
+            pix_send_blocking(*req_data++);
+        }
     }
 }
 
@@ -134,36 +199,6 @@ void pix_nak(void)
 {
     if (pix_api_state == pix_api_waiting)
         pix_api_state = pix_api_nak;
-}
-
-void pix_send_request(pix_req_type_t msg_type,
-                      uint8_t req_len5, uint8_t *req_data,
-                      pix_response_t *resp)
-{
-    assert(req_len5 > 0);
-    assert(req_data);
-
-    if (pix_response)
-    {
-        // Previous request still pending
-        printf("PIX Request Busy\n");
-        while (pix_response)
-            tight_loop_contents();
-    }
-    pix_response = resp;
-    pix_send_blocking(PIX_MESSAGE(msg_type, req_len5));
-    if (req_len5 == 1)
-    {
-        pix_send_blocking(*req_data);
-    }
-    else
-    {
-        // FIXME: this should be done by DMA hardware
-        while (req_len5--)
-        {
-            pix_send_blocking(*req_data++);
-        }
-    }
 }
 
 // bool pix_api_xreg(void)
