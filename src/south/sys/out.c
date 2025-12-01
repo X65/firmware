@@ -103,9 +103,6 @@ static uint32_t vactive_line[] = {
 // ----------------------------------------------------------------------------
 // DMA logic
 
-#define DMACH_PING DVI_DMACH_PING
-#define DMACH_PONG DVI_DMACH_PONG
-
 // First we ping. Then we pong. Then... we ping again.
 static bool dma_pong = false;
 
@@ -122,7 +119,7 @@ void __isr dma_irq_handler(void)
 {
     // dma_pong indicates the channel that just finished, which is the one
     // we're about to reload.
-    uint ch_num = dma_pong ? DMACH_PONG : DMACH_PING;
+    uint ch_num = dma_pong ? DVI_DMACH_PONG : DVI_DMACH_PING;
     dma_channel_hw_t *ch = &dma_hw->ch[ch_num];
     dma_hw->intr = 1u << ch_num;
     dma_pong = !dma_pong;
@@ -266,36 +263,36 @@ void __not_in_flash_func(out_core1_main)(void)
     // reconfigure the one that just finished, meanwhile the opposite channel
     // is already making progress.
     dma_channel_config c;
-    c = dma_channel_get_default_config(DMACH_PING);
-    channel_config_set_chain_to(&c, DMACH_PONG);
+    c = dma_channel_get_default_config(DVI_DMACH_PING);
+    channel_config_set_chain_to(&c, DVI_DMACH_PONG);
     channel_config_set_dreq(&c, DREQ_HSTX);
     dma_channel_configure(
-        DMACH_PING,
+        DVI_DMACH_PING,
         &c,
         &hstx_fifo_hw->fifo,
         vblank_line_vsync_off,
         count_of(vblank_line_vsync_off),
         false);
-    c = dma_channel_get_default_config(DMACH_PONG);
-    channel_config_set_chain_to(&c, DMACH_PING);
+    c = dma_channel_get_default_config(DVI_DMACH_PONG);
+    channel_config_set_chain_to(&c, DVI_DMACH_PING);
     channel_config_set_dreq(&c, DREQ_HSTX);
     dma_channel_configure(
-        DMACH_PONG,
+        DVI_DMACH_PONG,
         &c,
         &hstx_fifo_hw->fifo,
         vblank_line_vsync_off,
         count_of(vblank_line_vsync_off),
         false);
 
-    dma_hw->ints0 = (1u << DMACH_PING) | (1u << DMACH_PONG);
-    dma_hw->inte0 = (1u << DMACH_PING) | (1u << DMACH_PONG);
-    irq_set_exclusive_handler(DMA_IRQ_0, dma_irq_handler);
-    irq_set_enabled(DMA_IRQ_0, true);
+    dma_hw->ints0 = (1u << DVI_DMACH_PING) | (1u << DVI_DMACH_PONG);
+    dma_hw->inte0 = (1u << DVI_DMACH_PING) | (1u << DVI_DMACH_PONG);
+    irq_set_exclusive_handler(DVI_DMA_IRQ, dma_irq_handler);
+    irq_set_enabled(DVI_DMA_IRQ, true);
 
     bus_ctrl_hw->priority = BUSCTRL_BUS_PRIORITY_DMA_W_BITS | BUSCTRL_BUS_PRIORITY_DMA_R_BITS;
     hw_set_bits(&bus_ctrl_hw->priority, BUSCTRL_BUS_PRIORITY_PROC1_BITS);
 
-    dma_channel_start(DMACH_PING);
+    dma_channel_start(DVI_DMACH_PING);
 
     gen_line_ptr = (uintptr_t)(linebuffer + LINE_BUFFER_PADDING);
     cur_line_ptr = (uintptr_t)(linebuffer + LINE_BUFFER_PADDING + RGB_LINE_BUFFER_LEN);

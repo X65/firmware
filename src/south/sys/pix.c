@@ -20,6 +20,10 @@
 
 volatile const uint8_t xram[0x10000] __attribute__((aligned(0x10000)));
 
+static uint8_t __attribute__((aligned(4))) pix_buffer[32];
+
+static int pix_req_dma_chan;
+
 static inline __attribute__((always_inline)) void pix_ack(void)
 {
     *(io_rw_16 *)&PIX_PIO->txf[PIX_SM] = PIX_RESPONSE(PIX_ACK, cgia_reg_read(CGIA_REG_RASTER));
@@ -64,12 +68,32 @@ pix_read_blocking()
 
 static void __isr pix_irq_handler(void)
 {
-    static uint8_t pix_buffer[32];
 
     PIX_PIO->irq = (1u << PIX_INT_NUM); // pio_interrupt_clear(PIX_PIO, PIX_INT_NUM);
 
     const uint8_t header = PIX_PIO->rxf[PIX_SM];
     const uint8_t frame_count = header & 0b11111;
+
+    switch (frame_count)
+    {
+    case 3:
+        pix_buffer[3] = pix_read_blocking();
+        [[fallthrough]];
+    case 2:
+        pix_buffer[2] = pix_read_blocking();
+        [[fallthrough]];
+    case 1:
+        pix_buffer[1] = pix_read_blocking();
+        [[fallthrough]];
+    case 0:
+        pix_buffer[0] = pix_read_blocking();
+        break;
+    default:
+        // drain FIFO
+        dma_channel_set_read_addr(pix_req_dma_chan, pix_buffer, false);
+        dma_channel_set_transfer_count(pix_req_dma_chan, frame_count + 1, true);
+        return;
+    }
 
     switch (header >> 5)
     {
@@ -77,12 +101,11 @@ static void __isr pix_irq_handler(void)
     {
         if (frame_count != 3)
             goto unknown;
-        const uint8_t bank = pix_read_blocking();
-        const uint8_t hsb = pix_read_blocking();
-        const uint8_t lsb = pix_read_blocking();
-        const uint8_t data = pix_read_blocking();
-        // printf("PIX_MEM_WRITE %06lX %02X\n", bank << 16 | hsb << 8 | lsb, data);
-        cgia_ram_write(bank, (uint16_t)(hsb << 8 | lsb), data);
+        // printf("PIX_MEM_WRITE %06lX %02X\n",
+        //        pix_buffer[3] << 16 | pix_buffer[2] << 8 | pix_buffer[1], pix_buffer[0]);
+        cgia_ram_write(pix_buffer[3],
+                       (uint16_t)(pix_buffer[2] << 8 | pix_buffer[1]),
+                       pix_buffer[0]);
         pix_ack();
     }
     break;
@@ -90,9 +113,7 @@ static void __isr pix_irq_handler(void)
     {
         if ((header & 0b11111) != 0)
             goto unknown;
-        while (PIX_PIO->fstat & (1u << (PIO_FSTAT_RXEMPTY_LSB + PIX_SM)))
-            tight_loop_contents();
-        const uint8_t dev_cmd = PIX_PIO->rxf[PIX_SM];
+        const uint8_t dev_cmd = pix_buffer[0];
         const uint8_t device = (dev_cmd >> 4) & 0x0F;
         const uint8_t cmd = dev_cmd & 0x0F;
         // printf("PIX_DEV_CMD %02X %02X %02X\n", dev_cmd, device, cmd);
@@ -133,12 +154,8 @@ static void __isr pix_irq_handler(void)
     unknown:
     {
         printf("PIX Unknown MSG: %02X/%d\n", header, frame_count);
-        // drain FIFO
-        for (int i = 0; i <= frame_count; i++)
-        {
-            pix_buffer[i] = (uint8_t)pio_sm_get_blocking(PIX_PIO, PIX_SM);
-        }
-        printf(">>> %02lX: ", header);
+        dma_channel_wait_for_finish_blocking(pix_req_dma_chan);
+        printf(">>> %02X: ", header);
         for (int i = 0; i <= frame_count; i++)
         {
             printf("%02X ", pix_buffer[i]);
@@ -149,6 +166,13 @@ static void __isr pix_irq_handler(void)
     }
     break;
     }
+}
+
+static void __isr pix_dma_handler(void)
+{
+    // Clear the interrupt request.
+    dma_hw->ints0 = 1u << pix_req_dma_chan;
+    printf("PIX DMA Done\n");
 }
 
 void pix_init(void)
@@ -177,6 +201,24 @@ void pix_init(void)
     pio_set_irq0_source_enabled(PIX_PIO, pis_interrupt0, true);
     irq_set_exclusive_handler(PIO_IRQ_NUM(PIX_PIO, 0), pix_irq_handler);
     irq_set_enabled(PIO_IRQ_NUM(PIX_PIO, 0), true);
+
+    // DMA for bulk transfers
+    pix_req_dma_chan = dma_claim_unused_channel(true);
+    dma_channel_config dma_config = dma_channel_get_default_config(pix_req_dma_chan);
+    channel_config_set_transfer_data_size(&dma_config, DMA_SIZE_8);
+    channel_config_set_read_increment(&dma_config, false);
+    channel_config_set_write_increment(&dma_config, true);
+    channel_config_set_dreq(&dma_config, PIO_DREQ_NUM(PIX_PIO, PIX_SM, false));
+    dma_channel_configure(
+        pix_req_dma_chan,
+        &dma_config,
+        pix_buffer,
+        &PIX_PIO->rxf[PIX_SM],
+        0,
+        false);
+    dma_channel_set_irq0_enabled(pix_req_dma_chan, true);
+    irq_set_exclusive_handler(PIX_DMA_IRQ, pix_dma_handler);
+    irq_set_enabled(PIX_DMA_IRQ, true);
 
     pio_sm_set_enabled(PIX_PIO, PIX_SM, true);
 }

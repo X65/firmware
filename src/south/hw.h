@@ -44,14 +44,16 @@
 #define COM_UART_BAUDRATE  115200
 
 // PIX bus
-#define PIX_PIO pio1
-#define PIX_SM  0
+#define PIX_PIO     pio1
+#define PIX_SM      0
+#define PIX_DMA_IRQ DMA_IRQ_1
 
-// ---
 // DVI uses DMA in ping-ping setup
 #define DVI_DMACH_PING 0
 #define DVI_DMACH_PONG 1
+#define DVI_DMA_IRQ    DMA_IRQ_0
 
+// ---
 // FM chip SPI
 #define AUD_SPI                 spi0
 #define AUD_CLOCK_FREQUENCY_KHZ 12288
