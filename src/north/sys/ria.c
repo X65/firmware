@@ -276,6 +276,7 @@ __attribute__((optimize("O1"))) static void __no_inline_not_in_flash_func(act_lo
                     }
                     else
                     {
+                        // printf("CGIA WR %02X=%02X\n", addr & 0x7F, data);
                         pix_send_request(PIX_DEV_WRITE, 3,
                                          (uint8_t[]) {PIX_DEV_VPU, addr & 0x7F, data},
                                          nullptr);

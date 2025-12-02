@@ -38,38 +38,6 @@ pix_nak(void)
         = PIX_RESPONSE(PIX_NAK, cgia_reg_read(CGIA_REG_RASTER));
 }
 
-static bool pix_ch15_xreg(uint8_t addr, uint16_t word)
-{
-    switch (addr)
-    {
-    case 0x00: // DISPLAY
-        // Also performs a reset.
-        // vga_xreg_canvas(NULL);
-        // vga_set_display(word);
-        // memset(&xregs, 0, sizeof(xregs));
-        return true;
-    case 0x01: // CODE_PAGE
-        font_set_code_page(word);
-        return true;
-    case 0x03: // UART_TX
-        putchar_raw(word);
-        return false;
-    case 0x04: // BACKCHAN
-        // ria_backchan(word);
-        return false;
-    }
-    return false;
-}
-
-static inline uint8_t __attribute__((always_inline))
-__attribute__((optimize("O3")))
-pix_read_blocking()
-{
-    while (PIX_PIO->fstat & (1u << (PIO_FSTAT_RXEMPTY_LSB + PIX_SM)))
-        tight_loop_contents();
-    return PIX_PIO->rxf[PIX_SM];
-}
-
 static void __isr pix_irq_handler(void)
 {
 
@@ -88,6 +56,9 @@ static void __isr pix_irq_handler(void)
 
     switch (header >> 5)
     {
+    case PIX_SYNC:
+        pix_ack();
+        break;
     case PIX_MEM_WRITE:
     {
         if (frame_count != 4)

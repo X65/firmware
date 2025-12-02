@@ -12,6 +12,7 @@
 #include "sys/vpu.h"
 #include <hardware/clocks.h>
 #include <hardware/pio.h>
+#include <pico/critical_section.h>
 #include <pico/time.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -26,35 +27,22 @@ static inline void DBG(const char *fmt, ...)
 }
 #endif
 
-static uint32_t pix_send_count;
-static absolute_time_t pix_api_state_timer;
-static enum state {
-    pix_api_running,
-    pix_api_waiting,
-    pix_api_ack,
-    pix_api_nak,
-} pix_api_state;
-
-static volatile uint8_t pix_in_flight = 0;
+static volatile int pix_in_flight = 0;
 static volatile pix_response_t *pix_response = nullptr;
-static volatile uint8_t pix_response_skip = 0;
+static volatile int pix_response_skip = 0;
+static critical_section_t pix_cs;
+static absolute_time_t pix_last_activity;
 
-#define PIX_ACK_TIMEOUT_MS 2
+#define PIX_PING_TIMEOUT_US (67 * 2)
+#define PIX_ACK_TIMEOUT_MS  50
 
-// Unconditionally attempt to send a PIX message.
-// Meant for use with pix_ready() to fill the FIFO in a task handler.
-static inline __attribute__((always_inline)) void pix_send(uint8_t byte)
-{
-    pio_sm_put(PIX_PIO, PIX_SM, byte);
-}
-
-// Send a single PIX message, block if necessary. Normally, blocking is bad, but
+// Send a single PIX byte, block if necessary. Normally, blocking is bad, but
 // this unblocks so fast that it's not a problem for a few messages.
 static inline __attribute__((always_inline)) void pix_send_blocking(uint8_t byte)
 {
-    while (!pix_ready())
+    while (PIX_PIO->fstat & (1u << (PIO_FSTAT_TXFULL_LSB + PIX_SM)))
         tight_loop_contents();
-    pix_send(byte);
+    PIX_PIO->txf[PIX_SM] = byte;
 }
 
 static void __isr pix_irq_handler(void)
@@ -107,6 +95,8 @@ void pix_send_request(pix_req_type_t msg_type,
     assert(req_len5 > 0);
     assert(req_data);
 
+    critical_section_enter_blocking(&pix_cs);
+
     if (pix_response)
     {
         // Previous request still pending
@@ -114,9 +104,12 @@ void pix_send_request(pix_req_type_t msg_type,
         while (pix_response)
             tight_loop_contents();
     }
+
+    pix_last_activity = get_absolute_time();
     pix_response = resp;
     pix_response_skip = pix_in_flight++;
     pix_send_blocking(PIX_MESSAGE(msg_type, req_len5));
+
     if (req_len5 == 1)
     {
         pix_send_blocking(*req_data);
@@ -129,10 +122,14 @@ void pix_send_request(pix_req_type_t msg_type,
             pix_send_blocking(*req_data++);
         }
     }
+
+    critical_section_exit(&pix_cs);
 }
 
 void pix_init(void)
 {
+    critical_section_init(&pix_cs);
+
     pio_set_gpio_base(PIX_PIO, 16);
     uint offset = pio_add_program(PIX_PIO, &pix_nb_program);
     pio_sm_config config = pix_nb_program_get_default_config(offset);
@@ -161,44 +158,27 @@ void pix_init(void)
     pio_sm_set_enabled(PIX_PIO, PIX_SM, true);
 }
 
-// static uint32_t sent = 0;
 void pix_task(void)
 {
-    // if (pio_sm_is_tx_fifo_empty(PIX_PIO, PIX_SM) && !(sent & 1))
-    // {
-    //     const int msg_count = 31; // encoded as n-1
-    //     pio_sm_put(PIX_PIO, PIX_SM, (0x1 << 5) | (msg_count & 0b11111));
-    //     for (int i = 0; i <= msg_count; i++)
-    //     {
-    //         pio_sm_put_blocking(PIX_PIO, PIX_SM, 0x11 + i + sent);
-    //     }
-    //     ++sent;
-    // }
-    // while (!pio_sm_is_rx_fifo_empty(PIX_PIO, PIX_SM))
-    // {
-    //     uint32_t raw = pio_sm_get(PIX_PIO, PIX_SM);
-    //     printf("<<< %04lX\n", raw);
-    //     if (sent < 6)
-    //         ++sent;
-    // }
+    // If nothing happens, retrieve ACK with raster line.
+    if (pio_sm_is_tx_fifo_empty(PIX_PIO, PIX_SM)
+        && pix_in_flight == 0
+        && absolute_time_diff_us(pix_last_activity, get_absolute_time()) > PIX_PING_TIMEOUT_US)
+    {
+        pix_send_request(PIX_SYNC, 1, (uint8_t[]) {0}, nullptr);
+    }
+
+    // Check whether PIX is running at all.
+    if (pix_in_flight > 0
+        && absolute_time_diff_us(pix_last_activity, get_absolute_time()) > PIX_ACK_TIMEOUT_MS * 1000)
+    {
+        printf("PIX FAILED\n");
+        main_stop();
+    }
 }
 
 void pix_stop(void)
 {
-    pix_send_count = 0;
-    pix_api_state = pix_api_running;
-}
-
-void pix_ack(void)
-{
-    if (pix_api_state == pix_api_waiting)
-        pix_api_state = pix_api_ack;
-}
-
-void pix_nak(void)
-{
-    if (pix_api_state == pix_api_waiting)
-        pix_api_state = pix_api_nak;
 }
 
 // bool pix_api_xreg(void)

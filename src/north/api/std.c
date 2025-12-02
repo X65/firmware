@@ -8,8 +8,8 @@
 #include "api/api.h"
 #include "fatfs/ff.h"
 #include "sys/com.h"
-#include "sys/pix.h"
 #include "sys/rln.h"
+#include <assert.h>
 #include <stdio.h>
 
 #if defined(DEBUG_RIA_API) || defined(DEBUG_RIA_API_STD)

@@ -44,6 +44,7 @@
     "raspberry-pi-pico.ninjaPath": "${HOME}/.pico-sdk/ninja/v1.12.1/ninja",
     "editor.formatOnSave": true,
     "problems.autoReveal": true,
+    "problems.showCurrentInStatus": true,
     "[jsonc]": {
         "editor.defaultFormatter": "vscode.json-language-features"
     },

@@ -14,6 +14,8 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#define CPU_BUS_PIO_SPEED_KHZ 10000U
+
 /* Main events
  */
 

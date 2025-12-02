@@ -12,8 +12,6 @@
 #include <pico/stdlib.h>
 #include <stdio.h>
 
-#define CPU_BUS_PIO_SPEED_KHZ (26000u) // 26 MHz
-
 #if defined(DEBUG_RIA_SYS) || defined(DEBUG_RIA_SYS_CPU)
 #include <stdio.h>
 #define DBG(...) fprintf(stderr, __VA_ARGS__)
