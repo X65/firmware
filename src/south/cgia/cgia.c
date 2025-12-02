@@ -33,7 +33,7 @@ uint8_t
     __attribute__((aligned(4)))
     vram_cache[CGIA_VRAM_BANKS][0x10000];
 
-volatile uint8_t
+uint8_t
     __attribute__((aligned(4)))
     __scratch_x("")
         regs_int[CGIA_REGS_NO]
@@ -62,10 +62,6 @@ static uint16_t
     __scratch_x("")
         sprite_dsc_offsets[CGIA_PLANES][CGIA_SPRITES]
     = {0};
-static uint8_t
-    __attribute__((aligned(4)))
-    __scratch_x("")
-        sprite_line_data[SPRITE_MAX_WIDTH];
 
 // store which PSRAM bank is currently mirrored in cache
 // stored as bitmask for easy use during ram write call
@@ -508,7 +504,7 @@ void __attribute__((optimize("O3"))) cgia_render(uint16_t y, uint32_t *rgbbuf)
             uint8_t sprite_index = 7;
             uint8_t mask = 0b10000000;
 
-            // wait until back fill and store is done, as it may overwrite sprites on the right side
+            // wait until back fill is done, as it may overwrite sprites on the right side
             dma_channel_wait_for_finish_blocking(back_chan);
 
             while (mask)
@@ -525,29 +521,22 @@ void __attribute__((optimize("O3"))) cgia_render(uint16_t y, uint32_t *rgbbuf)
                         && (!plane->sprite.stop_y || sprite_line <= plane->sprite.stop_y))
                     {
                         const uint8_t sprite_width = sprite->flags & SPRITE_MASK_WIDTH;
-                        uint8_t line_bytes = sprite_width + 1;
-                        const uint sprite_offset = sprite_line * line_bytes;
+                        const uint sprite_offset = sprite_line * (sprite_width + 1);
 
-                        uint8_t *dst = sprite_line_data;
                         uint8_t *src = sprite_bank + sprite->data_offset;
-                        if (sprite->flags & SPRITE_MASK_MIRROR_X) // TODO: inc/dec inside renderer
+                        if (sprite->flags & SPRITE_MASK_MIRROR_X)
                         {
                             src += sprite_offset + sprite_width;
-                            do
-                            {
-                                *dst++ = *src--;
-                            } while (--line_bytes);
+                            // TODO: inc/dec inside renderer
+                            cgia_encode_sprite_mirror(rgbbuf, (uint32_t *)sprite,
+                                                      src, sprite_width);
                         }
                         else
                         {
                             src += sprite_offset;
-                            do
-                            {
-                                *dst++ = *src++;
-                            } while (--line_bytes);
+                            cgia_encode_sprite(rgbbuf, (uint32_t *)sprite,
+                                               src, sprite_width);
                         }
-
-                        cgia_encode_sprite(rgbbuf, (uint32_t *)sprite, sprite_line_data, sprite_width);
 
                         // if this was the last line of sprite, load the next offset
                         if (sprite->pos_y + sprite->lines_y == (int)y + 1)

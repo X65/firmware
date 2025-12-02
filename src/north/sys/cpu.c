@@ -12,7 +12,7 @@
 #include <pico/stdlib.h>
 #include <stdio.h>
 
-#define CPU_BUS_PIO_SPEED_KHZ (20000u) // 20 MHz
+#define CPU_BUS_PIO_SPEED_KHZ (26000u) // 26 MHz
 
 #if defined(DEBUG_RIA_SYS) || defined(DEBUG_RIA_SYS_CPU)
 #include <stdio.h>

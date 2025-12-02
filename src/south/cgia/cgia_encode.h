@@ -116,7 +116,12 @@ uint32_t *__not_in_flash_func(cgia_encode_vt)(
 void __not_in_flash_func(cgia_encode_sprite)(
     uint32_t *rgbbuf,
     const uint32_t *descriptor,
-    const uint8_t *line_data,
+    const uint8_t *data_ptr,
+    uint32_t width);
+void __not_in_flash_func(cgia_encode_sprite_mirror)(
+    uint32_t *rgbbuf,
+    const uint32_t *descriptor,
+    const uint8_t *data_ptr,
     uint32_t width);
 
 #endif
