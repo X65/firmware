@@ -41,7 +41,6 @@ target_link_libraries(x65_north PRIVATE
     pico_rand
     hardware_pio
     hardware_dma
-    hardware_pwm
     hardware_flash
     tinyusb_host
     pico_btstack_ble
@@ -141,6 +140,7 @@ target_link_libraries(x65_south PRIVATE
     hardware_pio
     hardware_dma
     hardware_interp
+    hardware_i2c
     tinyusb_device
 )
 

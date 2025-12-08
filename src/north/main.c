@@ -23,6 +23,7 @@
 #include "sys/cpu.h"
 #include "sys/led.h"
 #include "sys/lfs.h"
+#include "sys/mdm.h"
 #include "sys/mem.h"
 #include "sys/pix.h"
 #include "sys/ria.h"
@@ -70,6 +71,7 @@ static void init(void)
     pad_init();
     rom_init();
     clk_init();
+    // mdm_init();
 
     // Enable LED heartbeat after all inits.
     led_blink(true);
@@ -87,10 +89,11 @@ void main_task(void)
     pix_task();
     ria_task();
     kbd_task();
-    // vpu_task();
+    vpu_task();
     com_task();
     xin_task();
     led_task();
+    // mdm_task();
 }
 
 // Tasks that call FatFs should be here instead of main_task().

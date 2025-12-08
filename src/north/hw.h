@@ -10,7 +10,7 @@
 /* All pin assignments
  */
 
-#define RIA_LED_PIN 37
+#define RIA_LED_PIN 9 /* shared with QMI BS, which is unused on prototype */
 
 // monitor console
 #define COM_UART_TX_PIN    32
@@ -21,8 +21,6 @@
 #define PIX_PIN_DTR   (PIX_PIN_BASE + 8)
 #define PIX_PIN_SCK   (PIX_PIN_BASE + 9)
 #define PIX_PINS_USED 10
-
-#define RIA_IRQB_PIN 36 /* connected to IRQ0 on interrupt controller  */
 
 #define PSRAM_BANKS_NO   2
 #define QMI_PSRAM_CS_PIN 8
@@ -36,7 +34,15 @@
 #define CPU_CTL_PIN_BASE  4
 #define CPU_PHI2_PIN      (CPU_CTL_PIN_BASE + 0)
 #define CPU_CTL_PINS_USED 1
-#define CPU_RESB_PIN      (CPU_CTL_PIN_BASE + CPU_CTL_PINS_USED)
+#define CPU_RESB_PIN      5
+#define RIA_IRQB_PIN      6 /* connected to IRQ0 on interrupt controller  */
+
+#define ESP_SPI_PIN_BASE 34
+#define ESP_SPI_SCK_PIN  (ESP_SPI_PIN_BASE + 0)
+#define ESP_SPI_TX_PIN   (ESP_SPI_PIN_BASE + 1)
+#define ESP_SPI_RX_PIN   (ESP_SPI_PIN_BASE + 2)
+#define ESP_SPI_CS_PIN   (ESP_SPI_PIN_BASE + 3)
+#define ESP_AT_HS_PIN    7 // SPI HANDSHAKE
 
 /* All resource assignments
  */
@@ -54,5 +60,9 @@
 // PIX bus
 #define PIX_PIO pio1
 #define PIX_SM  0
+
+// ESP-AT modem SPI
+#define ESP_SPI         spi0
+#define ESP_BAUDRATE_HZ 10000000
 
 #endif /* _RIA_HW_H_ */

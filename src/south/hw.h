@@ -30,13 +30,6 @@
 #define AUD_SPI_SCK_PIN  (AUD_SPI_PIN_BASE + 2)
 #define AUD_SPI_TX_PIN   (AUD_SPI_PIN_BASE + 3)
 
-#define ESP_SPI_PIN_BASE 40
-#define ESP_SPI_RX_PIN   (ESP_SPI_PIN_BASE + 0)
-#define ESP_SPI_CS_PIN   (ESP_SPI_PIN_BASE + 1)
-#define ESP_SPI_SCK_PIN  (ESP_SPI_PIN_BASE + 2)
-#define ESP_SPI_TX_PIN   (ESP_SPI_PIN_BASE + 3)
-#define ESP_AT_HS_PIN    39 // SPI HANDSHAKE
-
 /* All resource assignments
  */
 
@@ -58,9 +51,5 @@
 #define AUD_SPI                 spi0
 #define AUD_CLOCK_FREQUENCY_KHZ 12288
 #define AUD_BAUDRATE_HZ         1000000
-
-// ESP-AT modem SPI
-#define ESP_SPI         spi1
-#define ESP_BAUDRATE_HZ 10000000
 
 #endif /* _VPU_HW_H_ */
