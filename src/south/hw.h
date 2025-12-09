@@ -11,6 +11,7 @@
  */
 
 #define VPU_LED_PIN 25
+#define RGB_LED_PIN 20
 
 // UART connected to RIA
 #define COM_UART_TX_PIN 4
@@ -45,6 +46,10 @@
 #define DVI_DMACH_PING 0
 #define DVI_DMACH_PONG 1
 #define DVI_DMA_IRQ    DMA_IRQ_0
+
+#define RGB_LED_PIO   pio2
+#define RGB_LED_SM    0
+#define RGB_LED_COUNT 4
 
 // ---
 // FM chip SPI

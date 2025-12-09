@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2025 Rumbledethumps
+ * Copyright (c) 2025 Tomasz Sterna
  *
  * SPDX-License-Identifier: BSD-3-Clause
  */
@@ -22,5 +23,8 @@ void led_task(void);
 
 // Make it blink
 void led_blink(bool on);
+
+// RGB LED control
+void led_set_pixel(size_t index, uint8_t r, uint8_t g, uint8_t b);
 
 #endif /* _VPU_SYS_LED_H_ */
