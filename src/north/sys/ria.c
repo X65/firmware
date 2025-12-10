@@ -101,16 +101,6 @@ __attribute__((optimize("O1"))) static void __no_inline_not_in_flash_func(act_lo
             if (rw_addr_bus & CPU_VAB_MASK)
                 continue; // skip invalid accesses
 
-            const uint16_t addr = (uint16_t)(rw_addr_bus >> 8);
-            const uint8_t bank = (uint8_t)(rw_addr_bus);
-
-            if (bank > 0 && addr != 0xFFFE && addr != 0xFFFF)
-            {
-                gpio_put(CPU_RESB_PIN, false);
-                mem_dump = true;
-                main_stop();
-            }
-
             const bool is_read = (rw_addr_bus & CPU_RWB_MASK);
 
             if (!is_read)
@@ -121,17 +111,14 @@ __attribute__((optimize("O1"))) static void __no_inline_not_in_flash_func(act_lo
                 data = (uint8_t)CPU_BUS_PIO->rxf[CPU_BUS_SM];
             }
 
-            // BANK 0 is special - we have I/O devices mmapped here
-            if (bank == 0x00 && addr >= 0xFF00)
+            // I/O devices mmapped here
+            if ((rw_addr_bus & 0xFC00FF) == 0xFC0000)
             {
+                const uint16_t addr = (uint16_t)(rw_addr_bus >> 8);
+
                 // RIA registers
                 if (addr >= 0xFFC0)
                 {
-                    if (is_read)
-                        data = regs[addr & 0x3F];
-                    else
-                        regs[addr & 0x3F] = data;
-
                     // ------ FFF0 - FFFF ------ (API, EXT CTL)
                     if (addr >= 0xFFF0)
                         switch (rw_addr_bus & (CPU_RWB_MASK | (CPU_IODEV_MASK << 8)))
@@ -168,6 +155,13 @@ __attribute__((optimize("O1"))) static void __no_inline_not_in_flash_func(act_lo
                             if (xstack_ptr < XSTACK_SIZE)
                                 ++xstack_ptr;
                             break;
+                        default:
+                        {
+                            if (is_read)
+                                data = regs[addr & 0x3F];
+                            else
+                                regs[addr & 0x3F] = data;
+                        }
                         }
                     // ------ FFE0 - FFEF ------ (UART, RNG, IRQ CTL)
                     else if (addr >= 0xFFE0)
@@ -224,12 +218,26 @@ __attribute__((optimize("O1"))) static void __no_inline_not_in_flash_func(act_lo
                             // printf("! %02X\n", status);
                             break;
                         }
+                        default:
+                        {
+                            if (is_read)
+                                data = regs[addr & 0x3F];
+                            else
+                                regs[addr & 0x3F] = data;
+                        }
                         }
 
                     // ------ FFD0 - FFDF ------ (DMA, FS)
                     else if (addr >= 0xFFD0)
                         switch (rw_addr_bus & (CPU_RWB_MASK | (CPU_IODEV_MASK << 8)))
                         {
+                        default:
+                        {
+                            if (is_read)
+                                data = regs[addr & 0x3F];
+                            else
+                                regs[addr & 0x3F] = data;
+                        }
                         }
                     // ------ FFC0 - FFCF ------ (MUL/DIV, TOD)
                     else if (addr >= 0xFFC0)
@@ -272,6 +280,13 @@ __attribute__((optimize("O1"))) static void __no_inline_not_in_flash_func(act_lo
                             data = (addr & 1) ? (mul >> 8) : (mul & 0xFF);
                         }
                         break;
+                        default:
+                        {
+                            if (is_read)
+                                data = regs[addr & 0x3F];
+                            else
+                                regs[addr & 0x3F] = data;
+                        }
                         }
                 }
                 // devices Memory-MAPped by RIA
@@ -308,7 +323,7 @@ __attribute__((optimize("O1"))) static void __no_inline_not_in_flash_func(act_lo
             }
 
             // else is "normal" memory access
-            const uint32_t ram_addr = (bank << 16) | addr;
+            const uint32_t ram_addr = (((uint8_t)rw_addr_bus) << 16) | ((uint16_t)(rw_addr_bus >> 8));
             if (is_read)
                 data = mem_read_ram(ram_addr);
             else
