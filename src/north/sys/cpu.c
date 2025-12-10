@@ -54,6 +54,20 @@ bool cpu_active(void)
     return cpu_run_requested;
 }
 
+static float cpu_get_phi2(void)
+{
+    uint32_t sys_hz = clock_get_hz(clk_sys);
+
+    uint32_t clkdiv_raw = CPU_BUS_PIO->sm[CPU_BUS_SM].clkdiv;
+    uint32_t div_int = clkdiv_raw >> 16;
+    uint32_t div_frac = (clkdiv_raw >> 8) & 0xFF;
+    float clkdiv = (float)div_int + (float)div_frac / 256.0f;
+
+    float cpu_bus_hz = (float)sys_hz / clkdiv;
+
+    return cpu_bus_hz / (cpu_bus_TICKS * 2);
+}
+
 uint32_t cpu_get_reset_us(void)
 {
 #ifndef RP6502_RESB_US
@@ -62,7 +76,7 @@ uint32_t cpu_get_reset_us(void)
     // If provided, use RP6502_RESB_US unless PHI2
     // speed needs longer for 2 clock cycles.
     // One extra microsecond to get ceil.
-    uint32_t reset_us = 2000 / CPU_PHI2_KHZ + 1;
+    uint32_t reset_us = 2000 / (uint32_t)(cpu_get_phi2() / KHZ) + 1;
     if (!RP6502_RESB_US)
         return reset_us;
     return RP6502_RESB_US < reset_us
@@ -94,7 +108,7 @@ static void cpu_bus_pio_init(void)
     pio_sm_init(CPU_BUS_PIO, CPU_BUS_SM, offset + cpu_bus_offset_start, &config);
     // irq_set_exclusive_handler(PIO_IRQ_NUM(CPU_BUS_PIO, MEM_BUS_PIO_IRQ), mem_bus_pio_irq_handler);
     // irq_set_enabled(PIO_IRQ_NUM(CPU_BUS_PIO, MEM_BUS_PIO_IRQ), true);
-    CPU_BUS_PIO->irq = (1u << STALL_IRQ); // clear gating IRQ
+    CPU_BUS_PIO->irq = (1u << cpu_bus_SIRQ); // clear gating IRQ
     pio_sm_set_enabled(CPU_BUS_PIO, CPU_BUS_SM, true);
 }
 
@@ -113,9 +127,6 @@ void cpu_init(void)
     gpio_put(CPU_RESB_PIN, false);
     gpio_set_dir(CPU_RESB_PIN, true);
 
-    if (!gpio_get(CPU_RESB_PIN))
-        cpu_resb_timer = delayed_by_us(get_absolute_time(), cpu_get_reset_us());
-
     // PIO init
     cpu_bus_pio_init();
 
@@ -124,9 +135,12 @@ void cpu_init(void)
         cpu_gpio_pin_init(i);
     for (int i = CPU_CTL_PIN_BASE; i < CPU_CTL_PIN_BASE + CPU_CTL_PINS_USED; i++)
         cpu_gpio_pin_init(i);
+
+    if (!gpio_get(CPU_RESB_PIN))
+        cpu_resb_timer = delayed_by_us(get_absolute_time(), cpu_get_reset_us());
 }
 
 void cpu_print_status(void)
 {
-    printf("CPU : ~%.2fMHz\n", (float)CPU_BUS_PIO_SPEED_KHZ / 12 / KHZ);
+    printf("CPU : %.2fMHz\n", cpu_get_phi2() / MHZ);
 }

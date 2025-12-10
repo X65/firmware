@@ -52,10 +52,9 @@
 #define COM_UART_BAUD_RATE 115200
 
 // CPU bus handling
-#define CPU_PHI2_KHZ 6000
-
-#define CPU_BUS_PIO pio0
-#define CPU_BUS_SM  0
+#define CPU_BUS_PIO_SPEED_KHZ 100000U
+#define CPU_BUS_PIO           pio0
+#define CPU_BUS_SM            0
 
 // PIX bus
 #define PIX_PIO pio1
