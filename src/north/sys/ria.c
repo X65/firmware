@@ -9,7 +9,6 @@
 #include "hw.h"
 #include "main.h"
 #include "sys/com.h"
-#include "sys/cpu.h"
 #include "sys/mem.h"
 #include "sys/pix.h"
 #include <hardware/clocks.h>
@@ -39,21 +38,14 @@ void ria_trigger_irq(void)
         gpio_put(RIA_IRQB_PIN, false);
 }
 
-void ria_run(void)
-{
-}
-
+#define MEM_LOG_ENABLED (0)
+static bool mem_dump = false;
 static int mem_log_idx = 0;
+#if MEM_LOG_ENABLED
 #define MEM_LOG_SIZE 360
 static uint32_t mem_addr[MEM_LOG_SIZE];
 static uint8_t mem_data[MEM_LOG_SIZE];
-static bool mem_dump = false;
-
-void ria_stop(void)
-{
-    irq_enabled = false;
-    gpio_put(RIA_IRQB_PIN, true);
-}
+#endif
 
 #define CPU_VAB_MASK    (1u << 24)
 #define CPU_RWB_MASK    (1u << 25)
@@ -61,17 +53,35 @@ void ria_stop(void)
 #define CASE_READ(addr) (CPU_RWB_MASK | ((addr & CPU_IODEV_MASK) << 8))
 #define CASE_WRIT(addr) ((addr & CPU_IODEV_MASK) << 8)
 
+static void ria_mem_dump(void)
+{
+#if MEM_LOG_ENABLED
+    for (int i = 0; i < mem_log_idx; i++)
+    {
+        printf("%02d: %02X %02X%04X %c %02X\n",
+               i, mem_addr[i] >> 24, (uint8_t)(mem_addr[i]), (uint16_t)(mem_addr[i] >> 8),
+               (mem_addr[i] & CPU_RWB_MASK) ? 'R' : 'W', mem_data[i]);
+    }
+#endif
+}
+
+void ria_run(void)
+{
+    mem_log_idx = 0;
+    mem_dump = false;
+}
+
+void ria_stop(void)
+{
+    irq_enabled = false;
+    gpio_put(RIA_IRQB_PIN, true);
+
+    if (mem_dump)
+        ria_mem_dump();
+}
+
 void ria_task(void)
 {
-    if (mem_log_idx == MEM_LOG_SIZE || mem_dump)
-    {
-        for (int i = 0; i < mem_log_idx; i++)
-        {
-            // printf("%02d: %08lX %c %02X\n", i, mem_addr[i], (mem_addr[i] & CPU_RWB_MASK) ? 'R' : 'W', mem_data[i]);
-        }
-        mem_log_idx = MEM_LOG_SIZE + 1;
-        mem_dump = false;
-    }
 }
 
 // This becomes unstable every time I tried to get to O3 by trurning off
@@ -93,6 +103,13 @@ __attribute__((optimize("O1"))) static void __no_inline_not_in_flash_func(act_lo
 
             const uint16_t addr = (uint16_t)(rw_addr_bus >> 8);
             const uint8_t bank = (uint8_t)(rw_addr_bus);
+
+            if (bank > 0 && addr != 0xFFFE && addr != 0xFFFF)
+            {
+                gpio_put(CPU_RESB_PIN, false);
+                mem_dump = true;
+                main_stop();
+            }
 
             const bool is_read = (rw_addr_bus & CPU_RWB_MASK);
 
@@ -135,9 +152,9 @@ __attribute__((optimize("O1"))) static void __no_inline_not_in_flash_func(act_lo
                             else if (data == API_OP_HALT)
                             {
                                 gpio_put(CPU_RESB_PIN, false);
+                                mem_dump = true;
                                 main_stop();
                             }
-                            mem_dump = true;
                             break;
                         case CASE_READ(0xFFF1): // API return value
                             data = API_OP;
@@ -175,6 +192,7 @@ __attribute__((optimize("O1"))) static void __no_inline_not_in_flash_func(act_lo
                         case CASE_READ(0xFFE1): // UART Rx
                         {
                             const int ch = com_rx_char;
+                            // printf("R %02X %c\n", ch, (ch >= 0) ? ' ' : 'x');
                             if (ch >= 0)
                             {
                                 data = (uint8_t)ch;
@@ -187,6 +205,7 @@ __attribute__((optimize("O1"))) static void __no_inline_not_in_flash_func(act_lo
                             break;
                         }
                         case CASE_WRIT(0xFFE1): // UART Tx
+                            // printf("W %02X (%c) %c\n", data, isprint(data) ? data : '_', com_tx_writable() ? 'v' : 'x');
                             if (com_tx_writable())
                                 com_tx_write(data);
                             break;
@@ -202,6 +221,7 @@ __attribute__((optimize("O1"))) static void __no_inline_not_in_flash_func(act_lo
                             else
                                 status &= ~0b10000000;
                             data = status;
+                            // printf("! %02X\n", status);
                             break;
                         }
                         }
@@ -302,11 +322,15 @@ __attribute__((optimize("O1"))) static void __no_inline_not_in_flash_func(act_lo
                     tight_loop_contents();
                 CPU_BUS_PIO->txf[CPU_BUS_SM] = data;
             }
-            if (cpu_active() && mem_log_idx < MEM_LOG_SIZE)
+#if MEM_LOG_ENABLED
+            if (cpu_active())
             {
+                if (mem_log_idx >= MEM_LOG_SIZE)
+                    mem_log_idx = 0;
                 mem_data[mem_log_idx] = data;
                 mem_addr[mem_log_idx++] = rw_addr_bus;
             }
+#endif
         }
     }
 }

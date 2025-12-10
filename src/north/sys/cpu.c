@@ -86,16 +86,24 @@ static void cpu_bus_pio_init(void)
     for (int i = CPU_BUS_PIN_BASE; i < CPU_BUS_PIN_BASE + CPU_BUS_PINS_USED; i++)
         pio_gpio_init(CPU_BUS_PIO, i % 32);
     for (int i = CPU_CTL_PIN_BASE; i < CPU_CTL_PIN_BASE + CPU_CTL_PINS_USED; i++)
-        pio_gpio_init(CPU_BUS_PIO, i);
+        pio_gpio_init(CPU_BUS_PIO, i % 32);
     pio_sm_set_consecutive_pindirs(CPU_BUS_PIO, CPU_BUS_SM, CPU_BUS_PIN_BASE, CPU_BUS_PINS_USED, false);
     pio_sm_set_consecutive_pindirs(CPU_BUS_PIO, CPU_BUS_SM, CPU_CTL_PIN_BASE, CPU_CTL_PINS_USED, true);
     // pio_set_irq1_source_enabled(CPU_BUS_PIO, pis_sm0_rx_fifo_not_empty, true);
     // pio_interrupt_clear(CPU_BUS_PIO, MEM_BUS_PIO_IRQ);
-    pio_sm_init(CPU_BUS_PIO, CPU_BUS_SM, offset, &config);
+    pio_sm_init(CPU_BUS_PIO, CPU_BUS_SM, offset + cpu_bus_offset_start, &config);
     // irq_set_exclusive_handler(PIO_IRQ_NUM(CPU_BUS_PIO, MEM_BUS_PIO_IRQ), mem_bus_pio_irq_handler);
     // irq_set_enabled(PIO_IRQ_NUM(CPU_BUS_PIO, MEM_BUS_PIO_IRQ), true);
     CPU_BUS_PIO->irq = (1u << STALL_IRQ); // clear gating IRQ
     pio_sm_set_enabled(CPU_BUS_PIO, CPU_BUS_SM, true);
+}
+
+static void cpu_gpio_pin_init(int idx)
+{
+    int i = idx % 32;
+    gpio_set_pulls(i, false, false);
+    gpio_set_input_hysteresis_enabled(i, false);
+    hw_set_bits(&CPU_BUS_PIO->input_sync_bypass, 1u << i);
 }
 
 void cpu_init(void)
@@ -108,18 +116,14 @@ void cpu_init(void)
     if (!gpio_get(CPU_RESB_PIN))
         cpu_resb_timer = delayed_by_us(get_absolute_time(), cpu_get_reset_us());
 
-    // Adjustments for GPIO performance. Important!
-    for (int i = CPU_BUS_PIN_BASE; i < CPU_BUS_PIN_BASE + CPU_BUS_PINS_USED; i++)
-    {
-        int idx = i % 32;
-        pio_gpio_init(CPU_BUS_PIO, idx);
-        gpio_set_pulls(idx, false, false);
-        gpio_set_input_hysteresis_enabled(idx, false);
-        hw_set_bits(&CPU_BUS_PIO->input_sync_bypass, 1u << idx);
-    }
-
     // PIO init
     cpu_bus_pio_init();
+
+    // Adjustments for GPIO performance. Important!
+    for (int i = CPU_BUS_PIN_BASE; i < CPU_BUS_PIN_BASE + CPU_BUS_PINS_USED; i++)
+        cpu_gpio_pin_init(i);
+    for (int i = CPU_CTL_PIN_BASE; i < CPU_CTL_PIN_BASE + CPU_CTL_PINS_USED; i++)
+        cpu_gpio_pin_init(i);
 }
 
 void cpu_print_status(void)
