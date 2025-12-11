@@ -53,6 +53,7 @@ static void __isr pix_irq_handler(void)
     const uint8_t code = PIX_REPLY_CODE(reply);
     // printf("!!! %2X: %03X\n", code, PIX_REPLY_PAYLOAD(reply));
 
+    critical_section_enter_blocking(&pix_cs);
     if (pix_in_flight)
         --pix_in_flight;
     else
@@ -60,9 +61,12 @@ static void __isr pix_irq_handler(void)
         printf("PIX Unexpected Reply with no requests: %04X\n", reply);
         main_stop();
     }
+    critical_section_exit(&pix_cs);
 
     switch (code)
     {
+    case PIX_PONG:
+        break;
     case PIX_ACK:
         vpu_raster = PIX_REPLY_PAYLOAD(reply);
         break;
@@ -82,9 +86,10 @@ static void __isr pix_irq_handler(void)
 
     if (pix_response && pix_response_skip-- == 0)
     {
-        pix_response->reply = reply;
-        pix_response->status = 1;
+        pix_response_t *pix_resp = pix_response;
         pix_response = nullptr;
+        pix_resp->reply = reply;
+        pix_resp->status = 1;
     }
 }
 
@@ -106,6 +111,7 @@ void pix_send_request(pix_req_type_t msg_type,
     }
 
     pix_last_activity = get_absolute_time();
+    resp->status = 0;
     pix_response = resp;
     pix_response_skip = pix_in_flight++;
     pix_send_blocking(PIX_MESSAGE(msg_type, req_len5));
@@ -139,7 +145,7 @@ void pix_init(void)
     sm_config_set_out_pin_count(&config, 8);
     sm_config_set_in_pin_base(&config, PIX_PIN_BASE);
     sm_config_set_in_pin_count(&config, PIX_PINS_USED);
-    sm_config_set_sideset_pin_base(&config, PIX_PIN_SCK);
+    sm_config_set_sideset_pin_base(&config, PIX_PIN_RTS);
     sm_config_set_jmp_pin(&config, PIX_PIN_DTR);
     sm_config_set_out_shift(&config, true, false, 0);
     sm_config_set_in_shift(&config, false, true, 16);
@@ -160,6 +166,37 @@ void pix_init(void)
 
 void pix_task(void)
 {
+#if 0
+    {
+        printf("PIX testing...\n");
+
+        uint8_t seq = 0;
+        uint8_t payload[32] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16,
+                               17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32};
+        pix_response_t resp = {0};
+        while (true)
+        {
+            const uint8_t len5 = (seq & 0x1F) + 1;
+            pix_send_request(PIX_PING, len5, &payload[0], &resp);
+            while (!resp.status)
+                tight_loop_contents();
+            if (PIX_REPLY_CODE(resp.reply) != PIX_PONG
+                || ((payload[seq & 0x1F] << 6) | len5) != PIX_REPLY_PAYLOAD(resp.reply))
+            {
+                printf("!!! %02X => %X\n", seq, resp.reply);
+                while (true)
+                    tight_loop_contents();
+            }
+            pix_send_request(PIX_PING, (len5 + 5) % 32 + 1, &payload[0], nullptr);
+            ++seq;
+            if (seq == 0)
+            {
+                putchar('.');
+            }
+        }
+    }
+#endif
+
     // If nothing happens, retrieve ACK with raster line.
     if (pio_sm_is_tx_fifo_empty(PIX_PIO, PIX_SM)
         && pix_in_flight == 0
@@ -173,6 +210,8 @@ void pix_task(void)
         && absolute_time_diff_us(pix_last_activity, get_absolute_time()) > PIX_ACK_TIMEOUT_MS * 1000)
     {
         printf("PIX FAILED\n");
+        while (true)
+            tight_loop_contents();
         main_stop();
     }
 }

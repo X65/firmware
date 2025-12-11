@@ -8,15 +8,15 @@
 .define public PIX_INT_NUM 0
 
 .program pix_nb
-.side_set 1 ; SCK
+.side_set 1 ; RTS
 ; jmppin is DTR
 
 ; You need to wait for the receiver to be able to read data (DTR high).
-; Thus you are allowed to raise SCK only when tht DTR is high and there is
+; Thus you are allowed to raise RTS only when the DTR is high and there is
 ; data to read by the receiver. `wait 1 jmppin side 0`
 
 .wrap_target
-    mov pindirs, ~null  side 0      ; PIX0-PIX7 are outputs, clock LOW
+    mov pindirs, ~null  side 0      ; D0-D7 are outputs, clock LOW
     pull block          side 0      ; wait for data to send
     mov pins, osr       side 0      ; set output data
     out x, 5            side 0      ; load frame counter (up to 32 bytes)
@@ -29,12 +29,12 @@ loop:
     wait 1 jmppin       side 0      ; wait for DTR
     wait 0 jmppin       side 1      ; wait for DTR-ACK
 
-    mov pindirs, null   side 0      ; PIX0-PIX7 are now inputs
+    mov pindirs, null   side 0      ; D0-D7 are now inputs
     wait 1 jmppin       side 0      ; wait for incoming data
-    in  pins, 8         side 0      ; read incoming data, ACK with SCK
+    in  pins, 8         side 0      ; read incoming data, ACK with RTS
     wait 0 jmppin       side 1      ; wait for DTR-ACK
     wait 1 jmppin       side 0      ; wait for incoming data
-    in  pins, 8         side 0      ; read incoming data, ACK with SCK
+    in  pins, 8         side 0      ; read incoming data, ACK with RTS
     irq set PIX_INT_NUM side 1      ; signal reply received
     wait 0 jmppin       side 1      ; wait for DTR-ACK
 .wrap
@@ -42,31 +42,31 @@ loop:
 
 .program pix_sb
 .side_set 1 ; DTR
-; jmppin is SCK
+; jmppin is RTS
 
 ; You need to signal DTR only when you are ready to read something.
 ; `wait 1 jmppin side 1`
 
 .wrap_target
-    mov pindirs, null   side 0      ; PIX0-PIX7 are inputs, ready to read
-    wait 0 jmppin       side 0      ; wait for next SCK
-    wait 1 jmppin       side 1      ; wait for SCK high
+    mov pindirs, null   side 0      ; D0-D7 are inputs, ready to read
+    wait 0 jmppin       side 0      ; wait for next RTS
+    wait 1 jmppin       side 1      ; wait for RTS high
     in  pins, 5         side 1      ; read frame counter
     mov x, isr          side 1      ; store frame counter
     in  pins, 8         side 1      ; read (again) full header
     irq set PIX_INT_NUM side 1      ; signal header received
-    wait 0 jmppin       side 0      ; wait for next SCK
+    wait 0 jmppin       side 0      ; wait for next RTS
 loop:
-    wait 1 jmppin       side 1      ; wait for SCK high
+    wait 1 jmppin       side 1      ; wait for RTS high
     in  pins, 8         side 1      ; read incoming data, ACK by lowering DTR
-    wait 0 jmppin       side 0      ; wait for next SCK
+    wait 0 jmppin       side 0      ; wait for next RTS
     jmp x-- loop        side 0      ; repeat for whole frame
 
-    mov pindirs, ~null  side 0      ; PIX0-PIX7 are outputs
+    mov pindirs, ~null  side 0      ; D0-D7 are outputs
     pull block          side 0      ; wait for data to send
     out pins, 8         side 0      ; set output data
-    wait 1 jmppin       side 1      ; signal data ready, wait for SCK ACK
-    wait 0 jmppin       side 0      ; wait for next SCK
+    wait 1 jmppin       side 1      ; signal data ready, wait for RTS ACK
+    wait 0 jmppin       side 0      ; wait for next RTS
     out pins, 8         side 0      ; set output data
-    wait 1 jmppin       side 1      ; signal data ready, wait for SCK ACK
+    wait 1 jmppin       side 1      ; signal data ready, wait for RTS ACK
 .wrap

@@ -59,6 +59,15 @@ static void __isr pix_irq_handler(void)
     case PIX_SYNC:
         pix_ack();
         break;
+    case PIX_PONG:
+    {
+        if (frame_count >= 5)
+            dma_channel_set_write_addr(pix_req_dma_chan, pix_buffer, true);
+        dma_channel_wait_for_finish_blocking(pix_req_dma_chan);
+        *(io_rw_16 *)&PIX_PIO->txf[PIX_SM]
+            = PIX_RESPONSE(PIX_PONG, ((pix_buffer[frame_count - 1] << 6) | frame_count));
+    }
+    break;
     case PIX_MEM_WRITE:
     {
         if (frame_count != 4)
@@ -152,6 +161,8 @@ static void __isr pix_irq_handler(void)
     unknown:
     {
         printf("PIX Unknown MSG: %02X/%d\n", header, frame_count);
+        if (frame_count >= 5)
+            dma_channel_set_write_addr(pix_req_dma_chan, pix_buffer, true);
         dma_channel_wait_for_finish_blocking(pix_req_dma_chan);
         printf(">>> %02X: ", header);
         for (int i = 0; i < frame_count; i++)
@@ -185,7 +196,7 @@ void pix_init(void)
     sm_config_set_in_pin_base(&config, PIX_PIN_BASE);
     sm_config_set_in_pin_count(&config, 8);
     sm_config_set_sideset_pin_base(&config, PIX_PIN_DTR);
-    sm_config_set_jmp_pin(&config, PIX_PIN_SCK);
+    sm_config_set_jmp_pin(&config, PIX_PIN_RTS);
     sm_config_set_out_shift(&config, false, false, 0);
     sm_config_set_in_shift(&config, false, true, 8);
     for (int i = 0; i < PIX_PINS_USED; i++)

@@ -14,7 +14,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#define PIX_BUS_PIO_SPEED_KHZ 3200U
+#define PIX_BUS_PIO_SPEED_KHZ 44000U
 
 /*
  * PIX protocol messages
@@ -23,6 +23,7 @@
 typedef enum
 {
     PIX_SYNC = 0,
+    PIX_PING,
     PIX_MEM_WRITE,
     PIX_DMA_WRITE,
     PIX_DEV_CMD,
@@ -36,6 +37,7 @@ typedef enum
 typedef enum
 {
     PIX_ACK = 0,
+    PIX_PONG,
     PIX_DMA_REQ,
     PIX_DEV_DATA,
     PIX_NAK = 0xFF,

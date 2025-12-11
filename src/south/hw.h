@@ -17,9 +17,9 @@
 #define COM_UART_TX_PIN 4
 #define COM_UART_RX_PIN (COM_UART_TX_PIN + 1)
 
-#define PIX_PIN_BASE  38 /* PIX0-PIX7, PIX_CLK, PIX_DTR */
+#define PIX_PIN_BASE  38 /* PIX_D0-7, PIX_CLK, PIX_DTR */
 #define PIX_PIN_DTR   (PIX_PIN_BASE + 8)
-#define PIX_PIN_SCK   (PIX_PIN_BASE + 9)
+#define PIX_PIN_RTS   (PIX_PIN_BASE + 9)
 #define PIX_PINS_USED 10
 
 #define VPU_NMIB_PIN 21
