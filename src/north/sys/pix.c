@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2025 Rumbledethumps
+ * Copyright (c) 2025 Tomasz Sterna
  *
  * SPDX-License-Identifier: BSD-3-Clause
  */
@@ -206,8 +206,8 @@ void pix_task(void)
         && absolute_time_diff_us(pix_last_activity, get_absolute_time()) > PIX_ACK_TIMEOUT_MS * 1000)
     {
         printf("PIX FAILED\n");
-        while (true)
-            tight_loop_contents();
+        // while (true)
+        //     tight_loop_contents();
         main_stop();
     }
 }
@@ -215,104 +215,6 @@ void pix_task(void)
 void pix_stop(void)
 {
 }
-
-// bool pix_api_xreg(void)
-// {
-//     static uint8_t pix_device;
-//     static uint8_t pix_channel;
-//     static uint8_t pix_addr;
-
-//     switch (pix_api_state)
-//     {
-//     case pix_api_running:
-//         break;
-//     case pix_api_waiting:
-//         if (absolute_time_diff_us(get_absolute_time(), pix_api_state_timer) < 0)
-//         {
-//             pix_api_state = pix_api_running;
-//             pix_send_count = 0;
-//             return api_return_errno(API_EIO);
-//         }
-//         return api_working();
-//     case pix_api_ack:
-//         pix_api_state = pix_api_running;
-//         if (pix_send_count == 0)
-//         {
-//             xstack_ptr = XSTACK_SIZE;
-//             return api_return_ax(0);
-//         }
-//         break;
-//     case pix_api_nak:
-//         pix_api_state = pix_api_running;
-//         pix_send_count = 0;
-//         return api_return_errno(API_EINVAL);
-//     }
-
-//     // In progress, send one xreg
-//     if (pix_send_count)
-//     {
-//         if (pix_ready())
-//         {
-//             --pix_send_count;
-//             uint16_t data = 0;
-//             api_pop_uint16(&data);
-//             pix_send(pix_device, pix_channel, pix_addr + pix_send_count, data);
-//             if (pix_device == PIX_DEVICE_VGA && pix_channel == 0 && pix_addr + pix_send_count <= 1)
-//             {
-//                 pix_api_state = pix_api_waiting;
-//                 pix_api_state_timer = make_timeout_time_ms(PIX_ACK_TIMEOUT_MS);
-//             }
-//             else if (!pix_send_count)
-//             {
-//                 xstack_ptr = XSTACK_SIZE;
-//                 return api_return_ax(0);
-//             }
-//         }
-//         return api_working();
-//     }
-
-//     // Setup for new call
-//     pix_device = xstack[XSTACK_SIZE - 1];
-//     pix_channel = xstack[XSTACK_SIZE - 2];
-//     pix_addr = xstack[XSTACK_SIZE - 3];
-//     pix_send_count = (XSTACK_SIZE - xstack_ptr - 3) / 2;
-//     if (!(xstack_ptr & 0x01)
-//         || pix_send_count < 1 || pix_send_count > XSTACK_SIZE / 2
-//         || pix_device > 7 || pix_channel > 15)
-//     {
-//         pix_send_count = 0;
-//         return api_return_errno(API_EINVAL);
-//     }
-
-//     // Local PIX device $0
-//     if (pix_device == PIX_DEVICE_RIA)
-//     {
-//         for (; pix_send_count; pix_send_count--)
-//         {
-//             uint16_t data = 0;
-//             api_pop_uint16(&data);
-//             if (!main_xreg(pix_channel, pix_addr, data))
-//             {
-//                 pix_send_count = 0;
-//                 return api_return_errno(API_EINVAL);
-//             }
-//         }
-//         xstack_ptr = XSTACK_SIZE;
-//         return api_return_ax(0);
-//     }
-
-//     // Special case of sending VGA canvas and mode in same call.
-//     // Because we send in reverse, canvas has to be first or it'll clear mode programming.
-//     if (pix_device == PIX_DEVICE_VGA && pix_channel == 0 && pix_addr == 0 && pix_send_count > 1)
-//     {
-//         pix_send_blocking(PIX_DEVICE_VGA, 0, 0, *(uint16_t *)&xstack[XSTACK_SIZE - 5]);
-//         pix_addr = 1;
-//         pix_send_count -= 1;
-//         pix_api_state = pix_api_waiting;
-//         pix_api_state_timer = make_timeout_time_ms(PIX_ACK_TIMEOUT_MS);
-//     }
-//     return api_working();
-// }
 
 inline void __attribute__((always_inline)) __attribute__((optimize("O3")))
 pix_mem_write(uint32_t addr24, uint8_t data)

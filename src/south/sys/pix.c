@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2025 Rumbledethumps
+ * Copyright (c) 2025 Tomasz Sterna
  *
  * SPDX-License-Identifier: BSD-3-Clause
  */
@@ -234,13 +234,4 @@ void pix_init(void)
 
 void pix_task(void)
 {
-    // uint8_t ch = (raw & 0x0F000000) >> 24;
-    // uint8_t addr = (raw & 0x00FF0000) >> 16;
-    // uint16_t word = raw & 0xFFFF;
-    // // These return true on slow operations to
-    // // allow us to stay greedy on fast ones.
-    // if (ch == 0 && pix_ch0_xreg(addr, word))
-    //     break;
-    // if (ch == 15 && pix_ch15_xreg(addr, word))
-    //     break;
 }

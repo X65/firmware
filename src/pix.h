@@ -14,7 +14,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#define PIX_BUS_PIO_SPEED_KHZ 44000U
+#define PIX_BUS_PIO_SPEED_KHZ 42000U
 
 /*
  * PIX protocol messages
