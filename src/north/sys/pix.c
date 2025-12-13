@@ -107,10 +107,11 @@ void pix_send_request(pix_req_type_t msg_type,
     // while (dma_is_running) tight_loop_contents();
 
     critical_section_enter_blocking(&pix_cs);
-
-    pix_last_activity = get_absolute_time();
     pix_response = resp;
     pix_response_skip = pix_in_flight++;
+    critical_section_exit(&pix_cs);
+
+    pix_last_activity = get_absolute_time();
     pix_send_blocking(PIX_MESSAGE(msg_type, req_len5));
 
     if (req_len5 == 1)
@@ -125,8 +126,6 @@ void pix_send_request(pix_req_type_t msg_type,
             pix_send_blocking(*req_data++);
         }
     }
-
-    critical_section_exit(&pix_cs);
 }
 
 void pix_init(void)
