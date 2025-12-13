@@ -54,12 +54,12 @@ static void __isr pix_irq_handler(void)
     // printf("!!! %2X: %03X\n", code, PIX_REPLY_PAYLOAD(reply));
 
     critical_section_enter_blocking(&pix_cs);
-    if (pix_in_flight)
-        --pix_in_flight;
-    else
+    --pix_in_flight;
+    if (pix_in_flight < 0)
     {
         printf("PIX Unexpected Reply with no requests: %04X\n", reply);
         main_stop();
+        pix_in_flight = 0;
     }
     critical_section_exit(&pix_cs);
 
@@ -99,19 +99,16 @@ void pix_send_request(pix_req_type_t msg_type,
 {
     assert(req_len5 > 0);
     assert(req_data);
+    assert(resp || resp->status == 0);
+
+    // spin wait if request with response is pending
+    while (pix_response)
+        tight_loop_contents();
+    // while (dma_is_running) tight_loop_contents();
 
     critical_section_enter_blocking(&pix_cs);
 
-    if (pix_response)
-    {
-        // Previous request still pending
-        printf("PIX Request Busy\n");
-        while (pix_response)
-            tight_loop_contents();
-    }
-
     pix_last_activity = get_absolute_time();
-    resp->status = 0;
     pix_response = resp;
     pix_response_skip = pix_in_flight++;
     pix_send_blocking(PIX_MESSAGE(msg_type, req_len5));
