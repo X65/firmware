@@ -26,21 +26,19 @@ static inline void DBG(const char *fmt, ...)
 }
 #endif
 
-// How long to wait for ACK to backchannel enable request
-#define VPU_BACKCHANNEL_ACK_MS  2
 // How long to wait for version string
 #define VPU_VERSION_WATCHDOG_MS 2
 // Abandon backchannel after two missed vsync messages (~2/60sec)
 #define VPU_VSYNC_WATCHDOG_MS   35
 
 static enum {
-    VPU_NOT_FOUND,   // Possibly normal, Pico VPU is optional
-    VPU_TESTING,     // Looking for Pico VPU
+    VPU_NOT_FOUND,   // VPU not yet checked
+    VPU_TESTING,     // Looking for VPU
     VPU_FOUND,       // Found
     VPU_LOST_SIGNAL, // Definitely an error condition
 } vpu_state;
 
-static absolute_time_t vpu_vsync_timer;
+static absolute_time_t vpu_raster_timer;
 uint16_t vpu_raster;
 
 bool vpu_needs_reset;
@@ -48,42 +46,39 @@ bool vpu_needs_reset;
 char vpu_version_message[VPU_VERSION_MESSAGE_SIZE];
 size_t vpu_version_message_length;
 
-static void vpu_rln_callback(bool timeout, const char *buf, size_t length)
-{
-    if (!timeout && length == VPU_VERSION_MESSAGE_SIZE)
-        vpu_state = VPU_FOUND;
-    else
-        vpu_state = VPU_NOT_FOUND;
-}
-
 static void vpu_connect(void)
 {
-    // Test if VPU connected
-    while (stdio_getchar_timeout_us(0) != PICO_ERROR_TIMEOUT)
-        tight_loop_contents();
-    rln_read_binary(VPU_BACKCHANNEL_ACK_MS, vpu_rln_callback,
-                    (uint8_t *)vpu_version_message, VPU_VERSION_MESSAGE_SIZE);
-    vpu_state = VPU_TESTING;
+    // Load VPU version string
     pix_response_t resp = {0};
-    uint8_t req = PIX_DEVICE_CMD(PIX_DEV_VPU, PIX_VPU_CMD_GET_VERSION);
-    pix_send_request(PIX_DEV_CMD, 1, &req, &resp);
-    while (!resp.status)
-        tight_loop_contents();
-    if (PIX_REPLY_CODE(resp.reply) != PIX_ACK)
+    vpu_state = VPU_TESTING;
+    uint8_t idx = 0;
+    while (idx < VPU_VERSION_MESSAGE_SIZE)
     {
-        vpu_state = VPU_NOT_FOUND;
-        return;
+        resp.status = 0; // clear status for next round
+        pix_send_request(PIX_DEV_CMD, 2,
+                         (uint8_t[]) {PIX_DEVICE_CMD(PIX_DEV_VPU, PIX_VPU_CMD_GET_VERSION), idx},
+                         &resp);
+        while (!resp.status)
+            tight_loop_contents();
+
+        if (PIX_REPLY_CODE(resp.reply) != PIX_DEV_DATA)
+        {
+            vpu_state = VPU_NOT_FOUND;
+            return;
+        }
+
+        vpu_state = VPU_FOUND;
+        const char ch = (char)(PIX_REPLY_PAYLOAD(resp.reply));
+        vpu_version_message[idx++] = ch;
+        if (ch == '\0')
+            break;
     }
-    // Wait for version response over UART channel
-    while (vpu_state == VPU_TESTING)
-    {
-        rln_task();
-    }
+    vpu_version_message_length = idx;
 }
 
 void vpu_init(void)
 {
-    // Reset Pico VPU
+    // Reset VPU
     vpu_needs_reset = true;
 
     // Connect and establish backchannel
@@ -92,7 +87,7 @@ void vpu_init(void)
 
 void vpu_task(void)
 {
-    if (vpu_state == VPU_FOUND && absolute_time_diff_us(get_absolute_time(), vpu_vsync_timer) < 0)
+    if (vpu_state == VPU_FOUND && absolute_time_diff_us(get_absolute_time(), vpu_raster_timer) < 0)
     {
         vpu_state = VPU_LOST_SIGNAL;
         printf("?");
@@ -189,5 +184,5 @@ void vpu_fetch_status(void)
 void vpu_set_raster(uint16_t raster)
 {
     vpu_raster = raster;
-    vpu_vsync_timer = make_timeout_time_ms(VPU_VSYNC_WATCHDOG_MS);
+    vpu_raster_timer = make_timeout_time_ms(VPU_VSYNC_WATCHDOG_MS);
 }

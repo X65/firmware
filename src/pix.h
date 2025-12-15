@@ -44,7 +44,7 @@ typedef enum
 } pix_rsp_code_t;
 
 #define PIX_RESPONSE(rsp_code, rsp_payload) \
-    (((rsp_code & 0xF) << 12) | (rsp_payload & 0x0FFF))
+    (uint16_t)(((rsp_code & 0xF) << 12) | (rsp_payload & 0x0FFF))
 #define PIX_REPLY_CODE(reply)    (((reply) >> 12) & 0x0F)
 #define PIX_REPLY_PAYLOAD(reply) ((reply) & 0x0FFF)
 

@@ -109,7 +109,7 @@ void pix_send_request(pix_req_type_t msg_type,
 {
     assert(req_len5 > 0);
     assert(req_data);
-    assert(resp || resp->status == 0);
+    assert(!resp || resp->status == 0);
 
     mutex_enter_blocking(&pix_send_mutex);
 

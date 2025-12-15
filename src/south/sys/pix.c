@@ -47,6 +47,12 @@ pix_nak(void)
     *(io_rw_16 *)&PIX_PIO->txf[PIX_SM] = PIX_RESPONSE(PIX_NAK, cgia_reg_read(CGIA_REG_RASTER));
 }
 
+static inline void __attribute__((always_inline))
+pix_rsp(pix_rsp_code_t code, uint16_t payload12)
+{
+    *(io_rw_16 *)&PIX_PIO->txf[PIX_SM] = PIX_RESPONSE(code, payload12);
+}
+
 static void __isr pix_irq_handler(void)
 {
 
@@ -73,8 +79,7 @@ static void __isr pix_irq_handler(void)
         if (frame_count >= 5)
             dma_channel_set_write_addr(pix_req_dma_chan, pix_buffer, true);
         dma_channel_wait_for_finish_blocking(pix_req_dma_chan);
-        *(io_rw_16 *)&PIX_PIO->txf[PIX_SM]
-            = PIX_RESPONSE(PIX_PONG, ((pix_buffer[frame_count - 1] << 6) | frame_count));
+        pix_rsp(PIX_PONG, (uint16_t)((pix_buffer[frame_count - 1] << 6) | frame_count));
     }
     break;
     case PIX_MEM_WRITE:
@@ -123,15 +128,8 @@ static void __isr pix_irq_handler(void)
             switch (cmd)
             {
             case PIX_VPU_CMD_GET_VERSION:
-            {
-                char ver_string[VPU_VERSION_MESSAGE_SIZE];
-                memset(ver_string, 0, VPU_VERSION_MESSAGE_SIZE);
-                strcpy(ver_string, sys_version());
-                uart_write_blocking(COM_UART_INTERFACE,
-                                    (const uint8_t *)ver_string, VPU_VERSION_MESSAGE_SIZE);
-                pix_ack();
-            }
-            break;
+                pix_rsp(PIX_DEV_DATA, sys_version()[pix_buffer[1]]);
+                break;
             case PIX_VPU_CMD_GET_STATUS:
                 sys_write_status();
                 pix_ack();
@@ -163,8 +161,7 @@ static void __isr pix_irq_handler(void)
             const uint8_t reg = pix_buffer[1];
             const uint8_t value = cgia_reg_read(reg);
             // printf("PIX_DEV_READ VPU REG %02X = %02X\n", reg, value);
-            *(io_rw_16 *)&PIX_PIO->txf[PIX_SM]
-                = PIX_RESPONSE(PIX_DEV_DATA, value);
+            pix_rsp(PIX_DEV_DATA, value);
         }
         break;
         }
