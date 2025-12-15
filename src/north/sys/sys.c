@@ -78,6 +78,5 @@ void sys_init(void)
     puts("\30\33c");
     // Hello, world.
     sys_print_status();
-    if (vpu_connected())
-        vpu_print_status();
+    vpu_print_status();
 }

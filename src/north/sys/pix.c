@@ -81,7 +81,7 @@ static void __isr pix_irq_handler(void)
     case PIX_PONG:
         break;
     case PIX_ACK:
-        vpu_set_raster(PIX_REPLY_PAYLOAD(reply));
+        vpu_raster = PIX_REPLY_PAYLOAD(reply);
         break;
     case PIX_DMA_REQ:
         pix_dma_bank = (uint8_t)PIX_REPLY_PAYLOAD(reply);
@@ -96,7 +96,7 @@ static void __isr pix_irq_handler(void)
         }
         break;
     case PIX_NAK:
-        vpu_set_raster(PIX_REPLY_PAYLOAD(reply));
+        vpu_raster = PIX_REPLY_PAYLOAD(reply);
         [[fallthrough]];
     default:
         printf("<<< %2X: %03X\n", code, PIX_REPLY_PAYLOAD(reply));
@@ -226,8 +226,7 @@ void pix_task(void)
     }
 
     // Check whether PIX is running at all.
-    if (pix_in_flight > 0
-        && absolute_time_diff_us(pix_last_activity, get_absolute_time()) > PIX_ACK_TIMEOUT_MS * 1000)
+    if (pix_in_flight > 0 && !pix_connected())
     {
         printf("PIX FAILED\n");
         // while (true)
@@ -238,6 +237,11 @@ void pix_task(void)
 
 void pix_stop(void)
 {
+}
+
+bool pix_connected(void)
+{
+    return absolute_time_diff_us(pix_last_activity, get_absolute_time()) < PIX_ACK_TIMEOUT_MS * 1000;
 }
 
 inline void __attribute__((always_inline)) __attribute__((optimize("O3")))

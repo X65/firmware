@@ -103,11 +103,7 @@ static void cpu_bus_pio_init(void)
         pio_gpio_init(CPU_BUS_PIO, i % 32);
     pio_sm_set_consecutive_pindirs(CPU_BUS_PIO, CPU_BUS_SM, CPU_BUS_PIN_BASE, CPU_BUS_PINS_USED, false);
     pio_sm_set_consecutive_pindirs(CPU_BUS_PIO, CPU_BUS_SM, CPU_CTL_PIN_BASE, CPU_CTL_PINS_USED, true);
-    // pio_set_irq1_source_enabled(CPU_BUS_PIO, pis_sm0_rx_fifo_not_empty, true);
-    // pio_interrupt_clear(CPU_BUS_PIO, MEM_BUS_PIO_IRQ);
     pio_sm_init(CPU_BUS_PIO, CPU_BUS_SM, offset + cpu_bus_offset_start, &config);
-    // irq_set_exclusive_handler(PIO_IRQ_NUM(CPU_BUS_PIO, MEM_BUS_PIO_IRQ), mem_bus_pio_irq_handler);
-    // irq_set_enabled(PIO_IRQ_NUM(CPU_BUS_PIO, MEM_BUS_PIO_IRQ), true);
     CPU_BUS_PIO->irq = (1u << cpu_bus_SIRQ); // clear gating IRQ
     pio_sm_set_enabled(CPU_BUS_PIO, CPU_BUS_SM, true);
 }

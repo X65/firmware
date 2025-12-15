@@ -22,6 +22,8 @@ void pix_init(void);
 void pix_task(void);
 void pix_stop(void);
 
+bool pix_connected(void);
+
 // Structure to receive PIX responses into.
 typedef struct
 {
