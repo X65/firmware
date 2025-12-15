@@ -429,7 +429,8 @@ static bool std_api_lseek(int set, int cur, int end)
     // Beyond 2GB is darkness.
     if (pos > 0x7FFFFFFF)
         pos = 0x7FFFFFFF;
-    return api_return_axsreg(pos);
+    api_push_uint32(&pos);
+    return api_return_ax(0);
 }
 
 bool std_api_lseek_cc65(void)

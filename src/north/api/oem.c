@@ -7,8 +7,10 @@
 #include "api/oem.h"
 #include "api/api.h"
 #include "sys/cfg.h"
+#include "sys/mem.h"
 #include "sys/pix.h"
 #include <fatfs/ff.h>
+#include <pico/stdlib.h>
 
 #if defined(DEBUG_RIA_API) || defined(DEBUG_RIA_API_OEM)
 #include <stdio.h>
@@ -68,6 +70,46 @@ bool oem_api_code_page(void)
     if (!cp)
         cp = cfg_get_code_page();
     return api_return_ax(oem_set_code_page(cp));
+}
+
+static uint32_t chargen_addr;
+static uint16_t pending_chargen_bytes = 0;
+
+bool oem_api_get_chargen(void)
+{
+    if (!pending_chargen_bytes)
+    {
+        if (!api_pop_uint16(&((uint16_t *)(&chargen_addr))[0])
+            || !api_pop_uint8(&((uint8_t *)(&chargen_addr))[2]))
+            return api_return_errno(API_EINVAL);
+
+        pending_chargen_bytes = 256 * 8;
+    }
+
+    if (pending_chargen_bytes)
+    {
+        pix_response_t resp = {0};
+        pix_send_request(PIX_DEV_CMD, 3,
+                         (uint8_t[]) {
+                             PIX_DEVICE_CMD(PIX_DEV_VPU, PIX_VPU_CMD_GET_CHARGEN),
+                             ((uint8_t *)&pending_chargen_bytes)[0],
+                             ((uint8_t *)&pending_chargen_bytes)[1],
+                         },
+                         &resp);
+        while (!resp.status)
+            tight_loop_contents();
+
+        if (PIX_REPLY_CODE(resp.reply) != PIX_DEV_DATA)
+        {
+            pending_chargen_bytes = 0;
+            return api_return_errno(API_EIO);
+        }
+
+        mem_write_ram(chargen_addr++, (uint8_t)PIX_REPLY_PAYLOAD(resp.reply));
+        --pending_chargen_bytes;
+    }
+
+    return pending_chargen_bytes ? api_working() : api_return();
 }
 
 void oem_stop(void)

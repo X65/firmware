@@ -134,6 +134,9 @@ static void __isr pix_irq_handler(void)
                 sys_write_status();
                 pix_ack();
                 break;
+            case PIX_VPU_CMD_GET_CHARGEN:
+                pix_rsp(PIX_DEV_DATA, font8[*((uint16_t *)&pix_buffer[1]) & (256 * 8 - 1)]);
+                break;
             case PIX_VPU_CMD_SET_MODE_VT:
                 out_set_mode(OUT_MODE_VT);
                 pix_ack();
@@ -143,9 +146,11 @@ static void __isr pix_irq_handler(void)
                 pix_ack();
                 break;
             case PIX_VPU_CMD_SET_CODE_PAGE:
-                font_set_code_page((uint16_t)(pix_buffer[1] << 8 | pix_buffer[2]));
+                font_set_code_page(*((uint16_t *)&pix_buffer[1]));
                 pix_ack();
                 break;
+            default:
+                pix_nak();
             }
             break;
         }

@@ -78,10 +78,10 @@ static void __isr pix_irq_handler(void)
 
     switch (code)
     {
-    case PIX_PONG:
-        break;
     case PIX_ACK:
         vpu_raster = PIX_REPLY_PAYLOAD(reply);
+        break;
+    case PIX_PONG:
         break;
     case PIX_DMA_REQ:
         pix_dma_bank = (uint8_t)PIX_REPLY_PAYLOAD(reply);

@@ -7,8 +7,8 @@
 // The original RP2040 RTC implementation by Brentward is here:
 // https://github.com/picocomputer/rp6502/blob/bd8e3197/src/ria/api/clk.c
 
-#include "api/api.h"
 #include "api/clk.h"
+#include "api/api.h"
 #include "sys/cfg.h"
 #include <hardware/timer.h>
 #include <pico/aon_timer.h>
@@ -19,7 +19,10 @@
 #include <stdio.h>
 #define DBG(...) fprintf(stderr, __VA_ARGS__)
 #else
-static inline void DBG(const char *fmt, ...) { (void)fmt; }
+static inline void DBG(const char *fmt, ...)
+{
+    (void)fmt;
+}
 #endif
 
 #define CLK_ID_REALTIME 0
@@ -69,7 +72,9 @@ const char *clk_set_time_zone(const char *tz)
 
 bool clk_api_clock(void)
 {
-    return api_return_axsreg((time_us_64() - clk_clock_start) / 10000);
+    const uint32_t clock = (uint32_t)((time_us_64() - clk_clock_start) / 10000);
+    api_push_uint32(&clock);
+    return api_return_ax(0);
 }
 
 bool clk_api_get_res(void)
@@ -81,8 +86,8 @@ bool clk_api_get_res(void)
         aon_timer_get_resolution(&ts);
         int32_t nsec = ts.tv_nsec;
         uint32_t sec = ts.tv_sec;
-        if (!api_push_int32(&nsec) ||
-            !api_push_uint32(&sec))
+        if (!api_push_int32(&nsec)
+            || !api_push_uint32(&sec))
             return api_return_errno(API_EINVAL);
         return api_return_ax(0);
     }
@@ -99,8 +104,8 @@ bool clk_api_get_time(void)
         aon_timer_get_time(&ts);
         int32_t nsec = ts.tv_nsec;
         uint32_t sec = ts.tv_sec;
-        if (!api_push_int32(&nsec) ||
-            !api_push_uint32(&sec))
+        if (!api_push_int32(&nsec)
+            || !api_push_uint32(&sec))
             return api_return_errno(API_EINVAL);
         return api_return_ax(0);
     }
@@ -115,8 +120,8 @@ bool clk_api_set_time(void)
     {
         uint32_t rawtime_sec;
         int32_t rawtime_nsec;
-        if (!api_pop_uint32(&rawtime_sec) ||
-            !api_pop_int32_end(&rawtime_nsec))
+        if (!api_pop_uint32(&rawtime_sec)
+            || !api_pop_int32_end(&rawtime_nsec))
             return api_return_errno(API_EINVAL);
         struct timespec ts;
         ts.tv_sec = rawtime_sec;

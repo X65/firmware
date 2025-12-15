@@ -4,8 +4,8 @@
  * SPDX-License-Identifier: BSD-3-Clause
  */
 
-#include "api/api.h"
 #include "api/dir.h"
+#include "api/api.h"
 #include <fatfs/ff.h>
 #include <pico.h>
 
@@ -13,7 +13,10 @@
 #include <stdio.h>
 #define DBG(...) fprintf(stderr, __VA_ARGS__)
 #else
-static inline void DBG(const char *fmt, ...) { (void)fmt; }
+static inline void DBG(const char *fmt, ...)
+{
+    (void)fmt;
+}
 #endif
 
 // Validate essential settings in ffconf.h
@@ -132,7 +135,8 @@ bool dir_api_telldir(void)
     DIR *dir = &dirs[des];
     if (dir->obj.fs == 0)
         return api_return_errno(API_EBADF);
-    return api_return_axsreg(tells[des]);
+    api_push_int32(&tells[des]);
+    return api_return_ax(0);
 }
 
 // int f_seekdir (long offs, int dirdes);
@@ -229,9 +233,9 @@ bool dir_api_utime(void)
 {
     FILINFO fno;
     fno.crtime = API_AX;
-    if (!api_pop_uint16(&fno.crdate) ||
-        !api_pop_uint16(&fno.ftime) ||
-        !api_pop_uint16(&fno.fdate))
+    if (!api_pop_uint16(&fno.crdate)
+        || !api_pop_uint16(&fno.ftime)
+        || !api_pop_uint16(&fno.fdate))
         return api_return_errno(API_EINVAL);
     TCHAR *path = (TCHAR *)&xstack[xstack_ptr];
     xstack_ptr = XSTACK_SIZE;

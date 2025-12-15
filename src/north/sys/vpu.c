@@ -55,7 +55,7 @@ static void vpu_connect(void)
             return;
         }
 
-        const char ch = (char)(PIX_REPLY_PAYLOAD(resp.reply));
+        const char ch = (char)PIX_REPLY_PAYLOAD(resp.reply);
         vpu_version_message[idx++] = ch;
         if (ch == '\0')
             break;

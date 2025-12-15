@@ -24,7 +24,7 @@ void api_task(void);
 void api_run(void);
 void api_stop(void);
 
-typedef enum
+typedef enum : uint16_t
 {
     API_ENOENT,  /* No such file or directory */
     API_ENOMEM,  /* Not enough space */
@@ -63,15 +63,18 @@ uint16_t api_fresult_errno(unsigned fresult);
 
 /* RIA fastcall registers
  */
-#define API_OP    REGS(0xFFF1)
-#define API_ERRNO REGSW(0xFFF2)
-#define API_STACK REGS(0xFFF0)
-#define API_BUSY  (REGS(0xFFF3) & 0x80)
-// FIXME: following are not present in X65
-#define API_A     REGS(0xFFF0)
-#define API_X     REGS(0xFFF0)
-#define API_SREG  REGSW(0xFFF0)
-#define API_AX    (API_A | (API_X << 8))
+#define API_OP     REGS(0xFFF0)
+#define API_RET    REGS(0xFFF0)
+#define API_RETW   REGSW(0xFFF0)
+#define API_ERRNO  REGSW(0xFFF0)
+#define API_STACK  REGS(0xFFF2)
+#define API_BUSY   (REGS(0xFFF3) & 0x80)
+#define API_ERR    (REGS(0xFFF3) & 0x01)
+#define API_STATUS (REGS(0xFFF3) & 0x81)
+#define API_A      REGS(0xFFF0)
+#define API_X      REGS(0xFFF1)
+#define API_SREG   REGSW(0xFFF0)
+#define API_AX     (API_A | (API_X << 8))
 
 /* RIA API operation codes
  */
@@ -185,14 +188,6 @@ static inline bool api_push_int32(const int32_t *data)
     return api_push_n(data, sizeof(int32_t));
 }
 
-// Return works by manipulating 10 bytes of registers.
-// FFF0 EA      NOP
-// FFF1 80 FE   BRA -2
-// FFF3 A9 FF   LDA #$FF
-// FFF5 A2 FF   LDX #$FF
-// FFF7 60      RTS
-// FFF8 FF FF   .SREG $FF $FF
-
 static inline void api_set_regs_blocked()
 {
     REGS(0xFFF3) = 0xFE;
@@ -201,13 +196,17 @@ static inline void api_set_regs_released()
 {
     REGS(0xFFF3) = 0x00;
 }
+static inline void api_set_regs_errored()
+{
+    REGS(0xFFF3) = 0x01;
+}
 
 /* Sets the return value along with the LDX and RTS.
  */
 
 static inline void api_set_ax(uint16_t val)
 {
-    *(uint32_t *)&API_A = 0x6000A200 | (val & 0xFF) | ((val << 8) & 0xFF0000);
+    API_RETW = val;
 }
 
 static inline void api_set_axsreg(uint32_t val)
@@ -239,13 +238,6 @@ static inline bool api_return_ax(uint16_t val)
     return api_return();
 }
 
-// Success with a 32 bit return
-static inline bool api_return_axsreg(uint32_t val)
-{
-    api_set_axsreg(val);
-    return api_return();
-}
-
 // Failure returns -1 and sets errno
 static inline bool api_return_errno(api_errno errno)
 {
@@ -253,7 +245,9 @@ static inline bool api_return_errno(api_errno errno)
     // if (platform_errno)
     //     API_ERRNO = platform_errno;
     xstack_ptr = XSTACK_SIZE;
-    return api_return_axsreg(-1);
+    api_set_ax(errno);
+    api_set_regs_errored();
+    return false;
 }
 
 // Failure returns -1 and sets errno from FatFS FRESULT
@@ -263,7 +257,9 @@ static inline bool api_return_fresult(unsigned fresult)
     // if (platform_errno)
     //     API_ERRNO = platform_errno;
     xstack_ptr = XSTACK_SIZE;
-    return api_return_axsreg(-1);
+    api_set_ax((uint16_t)fresult);
+    api_set_regs_errored();
+    return false;
 }
 
 #endif /* _RIA_API_API_H_ */

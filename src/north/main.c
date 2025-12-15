@@ -180,8 +180,10 @@ bool main_api(uint8_t operation)
     //     return pix_api_xreg();
     // case 0x02:
     //     return cpu_api_phi2();
-    case 0x03:
+    case API_OP_OEM_CODEPAGE:
         return oem_api_code_page();
+    case API_OP_OEM_GET_CHARGEN:
+        return oem_api_get_chargen();
     case 0x04:
         return rng_api_lrand();
     case 0x05:
@@ -190,13 +192,13 @@ bool main_api(uint8_t operation)
         return 0xFF; // FIXME: api_api_errno_opt();
     case 0x0F:
         return clk_api_clock();
-    case 0x10:
+    case API_OP_CLK_GET_RES:
         return clk_api_get_res();
-    case 0x11:
+    case API_OP_CLK_GET_TIME:
         return clk_api_get_time();
-    case 0x12:
+    case API_OP_CLK_SET_TIME:
         return clk_api_set_time();
-    case 0x13:
+    case API_OP_CLK_GET_TIME_ZONE:
         return clk_api_get_time_zone();
     case 0x14:
         return std_api_open();
@@ -222,14 +224,14 @@ bool main_api(uint8_t operation)
         return std_api_syncfs();
     case 0x1F:
         return dir_api_stat();
-    case 0x20:
-        return dir_api_opendir();
-    case 0x21:
-        return dir_api_readdir();
-    case 0x22:
-        return dir_api_closedir();
-    case 0x23:
-        return dir_api_telldir();
+    // case 0x20:
+    //     return dir_api_opendir();
+    // case 0x21:
+    //     return dir_api_readdir();
+    // case 0x22:
+    //     return dir_api_closedir();
+    // case 0x23:
+    //     return dir_api_telldir();
     case 0x24:
         return dir_api_seekdir();
     case 0x25:

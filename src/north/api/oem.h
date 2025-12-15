@@ -28,5 +28,7 @@ uint16_t oem_set_code_page(uint16_t cp);
 
 // API set or query the code page.
 bool oem_api_code_page(void);
+// Pull the character generator for the current code page.
+bool oem_api_get_chargen(void);
 
 #endif /* _RIA_API_OEM_H_ */

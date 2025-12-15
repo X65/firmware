@@ -125,13 +125,19 @@ __attribute__((optimize("O1"))) static void __no_inline_not_in_flash_func(act_lo
                     if (addr >= 0xFFF0)
                         switch (rw_addr_bus & (CPU_RWB_MASK | (CPU_IODEV_MASK << 8)))
                         {
-                        case CASE_READ(0xFFF3): // API BUSY
-                            data = API_BUSY;
+                        case CASE_READ(0xFFF3): // API STATUS
+                            data = API_STATUS;
                             break;
-                        case CASE_READ(0xFFF2): // API ERRNO
-                            data = API_ERRNO;
+                        case CASE_WRIT(0xFFF2): // xstack
+                            if (xstack_ptr)
+                                xstack[--xstack_ptr] = data;
                             break;
-                        case CASE_WRIT(0xFFF1): // RIA API function call
+                        case CASE_READ(0xFFF2): // xstack
+                            data = xstack[xstack_ptr];
+                            if (xstack_ptr < XSTACK_SIZE)
+                                ++xstack_ptr;
+                            break;
+                        case CASE_WRIT(0xFFF0): // RIA API function call
                             api_set_regs_blocked();
                             if (data == API_OP_ZXSTACK)
                             {
@@ -144,18 +150,10 @@ __attribute__((optimize("O1"))) static void __no_inline_not_in_flash_func(act_lo
                                 mem_dump = true;
                                 main_stop();
                             }
-                            break;
-                        case CASE_READ(0xFFF1): // API return value
-                            data = API_OP;
-                            break;
-                        case CASE_WRIT(0xFFF0): // xstack
-                            if (xstack_ptr)
-                                xstack[--xstack_ptr] = data;
-                            break;
-                        case CASE_READ(0xFFF0): // xstack
-                            data = xstack[xstack_ptr];
-                            if (xstack_ptr < XSTACK_SIZE)
-                                ++xstack_ptr;
+                            else
+                            {
+                                API_OP = data;
+                            }
                             break;
                         default:
                         {
