@@ -34,7 +34,7 @@ uint16_t vpu_raster;
 char vpu_version_message[VPU_VERSION_MESSAGE_SIZE];
 size_t vpu_version_message_length;
 
-static void vpu_connect(void)
+static void vpu_get_version(void)
 {
     // Load VPU version string
     pix_response_t resp = {0};
@@ -65,8 +65,12 @@ static void vpu_connect(void)
 
 void vpu_init(void)
 {
-    // Connect and establish backchannel
-    vpu_connect();
+    vpu_get_version();
+
+    // Reset CGIA
+    pix_send_request(PIX_DEV_CMD, 1,
+                     (uint8_t[]) {PIX_DEVICE_CMD(PIX_DEV_VPU, PIX_VPU_CMD_RESET)},
+                     nullptr);
 }
 
 void vpu_task(void)

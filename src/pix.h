@@ -60,7 +60,8 @@ typedef enum pix_dev
 
 typedef enum pix_vpu_cmd
 {
-    PIX_VPU_CMD_GET_VERSION = 0,
+    PIX_VPU_CMD_RESET = 0,
+    PIX_VPU_CMD_GET_VERSION,
     PIX_VPU_CMD_GET_STATUS,
     PIX_VPU_CMD_GET_CHARGEN,
     PIX_VPU_CMD_SET_MODE_VT,

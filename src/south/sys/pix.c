@@ -127,6 +127,10 @@ static void __isr pix_irq_handler(void)
         case PIX_DEV_VPU:
             switch (cmd)
             {
+            case PIX_VPU_CMD_RESET:
+                cgia_reset();
+                pix_ack();
+                break;
             case PIX_VPU_CMD_GET_VERSION:
                 pix_rsp(PIX_DEV_DATA, sys_version()[pix_buffer[1]]);
                 break;

@@ -221,7 +221,7 @@ uint8_t vcache_dma_bank = 0;
 uint16_t vcache_dma_blocks_remaining = 0;
 uint8_t *vcache_dma_dest = 0;
 
-void cgia_init(void)
+void cgia_reset(void)
 {
     memset(&CGIA, 0, CGIA_REGS_NO);
     memset(plane_int, 0, sizeof(plane_int));
@@ -234,6 +234,15 @@ void cgia_init(void)
         // And update sprite descriptors
         plane_int[i].sprites_need_update = true;
     }
+    vcache_transfer = -1;
+    vram_wanted_bank[0] = CGIA.bckgnd_bank = 0;
+    vram_wanted_bank[1] = CGIA.sprite_bank = 0;
+    vram_cache_bank[0] = 0xFF; // Force initial transfer of bank
+    vram_cache_bank[1] = 0;
+}
+
+void cgia_init(void)
+{
 
 #ifdef PICO_SDK_VERSION_MAJOR
     // drive NMI pin (used by CGIA only)
@@ -286,11 +295,7 @@ void cgia_init(void)
         false);
 #endif
 
-    vcache_transfer = -1;
-    vram_wanted_bank[0] = CGIA.bckgnd_bank = 0;
-    vram_wanted_bank[1] = CGIA.sprite_bank = 0;
-    vram_cache_bank[0] = 0xFF; // Force initial transfer of bank
-    vram_cache_bank[1] = 0;
+    cgia_reset();
 }
 
 // clang-format off
