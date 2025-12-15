@@ -8,9 +8,11 @@
 #include "api/api.h"
 #include "hw.h"
 #include "main.h"
+#include "south/cgia/cgia.h"
 #include "sys/com.h"
 #include "sys/mem.h"
 #include "sys/pix.h"
+#include "sys/vpu.h"
 #include <hardware/clocks.h>
 #include <hardware/dma.h>
 #include <hardware/pio.h>
@@ -297,23 +299,33 @@ __attribute__((optimize("O1"))) static void __no_inline_not_in_flash_func(act_lo
                 // CGIA
                 else
                 {
+                    const uint8_t reg = addr & 0x7F;
                     if (is_read)
                     {
-                        pix_response_t resp = {0};
-                        pix_send_request(PIX_DEV_READ, 2,
-                                         (uint8_t[]) {PIX_DEV_VPU, addr & 0x7F},
-                                         &resp);
-                        while (!resp.status)
-                            tight_loop_contents();
-                        data = PIX_REPLY_CODE(resp.reply) == PIX_DEV_DATA
-                                   ? (uint8_t)PIX_REPLY_PAYLOAD(resp.reply)
-                                   : 0xFF;
+                        // Short-circuit CGIA raster read to avoid req/resp latency.
+                        // Current raster line is being sent with each PIX ACK/NACK response.
+                        if ((reg & 0xFE) == CGIA_REG_RASTER)
+                        {
+                            data = (reg & 1) ? (uint8_t)(vpu_raster >> 8) : (uint8_t)(vpu_raster);
+                        }
+                        else
+                        {
+                            pix_response_t resp = {0};
+                            pix_send_request(PIX_DEV_READ, 2,
+                                             (uint8_t[]) {PIX_DEV_VPU, reg},
+                                             &resp);
+                            while (!resp.status)
+                                tight_loop_contents();
+                            data = PIX_REPLY_CODE(resp.reply) == PIX_DEV_DATA
+                                       ? (uint8_t)PIX_REPLY_PAYLOAD(resp.reply)
+                                       : 0xFF;
+                        }
                     }
                     else
                     {
                         // printf("CGIA WR %02X=%02X\n", addr & 0x7F, data);
                         pix_send_request(PIX_DEV_WRITE, 3,
-                                         (uint8_t[]) {PIX_DEV_VPU, addr & 0x7F, data},
+                                         (uint8_t[]) {PIX_DEV_VPU, reg, data},
                                          nullptr);
                     }
                 }

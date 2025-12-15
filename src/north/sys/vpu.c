@@ -41,13 +41,12 @@ static enum {
 } vpu_state;
 
 static absolute_time_t vpu_vsync_timer;
+uint16_t vpu_raster;
 
 bool vpu_needs_reset;
 
 char vpu_version_message[VPU_VERSION_MESSAGE_SIZE];
 size_t vpu_version_message_length;
-
-uint16_t vpu_raster;
 
 static void vpu_rln_callback(bool timeout, const char *buf, size_t length)
 {
@@ -185,4 +184,10 @@ void vpu_fetch_status(void)
     {
         rln_task();
     }
+}
+
+void vpu_set_raster(uint16_t raster)
+{
+    vpu_raster = raster;
+    vpu_vsync_timer = make_timeout_time_ms(VPU_VSYNC_WATCHDOG_MS);
 }

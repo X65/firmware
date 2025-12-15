@@ -13,6 +13,7 @@
 #include <hardware/clocks.h>
 #include <hardware/pio.h>
 #include <pico/critical_section.h>
+#include <pico/mutex.h>
 #include <pico/time.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -30,15 +31,15 @@ static inline void DBG(const char *fmt, ...)
 static volatile int pix_in_flight = 0;
 static volatile pix_response_t *pix_response = nullptr;
 static volatile int pix_response_skip = 0;
-static critical_section_t pix_cs;
+static critical_section_t pix_resp_cs;
+static mutex_t pix_send_mutex;
 static absolute_time_t pix_last_activity;
 
 static uint16_t pix_dma_blocks_remaining = 0;
 static uint8_t pix_dma_bank = 0;
 static uint16_t pix_dma_offset = 0;
 
-#define PIX_PING_TIMEOUT_US (67 * 2)
-#define PIX_ACK_TIMEOUT_MS  50
+#define PIX_ACK_TIMEOUT_MS 50
 
 // Send a single PIX byte, block if necessary. Normally, blocking is bad, but
 // this unblocks so fast that it's not a problem for a few messages.
@@ -57,7 +58,7 @@ static void __isr pix_irq_handler(void)
     const uint8_t code = PIX_REPLY_CODE(reply);
     // printf("!!! %2X: %03X\n", code, PIX_REPLY_PAYLOAD(reply));
 
-    critical_section_enter_blocking(&pix_cs);
+    critical_section_enter_blocking(&pix_resp_cs);
     --pix_in_flight;
     if (pix_in_flight < 0)
     {
@@ -65,14 +66,22 @@ static void __isr pix_irq_handler(void)
         main_stop();
         pix_in_flight = 0;
     }
-    critical_section_exit(&pix_cs);
+    critical_section_exit(&pix_resp_cs);
+
+    pix_response_t *pix_resp = pix_response;
+    if (pix_response && pix_response_skip-- == 0)
+    {
+        pix_response = nullptr;
+        pix_resp->reply = reply;
+        pix_resp->status = 1;
+    }
 
     switch (code)
     {
     case PIX_PONG:
         break;
     case PIX_ACK:
-        vpu_raster = PIX_REPLY_PAYLOAD(reply);
+        vpu_set_raster(PIX_REPLY_PAYLOAD(reply));
         break;
     case PIX_DMA_REQ:
         pix_dma_bank = (uint8_t)PIX_REPLY_PAYLOAD(reply);
@@ -80,25 +89,17 @@ static void __isr pix_irq_handler(void)
         pix_dma_blocks_remaining = 0x10000 / 32; // 64kB in 32-byte blocks
         break;
     case PIX_DEV_DATA:
-        if (!pix_response)
+        if (!pix_resp)
         {
             printf("PIX Unexpected PIX_DEV_DATA: %04X\n", reply);
             main_stop();
         }
         break;
     case PIX_NAK:
-        vpu_raster = PIX_REPLY_PAYLOAD(reply);
+        vpu_set_raster(PIX_REPLY_PAYLOAD(reply));
         [[fallthrough]];
     default:
         printf("<<< %2X: %03X\n", code, PIX_REPLY_PAYLOAD(reply));
-    }
-
-    if (pix_response && pix_response_skip-- == 0)
-    {
-        pix_response_t *pix_resp = pix_response;
-        pix_response = nullptr;
-        pix_resp->reply = reply;
-        pix_resp->status = 1;
     }
 }
 
@@ -110,17 +111,20 @@ void pix_send_request(pix_req_type_t msg_type,
     assert(req_data);
     assert(resp || resp->status == 0);
 
+    mutex_enter_blocking(&pix_send_mutex);
+
     // spin wait if request with response is pending
     while (pix_response)
         tight_loop_contents();
     // while (dma_is_running) tight_loop_contents();
 
-    critical_section_enter_blocking(&pix_cs);
+    critical_section_enter_blocking(&pix_resp_cs);
     pix_response = resp;
     pix_response_skip = pix_in_flight++;
-    critical_section_exit(&pix_cs);
+    critical_section_exit(&pix_resp_cs);
 
     pix_last_activity = get_absolute_time();
+
     pix_send_blocking(PIX_MESSAGE(msg_type, req_len5));
 
     if (req_len5 == 1)
@@ -135,11 +139,14 @@ void pix_send_request(pix_req_type_t msg_type,
             pix_send_blocking(*req_data++);
         }
     }
+
+    mutex_exit(&pix_send_mutex);
 }
 
 void pix_init(void)
 {
-    critical_section_init(&pix_cs);
+    critical_section_init(&pix_resp_cs);
+    mutex_init(&pix_send_mutex);
 
     pio_set_gpio_base(PIX_PIO, 16);
     uint offset = pio_add_program(PIX_PIO, &pix_nb_program);
@@ -212,7 +219,7 @@ void pix_task(void)
             pix_dma_offset += 32;
             --pix_dma_blocks_remaining;
         }
-        else if (absolute_time_diff_us(pix_last_activity, get_absolute_time()) > PIX_PING_TIMEOUT_US)
+        else
         {
             pix_send_request(PIX_SYNC, 1, (uint8_t[]) {0}, nullptr);
         }
