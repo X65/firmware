@@ -23,19 +23,28 @@ volatile const uint8_t xram[0x10000] __attribute__((aligned(0x10000)));
 static uint8_t __attribute__((aligned(4))) pix_buffer[32];
 
 static int pix_req_dma_chan;
+static bool vcache_dma_running = false;
 
 static inline void __attribute__((always_inline))
 pix_ack(void)
 {
-    *(io_rw_16 *)&PIX_PIO->txf[PIX_SM]
-        = PIX_RESPONSE(PIX_ACK, cgia_reg_read(CGIA_REG_RASTER));
+    if (vcache_dma_blocks_remaining > 0 && !vcache_dma_running)
+    {
+        // Start DMA transfer of VCACHE Bank
+        *(io_rw_16 *)&PIX_PIO->txf[PIX_SM] = PIX_RESPONSE(PIX_DMA_REQ, vcache_dma_bank);
+        vcache_dma_running = true;
+    }
+    else
+    {
+        // Send ACK with current raster line
+        *(io_rw_16 *)&PIX_PIO->txf[PIX_SM] = PIX_RESPONSE(PIX_ACK, cgia_reg_read(CGIA_REG_RASTER));
+    }
 }
 
 static inline void __attribute__((always_inline))
 pix_nak(void)
 {
-    *(io_rw_16 *)&PIX_PIO->txf[PIX_SM]
-        = PIX_RESPONSE(PIX_NAK, cgia_reg_read(CGIA_REG_RASTER));
+    *(io_rw_16 *)&PIX_PIO->txf[PIX_SM] = PIX_RESPONSE(PIX_NAK, cgia_reg_read(CGIA_REG_RASTER));
 }
 
 static void __isr pix_irq_handler(void)
@@ -80,6 +89,27 @@ static void __isr pix_irq_handler(void)
         pix_ack();
     }
     break;
+    case PIX_DMA_WRITE:
+        if (frame_count != 32)
+            goto unknown;
+        dma_channel_set_write_addr(pix_req_dma_chan, vcache_dma_dest, true);
+        dma_channel_wait_for_finish_blocking(pix_req_dma_chan);
+        vcache_dma_dest += 32;
+        if (vcache_dma_blocks_remaining == 0)
+        {
+            printf("PIX VCACHE DMA OVERFLOW BANK %02X\n", vcache_dma_bank);
+            pix_nak();
+        }
+        else
+        {
+            --vcache_dma_blocks_remaining;
+            pix_ack();
+        }
+        if (vcache_dma_blocks_remaining == 0)
+        {
+            vcache_dma_running = false;
+        }
+        break;
     case PIX_DEV_CMD:
     {
         const uint8_t dev_cmd = pix_buffer[0];
@@ -228,6 +258,8 @@ void pix_init(void)
     dma_channel_set_irq0_enabled(pix_req_dma_chan, true);
     irq_set_exclusive_handler(PIX_DMA_IRQ, pix_dma_handler);
     irq_set_enabled(PIX_DMA_IRQ, true);
+
+    vcache_dma_running = false;
 
     pio_sm_set_enabled(PIX_PIO, PIX_SM, true);
 }

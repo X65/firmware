@@ -33,6 +33,10 @@ static volatile int pix_response_skip = 0;
 static critical_section_t pix_cs;
 static absolute_time_t pix_last_activity;
 
+static uint16_t pix_dma_blocks_remaining = 0;
+static uint8_t pix_dma_bank = 0;
+static uint16_t pix_dma_offset = 0;
+
 #define PIX_PING_TIMEOUT_US (67 * 2)
 #define PIX_ACK_TIMEOUT_MS  50
 
@@ -69,6 +73,11 @@ static void __isr pix_irq_handler(void)
         break;
     case PIX_ACK:
         vpu_raster = PIX_REPLY_PAYLOAD(reply);
+        break;
+    case PIX_DMA_REQ:
+        pix_dma_bank = (uint8_t)PIX_REPLY_PAYLOAD(reply);
+        pix_dma_offset = 0;
+        pix_dma_blocks_remaining = 0x10000 / 32; // 64kB in 32-byte blocks
         break;
     case PIX_DEV_DATA:
         if (!pix_response)
@@ -193,12 +202,20 @@ void pix_task(void)
     }
 #endif
 
-    // If nothing happens, retrieve ACK with raster line.
+    // If nothing happens, push DMA or retrieve ACK with raster line.
     if (pio_sm_is_tx_fifo_empty(PIX_PIO, PIX_SM)
-        && pix_in_flight == 0
-        && absolute_time_diff_us(pix_last_activity, get_absolute_time()) > PIX_PING_TIMEOUT_US)
+        && pix_in_flight == 0)
     {
-        pix_send_request(PIX_SYNC, 1, (uint8_t[]) {0}, nullptr);
+        if (pix_dma_blocks_remaining > 0)
+        {
+            pix_send_request(PIX_DMA_WRITE, 32, mem_fetch_row(pix_dma_bank, pix_dma_offset), nullptr);
+            pix_dma_offset += 32;
+            --pix_dma_blocks_remaining;
+        }
+        else if (absolute_time_diff_us(pix_last_activity, get_absolute_time()) > PIX_PING_TIMEOUT_US)
+        {
+            pix_send_request(PIX_SYNC, 1, (uint8_t[]) {0}, nullptr);
+        }
     }
 
     // Check whether PIX is running at all.

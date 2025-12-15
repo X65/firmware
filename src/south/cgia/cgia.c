@@ -64,11 +64,10 @@ static uint16_t
     = {0};
 
 // store which PSRAM bank is currently mirrored in cache
-// stored as bitmask for easy use during ram write call
-uint32_t
+uint8_t
     __attribute__((aligned(4)))
     __scratch_x("")
-        vram_cache_bank_mask[CGIA_VRAM_BANKS]
+        vram_cache_bank[CGIA_VRAM_BANKS]
     = {0, 0};
 
 // store in which vram cache bank a cgia bank (backgnd/sprite) is stored
@@ -81,12 +80,11 @@ uint8_t *
 inline void __attribute__((always_inline)) __attribute__((optimize("O3")))
 cgia_ram_write(uint8_t bank, uint16_t addr, uint8_t data)
 {
-    const uint32_t bank_mask = bank << 16;
-    if (bank_mask == vram_cache_bank_mask[0])
+    if (bank == vram_cache_bank[0])
     {
         vram_cache_ptr[0][addr] = data;
     }
-    if (bank_mask == vram_cache_bank_mask[1])
+    if (bank == vram_cache_bank[1])
     {
         vram_cache_ptr[1][addr] = data;
     }
@@ -94,33 +92,32 @@ cgia_ram_write(uint8_t bank, uint16_t addr, uint8_t data)
 
 // store which memory bank is wanted in vram cache bank
 // used to trigger DMA transfer during cgia_run() workloop
-uint32_t
+uint8_t
     __attribute__((aligned(4)))
     __scratch_x("")
-        vram_wanted_bank_mask[CGIA_VRAM_BANKS]
+        vram_wanted_bank[CGIA_VRAM_BANKS]
     = {0, 0};
 
 void cgia_set_bank(uint8_t cgia_bank_id, uint8_t mem_bank_no)
 {
     assert(cgia_bank_id < 2);
-    const uint32_t bank_mask = mem_bank_no << 16;
-    vram_wanted_bank_mask[cgia_bank_id] = bank_mask;
+    vram_wanted_bank[cgia_bank_id] = mem_bank_no;
 
-    if (bank_mask == vram_cache_bank_mask[cgia_bank_id])
+    if (mem_bank_no == vram_cache_bank[cgia_bank_id])
     {
         // if the bank matches - nothing to do
         return;
     }
     // if the new bank_no matches the one in other bank, re-use it
     const uint8_t other_bank_id = cgia_bank_id ^ 1;
-    if (bank_mask == vram_cache_bank_mask[other_bank_id])
+    if (mem_bank_no == vram_cache_bank[other_bank_id])
     {
-        vram_cache_bank_mask[cgia_bank_id] = bank_mask;
+        vram_cache_bank[cgia_bank_id] = mem_bank_no;
         vram_cache_ptr[cgia_bank_id] = vram_cache_ptr[other_bank_id];
         return;
     }
 
-    // if we got here, the vram_wanted_bank_mask differs from vram_cache_bank_mask
+    // if we got here, the vram_wanted_bank differs from vram_cache_bank
     // which will trigger memory bank switch in work loop
     // our job here is done
 }
@@ -220,6 +217,9 @@ static int back_chan;
 
 // CGIA VRAM CACHE bank sync
 static int vcache_transfer; // records which bank is being transferred
+uint8_t vcache_dma_bank = 0;
+uint16_t vcache_dma_blocks_remaining = 0;
+uint8_t *vcache_dma_dest = 0;
 
 void cgia_init(void)
 {
@@ -287,10 +287,10 @@ void cgia_init(void)
 #endif
 
     vcache_transfer = -1;
-    vram_wanted_bank_mask[0] = CGIA.bckgnd_bank = 0;
-    vram_wanted_bank_mask[1] = CGIA.sprite_bank = 0;
-    vram_cache_bank_mask[0] = 0xFF; // Force initial transfer of bank
-    vram_cache_bank_mask[1] = 0;
+    vram_wanted_bank[0] = CGIA.bckgnd_bank = 0;
+    vram_wanted_bank[1] = CGIA.sprite_bank = 0;
+    vram_cache_bank[0] = 0xFF; // Force initial transfer of bank
+    vram_cache_bank[1] = 0;
 }
 
 // clang-format off
@@ -471,7 +471,7 @@ void __attribute__((optimize("O3"))) cgia_render(uint16_t y, uint32_t *rgbbuf)
             sprite_dscs = &sprite_dsc_offsets[p];
             uint8_t *sprite_bank = vram_cache_ptr[1];
 
-            if (vram_cache_bank_mask[1] != vram_wanted_bank_mask[1])
+            if (vram_cache_bank[1] != vram_wanted_bank[1])
             {
                 continue; // skip if the sprite bank is not synced yet
             }
@@ -598,7 +598,7 @@ void __attribute__((optimize("O3"))) cgia_render(uint16_t y, uint32_t *rgbbuf)
             const uint8_t instr_code = dl_instr & 0b00001111;
             int_mask |= CGIA_REG_INT_FLAG_DLI;
 
-            if (vram_cache_bank_mask[0] != vram_wanted_bank_mask[0])
+            if (vram_cache_bank[0] != vram_wanted_bank[0])
             {
                 continue; // skip if the bg bank is not synced yet
             }
@@ -1318,35 +1318,31 @@ void cgia_task(void)
 #ifdef PICO_SDK_VERSION_MAJOR
 static void _cgia_transfer_vcache_bank(uint8_t vcache_bank)
 {
-    // if (!dma_channel_is_busy(vcache_chan))
-    // {
-    //     // Start DMA transfer from PSRAM to VRAM CACHE:
-    //     // - do not start if transfer already in progress
-    //     // - store vcache id of destination being trasferred
-    //     // - allocate PSRAM chip, so CPU gets blocked until transfer is done
-    //     // - update vram_cache_bank_mask when transfer is done with stored value
-    //     //   - vram_wanted_bank_mask might already have changed and next transfer
-    //     //     will be started next tick
+    if (vcache_dma_blocks_remaining == 0)
+    {
+        // Start DMA transfer from PSRAM to VRAM CACHE:
+        // - do not start if transfer already in progress
+        // - store vcache id of destination being trasferred
+        // - allocate PSRAM chip, so CPU gets blocked until transfer is done
+        // - update vram_cache_bank when transfer is done with stored value
+        //   - vram_wanted_bank might already have changed and next transfer
+        //     will be started next tick
 
-    //     if (vcache_transfer >= 0)
-    //     {
-    //         // ongoing transfer finished
-    //         acquired_bank = -1;
+        if (vcache_transfer >= 0)
+        {
+            vram_cache_bank[vcache_transfer] = vram_wanted_bank[vcache_transfer];
+            vram_cache_ptr[vcache_transfer] = vram_cache[vcache_transfer];
+            vcache_transfer = -1;
+        }
 
-    //         vram_cache_bank_mask[vcache_transfer] = vram_wanted_bank_mask[vcache_transfer];
-    //         vram_cache_ptr[vcache_transfer] = vram_cache[vcache_transfer];
-    //         vcache_transfer = -1;
-    //     }
-
-    //     if (vram_wanted_bank_mask[vcache_bank] != vram_cache_bank_mask[vcache_bank]
-    //         && MEM_CAN_ACCESS_ADDR(vram_wanted_bank_mask[vcache_bank]))
-    //     {
-    //         // start memory transfer
-    //         vcache_transfer = vcache_bank;
-    //         acquired_bank = MEM_ADDR_TO_BANK(vram_wanted_bank_mask[vcache_bank]);
-    //         dma_channel_set_read_addr(vcache_chan, (void *)(XIP_PSRAM_CACHED | vram_wanted_bank_mask[vcache_bank]), false);
-    //         dma_channel_set_write_addr(vcache_chan, vram_cache[vcache_bank], true);
-    //     }
-    // }
+        if (vram_wanted_bank[vcache_bank] != vram_cache_bank[vcache_bank])
+        {
+            // start memory transfer
+            vcache_transfer = vcache_bank;
+            vcache_dma_bank = vram_wanted_bank[vcache_bank];
+            vcache_dma_dest = vram_cache[vcache_bank];
+            vcache_dma_blocks_remaining = 0x10000 / 32; // 64kB in 32-byte blocks
+        }
+    }
 }
 #endif

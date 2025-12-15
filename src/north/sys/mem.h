@@ -64,4 +64,7 @@ void mem_print_status(void);
 uint8_t mem_read_ram(uint32_t addr24);
 void mem_write_ram(uint32_t addr24, uint8_t data);
 
+// Fetch a PSRAM cache row (32 bytes) and return a pointer to it
+uint8_t *mem_fetch_row(uint8_t bank, uint16_t addr);
+
 #endif /* _RIA_SYS_MEM_H_ */

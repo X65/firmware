@@ -385,3 +385,9 @@ void mem_write_ram(uint32_t addr24, uint8_t data)
     // Sync write to CGIA L1 cache
     pix_mem_write(addr24, data);
 }
+
+uint8_t *mem_fetch_row(uint8_t bank, uint16_t addr)
+{
+    const uint32_t addr24 = bank << 16 | addr;
+    return &mem_cache[addr24 & 0x1FFFF];
+}
