@@ -58,7 +58,8 @@ static void com_clear_all_rx()
 
 static void com_tx_task(void)
 {
-    while (com_tx_head != com_tx_tail && uart_get_hw(COM_UART)->fr & UART_UARTFR_TXFE_BITS)
+    while (com_tx_head != com_tx_tail
+           && uart_get_hw(COM_UART)->fr & UART_UARTFR_TXFE_BITS)
     {
         com_tx_tail = (com_tx_tail + 1) % COM_TX_BUF_SIZE;
         char ch = com_tx_buf[com_tx_tail];
@@ -172,17 +173,17 @@ static int com_stdio_in_chars(char *buf, int length)
 {
     int count = 0;
 
-    // // Take char from RIA register
-    // if (count < length && REGS(0xFFE0) & 0b01000000)
-    // {
-    //     // Mixing RIA register input with read() calls isn't perfect,
-    //     // should be considered undefined behavior, and is discouraged.
-    //     REGS(0xFFE0) &= ~0b01000000;
-    //     int ch = REGS(0xFFE2);
-    //     // Replace char with null
-    //     REGS(0xFFE2) = 0;
-    //     buf[count++] = ch;
-    // }
+    // Take char from RIA register
+    if (count < length && REGS(0xFFE0) & 0b01000000)
+    {
+        // Mixing RIA register input with read() calls isn't perfect,
+        // should be considered undefined behavior, and is discouraged.
+        REGS(0xFFE0) &= ~0b01000000;
+        int ch = REGS(0xFFE1);
+        // Replace char with ASCII NUL
+        REGS(0xFFE1) = 0;
+        buf[count++] = ch;
+    }
 
     // Take char from ria.c action loop queue
     if (count < length && com_rx_char >= 0)

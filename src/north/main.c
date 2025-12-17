@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2025 Rumbledethumps
+ * Copyright (c) 2025 Tomasz Sterna
  *
  * SPDX-License-Identifier: BSD-3-Clause
  */
@@ -18,6 +19,11 @@
 #include "mon/mon.h"
 #include "mon/ram.h"
 #include "mon/rom.h"
+#include "net/ble.h"
+#include "net/cyw.h"
+#include "net/mdm.h"
+#include "net/ntp.h"
+#include "net/wfi.h"
 #include "sys/cfg.h"
 #include "sys/com.h"
 #include "sys/cpu.h"
@@ -47,7 +53,7 @@ static void init(void)
     com_init();
 
     // PSRAM and L1 cache.
-    mem_init();
+    ram_init();
 
     // GPIO drivers.
     cpu_init();
@@ -71,13 +77,13 @@ static void init(void)
     pad_init();
     rom_init();
     clk_init();
-    // mdm_init();
+    mdm_init();
 
     // Enable LED heartbeat after all inits.
     led_blink(true);
 }
 
-// Tasks events are repeatedly called by the main loop.
+// Task events are repeatedly called by the main loop.
 // They must not block. All drivers are state machines.
 
 // These tasks run while FatFs is blocking.
@@ -89,11 +95,15 @@ void main_task(void)
     pix_task();
     ria_task();
     kbd_task();
+    // cyw_task();
     vpu_task();
     com_task();
+    wfi_task();
+    ntp_task();
     xin_task();
+    // ble_task();
     led_task();
-    // mdm_task();
+    mdm_task();
 }
 
 // Tasks that call FatFs should be here instead of main_task().
@@ -106,7 +116,7 @@ static void task(void)
     rom_task();
 }
 
-// Event to start running the 6502.
+// Event to start running the CPU.
 static void run(void)
 {
     com_run();
@@ -134,10 +144,11 @@ static void stop(void)
     kbd_stop();
     mou_stop();
     pad_stop();
+    mdm_stop();
 }
 
 // Event for CTRL-ALT-DEL and UART breaks.
-// Stop will be executed first if 6502 is running.
+// Stop will be executed first if CPU is running.
 static void break_(void) // break is keyword
 {
     fil_break();
@@ -178,8 +189,8 @@ bool main_api(uint8_t operation)
     {
     // case 0x01:
     //     return pix_api_xreg();
-    // case 0x02:
-    //     return cpu_api_phi2();
+    case 0x02:
+        return cpu_api_phi2();
     case API_OP_OEM_CODEPAGE:
         return oem_api_code_page();
     case API_OP_OEM_GET_CHARGEN:
@@ -188,8 +199,12 @@ bool main_api(uint8_t operation)
         return rng_api_lrand();
     case 0x05:
         return std_api_stdin_opt();
-    case 0x06:
-        return 0xFF; // FIXME: api_api_errno_opt();
+    // case 0x06:
+    //     return api_api_errno_opt();
+    case 0x0D:
+        return clk_api_tzset();
+    case 0x0E:
+        return clk_api_tzquery();
     case 0x0F:
         return clk_api_clock();
     case API_OP_CLK_GET_RES:
@@ -198,8 +213,8 @@ bool main_api(uint8_t operation)
         return clk_api_get_time();
     case API_OP_CLK_SET_TIME:
         return clk_api_set_time();
-    case API_OP_CLK_GET_TIME_ZONE:
-        return clk_api_get_time_zone();
+    case 0x13: // ok to reuse
+        break; // retired clk_api_get_time_zone
     case 0x14:
         return std_api_open();
     case 0x15:
@@ -230,8 +245,8 @@ bool main_api(uint8_t operation)
     //     return dir_api_readdir();
     // case 0x22:
     //     return dir_api_closedir();
-    // case 0x23:
-    //     return dir_api_telldir();
+    case 0x23:
+        return dir_api_telldir();
     case 0x24:
         return dir_api_seekdir();
     case 0x25:
@@ -297,6 +312,11 @@ bool main_active(void)
 int main(void)
 {
     init();
+
+    // Trigger a reclock
+    cpu_set_phi2_khz(cfg_get_phi2_khz());
+    // and reset Radio
+    cyw_reset_radio();
 
     while (true)
     {

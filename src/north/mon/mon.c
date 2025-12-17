@@ -6,7 +6,6 @@
 
 #include "mon/mon.h"
 #include "main.h"
-#include "mon/at.h"
 #include "mon/fil.h"
 #include "mon/hlp.h"
 #include "mon/ram.h"
@@ -14,6 +13,7 @@
 #include "mon/set.h"
 #include "mon/str.h"
 #include "mon/tst.h"
+#include "net/cyw.h"
 #include "sys/rln.h"
 #include "sys/sys.h"
 #include <pico.h>
@@ -59,7 +59,6 @@ static struct
     {6, "upload", fil_mon_upload},
     {6, "unlink", fil_mon_unlink},
     {6, "binary", ram_mon_binary},
-    {2, "at", at_mon_at},
     {7, "memtest", tst_mon_memtest},
 };
 static const size_t COMMANDS_COUNT = sizeof COMMANDS / sizeof *COMMANDS;
@@ -102,7 +101,8 @@ static mon_function mon_command_lookup(const char **buf, size_t buflen)
         return ram_mon_address;
     }
     // *0:-*9: is chdrive
-    if (cmd_len >= 2 && cmd[cmd_len - 1] == ':' && cmd[cmd_len - 2] >= '0' && cmd[cmd_len - 2] <= '9')
+    if (cmd_len >= 2 && cmd[cmd_len - 1] == ':'
+        && cmd[cmd_len - 2] >= '0' && cmd[cmd_len - 2] <= '9')
     {
         *buf = cmd;
         return fil_mon_chdrive;
@@ -147,17 +147,19 @@ static void mon_enter(bool timeout, const char *buf, size_t length)
 // Anything that suspends the monitor.
 static bool mon_suspended(void)
 {
-    return main_active()    // CPU is running
-           || ram_active()  // monitor reads/writes RAM
-           || rom_active()  // ROM is being loaded
-           || fil_active(); // file system operation
+    return main_active()
+           // These may run the CPU many times for a single
+           // task so we can't use only main_active().
+           || ram_active()
+           || rom_active()
+           || fil_active();
 }
 
 void mon_task(void)
 {
     if (mon_needs_prompt && !mon_suspended())
     {
-        printf("\30\33[0m");
+        printf("\30\33[0m\33[?25h");
         if (mon_needs_newline)
             putchar('\n');
         putchar(']');

@@ -7,7 +7,6 @@
 #include "mon/fil.h"
 #include "mon/str.h"
 #include "sys/mem.h"
-#include "sys/ria.h"
 #include "sys/rln.h"
 #include <fatfs/ff.h>
 #include <stdio.h>
@@ -17,7 +16,10 @@
 #include <stdio.h>
 #define DBG(...) fprintf(stderr, __VA_ARGS__)
 #else
-static inline void DBG(const char *fmt, ...) { (void)fmt; }
+static inline void DBG(const char *fmt, ...)
+{
+    (void)fmt;
+}
 #endif
 
 #define FIL_TIMEOUT_MS 200
@@ -81,9 +83,9 @@ void fil_mon_chdrive(const char *args, size_t len)
     FRESULT result = FR_INVALID_DRIVE;
     DIR dir;
     char s[7]; // up to "USB99:\0"
-    if (len &&
-        str_parse_string(&args, &len, s, sizeof(s)) &&
-        str_parse_end(args, len))
+    if (len
+        && str_parse_string(&args, &len, s, sizeof(s))
+        && str_parse_end(args, len))
     {
         result = f_opendir(&dir, s);
     }
@@ -203,9 +205,9 @@ static void fil_command_dispatch(bool timeout, const char *buf, size_t len)
         return;
     }
 
-    if (str_parse_uint32(&args, &len, &fil_rx_len) &&
-        str_parse_uint32(&args, &len, &fil_rx_crc) &&
-        str_parse_end(args, len))
+    if (str_parse_uint32(&args, &len, &fil_rx_len)
+        && str_parse_uint32(&args, &len, &fil_rx_crc)
+        && str_parse_end(args, len))
     {
         if (!fil_rx_len || fil_rx_len > MBUF_SIZE)
         {

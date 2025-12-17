@@ -21,6 +21,8 @@ endif()
 
 set(PICO_BOARD pimoroni_pga2350 CACHE STRING "Board type")
 set(PICO_FLASH_SIZE_BYTES 4194304 CACHE STRING "Flash size")
+set(PICO_CYW43_SUPPORTED 1 CACHE STRING "CYW43 support")
+set(PICO_NO_COPRO_DIS 1 CACHE STRING "Disable coprocessor disassembly")
 
 include(pico_sdk_import.cmake)
 

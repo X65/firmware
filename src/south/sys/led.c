@@ -59,6 +59,7 @@ static void led_rgb_init(void)
     pio_gpio_init(RGB_LED_PIO, RGB_LED_PIN);
     pio_sm_set_consecutive_pindirs(RGB_LED_PIO, RGB_LED_SM, RGB_LED_PIN, 1, true);
 
+    pio_sm_claim(RGB_LED_PIO, RGB_LED_SM);
     uint offset = pio_add_program(RGB_LED_PIO, &ws2812_program);
     pio_sm_config c = ws2812_program_get_default_config(offset);
     sm_config_set_sideset_pins(&c, RGB_LED_PIN);

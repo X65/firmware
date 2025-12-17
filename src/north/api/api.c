@@ -5,8 +5,10 @@
  */
 
 #include "api/api.h"
+#include "fatfs/ff.h"
 #include "main.h"
 #include "sys/cpu.h"
+#include "sys/ria.h"
 #include <pico.h>
 
 #if defined(DEBUG_RIA_API) || defined(DEBUG_RIA_API_API)
@@ -26,11 +28,8 @@ void api_task(void)
 {
     // Latch called op in case 6502 app misbehaves
     if (cpu_active()
-        && !api_active_op
-        && API_BUSY
-        && API_OP != 0x00 /* API_OP_ZXSTACK */ // handled immediately, thus NO-OP
-        && API_OP != 0xFF /* API_OP_HALT */    // handled elsewhere
-    )
+        && !api_active_op && API_BUSY
+        && API_OP != 0x00 && API_OP != 0xFF)
         api_active_op = API_OP;
     if (api_active_op && !main_api(api_active_op))
         api_active_op = 0;

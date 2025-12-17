@@ -72,6 +72,8 @@ typedef struct term_state
     uint8_t y_offset;
     bool bold;
     bool blink;
+    bool cursor_enabled;
+    bool cursor_is_inv;
     uint32_t fg_color;
     uint32_t bg_color;
     uint8_t fg_color_index;
@@ -79,7 +81,6 @@ typedef struct term_state
     term_data_t *mem;
     term_data_t *ptr;
     absolute_time_t timer;
-    int32_t blink_state;
     ansi_state_t ansi_state;
     uint16_t csi_param[TERM_CSI_PARAM_MAX_LEN];
     char csi_separator[TERM_CSI_PARAM_MAX_LEN];
@@ -87,6 +88,7 @@ typedef struct term_state
 } term_state_t;
 
 static term_state_t term_96;
+static int16_t term_scanline_begin;
 
 // You must move ptr when moving x and y. A row is contiguous,
 // but moving up or down rows may wraparound the mem buffer.
@@ -183,6 +185,7 @@ static void term_out_RIS(term_state_t *term)
     term->bg_color = color_256[TERM_BG_COLOR_INDEX];
     term->bold = false;
     term->blink = false;
+    term->cursor_enabled = true;
     term->save_x = 0;
     term->save_y = 0;
     term->x = 0;
@@ -195,7 +198,7 @@ static void term_state_init(term_state_t *term, uint8_t width, term_data_t *mem)
     term->height = TERM_STD_HEIGHT;
     term->line_wrap = true;
     term->mem = mem;
-    term->blink_state = 0;
+    term->cursor_is_inv = false;
     term_out_RIS(term);
 }
 
@@ -247,7 +250,9 @@ static void term_state_set_height(term_state_t *term, uint8_t height)
 
 static void term_cursor_set_inv(term_state_t *term, bool inv)
 {
-    if (term->blink_state == -1 || inv == term->blink_state)
+    if (!term->cursor_enabled && inv)
+        return;
+    if (inv == term->cursor_is_inv)
         return;
     term_data_t *term_ptr = term->ptr;
     if (term->x == term->width)
@@ -255,7 +260,7 @@ static void term_cursor_set_inv(term_state_t *term, bool inv)
     uint32_t swap = term_ptr->fg_color;
     term_ptr->fg_color = term_ptr->bg_color;
     term_ptr->bg_color = swap;
-    term->blink_state = inv;
+    term->cursor_is_inv = inv;
 }
 
 static void sgr_color(term_state_t *term, uint8_t idx, uint32_t *color)
@@ -421,7 +426,7 @@ static void term_out_RCP(term_state_t *term)
 // Device Status Report
 static void term_out_DSR(term_state_t *term)
 {
-    if (term->csi_param[0] == 6) /* TODO: !tud_cdc_connected() */
+    if (term->csi_param[0] == 6)
     {
         // int16_t height = vga_canvas_height();
         // if ((height == 180 || height == 240)
@@ -432,8 +437,7 @@ static void term_out_DSR(term_state_t *term)
             int y = term->y;
             if (x == term->width)
                 x--;
-            // std_in_write_ansi_CPR(y + 1, x + 1);
-            printf("\33[%u;%uR", y + 1, x + 1);
+            com_in_write_ansi_CPR(y + 1, x + 1);
         }
     }
 }
@@ -463,7 +467,7 @@ static void term_out_LF(term_state_t *term, bool wrapping)
     {
         --term->y;
         term_data_t *line_ptr = term->ptr - term->x;
-        for (size_t x = 0; x < term->width; x++)
+        for (uint8_t x = 0; x < term->width; x++)
         {
             line_ptr[x].font_code = ' ';
             line_ptr[x].fg_color = term->fg_color;
@@ -472,7 +476,7 @@ static void term_out_LF(term_state_t *term, bool wrapping)
         if (++term->y_offset == TERM_MAX_HEIGHT)
             term->y_offset = 0;
         // scroll the wrapped and dirty flags
-        for (size_t y = 0; y < term->height - 1; y++)
+        for (uint8_t y = 0; y < term->height - 1; y++)
         {
             term->wrapped[y] = term->wrapped[y + 1];
             term->dirty[y] = term->dirty[y + 1];
@@ -602,7 +606,7 @@ static void term_out_CUB(term_state_t *term)
 static void term_out_DCH(term_state_t *term)
 {
     unsigned max_chars = term->width - term->x;
-    for (unsigned i = term->y; i < term->height - 1; i++)
+    for (uint8_t i = term->y; i < term->height - 1; i++)
         if (term->wrapped[i])
             max_chars += term->width;
     uint16_t chars = term->csi_param[0];
@@ -838,6 +842,29 @@ static void term_out_CSI(term_state_t *term, char ch)
     }
 }
 
+static void term_out_CSI_question(term_state_t *term, char ch)
+{
+    switch (ch)
+    {
+    case 'h': // DECSET
+        switch (term->csi_param[0])
+        {
+        case 25: // DECTCEM
+            term->cursor_enabled = true;
+            break;
+        }
+        break;
+    case 'l': // DECRST
+        switch (term->csi_param[0])
+        {
+        case 25: // DECTCEM
+            term->cursor_enabled = false;
+            break;
+        }
+        break;
+    }
+}
+
 static void term_out_state_CSI(term_state_t *term, char ch)
 {
     // Silently discard overflow parameters but still count to + 1.
@@ -887,7 +914,10 @@ static void term_out_state_CSI(term_state_t *term, char ch)
     case ansi_state_CSI_less:
     case ansi_state_CSI_equal:
     case ansi_state_CSI_greater:
+        break;
     case ansi_state_CSI_question:
+        term_out_CSI_question(term, ch);
+        break;
     default:
         break;
     }
@@ -956,7 +986,7 @@ static void term_blink_cursor(term_state_t *term)
     absolute_time_t now = get_absolute_time();
     if (absolute_time_diff_us(now, term->timer) < 0)
     {
-        term_cursor_set_inv(term, !term->blink_state);
+        term_cursor_set_inv(term, !term->cursor_is_inv);
         // 0.3ms drift to avoid blinking cursor tearing
         if (term->x == term->width)
             // fast blink when off right side
@@ -973,9 +1003,8 @@ void term_task(void)
 }
 
 #ifdef PICO_SDK_VERSION_MAJOR
-void
-    __attribute__((optimize("O3")))
-    term_render(int16_t y, uint32_t *rgbbuf)
+inline void __attribute__((optimize("O3")))
+term_render(int16_t y, uint32_t *rgbbuf)
 {
     interp_config cfg = interp_default_config();
     interp_config_set_add_raw(&cfg, true);

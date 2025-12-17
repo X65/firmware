@@ -37,12 +37,12 @@
 #define CPU_RESB_PIN      5
 #define RIA_IRQB_PIN      6 /* connected to IRQ0 on interrupt controller  */
 
-#define ESP_SPI_PIN_BASE 34
-#define ESP_SPI_SCK_PIN  (ESP_SPI_PIN_BASE + 0)
-#define ESP_SPI_TX_PIN   (ESP_SPI_PIN_BASE + 1)
-#define ESP_SPI_RX_PIN   (ESP_SPI_PIN_BASE + 2)
-#define ESP_SPI_CS_PIN   (ESP_SPI_PIN_BASE + 3)
-#define ESP_AT_HS_PIN    7 // SPI HANDSHAKE
+#define ESP_AT_HS_PIN 7 // SPI HANDSHAKE
+
+#define CYW43_PIN_BASE        34
+#define CYW43_PINS_USED       4
+#define CYW43_WL_GPIO_COUNT   3
+#define CYW43_WL_GPIO_LED_PIN 0
 
 /* All resource assignments
  */

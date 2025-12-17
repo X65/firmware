@@ -63,6 +63,7 @@ uint16_t api_fresult_errno(unsigned fresult);
 
 /* RIA fastcall registers
  */
+
 #define API_OP     REGS(0xFFF0)
 #define API_RET    REGS(0xFFF0)
 #define API_RETW   REGSW(0xFFF0)
@@ -78,14 +79,13 @@ uint16_t api_fresult_errno(unsigned fresult);
 
 /* RIA API operation codes
  */
-#define API_OP_ZXSTACK           (0x00)
-#define API_OP_OEM_CODEPAGE      (0x03)
-#define API_OP_OEM_GET_CHARGEN   (0x10)
-#define API_OP_CLK_GET_RES       (0X20)
-#define API_OP_CLK_GET_TIME      (0X21)
-#define API_OP_CLK_SET_TIME      (0X22)
-#define API_OP_CLK_GET_TIME_ZONE (0X23)
-#define API_OP_HALT              (0xFF)
+#define API_OP_ZXSTACK         (0x00)
+#define API_OP_OEM_CODEPAGE    (0x03)
+#define API_OP_OEM_GET_CHARGEN (0x10)
+#define API_OP_CLK_GET_RES     (0X20)
+#define API_OP_CLK_GET_TIME    (0X21)
+#define API_OP_CLK_SET_TIME    (0X22)
+#define API_OP_HALT            (0xFF)
 
 // How to build an API handler:
 // 1. The last fastcall argument is in API_A, API_AX or API_AXSREG.
@@ -228,6 +228,7 @@ static inline bool api_working(void)
 static inline bool api_return(void)
 {
     api_set_regs_released();
+    API_STACK = xstack[xstack_ptr];
     return false;
 }
 

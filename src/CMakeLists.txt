@@ -1,12 +1,11 @@
-# X65 does not use Pico2 WiFi
-set(RP6502_RIA_W FALSE)
-
-
 # The X65 NorthBridge (including RIA)
+set(RP6502_RIA_W TRUE)
 
 add_executable(x65_north)
 pico_add_extra_outputs(x65_north)
 pico_set_binary_type(x65_north copy_to_ram)
+target_compile_definitions(x65_north PRIVATE RP6502_RIA_W=1)
+target_link_libraries(x65_north PRIVATE pico_cyw43_arch_lwip_poll pico_btstack_cyw43)
 pico_set_program_name(x65_north "X65 NorthBridge")
 
 target_include_directories(x65_north PRIVATE
@@ -16,6 +15,7 @@ target_include_directories(x65_north PRIVATE
 )
 
 target_compile_definitions(x65_north PRIVATE
+    CYW43_CONFIG_FILE="${CMAKE_CURRENT_LIST_DIR}/north/cyw43_config.h"
     PLL_SYS_REFDIV=1
     PLL_SYS_VCO_FREQ_HZ=1344000000
     PLL_SYS_POSTDIV1=6
@@ -70,7 +70,6 @@ target_sources(x65_north PRIVATE
     north/hid/kbd.c
     north/hid/mou.c
     north/hid/pad.c
-    north/mon/at.c
     north/mon/fil.c
     north/mon/hlp.c
     north/mon/mon.c
@@ -79,6 +78,13 @@ target_sources(x65_north PRIVATE
     north/mon/set.c
     north/mon/str.c
     north/mon/tst.c
+    north/net/ble.c
+    north/net/cmd.c
+    north/net/cyw.c
+    north/net/mdm.c
+    north/net/ntp.c
+    north/net/tel.c
+    north/net/wfi.c
     north/sys/cfg.c
     north/sys/com.c
     north/sys/cpu.c
@@ -230,7 +236,6 @@ set_property(TARGET x65_north x65_south x65_xcsp
     RP6502_NAME="X65 microcomputer"
     RP6502_VERSION=""
     RP6502_CODE_PAGE=437
-    RP6502_KEYBOARD=EN_US
     RP6502_EXFAT=0
 )
 

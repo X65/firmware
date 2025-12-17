@@ -6,8 +6,8 @@
 
 #include "api/oem.h"
 #include "api/api.h"
+#include "hid/kbd.h"
 #include "sys/cfg.h"
-#include "sys/mem.h"
 #include "sys/pix.h"
 #include <fatfs/ff.h>
 #include <pico/stdlib.h>
@@ -26,6 +26,8 @@ static inline void DBG(const char *fmt, ...)
 // To include all code pages, set RP6502_CODE_PAGE to 0 (CMmakeLists.txt).
 // This is the default for when RP6502_CODE_PAGE == 0.
 #define DEFAULT_CODE_PAGE 437
+
+uint16_t oem_code_page;
 
 void oem_init(void)
 {
@@ -59,9 +61,21 @@ static uint16_t oem_find_code_page(uint16_t cp)
 
 uint16_t oem_set_code_page(uint16_t cp)
 {
-    cp = oem_find_code_page(cp);
-    // pix_send_blocking(PIX_DEVICE_VGA, 0xFu, 0x01u, cp);
-    return cp;
+    oem_code_page = oem_find_code_page(cp);
+    pix_send_request(PIX_DEV_CMD, 3,
+                     (uint8_t[]) {
+                         PIX_DEVICE_CMD(PIX_DEV_VPU, PIX_VPU_CMD_SET_CODE_PAGE),
+                         ((uint8_t *)&oem_code_page)[0],
+                         ((uint8_t *)&oem_code_page)[1],
+                     },
+                     nullptr);
+    kbd_rebuild_code_page_cache();
+    return oem_code_page;
+}
+
+uint16_t oem_get_code_page(void)
+{
+    return oem_code_page;
 }
 
 bool oem_api_code_page(void)

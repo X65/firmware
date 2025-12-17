@@ -128,6 +128,7 @@ static void __isr pix_irq_handler(void)
             switch (cmd)
             {
             case PIX_VPU_CMD_RESET:
+                out_set_mode(OUT_MODE_VT);
                 cgia_reset();
                 pix_ack();
                 break;
@@ -222,6 +223,7 @@ static void __isr pix_dma_handler(void)
 
 void pix_init(void)
 {
+    pio_sm_claim(PIX_PIO, PIX_SM);
     pio_set_gpio_base(PIX_PIO, 16);
     uint offset = pio_add_program(PIX_PIO, &pix_sb_program);
     pio_sm_config config = pix_sb_program_get_default_config(offset);

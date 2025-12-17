@@ -10,9 +10,9 @@
 /* Monitor commands for setting system config
  */
 
-#include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
+#include <stdbool.h>
 
 /* Monitor commands
  */

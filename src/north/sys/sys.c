@@ -7,6 +7,9 @@
 #include "sys/sys.h"
 #include "api/clk.h"
 #include "main.h"
+#include "net/ble.h"
+#include "net/ntp.h"
+#include "net/wfi.h"
 #include "sys/cpu.h"
 #include "sys/mem.h"
 #include "sys/ria.h"
@@ -67,8 +70,11 @@ void sys_mon_status(const char *args, size_t len)
     ria_print_status();
     vpu_fetch_status();
     cpu_print_status();
-    mem_print_status();
+    ram_print_status();
+    wfi_print_status();
+    ntp_print_status();
     clk_print_status();
+    ble_print_status();
     usb_print_status();
 }
 

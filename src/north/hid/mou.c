@@ -80,8 +80,8 @@ bool mou_xreg(uint16_t word)
     if (word != 0xFFFF && word > 0x10000 - sizeof(mou_state))
         return false;
     mou_xram = word;
-    if (mou_xram != 0xFFFF)
-        memcpy(&xram[mou_xram], &mou_state, sizeof(mou_state));
+    // if (mou_xram != 0xFFFF)
+    //     memcpy(&xram[mou_xram], &mou_state, sizeof(mou_state));
     return true;
 }
 
@@ -217,7 +217,7 @@ void mou_report(int slot, void const *data, size_t size)
         mou_state.pan += hid_extract_signed(report_data, report_data_len,
                                             conn->pan_offset, conn->pan_size);
 
-    // Update XRAM with new state
-    if (mou_xram != 0xFFFF)
-        memcpy(&xram[mou_xram], &mou_state, sizeof(mou_state));
+    // // Update XRAM with new state
+    // if (mou_xram != 0xFFFF)
+    //     memcpy(&xram[mou_xram], &mou_state, sizeof(mou_state));
 }

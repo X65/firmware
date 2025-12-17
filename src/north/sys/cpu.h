@@ -7,12 +7,16 @@
 #ifndef _RIA_SYS_CPU_H_
 #define _RIA_SYS_CPU_H_
 
-/* Driver for the 6502.
+/* Driver for the CPU.
  */
 
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
+
+#define CPU_PHI2_MIN_KHZ 800
+#define CPU_PHI2_MAX_KHZ 14000
+#define CPU_PHI2_DEFAULT 8000
 
 /* Main events
  */
@@ -21,6 +25,7 @@ void cpu_init(void);
 void cpu_task(void);
 void cpu_run(void);
 void cpu_stop(void);
+bool cpu_api_phi2(void);
 
 // The CPU is active when RESB is high or when
 // we're waiting for the RESB timer.
@@ -30,6 +35,13 @@ void cpu_print_status(void);
 
 /* Config handlers
  */
+
+// The will return a validated freq_khz from the
+// range defined above. 0 returns the default.
+uint32_t cpu_validate_phi2_khz(uint32_t freq_khz);
+
+// This was a major engineering effort.
+bool cpu_set_phi2_khz(uint32_t freq_khz);
 
 // Return calculated reset time. May be higher than configured
 // to guarantee the CPU gets two clock cycles during reset.

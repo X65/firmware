@@ -148,6 +148,7 @@ void pix_init(void)
     critical_section_init(&pix_resp_cs);
     mutex_init(&pix_send_mutex);
 
+    pio_sm_claim(PIX_PIO, PIX_SM);
     pio_set_gpio_base(PIX_PIO, 16);
     uint offset = pio_add_program(PIX_PIO, &pix_nb_program);
     pio_sm_config config = pix_nb_program_get_default_config(offset);

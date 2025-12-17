@@ -37,7 +37,8 @@ extern volatile size_t com_tx_head;
 static inline bool com_tx_printable(void)
 {
     return (
-        (((com_tx_head + 1) % COM_TX_BUF_SIZE) != com_tx_tail) && (((com_tx_head + 2) % COM_TX_BUF_SIZE) != com_tx_tail));
+        (((com_tx_head + 1) % COM_TX_BUF_SIZE) != com_tx_tail)
+        && (((com_tx_head + 2) % COM_TX_BUF_SIZE) != com_tx_tail));
 }
 
 // Ensure space for com_tx_write()

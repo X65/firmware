@@ -6,6 +6,7 @@
 
 #include "sys/led.h"
 #include "hw.h"
+#include "net/cyw.h"
 #include <pico/stdlib.h>
 
 #if defined(DEBUG_RIA_SYS) || defined(DEBUG_RIA_SYS_LED)
@@ -31,6 +32,10 @@ static void led_set(bool on)
     gpio_init(RIA_LED_PIN);
     gpio_set_dir(RIA_LED_PIN, GPIO_OUT);
     gpio_put(RIA_LED_PIN, on);
+#endif
+#ifdef RP6502_RIA_W
+    // LED is connected to cyw43
+    cyw_led(on);
 #endif
 }
 

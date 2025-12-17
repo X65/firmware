@@ -10,9 +10,9 @@
 /* The CLK driver manages real-time counters.
  */
 
+#include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
-#include <stdbool.h>
 
 /* Main events
  */
@@ -29,10 +29,11 @@ const char *clk_set_time_zone(const char *tz);
 /* The API implementation for time support
  */
 
+bool clk_api_tzset(void);
+bool clk_api_tzquery(void);
 bool clk_api_clock(void);
 bool clk_api_get_res(void);
 bool clk_api_get_time(void);
 bool clk_api_set_time(void);
-bool clk_api_get_time_zone(void);
 
 #endif /* _RIA_API_CLK_H_ */

@@ -7,7 +7,9 @@
 #include "api/std.h"
 #include "api/api.h"
 #include "fatfs/ff.h"
+#include "net/mdm.h"
 #include "sys/com.h"
+#include "sys/pix.h"
 #include "sys/rln.h"
 #include <assert.h>
 #include <stdio.h>
@@ -27,13 +29,13 @@ FIL std_fil[STD_FIL_MAX];
 #define STD_FIL_STDIN  0
 #define STD_FIL_STDOUT 1
 #define STD_FIL_STDERR 2
-// #define STD_FIL_MODEM 3
+#define STD_FIL_MODEM  3
 #define STD_FIL_OFFS   4
 static_assert(STD_FIL_MAX + STD_FIL_OFFS < 128);
 
 static int32_t std_count_xram;
 static int32_t std_count_std;
-// static int32_t std_count_mdm;
+static int32_t std_count_mdm;
 static int32_t std_count_moved;
 static char *std_buf_ptr;
 
@@ -57,8 +59,8 @@ bool std_api_open(void)
 
     TCHAR *path = (TCHAR *)&xstack[xstack_ptr];
     xstack_ptr = XSTACK_SIZE;
-    // if (mdm_open(path))
-    //     return api_return_ax(STD_FIL_MODEM);
+    if (mdm_open(path))
+        return api_return_ax(STD_FIL_MODEM);
     uint8_t flags = API_A;
     uint8_t mode = flags & RDWR; // RDWR are same bits
     if (flags & CREAT)
@@ -91,13 +93,13 @@ bool std_api_open(void)
 bool std_api_close(void)
 {
     int fd = API_A;
-    // if (fd == STD_FIL_MODEM)
-    // {
-    //     if (mdm_close())
-    //         return api_return_ax(0);
-    //     else
-    //         return api_return_fresult(FR_INVALID_OBJECT);
-    // }
+    if (fd == STD_FIL_MODEM)
+    {
+        if (mdm_close())
+            return api_return_ax(0);
+        else
+            return api_return_fresult(FR_INVALID_OBJECT);
+    }
     if (fd < STD_FIL_OFFS || fd >= STD_FIL_MAX + STD_FIL_OFFS)
         return api_return_errno(API_EINVAL);
     FIL *fp = &std_fil[fd - STD_FIL_OFFS];
@@ -167,29 +169,29 @@ bool std_api_read_xstack(void)
         std_count_moved = std_rln_read(buf, count);
         std_count_std = -1;
     }
-    // else if (std_count_mdm >= 0)
-    // {
-    //     count = std_count_mdm;
-    //     buf = &xstack[XSTACK_SIZE - count];
-    //     if (std_count_moved < count)
-    //         switch (mdm_rx((char *)&buf[std_count_moved]))
-    //         {
-    //         case -1:
-    //             std_count_mdm = -1;
-    //             return api_return_fresult(FR_INVALID_OBJECT);
-    //         case 1:
-    //             std_count_moved++;
-    //             return api_working();
-    //         case 0:
-    //             break;
-    //         }
-    //     std_count_mdm = -1;
-    // }
+    else if (std_count_mdm >= 0)
+    {
+        count = std_count_mdm;
+        buf = &xstack[XSTACK_SIZE - count];
+        if (std_count_moved < count)
+            switch (mdm_rx((char *)&buf[std_count_moved]))
+            {
+            case -1:
+                std_count_mdm = -1;
+                return api_return_fresult(FR_INVALID_OBJECT);
+            case 1:
+                std_count_moved++;
+                return api_working();
+            case 0:
+                break;
+            }
+        std_count_mdm = -1;
+    }
     else
     {
         int16_t fd = API_A;
         if (!api_pop_uint16_end(&count)
-            || (fd && fd < STD_FIL_STDERR)
+            || (fd && fd < STD_FIL_MODEM)
             || fd >= STD_FIL_MAX + STD_FIL_OFFS
             || count > XSTACK_SIZE)
             return api_return_errno(API_EINVAL);
@@ -199,12 +201,12 @@ bool std_api_read_xstack(void)
             std_count_std = count;
             return api_working();
         }
-        // if (fd == STD_FIL_MODEM)
-        // {
-        //     std_count_mdm = count;
-        //     std_count_moved = 0;
-        //     return api_working();
-        // }
+        if (fd == STD_FIL_MODEM)
+        {
+            std_count_mdm = count;
+            std_count_moved = 0;
+            return api_working();
+        }
         FIL *fp = &std_fil[fd - STD_FIL_OFFS];
         UINT br;
         FRESULT fresult = f_read(fp, buf, count, &br);
@@ -232,25 +234,25 @@ bool std_api_read_xram(void)
         std_count_std = -1;
         return api_working();
     }
-    // if (std_count_mdm >= 0)
-    // {
-    //     if (std_count_moved < std_count_mdm)
-    //         switch (mdm_rx(&std_buf_ptr[std_count_moved]))
-    //         {
-    //         case -1:
-    //             std_count_mdm = -1;
-    //             return api_return_fresult(FR_INVALID_OBJECT);
-    //         case 1:
-    //             std_count_moved++;
-    //             return api_working();
-    //         case 0:
-    //             break;
-    //         }
-    //     std_count_xram = std_count_moved;
-    //     api_set_ax(std_count_xram);
-    //     std_count_mdm = -1;
-    //     return api_working();
-    // }
+    if (std_count_mdm >= 0)
+    {
+        if (std_count_moved < std_count_mdm)
+            switch (mdm_rx(&std_buf_ptr[std_count_moved]))
+            {
+            case -1:
+                std_count_mdm = -1;
+                return api_return_fresult(FR_INVALID_OBJECT);
+            case 1:
+                std_count_moved++;
+                return api_working();
+            case 0:
+                break;
+            }
+        std_count_xram = std_count_moved;
+        api_set_ax(std_count_xram);
+        std_count_mdm = -1;
+        return api_working();
+    }
     // if (std_count_xram >= 0)
     // {
     //     uint16_t xram_addr = std_buf_ptr - (char *)xram;
@@ -268,25 +270,25 @@ bool std_api_read_xram(void)
     int16_t fd = API_A;
     if (!api_pop_uint16(&count)
         || !api_pop_uint16_end(&xram_addr)
-        || (fd && fd < STD_FIL_STDERR)
+        || (fd && fd < STD_FIL_MODEM)
         || fd >= STD_FIL_MAX + STD_FIL_OFFS)
         return api_return_errno(API_EINVAL);
-    std_buf_ptr = (char *)&xram[xram_addr];
+    // std_buf_ptr = (char *)&xram[xram_addr];
     if (fd == STD_FIL_STDIN)
     {
         std_count_std = count;
         return api_working();
     }
-    // if (fd == STD_FIL_MODEM)
-    // {
-    //     std_count_moved = 0;
-    //     std_count_mdm = count;
-    //     return api_working();
-    // }
+    if (fd == STD_FIL_MODEM)
+    {
+        std_count_moved = 0;
+        std_count_mdm = count;
+        return api_working();
+    }
     if (count > 0x7FFF)
         count = 0x7FFF;
-    if (std_buf_ptr + count > (char *)xram + 0x10000)
-        return api_return_errno(API_EINVAL);
+    // if (std_buf_ptr + count > (char *)xram + 0x10000)
+    //     return api_return_errno(API_EINVAL);
     FIL *fp = &std_fil[fd - STD_FIL_OFFS];
     UINT br;
     FRESULT fresult = f_read(fp, std_buf_ptr, count, &br);
@@ -313,31 +315,31 @@ static bool std_out_write(void)
     return api_working();
 }
 
-// static bool std_mdm_write(void)
-// {
-//     while (std_count_moved < std_count_mdm)
-//     {
-//         int tx = mdm_tx(std_buf_ptr[std_count_moved]);
-//         if (tx == -1)
-//         {
-//             std_count_mdm = -1;
-//             return api_return_fresult(FR_INVALID_OBJECT);
-//         }
-//         if (tx == 0)
-//             break;
-//         std_count_moved++;
-//         return api_working();
-//     }
-//     std_count_mdm = -1;
-//     return api_return_ax(std_count_moved);
-// }
+static bool std_mdm_write(void)
+{
+    while (std_count_moved < std_count_mdm)
+    {
+        int tx = mdm_tx(std_buf_ptr[std_count_moved]);
+        if (tx == -1)
+        {
+            std_count_mdm = -1;
+            return api_return_fresult(FR_INVALID_OBJECT);
+        }
+        if (tx == 0)
+            break;
+        std_count_moved++;
+        return api_working();
+    }
+    std_count_mdm = -1;
+    return api_return_ax(std_count_moved);
+}
 
 bool std_api_write_xstack(void)
 {
     if (std_count_std >= 0)
         return std_out_write();
-    // if (std_count_mdm >= 0)
-    //     return std_mdm_write();
+    if (std_count_mdm >= 0)
+        return std_mdm_write();
     uint16_t count;
     int fd = API_A;
     if (fd == STD_FIL_STDIN || fd >= STD_FIL_MAX + STD_FIL_OFFS)
@@ -346,11 +348,11 @@ bool std_api_write_xstack(void)
     std_count_moved = 0;
     std_buf_ptr = (char *)&xstack[xstack_ptr];
     xstack_ptr = XSTACK_SIZE;
-    // if (fd == STD_FIL_MODEM)
-    // {
-    //     std_count_mdm = count;
-    //     return api_working();
-    // }
+    if (fd == STD_FIL_MODEM)
+    {
+        std_count_mdm = count;
+        return api_working();
+    }
     if (fd < STD_FIL_OFFS) // stdout stderr
     {
         std_count_std = count;
@@ -368,8 +370,8 @@ bool std_api_write_xram(void)
 {
     if (std_count_std >= 0)
         return std_out_write();
-    // if (std_count_mdm >= 0)
-    //     return std_mdm_write();
+    if (std_count_mdm >= 0)
+        return std_mdm_write();
     uint16_t xram_addr;
     uint16_t count;
     int fd = API_A;
@@ -379,16 +381,16 @@ bool std_api_write_xram(void)
         || !api_pop_uint16_end(&xram_addr))
         return api_return_errno(API_EINVAL);
     std_count_moved = 0;
-    std_buf_ptr = (char *)&xram[xram_addr];
-    if (std_buf_ptr + count > (char *)xram + 0x10000)
-        return api_return_errno(API_EINVAL);
+    // std_buf_ptr = (char *)&xram[xram_addr];
+    // if (std_buf_ptr + count > (char *)xram + 0x10000)
+    //     return api_return_errno(API_EINVAL);
     if (count > 0x7FFF)
         count = 0x7FFF;
-    // if (fd == STD_FIL_MODEM)
-    // {
-    //     std_count_mdm = count;
-    //     return api_working();
-    // }
+    if (fd == STD_FIL_MODEM)
+    {
+        std_count_mdm = count;
+        return api_working();
+    }
     if (fd < STD_FIL_OFFS) // stdout stderr
     {
         std_count_std = count;
@@ -460,7 +462,7 @@ void std_run(void)
 {
     std_count_xram = -1;
     std_count_std = -1;
-    // std_count_mdm = -1;
+    std_count_mdm = -1;
     std_rln_active = false;
     std_rln_needs_nl = false;
     std_rln_pos = 0;

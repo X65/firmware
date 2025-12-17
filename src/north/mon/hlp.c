@@ -5,8 +5,10 @@
  * SPDX-License-Identifier: BSD-3-Clause
  */
 
+#include "hid/kbd.h"
 #include "mon/hlp.h"
 #include "mon/rom.h"
+#include "sys/cpu.h"
 #include "sys/lfs.h"
 
 #if defined(DEBUG_RIA_MON) || defined(DEBUG_RIA_MON_HLP)
@@ -36,16 +38,26 @@ static const char __in_flash("helptext") hlp_text_help[] =
     "UNLINK file|dir     - Delete a file or empty directory.\n"
     "UPLOAD file         - Write file. Binary chunks follow.\n"
     "BINARY addr len crc - Write memory. Binary data follows.\n"
-    "AT ...              - Send AT+command to WiFi modem.\n"
     "MEMTEST             - Test PSRAM memory.\n"
     "0000 (00 00 ...)    - Read or write memory.";
 
 static const char __in_flash("helptext") hlp_text_set[] =
     "Settings:\n"
     "HELP SET attr       - Show information about a setting.\n"
+    "SET PHI2 (kHz)      - Query or set PHI2 speed. This is the CPU clock.\n"
     "SET BOOT (rom|-)    - Select ROM to boot from cold start. \"-\" for none.\n"
     "SET TZ (tz)         - Query or set time zone.\n"
-    "SET CP (cp)         - Query or set code page.";
+    "SET KB (layout)     - Query or set keyboard layout.\n"
+    "SET CP (cp)         - Query or set code page."
+#ifdef RP6502_RIA_W
+    "\n"
+    "SET RF (0|1)        - Disable or enable radio.\n"
+    "SET RFCC (cc|-)     - Set country code for RF devices. \"-\" for worldwide.\n"
+    "SET SSID (ssid|-)   - Set SSID for WiFi. \"-\" for none.\n"
+    "SET PASS (pass|-)   - Set password for WiFi. \"-\" for none.\n"
+    "SET BLE (0|1|2)     - Disable or enable Bluetooth LE. 2 enables pairing."
+#endif
+    "";
 
 static const char __in_flash("helptext") hlp_text_about[] =
     "X65 microcomputer - Copyright (c) 2025 Tomasz Sterna, Xiaoka.com.\n"
@@ -56,14 +68,21 @@ static const char __in_flash("helptext") hlp_text_about[] =
     "          BTstack - Copyright (c) 2009 BlueKitchen GmbH\n"
     "            FatFs - Copyright (c) 20xx ChaN.\n"
     "         littlefs - Copyright (c) 2022 The littlefs authors.\n"
-    "                    Copyright (c) 2017 Arm Limited.\n"
-    "           ESP-AT - Copyright (c) 2024-2025 Espressif Systems (Shanghai) CO LTD.";
+    "                    Copyright (c) 2017 Arm Limited."
+// Note that BTstack HID descriptor parsing is used for non-W builds
+#ifdef RP6502_RIA_W
+    "\n"
+    "   CYW43xx driver - Copyright (c) 2019-2022 George Robotics Pty Ltd.\n"
+    "             lwIP - Copyright (c) 2001-2002 Swedish Institute of\n"
+    "                                            Computer Science."
+#endif
+    "";
 
 static const char __in_flash("helptext") hlp_text_system[] =
-    "The X65 computer does not use a traditional parallel ROM like a 27C64 or\n"
+    "The X65 does not use a traditional parallel ROM like a 27C64 or\n"
     "similar. Instead, this monitor is used to prepare the CPU RAM with software\n"
-    "that would normally be on a ROM chip. The CPU is in-reset right now;\n"
-    "the RESB line is low. What you are seeing is coming from the RP-RIA.\n"
+    "that would normally be on a ROM chip. The CPU is currently in-reset right\n"
+    "now; the RESB line is low. What you are seeing is coming from the RP-RIA.\n"
     "You can return to this monitor at any time by pressing CTRL-ALT-DEL or sending\n"
     "a break to the serial port. Since these signals are handled by the RP-RIA,\n"
     "they will always stop even a crashed CPU. This monitor can do scripted things\n"
@@ -87,7 +106,7 @@ static const char __in_flash("helptext") hlp_text_mkdir[] =
 
 static const char __in_flash("helptext") hlp_text_load[] =
     "LOAD and INFO read ROM files from a USB drive. A ROM file contains both\n"
-    "ASCII information for the user, and binary information for the system.\n"
+    "ASCII information for the user and binary information for the system.\n"
     "ROM file is an Atari XEX derived binary format. The file may contain\n"
     "many chunks loaded into different memory areas. The chunk marked for load\n"
     "into area starting from $FC00 is special and contains HELP/INFO information,\n"
@@ -152,6 +171,11 @@ static const char __in_flash("helptext") hlp_text_status[] =
 #define XSTR(x) STR(x)
 #define FREQS XSTR(CPU_PHI2_MIN_KHZ) "-" XSTR(CPU_PHI2_MAX_KHZ)
 
+static const char __in_flash("helptext") hlp_text_set_phi2[] =
+    "PHI2 is the CPU clock speed in kHz. The valid range is " FREQS " but not all\n"
+    "frequencies are available. In that case, the next highest frequency will\n"
+    "be automatically calculated and selected. Setting is saved on the RIA flash.";
+
 static const char __in_flash("helptext") hlp_text_set_boot[] =
     "BOOT selects an installed ROM to be automatically loaded and started when the\n"
     "system is powered up or rebooted. For example, you might want the system to\n"
@@ -165,6 +189,9 @@ static const char __in_flash("helptext") hlp_text_set_tz[] =
     "\"CET-1CEST,M3.5.0/2,M10.5.0/3\" for Central European time.\n"
     "The easiest way to get this is to ask an AI \"posix tz for {your location}\".";
 
+static const char __in_flash("helptext") hlp_text_set_kb[] =
+    "SET KB selects a keyboard layout. e.g. SET KB US";
+
 static const char __in_flash("helptext") hlp_text_set_cp[] =
     "SET CP selects a code page for system text. The following is supported:\n"
     "437, 720, 737, 771, 775, 850, 852, 855, 857, 860, 861, 862, 863, 864, 865,\n"
@@ -176,12 +203,30 @@ static const char __in_flash("helptext") hlp_text_set_cp[] =
     "";
 #endif
 
-static const char __in_flash("helptext") hlp_text_at[] =
-    "AT sends command to WiFi/BT modem and receives the response.\n"
-    "NOTICE: Typing 'AT +XYZ=1' sends 'AT+XYZ=1' command.\n"
-    "The modem is an ESP-AT instance. For full AT commands list, see\n"
-    "ESP-AT documentation at:\n"
-    "https://docs.espressif.com/projects/esp-at/en/release-v4.0.0.0/esp32/AT_Command_Set/";
+#ifdef RP6502_RIA_W
+
+static const char __in_flash("helptext") hlp_text_set_rf[] =
+    "SET RF (0|1) turns all radios off or on.";
+
+static const char __in_flash("helptext") hlp_text_set_rfcc[] =
+    "Set this so the CYW43 can use the best radio frequencies for your country.\n"
+    "Using \"-\" will clear the country code and default to a worldwide setting.\n"
+    "Valid country codes: AU, AT, BE, BR, CA, CL, CN, CO, CZ, DK, EE, FI, FR, DE,\n"
+    "GR, HK, HU, IS, IN, IL, IT, JP, KE, LV, LI, LT, LU, MY, MT, MX, NL, NZ, NG,\n"
+    "NO, PE, PH, PL, PT, SG, SK, SI, ZA, KR, ES, SE, CH, TW, TH, TR, GB, US.";
+
+static const char __in_flash("helptext") hlp_text_set_ssid[] =
+    "This is the Service Set Identifier for your WiFi network. Setting \"-\" will\n"
+    "disable WiFi.";
+
+static const char __in_flash("helptext") hlp_text_set_pass[] =
+    "This is the password for your WiFi network. Use \"-\" to clear password.";
+
+static const char __in_flash("helptext") hlp_text_set_ble[] =
+    "Setting 0 disables Bluetooth LE. Setting 1 enables. Setting 2 enters pairing\n"
+    "mode which will remain active until successful.";
+
+#endif
 
 static struct
 {
@@ -220,7 +265,6 @@ static struct
     {6, "upload", hlp_text_upload},
     {6, "unlink", hlp_text_unlink},
     {6, "binary", hlp_text_binary},
-    {2, "at", hlp_text_at},
 };
 static const size_t COMMANDS_COUNT = sizeof COMMANDS / sizeof *COMMANDS;
 
@@ -230,9 +274,18 @@ static struct
     const char *const cmd;
     const char *const text;
 } const SETTINGS[] = {
+    {4, "phi2", hlp_text_set_phi2},
     {4, "boot", hlp_text_set_boot},
     {2, "tz", hlp_text_set_tz},
+    {2, "kb", hlp_text_set_kb},
     {2, "cp", hlp_text_set_cp},
+#ifdef RP6502_RIA_W
+    {2, "rf", hlp_text_set_rf},
+    {4, "rfcc", hlp_text_set_rfcc},
+    {4, "ssid", hlp_text_set_ssid},
+    {4, "pass", hlp_text_set_pass},
+    {3, "ble", hlp_text_set_ble},
+#endif
 };
 static const size_t SETTINGS_COUNT = sizeof SETTINGS / sizeof *SETTINGS;
 
@@ -372,6 +425,8 @@ void hlp_mon_help(const char *args, size_t len)
     if (text)
     {
         puts(text);
+        if (text == hlp_text_set_kb)
+            kbd_print_layouts();
     }
     else
     {

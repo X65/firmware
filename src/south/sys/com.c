@@ -8,6 +8,7 @@
 #include "usb/cdc.h"
 #include <pico/stdio/driver.h>
 #include <pico/stdlib.h>
+#include <stdio.h>
 #include <tusb.h>
 
 size_t com_in_head;

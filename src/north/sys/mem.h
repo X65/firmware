@@ -19,13 +19,6 @@
 #define XIP_PSRAM_CACHED  0x11000000
 #define XIP_PSRAM_NOCACHE 0x15000000
 
-// 64KB Extended RAM
-#ifdef NDEBUG
-extern uint8_t xram[];
-#else
-extern uint8_t *const xram;
-#endif
-
 // The xstack is:
 // 512 bytes, enough to hold a CC65 stack frame, two strings for a
 // file rename, or a disk sector
@@ -56,8 +49,8 @@ uint32_t mbuf_crc32(void);
 /* Main events
  */
 
-void mem_init(void);
-void mem_print_status(void);
+void ram_init(void);
+void ram_print_status(void);
 
 // 16MB of XIP QPI PSRAM interface
 // accessed through fast L1 cache implemented in internal SRAM

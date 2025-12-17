@@ -7,11 +7,14 @@
 #include "sys/cfg.h"
 #include "api/clk.h"
 #include "api/oem.h"
+#include "hid/kbd.h"
 #include "mon/str.h"
+#include "net/ble.h"
+#include "net/cyw.h"
+#include "net/wfi.h"
 #include "sys/cpu.h"
 #include "sys/lfs.h"
 #include "sys/mem.h"
-#include "sys/vpu.h"
 #include <ctype.h>
 
 #if defined(DEBUG_RIA_SYS) || defined(DEBUG_RIA_SYS_CFG)
@@ -26,18 +29,34 @@ static inline void DBG(const char *fmt, ...)
 
 // Configuration is a plain ASCII file on the LFS. e.g.
 // +V1         | Version - Must be first
-// +P8000      | PHI2 (retired)
+// +P8000      | PHI2
 // +C0         | Caps (retired)
 // +R0         | RESB (retired)
 // +TUTC0      | Time Zone
 // +S437       | Code Page
+// +LUS        | Keyboard Layout
+// +E1         | RF Enabled
+// +FUS        | RF Country Code
+// +WMyWiFi    | WiFi SSID
+// +KsEkRiT    | WiFi Password
+// +B1         | Bluetooth Enabled
 // BASIC       | Boot ROM - Must be last
 
 #define CFG_VERSION 1
 static const char cfg_filename[] = "CONFIG.SYS";
 
+static uint32_t cfg_phi2_khz;
+static char cfg_kbd_layout[KBD_LAYOUT_MAX_NAME_SIZE];
 static uint32_t cfg_code_page;
 static char cfg_time_zone[65];
+
+#ifdef RP6502_RIA_W
+static uint8_t cfg_net_rf;
+static char cfg_net_rfcc[3];
+static char cfg_net_ssid[33];
+static char cfg_net_pass[65];
+static uint8_t cfg_net_ble;
+#endif /* RP6502_RIA_W */
 
 // Optional string can replace boot string
 static void cfg_save_with_boot_opt(char *opt_str)
@@ -71,12 +90,30 @@ static void cfg_save_with_boot_opt(char *opt_str)
     {
         lfsresult = lfs_printf(&lfs_volume, &lfs_file,
                                "+V%u\n"
+                               "+P%u\n"
                                "+T%s\n"
                                "+S%u\n"
+                               "+L%s\n"
+#ifdef RP6502_RIA_W
+                               "+E%u\n"
+                               "+F%s\n"
+                               "+W%s\n"
+                               "+K%s\n"
+                               "+B%u\n"
+#endif /* RP6502_RIA_W */
                                "%s",
                                CFG_VERSION,
+                               cfg_phi2_khz,
                                cfg_time_zone,
                                cfg_code_page,
+                               cfg_kbd_layout,
+#ifdef RP6502_RIA_W
+                               cfg_net_rf,
+                               cfg_net_rfcc,
+                               cfg_net_ssid,
+                               cfg_net_pass,
+                               cfg_net_ble,
+#endif /* RP6502_RIA_W */
                                opt_str);
         if (lfsresult < 0)
             printf("?Unable to write %s contents (%d)\n", cfg_filename, lfsresult);
@@ -115,12 +152,35 @@ static void cfg_load_with_boot_opt(bool boot_only)
         len -= 2;
         switch (mbuf[1])
         {
+        case 'P':
+            str_parse_uint32(&str, &len, &cfg_phi2_khz);
+            break;
         case 'T':
             str_parse_string(&str, &len, cfg_time_zone, sizeof(cfg_time_zone));
             break;
         case 'S':
             str_parse_uint32(&str, &len, &cfg_code_page);
             break;
+        case 'L':
+            str_parse_string(&str, &len, cfg_kbd_layout, sizeof(cfg_kbd_layout));
+            break;
+#ifdef RP6502_RIA_W
+        case 'E':
+            str_parse_uint8(&str, &len, &cfg_net_rf);
+            break;
+        case 'F':
+            str_parse_string(&str, &len, cfg_net_rfcc, sizeof(cfg_net_rfcc));
+            break;
+        case 'W':
+            str_parse_string(&str, &len, cfg_net_ssid, sizeof(cfg_net_ssid));
+            break;
+        case 'K':
+            str_parse_string(&str, &len, cfg_net_pass, sizeof(cfg_net_pass));
+            break;
+        case 'B':
+            str_parse_uint8(&str, &len, &cfg_net_ble);
+            break;
+#endif /* RP6502_RIA_W */
         default:
             break;
         }
@@ -138,6 +198,31 @@ void cfg_init(void)
     cfg_net_ble = 1;
 #endif /* RP6502_RIA_W */
     cfg_load_with_boot_opt(false);
+}
+
+bool cfg_set_phi2_khz(uint32_t freq_khz)
+{
+    if (freq_khz > CPU_PHI2_MAX_KHZ)
+        return false;
+    if (freq_khz && freq_khz < CPU_PHI2_MIN_KHZ)
+        return false;
+    // 0 allowed through to get default
+    uint32_t old_val = cfg_phi2_khz;
+    cfg_phi2_khz = cpu_validate_phi2_khz(freq_khz);
+    bool ok = true;
+    if (old_val != cfg_phi2_khz)
+    {
+        ok = cpu_set_phi2_khz(cfg_phi2_khz);
+        if (ok)
+            cfg_save_with_boot_opt(NULL);
+    }
+    return ok;
+}
+
+// Returns actual CPU frequency adjusted for quantization.
+uint32_t cfg_get_phi2_khz(void)
+{
+    return cpu_validate_phi2_khz(cfg_phi2_khz);
 }
 
 void cfg_set_boot(char *str)
@@ -171,6 +256,26 @@ const char *cfg_get_time_zone(void)
     return cfg_time_zone;
 }
 
+bool cfg_set_kbd_layout(const char *kb)
+{
+    const char *key_layout = kbd_set_layout(kb);
+    if (strlen(kb) && strcasecmp(kb, key_layout))
+        return false;
+    if (strlen(key_layout) >= sizeof(cfg_kbd_layout))
+        return false;
+    if (strcmp(cfg_kbd_layout, key_layout))
+    {
+        strcpy(cfg_kbd_layout, key_layout);
+        cfg_save_with_boot_opt(NULL);
+    }
+    return true;
+}
+
+const char *cfg_get_kbd_layout(void)
+{
+    return cfg_kbd_layout;
+}
+
 bool cfg_set_code_page(uint32_t cp)
 {
     if (cp > UINT16_MAX)
@@ -186,3 +291,116 @@ uint16_t cfg_get_code_page(void)
 {
     return cfg_code_page;
 }
+
+#ifdef RP6502_RIA_W
+
+bool cfg_set_rf(uint8_t rf)
+{
+    if (rf > 1)
+        return false;
+    if (rf <= 1 && cfg_net_rf != rf)
+    {
+        cfg_net_rf = rf;
+        cyw_reset_radio();
+        cfg_save_with_boot_opt(NULL);
+    }
+    return true;
+}
+
+uint8_t cfg_get_rf(void)
+{
+    return cfg_net_rf;
+}
+
+bool cfg_set_rfcc(const char *rfcc)
+{
+    char cc[3] = {0, 0, 0};
+    size_t len = strlen(rfcc);
+    if (len == 2)
+    {
+        cc[0] = toupper(rfcc[0]);
+        cc[1] = toupper(rfcc[1]);
+        if (!cyw_validate_country_code(cc))
+            return false;
+    }
+    if (len == 0 || len == 2)
+    {
+        if (strcmp(cfg_net_rfcc, cc))
+        {
+            strcpy(cfg_net_rfcc, cc);
+            cyw_reset_radio();
+            cfg_save_with_boot_opt(NULL);
+        }
+        return true;
+    }
+    return false;
+}
+
+const char *cfg_get_rfcc(void)
+{
+    return cfg_net_rfcc;
+}
+
+bool cfg_set_ssid(const char *ssid)
+{
+    size_t len = strlen(ssid);
+    if (len < sizeof(cfg_net_ssid) - 1)
+    {
+        if (strcmp(cfg_net_ssid, ssid))
+        {
+            cfg_net_pass[0] = 0;
+            strcpy(cfg_net_ssid, ssid);
+            wfi_shutdown();
+            cfg_save_with_boot_opt(NULL);
+        }
+        return true;
+    }
+    return false;
+}
+
+const char *cfg_get_ssid(void)
+{
+    return cfg_net_ssid;
+}
+
+bool cfg_set_pass(const char *pass)
+{
+    if (strlen(cfg_net_ssid) && strlen(pass) < sizeof(cfg_net_pass) - 1)
+    {
+        if (strcmp(cfg_net_pass, pass))
+        {
+            strcpy(cfg_net_pass, pass);
+            wfi_shutdown();
+            cfg_save_with_boot_opt(NULL);
+        }
+        return true;
+    }
+    return false;
+}
+
+const char *cfg_get_pass(void)
+{
+    return cfg_net_pass;
+}
+
+bool cfg_set_ble(uint8_t ble)
+{
+    if (ble > 2)
+        return false;
+    ble_set_config(ble);
+    if (ble == 2)
+        ble = 1;
+    if (cfg_net_ble != ble)
+    {
+        cfg_net_ble = ble;
+        cfg_save_with_boot_opt(NULL);
+    }
+    return true;
+}
+
+uint8_t cfg_get_ble(void)
+{
+    return cfg_net_ble;
+}
+
+#endif /* RP6502_RIA_W */

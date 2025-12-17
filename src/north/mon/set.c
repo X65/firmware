@@ -5,7 +5,9 @@
  */
 
 #include "mon/set.h"
+#include "hid/kbd.h"
 #include "mon/str.h"
+#include "net/ble.h"
 #include "sys/cfg.h"
 #include "sys/lfs.h"
 
@@ -18,6 +20,33 @@ static inline void DBG(const char *fmt, ...)
     (void)fmt;
 }
 #endif
+
+static void set_print_phi2(void)
+{
+    uint32_t phi2_khz = cfg_get_phi2_khz();
+    printf("PHI2: %ld kHz", phi2_khz);
+    printf("\n");
+}
+
+static void set_phi2(const char *args, size_t len)
+{
+    uint32_t val;
+    if (len)
+    {
+        if (!str_parse_uint32(&args, &len, &val)
+            || !str_parse_end(args, len))
+        {
+            printf("?invalid argument\n");
+            return;
+        }
+        if (!cfg_set_phi2_khz(val))
+        {
+            printf("?invalid speed\n");
+            return;
+        }
+    }
+    set_print_phi2();
+}
 
 static void set_print_boot(void)
 {
@@ -81,6 +110,138 @@ static void set_code_page(const char *args, size_t len)
     set_print_code_page();
 }
 
+#ifdef RP6502_RIA_W
+
+static void set_print_rf(void)
+{
+    printf("RF  : %s\n", cfg_get_rf() ? "On" : "Off");
+}
+
+static void set_rf(const char *args, size_t len)
+{
+    uint32_t val;
+    if (len)
+    {
+        if (str_parse_uint32(&args, &len, &val)
+            && str_parse_end(args, len))
+        {
+            cfg_set_rf(val);
+        }
+        else
+        {
+            printf("?invalid argument\n");
+            return;
+        }
+    }
+    set_print_rf();
+}
+
+static void set_print_rfcc(void)
+{
+    const char *cc = cfg_get_rfcc();
+    printf("RFCC: %s\n", strlen(cc) ? cc : "Worldwide");
+}
+
+static void set_rfcc(const char *args, size_t len)
+{
+    char rfcc[3];
+    if (len)
+    {
+        if (args[0] == '-' && str_parse_end(++args, --len))
+        {
+            cfg_set_rfcc("");
+        }
+        else if (!str_parse_string(&args, &len, rfcc, sizeof(rfcc))
+                 || !str_parse_end(args, len)
+                 || !cfg_set_rfcc(rfcc))
+        {
+            printf("?invalid argument\n");
+            return;
+        }
+    }
+    set_print_rfcc();
+}
+
+static void set_print_ssid(void)
+{
+    const char *cc = cfg_get_ssid();
+    printf("SSID: %s\n", strlen(cc) ? cc : "(none)");
+}
+
+static void set_print_pass(void)
+{
+    const char *pass = cfg_get_pass();
+    printf("PASS: %s\n", strlen(pass) ? "(set)" : "(none)");
+}
+
+static void set_ssid(const char *args, size_t len)
+{
+    char ssid[33];
+    if (!len)
+        return set_print_ssid();
+    if (args[0] == '-' && str_parse_end(++args, --len))
+    {
+        cfg_set_ssid("");
+    }
+    else if (!str_parse_string(&args, &len, ssid, sizeof(ssid))
+             || !str_parse_end(args, len)
+             || !cfg_set_ssid(ssid))
+    {
+        printf("?invalid argument\n");
+        return;
+    }
+    set_print_ssid();
+    set_print_pass();
+}
+
+static void set_pass(const char *args, size_t len)
+{
+    char pass[65];
+    if (!len)
+        return set_print_pass();
+    if (args[0] == '-' && str_parse_end(++args, --len))
+    {
+        cfg_set_pass("");
+    }
+    else if (!str_parse_string(&args, &len, pass, sizeof(pass))
+             || !str_parse_end(args, len)
+             || !cfg_set_pass(pass))
+    {
+        printf("?invalid argument\n");
+        return;
+    }
+    set_print_ssid();
+    set_print_pass();
+}
+
+static void set_print_ble(void)
+{
+    printf("BLE : %s%s%s\n",
+           cfg_get_ble() ? "Enabled" : "Disabled",
+           ble_is_pairing() ? ", pairing" : "",
+           cfg_get_rf() ? "" : " (radio off)");
+}
+
+static void set_ble(const char *args, size_t len)
+{
+    uint32_t val;
+    if (len)
+    {
+        if (str_parse_uint32(&args, &len, &val) && str_parse_end(args, len))
+        {
+            cfg_set_ble(val);
+        }
+        else
+        {
+            printf("?invalid argument\n");
+            return;
+        }
+    }
+    set_print_ble();
+}
+
+#endif
+
 static void set_print_time_zone(void)
 {
     printf("TZ  : %s\n", cfg_get_time_zone());
@@ -102,6 +263,27 @@ static void set_time_zone(const char *args, size_t len)
     set_print_time_zone();
 }
 
+static void set_print_kbd_layout(void)
+{
+    printf("KB  : %s\n", cfg_get_kbd_layout());
+}
+
+static void set_kbd_layout(const char *args, size_t len)
+{
+    char kb[KBD_LAYOUT_MAX_NAME_SIZE];
+    if (len)
+    {
+        if (!str_parse_string(&args, &len, kb, sizeof(kb))
+            || !str_parse_end(args, len)
+            || !cfg_set_kbd_layout(kb))
+        {
+            printf("?invalid argument\n");
+            return;
+        }
+    }
+    set_print_kbd_layout();
+}
+
 typedef void (*set_function)(const char *, size_t);
 static struct
 {
@@ -109,17 +291,35 @@ static struct
     const char *const attr;
     set_function func;
 } const SETTERS[] = {
+    {4, "phi2", set_phi2},
     {4, "boot", set_boot},
     {2, "tz", set_time_zone},
+    {2, "kb", set_kbd_layout},
     {2, "cp", set_code_page},
+#ifdef RP6502_RIA_W
+    {2, "rf", set_rf},
+    {4, "rfcc", set_rfcc},
+    {4, "ssid", set_ssid},
+    {4, "pass", set_pass},
+    {3, "ble", set_ble},
+#endif
 };
 static const size_t SETTERS_COUNT = sizeof SETTERS / sizeof *SETTERS;
 
 static void set_print_all(void)
 {
+    set_print_phi2();
     set_print_boot();
     set_print_time_zone();
+    set_print_kbd_layout();
     set_print_code_page();
+#ifdef RP6502_RIA_W
+    set_print_rf();
+    set_print_rfcc();
+    set_print_ssid();
+    set_print_pass();
+    set_print_ble();
+#endif
 }
 
 void set_mon_set(const char *args, size_t len)

@@ -276,33 +276,6 @@ static void __no_inline_not_in_flash_func(setup_psram)(uint8_t bank)
     }
 }
 
-#ifdef NDEBUG
-uint8_t xram[0x10000] __attribute__((aligned(4)));
-#else
-// this struct of 4KB segments is because
-// a single 64KB array crashes my debugger
-static struct
-{
-    uint8_t _0[0x1000];
-    uint8_t _1[0x1000];
-    uint8_t _2[0x1000];
-    uint8_t _3[0x1000];
-    uint8_t _4[0x1000];
-    uint8_t _5[0x1000];
-    uint8_t _6[0x1000];
-    uint8_t _7[0x1000];
-    uint8_t _8[0x1000];
-    uint8_t _9[0x1000];
-    uint8_t _A[0x1000];
-    uint8_t _B[0x1000];
-    uint8_t _C[0x1000];
-    uint8_t _D[0x1000];
-    uint8_t _E[0x1000];
-    uint8_t _F[0x1000];
-} xram_blocks;
-uint8_t *const xram __attribute__((aligned(4))) = (uint8_t *)&xram_blocks;
-#endif
-
 uint8_t xstack[XSTACK_SIZE + 1];
 size_t volatile xstack_ptr;
 
@@ -323,7 +296,7 @@ static inline __attribute__((always_inline)) void mem_select_bank(uint8_t bank)
     gpio_put(QMI_PSRAM_BS_PIN, (bool)bank);
 }
 
-void mem_init(void)
+void ram_init(void)
 {
     // safety check for compiler alignment
     assert(!((uintptr_t)regs & 0x3F));
@@ -340,7 +313,7 @@ void mem_init(void)
     }
 }
 
-void mem_print_status(void)
+void ram_print_status(void)
 {
     int total_ram_size = 0;
     for (uint8_t bank = 0; bank < PSRAM_BANKS_NO; bank++)
@@ -371,16 +344,16 @@ void mem_print_status(void)
     }
 }
 
-volatile uint8_t __uninitialized_ram(mem_cache)[128 * 1024]
+uint8_t __uninitialized_ram(mem_cache)[64 * 1024]
     __attribute__((aligned(4)));
 
 uint8_t mem_read_ram(uint32_t addr24)
 {
-    return mem_cache[addr24 & 0x1FFFF];
+    return mem_cache[addr24 & 0xFFFF];
 }
 void mem_write_ram(uint32_t addr24, uint8_t data)
 {
-    mem_cache[addr24 & 0x1FFFF] = data;
+    mem_cache[addr24 & 0xFFFF] = data;
 
     // Sync write to CGIA L1 cache
     pix_mem_write(addr24, data);
@@ -389,5 +362,5 @@ void mem_write_ram(uint32_t addr24, uint8_t data)
 uint8_t *mem_fetch_row(uint8_t bank, uint16_t addr)
 {
     const uint32_t addr24 = bank << 16 | addr;
-    return &mem_cache[addr24 & 0x1FFFF];
+    return &mem_cache[addr24 & 0xFFFF];
 }
