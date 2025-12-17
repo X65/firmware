@@ -146,8 +146,8 @@ static void cyw_post_reclock(uint32_t sys_clk_khz)
     else
         cyw43_set_pio_clkdiv_int_frac8(2, 0);
     // FIXME: breadbord does not work such high speeds reliably
-    // so for now we hardcode a safe 44,8MHz
-    cyw43_set_pio_clock_divisor(5, 0);
+    // so for now we hardcode a safe 48MHz
+    cyw43_set_pio_clock_divisor(7, 0);
 
     // flush newline from readline before init blocks
     stdio_flush();
