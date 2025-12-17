@@ -95,13 +95,13 @@ void main_task(void)
     pix_task();
     ria_task();
     kbd_task();
-    // cyw_task();
+    cyw_task();
     vpu_task();
     com_task();
     wfi_task();
     ntp_task();
     xin_task();
-    // ble_task();
+    ble_task();
     led_task();
     mdm_task();
 }

@@ -6,28 +6,36 @@
 
 #ifndef RP6502_RIA_W
 #include "net/cyw.h"
-void cyw_task() {}
-void cyw_reset_radio() {}
+void cyw_task()
+{
+}
+void cyw_reset_radio()
+{
+}
 #else
 
 #include "net/ble.h"
 #include "net/cyw.h"
 #include "net/wfi.h"
 #include "sys/cfg.h"
+#include <hardware/clocks.h>
 #include <pico/cyw43_arch.h>
 #include <pico/cyw43_driver.h>
 #include <pico/stdio.h>
-#include <hardware/clocks.h>
 
 #if defined(DEBUG_RIA_NET) || defined(DEBUG_RIA_NET_CYW)
 #include <stdio.h>
 #define DBG(...) fprintf(stderr, __VA_ARGS__)
 #else
-static inline void DBG(const char *fmt, ...) { (void)fmt; }
+static inline void DBG(const char *fmt, ...)
+{
+    (void)fmt;
+}
 #endif
 
 // These are from cyw43_arch.h
 // Change the help if you change these
+// clang-format off
 static const char COUNTRY_CODES[] = {
     'A', 'U', // AUSTRALIA
     'A', 'T', // AUSTRIA
@@ -81,6 +89,7 @@ static const char COUNTRY_CODES[] = {
     'G', 'B', // UK
     'U', 'S', // USA
 };
+// clang-format on
 
 static bool cyw_led_status;
 static bool cyw_led_requested;
@@ -128,12 +137,17 @@ static void cyw_post_reclock(uint32_t sys_clk_khz)
     // The Raspberry Pi SDK only provides for a 2,0 divider,
     // which is 75MHz for a non-overclocked 150MHz system clock.
     // It easily runs 85MHz+ so we push it to 66MHz.
-    if (sys_clk_khz > 198000)
+    if (sys_clk_khz > 264000)
+        cyw43_set_pio_clkdiv_int_frac8(5, 0);
+    else if (sys_clk_khz > 198000)
         cyw43_set_pio_clkdiv_int_frac8(4, 0);
     else if (sys_clk_khz > 132000)
         cyw43_set_pio_clkdiv_int_frac8(3, 0);
     else
         cyw43_set_pio_clkdiv_int_frac8(2, 0);
+    // FIXME: breadbord does not work such high speeds reliably
+    // so for now we hardcode a safe 44,8MHz
+    cyw43_set_pio_clock_divisor(5, 0);
 
     // flush newline from readline before init blocks
     stdio_flush();
