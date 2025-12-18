@@ -10,6 +10,7 @@
 #include "hw.h"
 #include "rgb.pio.h"
 #include <hardware/clocks.h>
+#include <hardware/gpio.h>
 #include <hardware/pio.h>
 #include <pico/stdlib.h>
 
@@ -39,7 +40,11 @@ static void led_set(bool on)
 #endif
 }
 
-static bool rgb_update = false;
+#define WS2812B_RESTART_US 1000
+
+static volatile bool rgb_update = false;
+static absolute_time_t rgb_restart_at;
+
 static uint32_t RGB_LEDS[RGB_LED_MAX] = {0};
 static size_t led_used_no = 4;
 
@@ -58,6 +63,7 @@ static void led_rgb_init(void)
     pio_set_gpio_base(RGB_LED_PIO, RGB_LED_PIN >= 32 ? 16 : 0);
 
     pio_gpio_init(RGB_LED_PIO, RGB_LED_PIN);
+    gpio_pull_down(RGB_LED_PIN); // ensure low during indexing reset pause
     pio_sm_set_consecutive_pindirs(RGB_LED_PIO, RGB_LED_SM, RGB_LED_PIN, 1, true);
 
     pio_sm_claim(RGB_LED_PIO, RGB_LED_SM);
@@ -84,9 +90,13 @@ void led_init(void)
 
 void led_task(void)
 {
-    if (rgb_update)
+    if (rgb_update && absolute_time_diff_us(get_absolute_time(), rgb_restart_at) < 0)
     {
-        rgb_update = false; // first clear flag - it may get re-set during update
+        // first clear flag - it may get re-set during update
+        rgb_update = false;
+        // will need to pause for the LED indexing to restart
+        rgb_restart_at = make_timeout_time_us(WS2812B_RESTART_US);
+
         for (size_t i = 0; i < led_used_no; ++i)
         {
             put_pixel(RGB_LEDS[i]);
