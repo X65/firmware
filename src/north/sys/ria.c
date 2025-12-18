@@ -34,6 +34,8 @@ static inline void DBG(const char *fmt, ...)
 
 static volatile bool irq_enabled;
 
+static uint8_t RGB_regs[8] = {0};
+
 void ria_trigger_irq(void)
 {
     if (irq_enabled & 0x01)
@@ -292,9 +294,61 @@ __attribute__((optimize("O1"))) static void __no_inline_not_in_flash_func(act_lo
                 // devices Memory-MAPped by RIA
                 else if (addr >= 0xFF80)
                 {
-                    data = 0xFF;
+                    // ------ FFA8 - FFBF ------
+                    if (addr >= 0xFFA8)
+                    {
+                        data = 0xFF; // unused
+                    }
+                    // ------ FFA0 - FFA7 ------ (RGB LEDs - WS2812B strip)
+                    else if (addr >= 0xFFA0)
+                    {
+                        const uint8_t reg = addr & 0x07;
+                        if (is_read)
+                            data = RGB_regs[reg];
+                        else
+                        {
+                            RGB_regs[reg] = data;
+
+                            switch (reg)
+                            {
+                            case 0:
+                            case 1:
+                            case 2:
+                            case 3: // RGB332 LED set
+                                pix_send_request(PIX_DEV_CMD, 3,
+                                                 (uint8_t[]) {
+                                                     PIX_DEVICE_CMD(PIX_DEV_LED, PIX_LED_CMD_SET_RGB332),
+                                                     reg,
+                                                     data,
+                                                 },
+                                                 nullptr);
+                                break;
+                            case 4: // RGB888 LED set
+                                pix_send_request(PIX_DEV_CMD, 5,
+                                                 (uint8_t[]) {
+                                                     PIX_DEVICE_CMD(PIX_DEV_LED, PIX_LED_CMD_SET_RGB888),
+                                                     data,
+                                                     RGB_regs[5],
+                                                     RGB_regs[6],
+                                                     RGB_regs[7],
+                                                 },
+                                                 nullptr);
+                                break;
+                            }
+                        }
+                    }
+                    // ------ FF98 - FF9F ------ (CIA-compatible timers)
+                    else if (addr >= 0xFF98)
+                    {
+                        data = 0xFF;
+                    }
+                    else
+                    // ------ FF80 - FF97 ------ (GPIO extender)
+                    {
+                        data = 0xFF;
+                    }
                 }
-                // CGIA
+                // CGIA ------ FF00 - FF7F ------
                 else
                 {
                     const uint8_t reg = addr & 0x7F;

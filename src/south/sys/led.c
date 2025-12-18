@@ -40,7 +40,8 @@ static void led_set(bool on)
 }
 
 static bool rgb_update = false;
-static uint32_t RGB_LEDS[RGB_LED_COUNT] = {0};
+static uint32_t RGB_LEDS[RGB_LED_MAX] = {0};
+static size_t led_used_no = 4;
 
 static inline void put_pixel(uint32_t pixel_grb)
 {
@@ -85,11 +86,11 @@ void led_task(void)
 {
     if (rgb_update)
     {
-        for (size_t i = 0; i < RGB_LED_COUNT; ++i)
+        rgb_update = false; // first clear flag - it may get re-set during update
+        for (size_t i = 0; i < led_used_no; ++i)
         {
             put_pixel(RGB_LEDS[i]);
         }
-        rgb_update = false;
     }
 
     if (led_blinking && absolute_time_diff_us(get_absolute_time(), led_blink_timer) < 0)
@@ -109,7 +110,28 @@ void led_blink(bool on)
 
 void led_set_pixel(size_t index, uint8_t r, uint8_t g, uint8_t b)
 {
-    assert(index < RGB_LED_COUNT);
+    assert(index < RGB_LED_MAX);
     RGB_LEDS[index] = urgb_u32(r, g, b);
+    if (index >= led_used_no)
+        led_used_no = index + 1;
     rgb_update = true;
+}
+
+// gamma-corrected LUTs.
+// Spread codes 0..100% to 0..255 with a power curve (γ≈2.2 works well for LEDs).
+// 3-bit channels (R,G)
+static const uint8_t LUT3[8] = {0, 4, 16, 40, 74, 122, 182, 255};
+// 2-bit channel (B)
+static const uint8_t LUT2[4] = {0, 23, 105, 255};
+
+void led_set_pixel_rgb332(size_t index, uint8_t rgb332)
+{
+    assert(index < RGB_LED_MAX);
+
+    // convert RGB332 to separate R, G, B values
+    const uint8_t r8 = LUT3[(rgb332 >> 5) & 0x7];
+    const uint8_t g8 = LUT3[(rgb332 >> 2) & 0x7];
+    const uint8_t b8 = LUT2[rgb332 & 0x3];
+
+    led_set_pixel(index, r8, g8, b8);
 }

@@ -50,6 +50,7 @@
 #define RGB_LED_PIO   pio2
 #define RGB_LED_SM    0
 #define RGB_LED_COUNT 4
+#define RGB_LED_MAX   256
 
 // ---
 // FM chip SPI

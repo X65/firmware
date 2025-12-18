@@ -8,6 +8,7 @@
 #include "cgia/cgia.h"
 #include "hw.h"
 #include "pix.pio.h"
+#include "sys/led.h"
 #include "sys/out.h"
 #include "sys/sys.h"
 #include "term/font.h"
@@ -16,7 +17,6 @@
 #include <hardware/pio.h>
 #include <pico/stdlib.h>
 #include <stdio.h>
-#include <string.h>
 
 volatile const uint8_t xram[0x10000] __attribute__((aligned(0x10000)));
 
@@ -59,44 +59,14 @@ static void __isr pix_irq_handler(void)
     PIX_PIO->irq = (1u << PIX_INT_NUM); // pio_interrupt_clear(PIX_PIO, PIX_INT_NUM);
 
     const uint8_t header = PIX_PIO->rxf[PIX_SM];
+
     const uint8_t frame_count = (header & 0b11111) + 1;
-
     dma_channel_set_transfer_count(pix_req_dma_chan, frame_count, false);
-    if (frame_count < 5)
-    {
-        // normal command - drain FIFO to buffer
-        dma_channel_set_write_addr(pix_req_dma_chan, pix_buffer, true);
-        dma_channel_wait_for_finish_blocking(pix_req_dma_chan);
-    }
 
-    switch (header >> 5)
+    const uint8_t request = header >> 5;
+    if (request == PIX_DMA_WRITE && frame_count == 32)
     {
-    case PIX_SYNC:
-        pix_ack();
-        break;
-    case PIX_PONG:
-    {
-        if (frame_count >= 5)
-            dma_channel_set_write_addr(pix_req_dma_chan, pix_buffer, true);
-        dma_channel_wait_for_finish_blocking(pix_req_dma_chan);
-        pix_rsp(PIX_PONG, (uint16_t)((pix_buffer[frame_count - 1] << 6) | frame_count));
-    }
-    break;
-    case PIX_MEM_WRITE:
-    {
-        if (frame_count != 4)
-            goto unknown;
-        // printf("PIX_MEM_WRITE %06lX %02X\n",
-        //        pix_buffer[0] << 16 | pix_buffer[1] << 8 | pix_buffer[2], pix_buffer[3]);
-        cgia_ram_write(pix_buffer[0],
-                       (uint16_t)(pix_buffer[1] << 8 | pix_buffer[2]),
-                       pix_buffer[3]);
-        pix_ack();
-    }
-    break;
-    case PIX_DMA_WRITE:
-        if (frame_count != 32)
-            goto unknown;
+        // drain FIFO to memory directly
         dma_channel_set_write_addr(pix_req_dma_chan, vcache_dma_dest, true);
         dma_channel_wait_for_finish_blocking(pix_req_dma_chan);
         vcache_dma_dest += 32;
@@ -114,7 +84,36 @@ static void __isr pix_irq_handler(void)
         {
             vcache_dma_running = false;
         }
+
+        return;
+    }
+
+    // normal command - drain FIFO to buffer
+    dma_channel_set_write_addr(pix_req_dma_chan, pix_buffer, true);
+    dma_channel_wait_for_finish_blocking(pix_req_dma_chan);
+
+    switch (request)
+    {
+    case PIX_SYNC:
+        pix_ack();
         break;
+    case PIX_PONG:
+    {
+        pix_rsp(PIX_PONG, (uint16_t)((pix_buffer[frame_count - 1] << 6) | frame_count));
+    }
+    break;
+    case PIX_MEM_WRITE:
+    {
+        if (frame_count != 4)
+            goto unknown;
+        // printf("PIX_MEM_WRITE %06lX %02X\n",
+        //        pix_buffer[0] << 16 | pix_buffer[1] << 8 | pix_buffer[2], pix_buffer[3]);
+        cgia_ram_write(pix_buffer[0],
+                       (uint16_t)(pix_buffer[1] << 8 | pix_buffer[2]),
+                       pix_buffer[3]);
+        pix_ack();
+    }
+    break;
     case PIX_DEV_CMD:
     {
         const uint8_t dev_cmd = pix_buffer[0];
@@ -158,6 +157,19 @@ static void __isr pix_irq_handler(void)
                 pix_nak();
             }
             break;
+        case PIX_DEV_LED:
+            switch (cmd)
+            {
+            case PIX_LED_CMD_SET_RGB332:
+                led_set_pixel_rgb332(pix_buffer[1], pix_buffer[2]);
+                pix_ack();
+                break;
+            case PIX_LED_CMD_SET_RGB888:
+                led_set_pixel(pix_buffer[1], pix_buffer[2], pix_buffer[3], pix_buffer[4]);
+                pix_ack();
+                break;
+            }
+            break;
         }
     }
     break;
@@ -198,9 +210,6 @@ static void __isr pix_irq_handler(void)
     unknown:
     {
         printf("PIX Unknown MSG: %02X/%d\n", header, frame_count);
-        if (frame_count >= 5)
-            dma_channel_set_write_addr(pix_req_dma_chan, pix_buffer, true);
-        dma_channel_wait_for_finish_blocking(pix_req_dma_chan);
         printf(">>> %02X: ", header);
         for (int i = 0; i < frame_count; i++)
         {
