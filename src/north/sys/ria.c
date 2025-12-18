@@ -302,7 +302,7 @@ __attribute__((optimize("O1"))) static void __no_inline_not_in_flash_func(act_lo
                     {
                         // Short-circuit CGIA raster read to avoid req/resp latency.
                         // Current raster line is being sent with each PIX ACK/NACK response.
-                        if ((reg & 0xFE) == CGIA_REG_RASTER)
+                        if ((reg & 0xFE) == CGIA_REG_RASTER && pix_raster_available())
                         {
                             data = (reg & 1) ? (uint8_t)(vpu_raster >> 8) : (uint8_t)(vpu_raster);
                         }

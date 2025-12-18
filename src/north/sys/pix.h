@@ -24,6 +24,9 @@ void pix_stop(void);
 
 bool pix_connected(void);
 
+// Check if cached raster line is fresh
+bool pix_raster_available(void);
+
 // Structure to receive PIX responses into.
 typedef struct
 {
