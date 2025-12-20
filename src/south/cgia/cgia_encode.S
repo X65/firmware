@@ -517,7 +517,7 @@ decl_func cgia_encode_mode_1_4bpp_shared
 // r1 is width in bytes
 // r2 - character generator address
 // r3 - character length in shift amount
-.macro cgia_encode_mode_2_shared_or_mapped mapped
+.macro cgia_encode_mode_2 doubled mapped
   push {r4-r7, lr}
 
   ldr r4, =cgia_rgb_palette
@@ -540,14 +540,14 @@ decl_func cgia_encode_mode_1_4bpp_shared
 
   lsls r5, #24        // move LSB to MSB
 
-  write_pixel_bmp 0 \mapped
-  write_pixel_bmp 0 \mapped
-  write_pixel_bmp 0 \mapped
-  write_pixel_bmp 0 \mapped
-  write_pixel_bmp 0 \mapped
-  write_pixel_bmp 0 \mapped
-  write_pixel_bmp 0 \mapped
-  write_pixel_bmp 0 \mapped
+  write_pixel_bmp \doubled \mapped
+  write_pixel_bmp \doubled \mapped
+  write_pixel_bmp \doubled \mapped
+  write_pixel_bmp \doubled \mapped
+  write_pixel_bmp \doubled \mapped
+  write_pixel_bmp \doubled \mapped
+  write_pixel_bmp \doubled \mapped
+  write_pixel_bmp \doubled \mapped
 
   subs r1, #1
   bne 3b
@@ -555,11 +555,82 @@ decl_func cgia_encode_mode_1_4bpp_shared
   pop {r4-r7, pc}
 .endm
 
-decl_func cgia_encode_mode_2_shared
-	cgia_encode_mode_2_shared_or_mapped 0
+decl_func cgia_encode_mode_2_doubled_mapped
+  cgia_encode_mode_2 1 1
+
+decl_func cgia_encode_mode_2_doubled_shared
+  cgia_encode_mode_2 1 0
 
 decl_func cgia_encode_mode_2_mapped
-	cgia_encode_mode_2_shared_or_mapped 1
+	cgia_encode_mode_2 0 1
+
+decl_func cgia_encode_mode_2_shared
+	cgia_encode_mode_2 0 0
+
+
+// r0 is output RGB buffer
+// r1 is width in bytes
+// r2 - character generator address
+// r3 - character length in shift amount
+// First stack argument is shared_colors[2] array
+.macro cgia_encode_mode_2_multi doubled mapped
+  push {r4-r8, lr}
+
+  ldr r8, =cgia_rgb_palette
+  ldr r7, =cell_colors
+  ldr ip, [sp, #24] // 6 words saved, so 24-byte offset to first stack argument
+
+.if \mapped
+  ldrb r4, [ip]   // shared_colors[0]
+  ldr r4, [r8, r4, LSL #2]  // load palette entry
+  str r4, [r7, #0]          // store shared color 0
+.endif
+  adds ip, 1  // shared_colors[1]
+  ldrb r5, [ip]
+  ldr r5, [r8, r5, LSL #2]  // load palette entry
+  str r5, [r7, #12]         // store shared color 3
+
+  ldr ip, =(SIO_BASE + SIO_INTERP0_ACCUM0_OFFSET)
+
+3:
+  ldr r6, [ip, #PEEK1_OFFS + INTERP1]   // load background color pointer
+  ldrb r6, [r6]     // load background color value (index)
+  ldr r6, [r8, r6, LSL #2]  // load palette entry
+  str r6, [r7, #4]          // store "off" color (1)
+
+  ldr r5, [ip, #POP0_OFFS + INTERP1]    // load foreground color pointer
+  ldrb r5, [r5]     // load foreground color value (index)
+  ldr r5, [r8, r5, LSL #2]  // load palette entry
+  str r5, [r7, #8]          // store "on" color (2)
+
+  ldr r4, [ip, #POP0_OFFS]    // load character code offset
+  ldrb r4, [r4]     // load character code
+  lsls r4, r3       // multiply by character height
+  ldrb r4, [r2, r4]     // load character line bitmap data
+
+  write_pixel_multi 6 \doubled \mapped
+  write_pixel_multi 4 \doubled \mapped
+  write_pixel_multi 2 \doubled \mapped
+  write_pixel_multi 0 \doubled \mapped
+
+  subs r1, #1
+  bne 3b
+
+  pop {r4-r8, pc}
+.endm
+
+decl_func cgia_encode_mode_2_multi_doubled_mapped
+  cgia_encode_mode_2_multi 1 1
+
+decl_func cgia_encode_mode_2_multi_doubled_shared
+  cgia_encode_mode_2_multi 1 0
+
+decl_func cgia_encode_mode_2_multi_mapped
+  cgia_encode_mode_2_multi 0 1
+
+decl_func cgia_encode_mode_2_multi_shared
+  cgia_encode_mode_2_multi 0 0
+
 
 //////////////////// VT ////////////////////
 
@@ -711,72 +782,6 @@ decl_func cgia_encode_mode_3_multi_mapped
 
 decl_func cgia_encode_mode_3_multi_shared
   cgia_encode_mode_3_multi 0 0
-
-
-//////////////////// MODE 4 //////////////////// - !!!
-
-// r0 is output RGB buffer
-// r1 is width in bytes
-// r2 - character generator address
-// r3 - character length in shift amount
-// First stack argument is shared_colors[2] array
-.macro cgia_encode_mode_4 doubled mapped
-  push {r4-r8, lr}
-
-  ldr r8, =cgia_rgb_palette
-  ldr r7, =cell_colors
-  ldr ip, [sp, #24] // 6 words saved, so 24-byte offset to first stack argument
-
-.if \mapped
-  ldrb r4, [ip]   // shared_colors[0]
-  ldr r4, [r8, r4, LSL #2]  // load palette entry
-  str r4, [r7, #0]          // store shared color 0
-.endif
-  adds ip, 1  // shared_colors[1]
-  ldrb r5, [ip]
-  ldr r5, [r8, r5, LSL #2]  // load palette entry
-  str r5, [r7, #12]         // store shared color 3
-
-  ldr ip, =(SIO_BASE + SIO_INTERP0_ACCUM0_OFFSET)
-
-3:
-  ldr r6, [ip, #PEEK1_OFFS + INTERP1]   // load background color pointer
-  ldrb r6, [r6]     // load background color value (index)
-  ldr r6, [r8, r6, LSL #2]  // load palette entry
-  str r6, [r7, #4]          // store "off" color (1)
-
-  ldr r5, [ip, #POP0_OFFS + INTERP1]    // load foreground color pointer
-  ldrb r5, [r5]     // load foreground color value (index)
-  ldr r5, [r8, r5, LSL #2]  // load palette entry
-  str r5, [r7, #8]          // store "on" color (2)
-
-  ldr r4, [ip, #POP0_OFFS]    // load character code offset
-  ldrb r4, [r4]     // load character code
-  lsls r4, r3       // multiply by character height
-  ldrb r4, [r2, r4]     // load character line bitmap data
-
-  write_pixel_multi 6 \doubled \mapped
-  write_pixel_multi 4 \doubled \mapped
-  write_pixel_multi 2 \doubled \mapped
-  write_pixel_multi 0 \doubled \mapped
-
-  subs r1, #1
-  bne 3b
-
-  pop {r4-r8, pc}
-.endm
-
-decl_func cgia_encode_mode_4_shared
-	cgia_encode_mode_4 0 0
-
-decl_func cgia_encode_mode_4_mapped
-	cgia_encode_mode_4 0 1
-
-decl_func cgia_encode_mode_4_doubled_shared
-	cgia_encode_mode_4 1 0
-
-decl_func cgia_encode_mode_4_doubled_mapped
-	cgia_encode_mode_4 1 1
 
 
 //////////////////// MODE 6 ////////////////////
@@ -984,21 +989,3 @@ decl_func cgia_encode_mode_7
 
   pop {r4-r7, pc}
 
-//////////////////// MODES ////////////////////
-decl_func cgia_encode_mode_2_doubled_mapped
-  bx lr
-
-decl_func cgia_encode_mode_2_doubled_shared
-  bx lr
-
-decl_func cgia_encode_mode_2_multi_doubled_mapped
-  bx lr
-
-decl_func cgia_encode_mode_2_multi_doubled_shared
-  bx lr
-
-decl_func cgia_encode_mode_2_multi_mapped
-  bx lr
-
-decl_func cgia_encode_mode_2_multi_shared
-  bx lr
