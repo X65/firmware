@@ -103,6 +103,8 @@ decl_func cgia_encode_mode_2_shared
 decl_func cgia_encode_mode_2_mapped
 	cgia_encode_mode_2_shared_or_mapped 1
 
+//////////////////// VT ////////////////////
+
 // r0 is output RGB buffer
 // r1 is width in bytes
 // r2 - character generator address
@@ -258,17 +260,10 @@ decl_func cgia_encode_mode_3_mapped
   lsls r4, r3       // multiply by character height
   ldrb r4, [r2, r4]     // load character line bitmap data
 
-.if \doubled
-  write_pixel_multi 6 1 \mapped
-  write_pixel_multi 4 1 \mapped
-  write_pixel_multi 2 1 \mapped
-  write_pixel_multi 0 1 \mapped
-.else
-  write_pixel_multi 6 0 \mapped
-  write_pixel_multi 4 0 \mapped
-  write_pixel_multi 2 0 \mapped
-  write_pixel_multi 0 0 \mapped
-.endif
+  write_pixel_multi 6 \doubled \mapped
+  write_pixel_multi 4 \doubled \mapped
+  write_pixel_multi 2 \doubled \mapped
+  write_pixel_multi 0 \doubled \mapped
 
   subs r1, #1
   bne 3b
@@ -327,17 +322,10 @@ decl_func cgia_encode_mode_4_doubled_mapped
   ldrb r4, [r4]     // load bitmap data
 
 
-.if \doubled
-  write_pixel_multi 6 1 \mapped
-  write_pixel_multi 4 1 \mapped
-  write_pixel_multi 2 1 \mapped
-  write_pixel_multi 0 1 \mapped
-.else
-  write_pixel_multi 6 0 \mapped
-  write_pixel_multi 4 0 \mapped
-  write_pixel_multi 2 0 \mapped
-  write_pixel_multi 0 0 \mapped
-.endif
+  write_pixel_multi 6 \doubled \mapped
+  write_pixel_multi 4 \doubled \mapped
+  write_pixel_multi 2 \doubled \mapped
+  write_pixel_multi 0 \doubled \mapped
 
   subs r1, #1
   bne 3b

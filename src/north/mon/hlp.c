@@ -60,7 +60,7 @@ static const char __in_flash("helptext") hlp_text_set[] =
     "";
 
 static const char __in_flash("helptext") hlp_text_about[] =
-    "X65 microcomputer - Copyright (c) 2025 Tomasz Sterna, Xiaoka.com.\n"
+    "X65 microcomputer - Copyright (c) 2025 Tomasz Sterna.\n"
     "Picocomputer 6502 - Copyright (c) 2025 Rumbledethumps.\n"
     "     Pi Pico SDKs - Copyright (c) 2020 Raspberry Pi (Trading) Ltd.\n"
     "      Tiny printf - Copyright (c) 2014-2019 Marco Paland, PALANDesign.\n"

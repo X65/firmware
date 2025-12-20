@@ -706,9 +706,9 @@ void __attribute__((optimize("O3"))) cgia_render(uint16_t y, uint32_t *rgbbuf)
 
                 case 0x5: // Set 16-bit register
                 {
-                    uint8_t idx = (dl_instr & 0b01110000) >> 3;
-                    plane->reg[idx++] = bckgnd_bank[++*plane_offset];
-                    plane->reg[idx] = bckgnd_bank[++*plane_offset];
+                    uint8_t rg = (dl_instr & 0b01110000) >> 3;
+                    plane->reg[rg++] = bckgnd_bank[++*plane_offset];
+                    plane->reg[rg] = bckgnd_bank[++*plane_offset];
                 }
                     ++*plane_offset; // Move to next DL instruction
                     goto process_instruction;
