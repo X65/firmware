@@ -32,6 +32,176 @@ cell_colors:
 .endm
 
 
+//////////////////// MODE 1 ////////////////////
+
+// r0 is output RGB buffer
+// r2 is shared_colors array pointer
+// r3 is palette pointer
+// r5 is bitmap (few columns)
+// changes r0,r6-r7
+.macro write_pixel_indexed sh_amt mask doubled mapped
+  mov r6, r5
+  lsrs r6, #\sh_amt
+.if \mask == 15
+  ands r6, #7
+  ands r7, #8 // half-bright bit
+.else
+  ands r6, #\mask
+.endif
+.if !\mapped
+  beq 1f
+.endif
+  // load shared color index
+  ldrb r6, [r2, r6]
+.if \mask == 15
+  cbz r7, 2f
+  eor r6, r6, #4  // toggle half-bright - XOR 0b0100
+2:
+.endif
+  // load palette entry
+  ldr r6, [r3, r6, LSL #2]
+.if \doubled
+  mov r7, r6
+  stmia r0!, {r6-r7}
+.else
+  stmia r0!, {r6}
+.endif
+  b 2f
+1:
+.if \doubled
+  adds r0, 8  // transparent pixel - skip 2
+.else
+  adds r0, 4  // transparent pixel - move to next
+.endif
+2:
+.endm
+
+// r0 is output RGB buffer
+// r1 is width in bytes
+// r2 is shared_colors array [8]
+.macro cgia_encode_mode_1 pixels doubled mapped
+  push {r4-r7, lr}
+
+  ldr r3, =cgia_rgb_palette
+
+  ldr r4, =(SIO_BASE + SIO_INTERP0_ACCUM0_OFFSET)
+
+3:
+  ldr r5, [r4, #POP0_OFFS]    // load bitmap offset
+  // load bitmap data
+  ldrb r5, [r5]
+.if \pixels > 1
+  lsls r5, #8
+  ldrb r6, [r4, #POP0_OFFS]
+  orrs r5, r6
+.endif
+.if \pixels > 2
+  lsls r5, #8
+  ldrb r6, [r4, #POP0_OFFS]
+  orrs r5, r6
+.endif
+.if \pixels > 3
+  lsls r5, #8
+  ldrb r6, [r4, #POP0_OFFS]
+  orrs r5, r6
+.endif
+
+.if \pixels == 1
+  write_pixel_indexed 7 1 \doubled \mapped
+  write_pixel_indexed 6 1 \doubled \mapped
+  write_pixel_indexed 5 1 \doubled \mapped
+  write_pixel_indexed 4 1 \doubled \mapped
+  write_pixel_indexed 3 1 \doubled \mapped
+  write_pixel_indexed 2 1 \doubled \mapped
+  write_pixel_indexed 1 1 \doubled \mapped
+  write_pixel_indexed 0 1 \doubled \mapped
+.endif
+.if \pixels == 2
+  write_pixel_indexed 14 3 \doubled \mapped
+  write_pixel_indexed 12 3 \doubled \mapped
+  write_pixel_indexed 10 3 \doubled \mapped
+  write_pixel_indexed 8 3 \doubled \mapped
+  write_pixel_indexed 6 3 \doubled \mapped
+  write_pixel_indexed 4 3 \doubled \mapped
+  write_pixel_indexed 2 3 \doubled \mapped
+  write_pixel_indexed 0 3 \doubled \mapped
+.endif
+.if \pixels == 3
+  write_pixel_indexed 21 7 \doubled \mapped
+  write_pixel_indexed 18 7 \doubled \mapped
+  write_pixel_indexed 15 7 \doubled \mapped
+  write_pixel_indexed 12 7 \doubled \mapped
+  write_pixel_indexed 9 7 \doubled \mapped
+  write_pixel_indexed 6 7 \doubled \mapped
+  write_pixel_indexed 3 7 \doubled \mapped
+  write_pixel_indexed 0 7 \doubled \mapped
+.endif
+.if \pixels == 4
+  write_pixel_indexed 28 15 \doubled \mapped
+  write_pixel_indexed 24 15 \doubled \mapped
+  write_pixel_indexed 20 15 \doubled \mapped
+  write_pixel_indexed 16 15 \doubled \mapped
+  write_pixel_indexed 12 15 \doubled \mapped
+  write_pixel_indexed 8 15 \doubled \mapped
+  write_pixel_indexed 4 15 \doubled \mapped
+  write_pixel_indexed 0 15 \doubled \mapped
+.endif
+
+  subs r1, #1
+  bne 3b
+
+  pop {r4-r7, pc}
+.endm
+
+decl_func cgia_encode_mode_1_1bpp_doubled_mapped
+  cgia_encode_mode_1 1 1 1
+
+decl_func cgia_encode_mode_1_1bpp_doubled_shared
+  cgia_encode_mode_1 1 1 0
+
+decl_func cgia_encode_mode_1_1bpp_mapped
+  cgia_encode_mode_1 1 0 1
+
+decl_func cgia_encode_mode_1_1bpp_shared
+  cgia_encode_mode_1 1 0 0
+
+decl_func cgia_encode_mode_1_2bpp_doubled_mapped
+  cgia_encode_mode_1 2 1 1
+
+decl_func cgia_encode_mode_1_2bpp_doubled_shared
+  cgia_encode_mode_1 2 1 0
+
+decl_func cgia_encode_mode_1_2bpp_mapped
+  cgia_encode_mode_1 2 0 1
+
+decl_func cgia_encode_mode_1_2bpp_shared
+  cgia_encode_mode_1 2 0 0
+
+decl_func cgia_encode_mode_1_3bpp_doubled_mapped
+  cgia_encode_mode_1 3 1 1
+
+decl_func cgia_encode_mode_1_3bpp_doubled_shared
+  cgia_encode_mode_1 3 1 0
+
+decl_func cgia_encode_mode_1_3bpp_mapped
+  cgia_encode_mode_1 3 0 1
+
+decl_func cgia_encode_mode_1_3bpp_shared
+  cgia_encode_mode_1 3 0 0
+
+decl_func cgia_encode_mode_1_4bpp_doubled_mapped
+  cgia_encode_mode_1 4 1 1
+
+decl_func cgia_encode_mode_1_4bpp_doubled_shared
+  cgia_encode_mode_1 4 1 0
+
+decl_func cgia_encode_mode_1_4bpp_mapped
+  cgia_encode_mode_1 4 0 1
+
+decl_func cgia_encode_mode_1_4bpp_shared
+  cgia_encode_mode_1 4 0 0
+
+
 //////////////////// MODE 2 ////////////////////
 
 // r0 is output RGB buffer
@@ -620,54 +790,6 @@ decl_func cgia_encode_mode_0_multi_3bpp_mapped
   bx lr
 
 decl_func cgia_encode_mode_0_multi_3bpp_shared
-  bx lr
-
-decl_func cgia_encode_mode_1_1bpp_doubled_mapped
-  bx lr
-
-decl_func cgia_encode_mode_1_1bpp_doubled_shared
-  bx lr
-
-decl_func cgia_encode_mode_1_1bpp_mapped
-  bx lr
-
-decl_func cgia_encode_mode_1_1bpp_shared
-  bx lr
-
-decl_func cgia_encode_mode_1_2bpp_doubled_mapped
-  bx lr
-
-decl_func cgia_encode_mode_1_2bpp_doubled_shared
-  bx lr
-
-decl_func cgia_encode_mode_1_2bpp_mapped
-  bx lr
-
-decl_func cgia_encode_mode_1_2bpp_shared
-  bx lr
-
-decl_func cgia_encode_mode_1_3bpp_doubled_mapped
-  bx lr
-
-decl_func cgia_encode_mode_1_3bpp_doubled_shared
-  bx lr
-
-decl_func cgia_encode_mode_1_3bpp_mapped
-  bx lr
-
-decl_func cgia_encode_mode_1_3bpp_shared
-  bx lr
-
-decl_func cgia_encode_mode_1_4bpp_doubled_mapped
-  bx lr
-
-decl_func cgia_encode_mode_1_4bpp_doubled_shared
-  bx lr
-
-decl_func cgia_encode_mode_1_4bpp_mapped
-  bx lr
-
-decl_func cgia_encode_mode_1_4bpp_shared
   bx lr
 
 decl_func cgia_encode_mode_2_doubled_mapped
