@@ -88,6 +88,7 @@ bool oem_api_code_page(void)
 
 static uint32_t chargen_addr;
 static uint16_t pending_chargen_bytes = 0;
+#define CHARGEN_TOTAL_BYTES (256 * 8)
 
 bool oem_api_get_chargen(void)
 {
@@ -97,17 +98,18 @@ bool oem_api_get_chargen(void)
             || !api_pop_uint8(&((uint8_t *)(&chargen_addr))[2]))
             return api_return_errno(API_EINVAL);
 
-        pending_chargen_bytes = 256 * 8;
+        pending_chargen_bytes = CHARGEN_TOTAL_BYTES;
     }
 
     if (pending_chargen_bytes)
     {
+        const uint16_t chargen_byte = CHARGEN_TOTAL_BYTES - pending_chargen_bytes;
         pix_response_t resp = {0};
         pix_send_request(PIX_DEV_CMD, 3,
                          (uint8_t[]) {
                              PIX_DEVICE_CMD(PIX_DEV_VPU, PIX_VPU_CMD_GET_CHARGEN),
-                             ((uint8_t *)&pending_chargen_bytes)[0],
-                             ((uint8_t *)&pending_chargen_bytes)[1],
+                             ((const uint8_t *)&chargen_byte)[0],
+                             ((const uint8_t *)&chargen_byte)[1],
                          },
                          &resp);
         while (!resp.status)

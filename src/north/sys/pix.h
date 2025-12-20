@@ -37,7 +37,7 @@ typedef struct
 // Asynchronous PIX request.
 // Reply will be inserted into resp when available.
 void pix_send_request(pix_req_type_t msg_type,
-                      uint8_t req_len5, uint8_t *req_data,
+                      uint8_t req_len5, const uint8_t *req_data,
                       pix_response_t *resp);
 
 // pass EVERY RAM write through CGIA for updating VRAM cache banks

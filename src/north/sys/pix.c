@@ -104,7 +104,7 @@ static void __isr pix_irq_handler(void)
 }
 
 void pix_send_request(pix_req_type_t msg_type,
-                      uint8_t req_len5, uint8_t *req_data,
+                      uint8_t req_len5, const uint8_t *req_data,
                       pix_response_t *resp)
 {
     assert(req_len5 > 0);
