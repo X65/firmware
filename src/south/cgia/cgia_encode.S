@@ -32,6 +32,183 @@ cell_colors:
 .endm
 
 
+//////////////////// MODE 0 ////////////////////
+////         palette text/tile mode         ////
+
+// r0 is output RGB buffer
+// r4 is bitmap
+// r5 is color code base index (from character code)
+// r7 is half-bright bit (for 4bpp only)
+// r8 is shared_colors array pointer
+// r9 is palette pointer
+// changes r0,r6
+.macro write_text_pixel_indexed sh_amt pixels doubled mapped
+  mov r6, r4
+  lsrs r6, #\sh_amt
+  ands r6, #1   // extract pixel bit
+  orrs r6, r5   // combine with bits from character code
+.if !\mapped
+  beq 1f
+.endif
+  // load shared color index
+  ldrb r6, [r8, r6]
+.if \pixels == 4
+  cbz r7, 2f
+  eor r6, r6, #4  // toggle half-bright - XOR 0b0100
+2:
+.endif
+  // load palette entry
+  ldr r6, [r9, r6, LSL #2]
+  stmia r0!, {r6}
+.if \doubled
+  stmia r0!, {r6}
+.endif
+  b 2f
+1:
+.if \doubled
+  adds r0, 8  // transparent pixel - skip 2
+.else
+  adds r0, 4  // transparent pixel - move to next
+.endif
+2:
+.endm
+
+// r0 is output RGB buffer
+// r1 is width in bytes
+// r2 - character generator address
+// r3 - character length in shift amount
+// First stack argument is shared_colors[8] array
+.macro cgia_encode_mode_0 pixels doubled mapped
+  push {r4-r8, lr}
+  mov r4, r8
+  mov r5, r9
+  mov r6, r10
+  push {r4-r6}
+
+  ldr r9, =cgia_rgb_palette
+  ldr r8, [sp, #36] // 9 words saved, so 36-byte offset to first stack argument
+
+  ldr ip, =(SIO_BASE + SIO_INTERP0_ACCUM0_OFFSET)
+
+3:
+  ldr r4, [ip, #POP0_OFFS]    // load character code offset
+  ldrb r4, [r4]     // load character code
+
+.if \pixels == 1
+  mov r5, r4, LSR #8
+  ands r4, #0xFF
+.endif
+.if \pixels == 2
+  mov r5, r4, LSR #7
+  ands r4, #0x7F
+.endif
+.if \pixels == 3
+  mov r5, r4, LSR #6
+  ands r4, #0x3F
+.endif
+.if \pixels == 4
+  mov r5, r4, LSR #5
+  ands r5, #3         // use only 2 bits
+  ands r7, r4, #0x80  // get half-bright bit
+  ands r4, #0x1F
+.endif
+  lsls r5, #1   // make place for the actual character bit
+
+  lsls r4, r3       // multiply by character height
+  ldrb r4, [r2, r4]     // load character line bitmap data
+
+  write_text_pixel_indexed 7 \pixels \doubled \mapped
+  write_text_pixel_indexed 6 \pixels \doubled \mapped
+  write_text_pixel_indexed 5 \pixels \doubled \mapped
+  write_text_pixel_indexed 4 \pixels \doubled \mapped
+  write_text_pixel_indexed 3 \pixels \doubled \mapped
+  write_text_pixel_indexed 2 \pixels \doubled \mapped
+  write_text_pixel_indexed 1 \pixels \doubled \mapped
+  write_text_pixel_indexed 0 \pixels \doubled \mapped
+
+  subs r1, #1
+  bne 3b
+
+  pop {r4-r6}
+  mov r8, r4
+  mov r9, r5
+  mov r10, r6
+  pop {r4-r8, pc}
+.endm
+
+decl_func cgia_encode_mode_0_1bpp_doubled_mapped
+  cgia_encode_mode_0 1 1 1
+
+decl_func cgia_encode_mode_0_1bpp_doubled_shared
+  cgia_encode_mode_0 1 1 0
+
+decl_func cgia_encode_mode_0_1bpp_mapped
+  cgia_encode_mode_0 1 0 1
+
+decl_func cgia_encode_mode_0_1bpp_shared
+  cgia_encode_mode_0 1 0 0
+
+decl_func cgia_encode_mode_0_2bpp_doubled_mapped
+  cgia_encode_mode_0 2 1 1
+
+decl_func cgia_encode_mode_0_2bpp_doubled_shared
+  cgia_encode_mode_0 2 1 0
+
+decl_func cgia_encode_mode_0_2bpp_mapped
+  cgia_encode_mode_0 2 0 1
+
+decl_func cgia_encode_mode_0_2bpp_shared
+  cgia_encode_mode_0 2 0 0
+
+decl_func cgia_encode_mode_0_3bpp_doubled_mapped
+  cgia_encode_mode_0 3 1 1
+
+decl_func cgia_encode_mode_0_3bpp_doubled_shared
+  cgia_encode_mode_0 3 1 0
+
+decl_func cgia_encode_mode_0_3bpp_mapped
+  cgia_encode_mode_0 3 0 1
+
+decl_func cgia_encode_mode_0_3bpp_shared
+  cgia_encode_mode_0 3 0 0
+
+decl_func cgia_encode_mode_0_4bpp_doubled_mapped
+  cgia_encode_mode_0 4 1 1
+
+decl_func cgia_encode_mode_0_4bpp_doubled_shared
+  cgia_encode_mode_0 4 1 0
+
+decl_func cgia_encode_mode_0_4bpp_mapped
+  cgia_encode_mode_0 4 0 1
+
+decl_func cgia_encode_mode_0_4bpp_shared
+  cgia_encode_mode_0 4 0 0
+
+decl_func cgia_encode_mode_0_multi_2bpp_doubled_mapped
+  bx lr
+
+decl_func cgia_encode_mode_0_multi_2bpp_doubled_shared
+  bx lr
+
+decl_func cgia_encode_mode_0_multi_2bpp_mapped
+  bx lr
+
+decl_func cgia_encode_mode_0_multi_2bpp_shared
+  bx lr
+
+decl_func cgia_encode_mode_0_multi_3bpp_doubled_mapped
+  bx lr
+
+decl_func cgia_encode_mode_0_multi_3bpp_doubled_shared
+  bx lr
+
+decl_func cgia_encode_mode_0_multi_3bpp_mapped
+  bx lr
+
+decl_func cgia_encode_mode_0_multi_3bpp_shared
+  bx lr
+
+
 //////////////////// MODE 1 ////////////////////
 ////           palette bitmap mode          ////
 
@@ -85,25 +262,25 @@ cell_colors:
 
   ldr r3, =cgia_rgb_palette
 
-  ldr r4, =(SIO_BASE + SIO_INTERP0_ACCUM0_OFFSET)
+  ldr ip, =(SIO_BASE + SIO_INTERP0_ACCUM0_OFFSET)
 
 3:
-  ldr r5, [r4, #POP0_OFFS]    // load bitmap offset
+  ldr r5, [ip, #POP0_OFFS]    // load bitmap offset
   // load bitmap data
   ldrb r5, [r5]
 .if \pixels > 1
   lsls r5, #8
-  ldrb r6, [r4, #POP0_OFFS]
+  ldrb r6, [ip, #POP0_OFFS]
   orrs r5, r6
 .endif
 .if \pixels > 2
   lsls r5, #8
-  ldrb r6, [r4, #POP0_OFFS]
+  ldrb r6, [ip, #POP0_OFFS]
   orrs r5, r6
 .endif
 .if \pixels > 3
   lsls r5, #8
-  ldrb r6, [r4, #POP0_OFFS]
+  ldrb r6, [ip, #POP0_OFFS]
   orrs r5, r6
 .endif
 
@@ -737,78 +914,6 @@ decl_func cgia_encode_mode_7
   pop {r4-r7, pc}
 
 //////////////////// MODES ////////////////////
-decl_func cgia_encode_mode_0_1bpp_doubled_mapped
-  bx lr
-
-decl_func cgia_encode_mode_0_1bpp_doubled_shared
-  bx lr
-
-decl_func cgia_encode_mode_0_1bpp_mapped
-  bx lr
-
-decl_func cgia_encode_mode_0_1bpp_shared
-  bx lr
-
-decl_func cgia_encode_mode_0_2bpp_doubled_mapped
-  bx lr
-
-decl_func cgia_encode_mode_0_2bpp_doubled_shared
-  bx lr
-
-decl_func cgia_encode_mode_0_2bpp_mapped
-  bx lr
-
-decl_func cgia_encode_mode_0_2bpp_shared
-  bx lr
-
-decl_func cgia_encode_mode_0_3bpp_doubled_mapped
-  bx lr
-
-decl_func cgia_encode_mode_0_3bpp_doubled_shared
-  bx lr
-
-decl_func cgia_encode_mode_0_3bpp_mapped
-  bx lr
-
-decl_func cgia_encode_mode_0_3bpp_shared
-  bx lr
-
-decl_func cgia_encode_mode_0_4bpp_doubled_mapped
-  bx lr
-
-decl_func cgia_encode_mode_0_4bpp_doubled_shared
-  bx lr
-
-decl_func cgia_encode_mode_0_4bpp_mapped
-  bx lr
-
-decl_func cgia_encode_mode_0_4bpp_shared
-  bx lr
-
-decl_func cgia_encode_mode_0_multi_2bpp_doubled_mapped
-  bx lr
-
-decl_func cgia_encode_mode_0_multi_2bpp_doubled_shared
-  bx lr
-
-decl_func cgia_encode_mode_0_multi_2bpp_mapped
-  bx lr
-
-decl_func cgia_encode_mode_0_multi_2bpp_shared
-  bx lr
-
-decl_func cgia_encode_mode_0_multi_3bpp_doubled_mapped
-  bx lr
-
-decl_func cgia_encode_mode_0_multi_3bpp_doubled_shared
-  bx lr
-
-decl_func cgia_encode_mode_0_multi_3bpp_mapped
-  bx lr
-
-decl_func cgia_encode_mode_0_multi_3bpp_shared
-  bx lr
-
 decl_func cgia_encode_mode_2_doubled_mapped
   bx lr
 
