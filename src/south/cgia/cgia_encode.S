@@ -33,6 +33,7 @@ cell_colors:
 
 
 //////////////////// MODE 1 ////////////////////
+////           palette bitmap mode          ////
 
 // r0 is output RGB buffer
 // r2 is shared_colors array pointer
@@ -203,6 +204,7 @@ decl_func cgia_encode_mode_1_4bpp_shared
 
 
 //////////////////// MODE 2 ////////////////////
+////        attribute text/tile mode        ////
 
 // r0 is output RGB buffer
 // r1 is scanline data buffer - do not touch!
@@ -210,15 +212,53 @@ decl_func cgia_encode_mode_1_4bpp_shared
 // r6 is foreground color index
 // r7 is background color index
 // changes r0,r5
-.macro write_pixel_bmp mapped
+.macro write_pixel_bmp doubled mapped
   lsls r5, #1        // shift-out 1 bit
   bcc 1f
     // bit is 1 - draw foreground pixel
   stmia r0!, {r6}
+.if \doubled
+  stmia r0!, {r6}
+.endif
   b 2f
 1:  // bit is 0 - draw background pixel
 .if \mapped
   stmia r0!, {r7}
+.if \doubled
+  stmia r0!, {r7}
+.endif
+.else
+.if \doubled
+  adds r0, 8  // transparent pixel - skip 2
+.else
+  adds r0, 4  // transparent pixel - move to next
+.endif
+.endif
+2:
+.endm
+
+// r0 is output RGB buffer
+// r4 is bitmap (8 LSB)
+// r7 is cell_colors array pointer
+// changes r0,r5-r6
+.macro write_pixel_multi sh_amt doubled mapped
+  mov r5, r4
+  lsrs r5, #\sh_amt
+  ands r5, 3  // 00000011 mask
+.if !\mapped
+  beq 1f
+.endif
+  ldr r5, [r7, r5, LSL #2]
+.if \doubled
+  mov r6, r5
+  stmia r0!, {r5-r6}
+.else
+  stmia r0!, {r5}
+.endif
+  b 2f
+1:
+.if \doubled
+  adds r0, 8  // transparent pixel - skip 2
 .else
   adds r0, 4  // transparent pixel - move to next
 .endif
@@ -252,14 +292,14 @@ decl_func cgia_encode_mode_1_4bpp_shared
 
   lsls r5, #24        // move LSB to MSB
 
-  write_pixel_bmp \mapped
-  write_pixel_bmp \mapped
-  write_pixel_bmp \mapped
-  write_pixel_bmp \mapped
-  write_pixel_bmp \mapped
-  write_pixel_bmp \mapped
-  write_pixel_bmp \mapped
-  write_pixel_bmp \mapped
+  write_pixel_bmp 0 \mapped
+  write_pixel_bmp 0 \mapped
+  write_pixel_bmp 0 \mapped
+  write_pixel_bmp 0 \mapped
+  write_pixel_bmp 0 \mapped
+  write_pixel_bmp 0 \mapped
+  write_pixel_bmp 0 \mapped
+  write_pixel_bmp 0 \mapped
 
   subs r1, #1
   bne 3b
@@ -298,14 +338,14 @@ decl_func cgia_encode_vt
 
   lsls r5, #24      // move LSB to MSB
 
-  write_pixel_bmp 1
-  write_pixel_bmp 1
-  write_pixel_bmp 1
-  write_pixel_bmp 1
-  write_pixel_bmp 1
-  write_pixel_bmp 1
-  write_pixel_bmp 1
-  write_pixel_bmp 1
+  write_pixel_bmp 0 1
+  write_pixel_bmp 0 1
+  write_pixel_bmp 0 1
+  write_pixel_bmp 0 1
+  write_pixel_bmp 0 1
+  write_pixel_bmp 0 1
+  write_pixel_bmp 0 1
+  write_pixel_bmp 0 1
 
   subs r1, #1
   bne 3b
@@ -314,10 +354,11 @@ decl_func cgia_encode_vt
 
 
 //////////////////// MODE 3 ////////////////////
+////         attribute bitmap mode         ////
 
 // r0 is output RGB buffer
 // r1 is width in bytes
-.macro cgia_encode_mode_3_shared_or_mapped mapped
+.macro cgia_encode_mode_3 doubled mapped
   push {r4-r7, lr}
 
   ldr r2, =(SIO_BASE + SIO_INTERP0_ACCUM0_OFFSET)
@@ -338,14 +379,14 @@ decl_func cgia_encode_vt
   ldrb r5, [r5]     // load bitmap data
   lsls r5, #24        // move LSB to MSB
 
-  write_pixel_bmp \mapped
-  write_pixel_bmp \mapped
-  write_pixel_bmp \mapped
-  write_pixel_bmp \mapped
-  write_pixel_bmp \mapped
-  write_pixel_bmp \mapped
-  write_pixel_bmp \mapped
-  write_pixel_bmp \mapped
+  write_pixel_bmp \doubled \mapped
+  write_pixel_bmp \doubled \mapped
+  write_pixel_bmp \doubled \mapped
+  write_pixel_bmp \doubled \mapped
+  write_pixel_bmp \doubled \mapped
+  write_pixel_bmp \doubled \mapped
+  write_pixel_bmp \doubled \mapped
+  write_pixel_bmp \doubled \mapped
 
   subs r1, #1
   bne 3b
@@ -353,42 +394,78 @@ decl_func cgia_encode_vt
   pop {r4-r7, pc}
 .endm
 
-decl_func cgia_encode_mode_3_shared
-	cgia_encode_mode_3_shared_or_mapped 0
+// r0 is output RGB buffer
+// r1 is width in bytes
+// r2 is shared_colors array [2]
+.macro cgia_encode_mode_3_multi doubled mapped
+  push {r4-r7, lr}
+
+  ldr r3, =cgia_rgb_palette
+  ldr r7, =cell_colors
+
+.if \mapped
+  ldrb r4, [r2]   // shared_colors[0]
+  ldr r4, [r3, r4, LSL #2]  // load palette entry
+  str r4, [r7, #0]          // store shared color 0
+.endif
+  adds r2, 1  // shared_colors[1]
+  ldrb r5, [r2]
+  ldr r5, [r3, r5, LSL #2]  // load palette entry
+  str r5, [r7, #12]         // store shared color 3
+
+  ldr r2, =(SIO_BASE + SIO_INTERP0_ACCUM0_OFFSET)
+
+3:
+  ldr r6, [r2, #PEEK1_OFFS + INTERP1]   // load background color pointer
+  ldrb r6, [r6]     // load background color value (index)
+  ldr r6, [r3, r6, LSL #2]  // load palette entry
+  str r6, [r7, #4]          // store "off" color (1)
+
+  ldr r5, [r2, #POP0_OFFS + INTERP1]    // load foreground color pointer
+  ldrb r5, [r5]     // load foreground color value (index)
+  ldr r5, [r3, r5, LSL #2]  // load palette entry
+  str r5, [r7, #8]          // store "on" color (2)
+
+  ldr r4, [r2, #POP0_OFFS]    // load bitmap offset
+  ldrb r4, [r4]     // load bitmap data
+
+  write_pixel_multi 6 \doubled \mapped
+  write_pixel_multi 4 \doubled \mapped
+  write_pixel_multi 2 \doubled \mapped
+  write_pixel_multi 0 \doubled \mapped
+
+  subs r1, #1
+  bne 3b
+
+  pop {r4-r7, pc}
+.endm
+
+decl_func cgia_encode_mode_3_doubled_mapped
+  cgia_encode_mode_3 1 1
+
+decl_func cgia_encode_mode_3_doubled_shared
+  cgia_encode_mode_3 1 0
 
 decl_func cgia_encode_mode_3_mapped
-	cgia_encode_mode_3_shared_or_mapped 1
+	cgia_encode_mode_3 0 1
+
+decl_func cgia_encode_mode_3_shared
+	cgia_encode_mode_3 0 0
+
+decl_func cgia_encode_mode_3_multi_doubled_mapped
+  cgia_encode_mode_3_multi 1 1
+
+decl_func cgia_encode_mode_3_multi_doubled_shared
+  cgia_encode_mode_3_multi 1 0
+
+decl_func cgia_encode_mode_3_multi_mapped
+  cgia_encode_mode_3_multi 0 1
+
+decl_func cgia_encode_mode_3_multi_shared
+  cgia_encode_mode_3_multi 0 0
 
 
-//////////////////// MODE 4 ////////////////////
-
-// r0 is output RGB buffer
-// r4 is bitmap (8 LSB)
-// r7 is cell_colors array pointer
-// changes r0,r5-r6
-.macro write_pixel_multi sh_amt doubled mapped
-  mov r5, r4
-  lsrs r5, #\sh_amt
-  ands r5, 3  // 00000011 mask
-.if !\mapped
-  beq 1f
-.endif
-  ldr r5, [r7, r5, LSL #2]
-.if \doubled
-  mov r6, r5
-  stmia r0!, {r5-r6}
-.else
-  stmia r0!, {r5}
-.endif
-  b 2f
-1:
-.if \doubled
-  adds r0, 8  // transparent pixel - skip 2
-.else
-  adds r0, 4  // transparent pixel - move to next
-.endif
-2:
-.endm
+//////////////////// MODE 4 //////////////////// - !!!
 
 // r0 is output RGB buffer
 // r1 is width in bytes
@@ -454,69 +531,8 @@ decl_func cgia_encode_mode_4_doubled_mapped
 	cgia_encode_mode_4 1 1
 
 
-//////////////////// MODE 5 ////////////////////
-
-// r0 is output RGB buffer
-// r1 is width in bytes
-// r2 is shared_colors array [2]
-.macro cgia_encode_mode_5 doubled mapped
-  push {r4-r7, lr}
-
-  ldr r3, =cgia_rgb_palette
-  ldr r7, =cell_colors
-
-.if \mapped
-  ldrb r4, [r2]   // shared_colors[0]
-  ldr r4, [r3, r4, LSL #2]  // load palette entry
-  str r4, [r7, #0]          // store shared color 0
-.endif
-  adds r2, 1  // shared_colors[1]
-  ldrb r5, [r2]
-  ldr r5, [r3, r5, LSL #2]  // load palette entry
-  str r5, [r7, #12]         // store shared color 3
-
-  ldr r2, =(SIO_BASE + SIO_INTERP0_ACCUM0_OFFSET)
-
-3:
-  ldr r6, [r2, #PEEK1_OFFS + INTERP1]   // load background color pointer
-  ldrb r6, [r6]     // load background color value (index)
-  ldr r6, [r3, r6, LSL #2]  // load palette entry
-  str r6, [r7, #4]          // store "off" color (1)
-
-  ldr r5, [r2, #POP0_OFFS + INTERP1]    // load foreground color pointer
-  ldrb r5, [r5]     // load foreground color value (index)
-  ldr r5, [r3, r5, LSL #2]  // load palette entry
-  str r5, [r7, #8]          // store "on" color (2)
-
-  ldr r4, [r2, #POP0_OFFS]    // load bitmap offset
-  ldrb r4, [r4]     // load bitmap data
-
-
-  write_pixel_multi 6 \doubled \mapped
-  write_pixel_multi 4 \doubled \mapped
-  write_pixel_multi 2 \doubled \mapped
-  write_pixel_multi 0 \doubled \mapped
-
-  subs r1, #1
-  bne 3b
-
-  pop {r4-r7, pc}
-.endm
-
-decl_func cgia_encode_mode_5_shared
-	cgia_encode_mode_5 0 0
-
-decl_func cgia_encode_mode_5_mapped
-	cgia_encode_mode_5 0 1
-
-decl_func cgia_encode_mode_5_doubled_shared
-	cgia_encode_mode_5 1 0
-
-decl_func cgia_encode_mode_5_doubled_mapped
-	cgia_encode_mode_5 1 1
-
-
 //////////////////// MODE 6 ////////////////////
+////       Hold-and-Modify (HAM) mode       ////
 
 // r0 is output RGB buffer
 // r2 is base_color array [8]
@@ -677,6 +693,7 @@ decl_func cgia_encode_mode_6_doubled
 
 
 //////////////////// MODE 7 ////////////////////
+////   affine transform chunky pixel mode   ////
 
 // r0 is output RGB buffer
 // r1 is width in bytes
@@ -808,22 +825,4 @@ decl_func cgia_encode_mode_2_multi_mapped
   bx lr
 
 decl_func cgia_encode_mode_2_multi_shared
-  bx lr
-
-decl_func cgia_encode_mode_3_doubled_mapped
-  bx lr
-
-decl_func cgia_encode_mode_3_doubled_shared
-  bx lr
-
-decl_func cgia_encode_mode_3_multi_doubled_mapped
-  bx lr
-
-decl_func cgia_encode_mode_3_multi_doubled_shared
-  bx lr
-
-decl_func cgia_encode_mode_3_multi_mapped
-  bx lr
-
-decl_func cgia_encode_mode_3_multi_shared
   bx lr
