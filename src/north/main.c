@@ -189,7 +189,7 @@ bool main_api(uint8_t operation)
     {
     // case 0x01:
     //     return pix_api_xreg();
-    case 0x02:
+    case API_OP_PHI2:
         return cpu_api_phi2();
     case API_OP_OEM_CODEPAGE:
         return oem_api_code_page();
