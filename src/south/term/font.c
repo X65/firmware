@@ -1170,97 +1170,85 @@ void font_init(void)
         font_set_code_page(RP6502_CODE_PAGE);
 }
 
-void font_set_code_page(uint16_t cp)
+static const uint8_t *font_8hi(uint16_t cp)
 {
-    static uint16_t current_cp = 0;
-    const uint8_t *font8hi = NULL;
-
     switch (cp)
     {
 #if RP6502_CODE_PAGE == 437 || RP6502_CODE_PAGE == 0
     case 437:
-        font8hi = FONT8_CP437;
-        break;
+        return FONT8_CP437;
 #endif
 #if RP6502_CODE_PAGE == 737 || RP6502_CODE_PAGE == 0
     case 737:
-        font8hi = FONT8_CP737;
-        break;
+        return FONT8_CP737;
 #endif
 #if RP6502_CODE_PAGE == 771 || RP6502_CODE_PAGE == 0
     case 771:
-        font8hi = FONT8_CP771;
-        break;
+        return FONT8_CP771;
 #endif
 #if RP6502_CODE_PAGE == 775 || RP6502_CODE_PAGE == 0
     case 775:
-        font8hi = FONT8_CP775;
-        break;
+        return FONT8_CP775;
 #endif
 #if RP6502_CODE_PAGE == 850 || RP6502_CODE_PAGE == 0
     case 850:
-        font8hi = FONT8_CP850;
-        break;
+        return FONT8_CP850;
 #endif
 #if RP6502_CODE_PAGE == 852 || RP6502_CODE_PAGE == 0
     case 852:
-        font8hi = FONT8_CP852;
-        break;
+        return FONT8_CP852;
 #endif
 #if RP6502_CODE_PAGE == 855 || RP6502_CODE_PAGE == 0
     case 855:
-        font8hi = FONT8_CP855;
-        break;
+        return FONT8_CP855;
 #endif
 #if RP6502_CODE_PAGE == 857 || RP6502_CODE_PAGE == 0
     case 857:
-        font8hi = FONT8_CP857;
-        break;
+        return FONT8_CP857;
 #endif
 #if RP6502_CODE_PAGE == 860 || RP6502_CODE_PAGE == 0
     case 860:
-        font8hi = FONT8_CP860;
-        break;
+        return FONT8_CP860;
 #endif
 #if RP6502_CODE_PAGE == 861 || RP6502_CODE_PAGE == 0
     case 861:
-        font8hi = FONT8_CP861;
-        break;
+        return FONT8_CP861;
 #endif
 #if RP6502_CODE_PAGE == 862 || RP6502_CODE_PAGE == 0
     case 862:
-        font8hi = FONT8_CP862;
-        break;
+        return FONT8_CP862;
 #endif
 #if RP6502_CODE_PAGE == 863 || RP6502_CODE_PAGE == 0
     case 863:
-        font8hi = FONT8_CP863;
-        break;
+        return FONT8_CP863;
 #endif
 #if RP6502_CODE_PAGE == 864 || RP6502_CODE_PAGE == 0
     case 864:
-        font8hi = FONT8_CP864;
-        break;
+        return FONT8_CP864;
 #endif
 #if RP6502_CODE_PAGE == 865 || RP6502_CODE_PAGE == 0
     case 865:
-        font8hi = FONT8_CP865;
-        break;
+        return FONT8_CP865;
 #endif
 #if RP6502_CODE_PAGE == 866 || RP6502_CODE_PAGE == 0
     case 866:
-        font8hi = FONT8_CP866;
-        break;
+        return FONT8_CP866;
 #endif
 #if RP6502_CODE_PAGE == 869 || RP6502_CODE_PAGE == 0
     case 869:
-        font8hi = FONT8_CP869;
-        break;
+        return FONT8_CP869;
 #endif
     default:
-        cp = 0;
-        break;
+        return NULL;
     }
+}
+
+void font_set_code_page(uint16_t cp)
+{
+    static uint16_t current_cp = 0;
+    const uint8_t *font8hi = font_8hi(cp);
+    if (!font8hi)
+        cp = 0;
 
     if (current_cp == cp)
         return;
@@ -1279,4 +1267,37 @@ void font_set_code_page(uint16_t cp)
                 font8[(i + 128) * 8 + row] = byte;
             }
         }
+}
+
+uint8_t font_get_byte(uint16_t byte_index, uint16_t cp)
+{
+    byte_index &= (256 * 8 - 1);
+    if (cp == 0)
+    {
+        // default X65 font
+        return font8_data[byte_index];
+    }
+    else if (cp == 0xFFFF)
+    {
+        // currently used font
+        return font8[byte_index];
+    }
+    else
+    {
+        if (byte_index < 128 * 8)
+        {
+            // base font data
+            return font8_data[byte_index];
+        }
+        else
+        {
+            // code page font data
+            const uint8_t *font8hi = font_8hi(cp);
+            // or base if no such code page
+            if (!font8hi)
+                return font8_data[byte_index];
+
+            return font8hi[byte_index - 128 * 8];
+        }
+    }
 }

@@ -235,7 +235,7 @@ set_property(TARGET x65_north x65_south x65_xcsp
     APPEND PROPERTY COMPILE_DEFINITIONS
     RP6502_NAME="X65 microcomputer"
     RP6502_VERSION=""
-    RP6502_CODE_PAGE=437
+    RP6502_CODE_PAGE=0
     RP6502_EXFAT=0
 )
 

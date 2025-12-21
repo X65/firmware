@@ -20,5 +20,6 @@ extern uint8_t font16[4096];
 void font_init(void);
 
 void font_set_code_page(uint16_t cp);
+uint8_t font_get_byte(uint16_t byte_index, uint16_t cp);
 
 #endif /* _SB_TERM_FONT_H_ */

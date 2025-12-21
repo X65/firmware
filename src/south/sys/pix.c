@@ -139,7 +139,7 @@ static void __isr pix_irq_handler(void)
                 pix_ack();
                 break;
             case PIX_VPU_CMD_GET_CHARGEN:
-                pix_rsp(PIX_DEV_DATA, font8[*((uint16_t *)&pix_buffer[1]) & (256 * 8 - 1)]);
+                pix_rsp(PIX_DEV_DATA, font_get_byte(*((uint16_t *)&pix_buffer[1]), *((uint16_t *)&pix_buffer[3])));
                 break;
             case PIX_VPU_CMD_SET_MODE_VT:
                 out_set_mode(OUT_MODE_VT);
