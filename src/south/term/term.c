@@ -10,9 +10,6 @@
 #include "sys/com.h"
 #include "term/color.h"
 #include "term/font.h"
-#include <hardware/interp.h>
-#include <pico/stdio/driver.h>
-#include <pico/stdlib.h>
 #include <stdio.h>
 
 // This terminal emulator supports a subset of xterm/ANSI codes.
@@ -1003,6 +1000,8 @@ void term_task(void)
 }
 
 #ifdef PICO_SDK_VERSION_MAJOR
+#include <hardware/interp.h>
+
 inline void __attribute__((optimize("O3")))
 term_render(int16_t y, uint32_t *rgbbuf)
 {
