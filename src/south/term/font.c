@@ -6,7 +6,7 @@
 
 #include "term/font.h"
 #include "font_8.h"
-#include <pico/stdlib.h>
+#include <pico.h>
 
 #include <stdio.h>
 #include <string.h>
