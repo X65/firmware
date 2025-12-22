@@ -53,7 +53,7 @@ typedef enum pix_dev
     PIX_DEV_RIA = 0,
     PIX_DEV_VPU = 1,
     PIX_DEV_SPU = 2,
-    PIX_DEV_LED = 3,
+    PIX_DEV_MISC = 3,
 } pix_dev_t;
 
 #define PIX_DEVICE_CMD(device, cmd) \
@@ -72,10 +72,12 @@ typedef enum pix_vpu_cmd
 
 #define VPU_VERSION_MESSAGE_SIZE 20
 
-typedef enum pix_led_cmd
+typedef enum pix_misc_cmd
 {
     PIX_LED_CMD_SET_RGB888 = 0,
     PIX_LED_CMD_SET_RGB332,
-} pix_led_cmd_t;
+    PIX_BUZ_CMD_SET_FREQ,
+    PIX_BUZ_CMD_SET_DUTY,
+} pix_misc_cmd_t;
 
 #endif /* _PIX_H_ */

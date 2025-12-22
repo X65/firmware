@@ -18,7 +18,10 @@
  */
 
 void buz_init(void);
+
 void buz_task(void);
+void buz_new_freq16(uint16_t freq);
+void buz_new_duty(uint8_t duty);
 
 void buz_set_freq_duty(double freq, uint8_t duty);
 

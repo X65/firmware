@@ -35,6 +35,7 @@ static inline void DBG(const char *fmt, ...)
 static volatile bool irq_enabled;
 
 static uint8_t RGB_regs[8] = {0};
+static uint8_t BUZ_regs[4] = {0};
 
 void ria_trigger_irq(void)
 {
@@ -294,10 +295,43 @@ __attribute__((optimize("O1"))) static void __no_inline_not_in_flash_func(act_lo
                 // devices Memory-MAPped by RIA
                 else if (addr >= 0xFF80)
                 {
-                    // ------ FFA8 - FFBF ------
-                    if (addr >= 0xFFA8)
+                    // ------ FFAC - FFBF ------
+                    if (addr >= 0xFFAC)
                     {
                         data = 0xFF; // unused
+                    }
+                    // ------ FFA8 - FFAB ------ (BUZZer)
+                    else if (addr >= 0xFFA8)
+                    {
+                        const uint8_t reg = addr & 0x03;
+                        if (is_read)
+                            data = BUZ_regs[reg];
+                        else
+                        {
+                            BUZ_regs[reg] = data;
+
+                            switch (reg)
+                            {
+                            case 0:
+                            case 1:
+                                pix_send_request(PIX_DEV_CMD, 3,
+                                                 (uint8_t[]) {
+                                                     PIX_DEVICE_CMD(PIX_DEV_MISC, PIX_BUZ_CMD_SET_FREQ),
+                                                     BUZ_regs[0],
+                                                     BUZ_regs[1],
+                                                 },
+                                                 nullptr);
+                                break;
+                            case 2:
+                                pix_send_request(PIX_DEV_CMD, 2,
+                                                 (uint8_t[]) {
+                                                     PIX_DEVICE_CMD(PIX_DEV_MISC, PIX_BUZ_CMD_SET_DUTY),
+                                                     data,
+                                                 },
+                                                 nullptr);
+                                break;
+                            }
+                        }
                     }
                     // ------ FFA0 - FFA7 ------ (RGB LEDs - WS2812B strip)
                     else if (addr >= 0xFFA0)
@@ -317,7 +351,7 @@ __attribute__((optimize("O1"))) static void __no_inline_not_in_flash_func(act_lo
                             case 3: // RGB332 LED set
                                 pix_send_request(PIX_DEV_CMD, 3,
                                                  (uint8_t[]) {
-                                                     PIX_DEVICE_CMD(PIX_DEV_LED, PIX_LED_CMD_SET_RGB332),
+                                                     PIX_DEVICE_CMD(PIX_DEV_MISC, PIX_LED_CMD_SET_RGB332),
                                                      reg,
                                                      data,
                                                  },
@@ -326,7 +360,7 @@ __attribute__((optimize("O1"))) static void __no_inline_not_in_flash_func(act_lo
                             case 4: // RGB888 LED set
                                 pix_send_request(PIX_DEV_CMD, 5,
                                                  (uint8_t[]) {
-                                                     PIX_DEVICE_CMD(PIX_DEV_LED, PIX_LED_CMD_SET_RGB888),
+                                                     PIX_DEVICE_CMD(PIX_DEV_MISC, PIX_LED_CMD_SET_RGB888),
                                                      data,
                                                      RGB_regs[5],
                                                      RGB_regs[6],

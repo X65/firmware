@@ -21,6 +21,10 @@ static double frequency;
 static uint8_t duty_cycle;
 static uint8_t wrap_shift;
 
+static uint16_t requested_freq = 0;
+static uint8_t requested_duty = 0;
+static bool need_update = false;
+
 void buz_init(void)
 {
     gpio_set_function(BUZZ_PWM_A_PIN, GPIO_FUNC_PWM);
@@ -100,42 +104,24 @@ void buz_set_freq16(uint16_t freq)
     buz_set_freq_duty(f, duty_cycle);
 }
 
-// #define ARRAY_SIZE(x) ((sizeof x) / (sizeof *x))
-
-// #include "../../../.././examples/src/cgia/data/audio_data.h"
-// static size_t audio_data_offset = 0;
-// #define AUD_PWM_BASE_FREQUENCY 40000
-
 void buz_task(void)
 {
-    // heartbeat
-    static bool was_on = false;
-    bool on = (time_us_32() / 100000) % BUZ_CLICK_DURATION_MS > 8;
-    if (was_on != on)
+    if (need_update)
     {
-        // buz_set_freq_duty(on ? BUZ_CLICK_FREQUENCY : 0, BUZ_CLICK_DUTY);
-        was_on = on;
-
-        if (on)
-        {
-            static uint16_t do_re_mi_pwm[] = {24393, 25489, 26585, 27133, 28229, 29325, 30421, 30969};
-            static size_t i = 0;
-            buz_set_duty(128);
-            buz_set_freq16(do_re_mi_pwm[i++ % 8]);
-        }
+        need_update = false;
+        buz_set_duty(requested_duty);
+        buz_set_freq16(requested_freq);
     }
+}
 
-    // // play sampled music
-    // static uint32_t next_time = 0;
-    // if (next_time == 0)
-    // {
-    //     next_time = time_us_32();
-    //     buz_set_freq_duty(AUD_PWM_BASE_FREQUENCY, 128);
-    // }
-    // uint32_t time = time_us_32();
-    // if (time > next_time)
-    // {
-    //     next_time += 1000000 / AUDIO_DATA_HZ;
-    //     buz_set_duty((uint8_t)(128 + (int8_t)audio_data[audio_data_offset++ % ARRAY_SIZE(audio_data)]));
-    // }
+void buz_new_freq16(uint16_t freq)
+{
+    requested_freq = freq;
+    need_update = true;
+}
+
+void buz_new_duty(uint8_t duty)
+{
+    requested_duty = duty;
+    need_update = true;
 }

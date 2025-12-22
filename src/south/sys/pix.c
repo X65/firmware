@@ -8,6 +8,7 @@
 #include "cgia/cgia.h"
 #include "hw.h"
 #include "pix.pio.h"
+#include "sys/buz.h"
 #include "sys/led.h"
 #include "sys/out.h"
 #include "sys/sys.h"
@@ -157,7 +158,7 @@ static void __isr pix_irq_handler(void)
                 pix_nak();
             }
             break;
-        case PIX_DEV_LED:
+        case PIX_DEV_MISC:
             switch (cmd)
             {
             case PIX_LED_CMD_SET_RGB332:
@@ -166,6 +167,14 @@ static void __isr pix_irq_handler(void)
                 break;
             case PIX_LED_CMD_SET_RGB888:
                 led_set_pixel(pix_buffer[1], pix_buffer[2], pix_buffer[3], pix_buffer[4]);
+                pix_ack();
+                break;
+            case PIX_BUZ_CMD_SET_FREQ:
+                buz_new_freq16((uint16_t)((pix_buffer[2] << 8) | pix_buffer[1]));
+                pix_ack();
+                break;
+            case PIX_BUZ_CMD_SET_DUTY:
+                buz_new_duty(pix_buffer[1]);
                 pix_ack();
                 break;
             }
