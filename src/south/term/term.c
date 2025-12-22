@@ -10,6 +10,8 @@
 #include "sys/com.h"
 #include "term/color.h"
 #include "term/font.h"
+#include <pico/stdio/driver.h>
+#include <pico/time.h>
 #include <stdio.h>
 
 // This terminal emulator supports a subset of xterm/ANSI codes.
@@ -85,7 +87,6 @@ typedef struct term_state
 } term_state_t;
 
 static term_state_t term_96;
-static int16_t term_scanline_begin;
 
 // You must move ptr when moving x and y. A row is contiguous,
 // but moving up or down rows may wraparound the mem buffer.
