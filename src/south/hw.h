@@ -55,8 +55,9 @@
 #define RGB_LED_COUNT 4
 #define RGB_LED_MAX   256
 
-#define BUZZ_CLICK_FREQUENCY   1500
-#define BUZZ_CLICK_DURATION_MS 10
+#define BUZ_CLICK_FREQUENCY   280
+#define BUZ_CLICK_DUTY        24
+#define BUZ_CLICK_DURATION_MS 10
 
 // ---
 // FM chip SPI
