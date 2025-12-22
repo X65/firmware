@@ -24,6 +24,9 @@
 
 #define VPU_NMIB_PIN 21
 
+#define BUZZ_PWM_A_PIN 30
+#define BUZZ_PWM_B_PIN (BUZZ_PWM_A_PIN + 1)
+
 // ---
 #define AUD_SPI_PIN_BASE 32
 #define AUD_SPI_RX_PIN   (AUD_SPI_PIN_BASE + 0)
@@ -51,6 +54,9 @@
 #define RGB_LED_SM    0
 #define RGB_LED_COUNT 4
 #define RGB_LED_MAX   256
+
+#define BUZZ_CLICK_FREQUENCY   1500
+#define BUZZ_CLICK_DURATION_MS 10
 
 // ---
 // FM chip SPI

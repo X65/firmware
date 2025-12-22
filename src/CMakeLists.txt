@@ -129,6 +129,7 @@ target_sources(x65_south PRIVATE
     south/cgia/cgia.c
     south/cgia/cgia_encode.S
     south/cgia/cgia_sprites.S
+    south/sys/buz.c
     south/sys/com.c
     south/sys/led.c
     south/sys/out.c
@@ -151,6 +152,7 @@ target_link_libraries(x65_south PRIVATE
     hardware_dma
     hardware_interp
     hardware_i2c
+    hardware_pwm
     tinyusb_device
 )
 
