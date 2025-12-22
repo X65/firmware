@@ -20,6 +20,9 @@
 void buz_init(void);
 void buz_task(void);
 
-void buz_set_freq_duty(uint16_t freq, uint8_t duty);
+void buz_set_freq_duty(double freq, uint8_t duty);
+
+void buz_set_freq16(uint16_t freq);
+void buz_set_duty(uint8_t duty);
 
 #endif /* _SB_SYS_BUZ_H_ */
