@@ -10,8 +10,10 @@
 #include "sys/com.h"
 #include "term/color.h"
 #include "term/font.h"
+#ifdef PICO_SDK_VERSION_MAJOR
 #include <pico/stdio/driver.h>
 #include <pico/time.h>
+#endif
 #include <stdio.h>
 
 // This terminal emulator supports a subset of xterm/ANSI codes.
