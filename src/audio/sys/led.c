@@ -85,7 +85,7 @@ void led_task(void)
     {
         led_state = !led_state;
         led_set(led_state);
-        led_put(led_state ? 0x00FF00 : 0);
+        led_put(led_state ? 0x220000 : 0);
         led_blink_timer = make_timeout_time_ms(LED_BLINK_TIME_MS);
     }
 }
