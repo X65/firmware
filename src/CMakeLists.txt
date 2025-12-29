@@ -173,34 +173,34 @@ target_compile_definitions(x65_south PRIVATE
 )
 
 
-# The X65 Custom Sound Processor
+# The X65 SGU-1 - Sound Generator Unit 1
 
-add_executable(x65_xcsp)
-pico_add_extra_outputs(x65_xcsp)
-pico_set_program_name(x65_xcsp "X65 Custom Sound Processor")
-pico_set_binary_type(x65_xcsp copy_to_ram)
+add_executable(x65_sgu)
+pico_add_extra_outputs(x65_sgu)
+pico_set_program_name(x65_sgu "X65 SGU-1")
+pico_set_binary_type(x65_sgu copy_to_ram)
 
-target_compile_options(x65_xcsp PRIVATE
+target_compile_options(x65_sgu PRIVATE
     -Wall -Wextra
 )
 
-target_include_directories(x65_xcsp PRIVATE
-    ${CMAKE_CURRENT_LIST_DIR}/xcsp
+target_include_directories(x65_sgu PRIVATE
+    ${CMAKE_CURRENT_LIST_DIR}/sound
     ${CMAKE_CURRENT_LIST_DIR}
     ${CMAKE_CURRENT_LIST_DIR}/tinyusb/src
 )
 
-target_sources(x65_xcsp PRIVATE
-    xcsp/main.c
-    xcsp/sys/aud.c
-    xcsp/sys/led.c
-    xcsp/sys/sys.c
-    xcsp/usb/descriptors.c
-    xcsp/usb/usb.c
+target_sources(x65_sgu PRIVATE
+    sound/main.c
+    sound/sys/aud.c
+    sound/sys/led.c
+    sound/sys/sys.c
+    sound/usb/descriptors.c
+    sound/usb/usb.c
     ${CMAKE_CURRENT_BINARY_DIR}/version.h
 )
 
-target_link_libraries(x65_xcsp PRIVATE
+target_link_libraries(x65_sgu PRIVATE
     pico_stdlib
     pico_multicore
     pico_rand
@@ -212,11 +212,11 @@ target_link_libraries(x65_xcsp PRIVATE
     tinyusb_device
 )
 
-pico_generate_pio_header(x65_xcsp
-    ${CMAKE_CURRENT_LIST_DIR}/xcsp/aud.pio
+pico_generate_pio_header(x65_sgu
+    ${CMAKE_CURRENT_LIST_DIR}/sound/aud.pio
 )
 
-target_compile_definitions(x65_xcsp PRIVATE
+target_compile_definitions(x65_sgu PRIVATE
     PLL_SYS_REFDIV=1
     PLL_SYS_VCO_FREQ_HZ=1344000000
     PLL_SYS_POSTDIV1=4
@@ -233,7 +233,7 @@ target_compile_definitions(x65_xcsp PRIVATE
 # Please change name for hardware forks.
 # For release, set version string and set code page to 0.
 
-set_property(TARGET x65_north x65_south x65_xcsp
+set_property(TARGET x65_north x65_south x65_sgu
     APPEND PROPERTY COMPILE_DEFINITIONS
     RP6502_NAME="X65 microcomputer"
     RP6502_VERSION=""
