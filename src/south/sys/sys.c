@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: BSD-3-Clause
  */
 
+#include "sys/ext.h"
 #include "sys/out.h"
 #include "version.h"
 #include <pico.h>

@@ -9,6 +9,7 @@
 #include "cgia/cgia.h"
 #include "sys/buz.h"
 #include "sys/com.h"
+#include "sys/ext.h"
 #include "sys/led.h"
 #include "sys/out.h"
 #include "sys/pix.h"
@@ -27,6 +28,7 @@ static void init(void)
     term_init();
     usb_init();
     led_init();
+    ext_init();
     buz_init();
     pix_init();
 
@@ -52,14 +54,11 @@ static void task(void)
     com_task();
     usb_task();
     com_task();
+    com_task();
     pix_task();
     com_task();
     led_task();
     buz_task();
-
-    // ext_task();
-    // aud_task();
-    // mdm_task();
 }
 
 int main(void)

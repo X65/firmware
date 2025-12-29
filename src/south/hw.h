@@ -36,7 +36,6 @@
 #define DVI_SCL_PIN 9
 #define DVI_CEC_PIN 10
 
-// Extension/External 3.3V I2C bus
 #define EXT_I2C_SDA_PIN 26
 #define EXT_I2C_SCL_PIN 27
 
@@ -74,7 +73,8 @@
 #define DVI_I2C i2c0
 
 // Extension/External 3.3V I2C bus
-#define EXT_I2C i2c1
+#define EXT_I2C          i2c1
+#define EXT_I2C_BAUDRATE (400 * 1000)
 
 #define IOE_I2C_ADDRESS 0x20 // Address of I/O Extender on I2C bus
 

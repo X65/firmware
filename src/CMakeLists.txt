@@ -135,6 +135,7 @@ target_sources(x65_south PRIVATE
     south/cgia/cgia_sprites.S
     south/sys/buz.c
     south/sys/com.c
+    south/sys/ext.c
     south/sys/led.c
     south/sys/out.c
     south/sys/pix.c
