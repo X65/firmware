@@ -21,7 +21,22 @@
 
 #define ARRAY_SIZE(x) ((sizeof x) / (sizeof *x))
 
-#define SD1_SPI_READ_BIT 0x80 // Read/Write command bit on SD-1 bus
+void aud_i2c_init(void)
+{
+    i2c_init(AUD_I2C, AUD_I2C_BAUDRATE);
+
+    gpio_set_function(AUD_I2C_SDA_PIN, GPIO_FUNC_I2C);
+    gpio_set_function(AUD_I2C_SCL_PIN, GPIO_FUNC_I2C);
+    gpio_set_pulls(AUD_I2C_SDA_PIN, true, false);
+    gpio_set_pulls(AUD_I2C_SCL_PIN, true, false);
+    gpio_set_drive_strength(AUD_I2C_SDA_PIN, GPIO_DRIVE_STRENGTH_12MA);
+    gpio_set_drive_strength(AUD_I2C_SCL_PIN, GPIO_DRIVE_STRENGTH_12MA);
+    gpio_set_slew_rate(AUD_I2C_SDA_PIN, GPIO_SLEW_RATE_FAST);
+    gpio_set_slew_rate(AUD_I2C_SCL_PIN, GPIO_SLEW_RATE_FAST);
+
+    // Set clocks
+    i2c_set_baudrate(AUD_I2C, AUD_I2C_BAUDRATE);
+}
 
 // SGTL5000 Register Addresses
 #define SGTL_CHIP_ID            0x0000
@@ -82,9 +97,9 @@ int aud_read_i2s_register(uint16_t reg)
     buf[0] = reg >> 8;
     buf[1] = reg & 0xFF;
     // write address
-    i2c_write_blocking_until(EXT_I2C, I2S_I2C_ADDRESS, buf, 2, true, make_timeout_time_ms(500));
+    i2c_write_blocking_until(AUD_I2C, I2S_I2C_ADDRESS, buf, 2, true, make_timeout_time_ms(500));
     // read register value
-    int ret = i2c_read_blocking_until(EXT_I2C, I2S_I2C_ADDRESS, buf, 2, false, make_timeout_time_ms(500));
+    int ret = i2c_read_blocking_until(AUD_I2C, I2S_I2C_ADDRESS, buf, 2, false, make_timeout_time_ms(500));
     if (ret < 0)
     {
         printf("Error reading I2S register %04x: %d\n", reg, ret);
@@ -100,7 +115,7 @@ void aud_write_i2s_register(uint16_t reg, uint16_t data)
     buf[1] = reg & 0xFF;
     buf[2] = data >> 8;
     buf[3] = data & 0xFF;
-    int ret = i2c_write_blocking_until(EXT_I2C, I2S_I2C_ADDRESS, buf, 4, false, make_timeout_time_ms(500));
+    int ret = i2c_write_blocking_until(AUD_I2C, I2S_I2C_ADDRESS, buf, 4, false, make_timeout_time_ms(500));
     if (ret != 4)
     {
         printf("Error writing I2S register %04x with %04x: %d\n", reg, data, ret);
@@ -566,6 +581,7 @@ static inline void aud_i2s_init(void)
 // --- Audio main ---------------------
 void aud_init(void)
 {
+    aud_i2c_init();
     aud_i2s_init();
 }
 

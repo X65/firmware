@@ -27,8 +27,8 @@
 #define AUD_I2S_LRCLK_PIN (AUD_I2S_PIN_BASE + 2)
 #define AUD_I2S_DOUT_PIN  38 // WARNING: this PIN must be in the same GPIO bank as AUD_I2S_PIN_BASE
 
-#define EXT_I2C_SDA_PIN 16
-#define EXT_I2C_SCL_PIN 17
+#define AUD_I2C_SDA_PIN 16
+#define AUD_I2C_SCL_PIN 17
 
 /* All resource assignments
  */
@@ -44,8 +44,8 @@
 #define AUD_I2S_SM  0
 
 // CODEC I2C bus
-#define EXT_I2C          i2c0
-#define EXT_I2C_BAUDRATE (400 * 1000)
+#define AUD_I2C          i2c0
+#define AUD_I2C_BAUDRATE (400 * 1000)
 
 #define MIX_I2C_ADDRESS 0x40 // Address of Mixer on I2C bus
 #define I2S_I2C_ADDRESS 0x0A // Address of I2S DAC/ADC on I2C bus

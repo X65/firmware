@@ -95,20 +95,6 @@ void com_init(void)
     stdio_set_driver_enabled(&stdio_driver, true);
 }
 
-void com_pre_reclock(void)
-{
-    while (!com_in_empty() && uart_is_writable(COM_UART_INTERFACE))
-    {
-        com_in_tail = (com_in_tail + 1) % COM_IN_BUF_SIZE;
-        uart_get_hw(COM_UART_INTERFACE)->dr = com_in_buf[com_in_tail];
-    }
-}
-
-void com_post_reclock(void)
-{
-    uart_init(COM_UART_INTERFACE, COM_UART_BAUDRATE);
-}
-
 void com_set_uart_break(bool en)
 {
     uart_set_break(COM_UART_INTERFACE, en);
