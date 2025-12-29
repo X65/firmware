@@ -542,8 +542,8 @@ static inline void aud_i2s_reg_init(void)
     adcdac_ctrl &= ~(SGTL5000_DAC_MUTE_LEFT | SGTL5000_DAC_MUTE_RIGHT);
     aud_write_i2s_register(SGTL_CHIP_ADCDAC_CTRL, adcdac_ctrl);
 
-    // Power up LINEOUT, ADC, DAC
-    ana_pwr |= SGTL5000_LINE_OUT_POWERUP | SGTL5000_ADC_POWERUP | SGTL5000_DAC_POWERUP;
+    // Power up LINEOUT, HP, ADC, DAC
+    ana_pwr |= SGTL5000_LINE_OUT_POWERUP | SGTL5000_HP_POWERUP | SGTL5000_ADC_POWERUP | SGTL5000_DAC_POWERUP;
     aud_write_i2s_register(SGTL_CHIP_ANA_POWER, ana_pwr);
 
     // Power up desired digital blocks
@@ -568,11 +568,11 @@ static inline void aud_i2s_reg_init(void)
     // Example shows volume of 0dB
     aud_write_i2s_register(SGTL_CHIP_DAC_VOL, 0x3C3C); // digital gain, 0dB
 
-    // Unmute ADC, LINEOUT
-    ana_ctrl &= ~(SGTL5000_ADC_MUTE | SGTL5000_LINE_OUT_MUTE);
+    // Unmute ADC, LINEOUT, HP
+    ana_ctrl &= ~(SGTL5000_ADC_MUTE | SGTL5000_LINE_OUT_MUTE | SGTL5000_HP_MUTE);
     // Select ADC input LINEIN,
     ana_ctrl |= (SGTL5000_ADC_SEL_LINE_IN << SGTL5000_ADC_SEL_SHIFT);
-    aud_write_i2s_register(SGTL_CHIP_ANA_CTRL, 0x0014);
+    aud_write_i2s_register(SGTL_CHIP_ANA_CTRL, ana_ctrl);
 }
 
 void aud_i2s_dump_registers(void)
@@ -633,7 +633,9 @@ void aud_init(void)
     aud_i2c_init();
     aud_i2s_init();
 
+    aud_print_status();
     aud_i2c_bus_scan();
+    // aud_i2s_dump_registers();
 }
 
 #define AUD_CHANGE_DURATION_MS 10
