@@ -37,7 +37,7 @@
 #define CPU_RESB_PIN      5
 #define RIA_IRQB_PIN      6 /* connected to IRQ0 on interrupt controller  */
 
-#define ESP_AT_HS_PIN 7 // SPI HANDSHAKE
+#define INT_EN_PIN 7
 
 #define CYW43_PIN_BASE        34
 #define CYW43_PINS_USED       4

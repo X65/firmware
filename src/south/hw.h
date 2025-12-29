@@ -11,7 +11,7 @@
  */
 
 #define VPU_LED_PIN 25
-#define RGB_LED_PIN 20
+#define RGB_LED_PIN 31
 
 // UART connected to RIA
 #define COM_UART_TX_PIN 4
@@ -22,12 +22,24 @@
 #define PIX_PIN_RTS   (PIX_PIN_BASE + 9)
 #define PIX_PINS_USED 10
 
-#define VPU_NMIB_PIN 21
+#define VPU_NMIB_PIN 20
+
+#define IO0_EN_PIN 22
+#define IO1_EN_PIN 23
+#define IO2_EN_PIN 24
+#define IO3_EN_PIN 25
 
 #define BUZZ_PWM_A_PIN 30
 #define BUZZ_PWM_B_PIN (BUZZ_PWM_A_PIN + 1)
 
-// ---
+#define DVI_SDA_PIN 8
+#define DVI_SCL_PIN 9
+#define DVI_CEC_PIN 10
+
+// Extension/External 3.3V I2C bus
+#define EXT_I2C_SDA_PIN 26
+#define EXT_I2C_SCL_PIN 27
+
 #define AUD_SPI_PIN_BASE 32
 #define AUD_SPI_RX_PIN   (AUD_SPI_PIN_BASE + 0)
 #define AUD_SPI_CS_PIN   (AUD_SPI_PIN_BASE + 1)
@@ -59,8 +71,13 @@
 #define BUZ_CLICK_DUTY        24
 #define BUZ_CLICK_DURATION_MS 10
 
-// ---
-// FM chip SPI
+#define DVI_I2C i2c0
+
+// Extension/External 3.3V I2C bus
+#define EXT_I2C i2c1
+
+#define IOE_I2C_ADDRESS 0x20 // Address of I/O Extender on I2C bus
+
 #define AUD_SPI                 spi0
 #define AUD_CLOCK_FREQUENCY_KHZ 12288
 #define AUD_BAUDRATE_HZ         1000000
