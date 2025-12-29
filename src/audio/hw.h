@@ -15,11 +15,11 @@
 #define COM_UART_TX_PIN 0
 #define COM_UART_RX_PIN (COM_UART_TX_PIN + 1)
 
-#define AUD_SPI_PIN_BASE 20
-#define AUD_SPI_RX_PIN   (AUD_SPI_PIN_BASE + 0)
-#define AUD_SPI_CS_PIN   (AUD_SPI_PIN_BASE + 1)
-#define AUD_SPI_SCK_PIN  (AUD_SPI_PIN_BASE + 2)
-#define AUD_SPI_TX_PIN   (AUD_SPI_PIN_BASE + 3)
+#define AUD_SPI_PIN_BASE 2
+#define AUD_SPI_SCK_PIN  (AUD_SPI_PIN_BASE + 0)
+#define AUD_SPI_TX_PIN   (AUD_SPI_PIN_BASE + 1)
+#define AUD_SPI_RX_PIN   (AUD_SPI_PIN_BASE + 2)
+#define AUD_SPI_CS_PIN   (AUD_SPI_PIN_BASE + 3)
 
 #define AUD_I2S_PIN_BASE  44
 #define AUD_I2S_DIN_PIN   (AUD_I2S_PIN_BASE + 0)
@@ -27,8 +27,10 @@
 #define AUD_I2S_LRCLK_PIN (AUD_I2S_PIN_BASE + 2)
 #define AUD_I2S_DOUT_PIN  38 // WARNING: this PIN must be in the same GPIO bank as AUD_I2S_PIN_BASE
 
-#define AUD_I2C_SDA_PIN 16
-#define AUD_I2C_SCL_PIN 17
+#define AUD_I2C_SDA_PIN 8
+#define AUD_I2C_SCL_PIN 9
+
+#define AUD_CLOCK_PIN 21 // CLOCK_GPOUT0
 
 /* All resource assignments
  */
@@ -39,6 +41,9 @@
 #define COM_UART_INTERFACE uart0
 #define COM_UART_BAUDRATE  115200
 
+#define AUD_SPI         spi0
+#define AUD_BAUDRATE_HZ 1000000
+
 // DAC chip I2S
 #define AUD_I2S_PIO pio0
 #define AUD_I2S_SM  0
@@ -46,6 +51,8 @@
 // CODEC I2C bus
 #define AUD_I2C          i2c0
 #define AUD_I2C_BAUDRATE (400 * 1000)
+
+#define AUD_CLOCK_FREQUENCY_KHZ 12288
 
 #define MIX_I2C_ADDRESS 0x40 // Address of Mixer on I2C bus
 #define I2S_I2C_ADDRESS 0x0A // Address of I2S DAC/ADC on I2C bus

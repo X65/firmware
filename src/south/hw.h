@@ -78,8 +78,7 @@
 
 #define IOE_I2C_ADDRESS 0x20 // Address of I/O Extender on I2C bus
 
-#define AUD_SPI                 spi0
-#define AUD_CLOCK_FREQUENCY_KHZ 12288
-#define AUD_BAUDRATE_HZ         1000000
+#define AUD_SPI         spi0
+#define AUD_BAUDRATE_HZ 1000000
 
 #endif /* _VPU_HW_H_ */
