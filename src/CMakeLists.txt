@@ -121,6 +121,10 @@ target_include_directories(x65_south PRIVATE
 )
 
 pico_generate_pio_header(x65_south
+    ${CMAKE_CURRENT_LIST_DIR}/pix.pio
+)
+
+pico_generate_pio_header(x65_south
     ${CMAKE_CURRENT_LIST_DIR}/south/rgb.pio
 )
 
@@ -156,10 +160,6 @@ target_link_libraries(x65_south PRIVATE
     tinyusb_device
 )
 
-pico_generate_pio_header(x65_south
-    ${CMAKE_CURRENT_LIST_DIR}/pix.pio
-)
-
 target_compile_definitions(x65_south PRIVATE
     PLL_SYS_REFDIV=1
     PLL_SYS_VCO_FREQ_HZ=1344000000
@@ -190,6 +190,14 @@ target_include_directories(x65_sgu PRIVATE
     ${CMAKE_CURRENT_LIST_DIR}/tinyusb/src
 )
 
+pico_generate_pio_header(x65_sgu
+    ${CMAKE_CURRENT_LIST_DIR}/sound/aud.pio
+)
+
+pico_generate_pio_header(x65_sgu
+    ${CMAKE_CURRENT_LIST_DIR}/south/rgb.pio
+)
+
 target_sources(x65_sgu PRIVATE
     sound/main.c
     sound/sys/aud.c
@@ -212,10 +220,6 @@ target_link_libraries(x65_sgu PRIVATE
     hardware_i2c
     hardware_spi
     tinyusb_device
-)
-
-pico_generate_pio_header(x65_sgu
-    ${CMAKE_CURRENT_LIST_DIR}/sound/aud.pio
 )
 
 target_compile_definitions(x65_sgu PRIVATE

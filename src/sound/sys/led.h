@@ -1,11 +1,12 @@
 /*
  * Copyright (c) 2025 Rumbledethumps
+ * Copyright (c) 2025 Tomasz Sterna
  *
  * SPDX-License-Identifier: BSD-3-Clause
  */
 
-#ifndef _SND_SYS_LED_H_
-#define _SND_SYS_LED_H_
+#ifndef _VPU_SYS_LED_H_
+#define _VPU_SYS_LED_H_
 
 /* System LED control
  */
@@ -23,4 +24,7 @@ void led_task(void);
 // Make it blink
 void led_blink(bool on);
 
-#endif /* _SND_SYS_LED_H_ */
+// RGB LED control
+void led_put(uint32_t grb);
+
+#endif /* _VPU_SYS_LED_H_ */

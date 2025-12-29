@@ -338,6 +338,7 @@ static inline void aud_i2s_pio_init(void)
         gpio_set_input_hysteresis_enabled(pin, false);
     }
 
+    pio_sm_claim(AUD_I2S_PIO, AUD_I2S_SM);
     uint offset = pio_add_program(AUD_I2S_PIO, &aud_i2s_program);
     pio_sm_config sm_config = aud_i2s_program_get_default_config(offset);
     sm_config_set_out_pins(&sm_config, AUD_I2S_DOUT_PIN, 1);

@@ -33,11 +33,14 @@
 /* All resource assignments
  */
 
+#define RGB_LED_PIO pio2
+#define RGB_LED_SM  0
+
 #define COM_UART_INTERFACE uart0
 #define COM_UART_BAUDRATE  115200
 
 // DAC chip I2S
-#define AUD_I2S_PIO pio2
+#define AUD_I2S_PIO pio0
 #define AUD_I2S_SM  0
 
 // CODEC I2C bus
