@@ -185,13 +185,13 @@ target_compile_options(x65_sgu PRIVATE
 )
 
 target_include_directories(x65_sgu PRIVATE
-    ${CMAKE_CURRENT_LIST_DIR}/sound
+    ${CMAKE_CURRENT_LIST_DIR}/audio
     ${CMAKE_CURRENT_LIST_DIR}
     ${CMAKE_CURRENT_LIST_DIR}/tinyusb/src
 )
 
 pico_generate_pio_header(x65_sgu
-    ${CMAKE_CURRENT_LIST_DIR}/sound/aud.pio
+    ${CMAKE_CURRENT_LIST_DIR}/audio/aud.pio
 )
 
 pico_generate_pio_header(x65_sgu
@@ -199,14 +199,14 @@ pico_generate_pio_header(x65_sgu
 )
 
 target_sources(x65_sgu PRIVATE
-    sound/main.c
-    sound/sys/aud.c
-    sound/sys/com.c
-    sound/sys/led.c
-    sound/sys/sys.c
-    sound/usb/cdc.c
-    sound/usb/descriptors.c
-    sound/usb/usb.c
+    audio/main.c
+    audio/sys/aud.c
+    audio/sys/com.c
+    audio/sys/led.c
+    audio/sys/sys.c
+    audio/usb/cdc.c
+    audio/usb/descriptors.c
+    audio/usb/usb.c
     ${CMAKE_CURRENT_BINARY_DIR}/version.h
 )
 
