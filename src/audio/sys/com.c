@@ -6,47 +6,16 @@
 
 #include "sys/com.h"
 #include "hw.h"
+#include "sys/sys.h"
 #include "usb/cdc.h"
 #include <pico/stdio/driver.h>
 #include <pico/stdlib.h>
 #include <stdio.h>
 #include <tusb.h>
 
-size_t com_in_head;
-size_t com_in_tail;
-char com_in_buf[COM_IN_BUF_SIZE];
-
 size_t com_out_head;
 size_t com_out_tail;
 char com_out_buf[COM_OUT_BUF_SIZE];
-
-size_t com_in_free(void)
-{
-    return ((com_in_tail + 0) - (com_in_head + 1)) & (COM_IN_BUF_SIZE - 1);
-}
-
-bool com_in_empty(void)
-{
-    return com_in_head == com_in_tail;
-}
-
-// Reports the cursor position
-void com_in_write_ansi_CPR(int row, int col)
-{
-    // If USB terminal connected, let it respond instead of us
-    if (!tud_cdc_connected() && com_in_empty())
-    {
-        snprintf(com_in_buf, COM_IN_BUF_SIZE, "\33[%u;%uR", row, col);
-        com_in_tail = COM_OUT_BUF_SIZE - 1;
-        com_in_head = strlen(com_in_buf) - 1;
-    }
-}
-
-void com_in_write(char ch)
-{
-    com_in_head = (com_in_head + 1) % COM_IN_BUF_SIZE;
-    com_in_buf[com_in_head] = ch;
-}
 
 bool com_out_empty(void)
 {
@@ -84,32 +53,13 @@ static void com_out_chars(const char *buf, int length)
 
 void com_init(void)
 {
-    gpio_set_function(COM_UART_TX_PIN, GPIO_FUNC_UART);
-    gpio_set_function(COM_UART_RX_PIN, GPIO_FUNC_UART);
-    uart_init(COM_UART_INTERFACE, COM_UART_BAUDRATE);
+    stdio_uart_init_full(COM_UART_INTERFACE, COM_UART_BAUDRATE, COM_UART_TX_PIN, COM_UART_RX_PIN);
 
     static stdio_driver_t stdio_driver = {
         .out_chars = com_out_chars,
         .crlf_enabled = true,
     };
     stdio_set_driver_enabled(&stdio_driver, true);
-}
 
-void com_set_uart_break(bool en)
-{
-    uart_set_break(COM_UART_INTERFACE, en);
-}
-
-void com_task(void)
-{
-    // IN is sunk here to UART
-    while (!com_in_empty() && uart_is_writable(COM_UART_INTERFACE))
-    {
-        com_in_tail = (com_in_tail + 1) % COM_IN_BUF_SIZE;
-        uart_get_hw(COM_UART_INTERFACE)->dr = com_in_buf[com_in_tail];
-    }
-
-    // OUT is sourced here from STD UART
-    while (uart_is_readable(COM_UART_INTERFACE))
-        putchar_raw(uart_getc(COM_UART_INTERFACE));
+    printf("\n%s\n", sys_version());
 }

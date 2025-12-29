@@ -24,7 +24,6 @@ static void init(void)
 
 static void task(void)
 {
-    com_task();
     cdc_task();
     usb_task();
     aud_task();

@@ -14,9 +14,6 @@
 #include <stddef.h>
 #include <stdint.h>
 
-// IN Buffering is also 32 byte UART FIFO.
-// This doesn't need to be large.
-#define COM_IN_BUF_SIZE  16
 // OUT Buffer is a multiple of USB BULK_PACKET_SIZE.
 // 1x will cause data loss on forwarded usb ports.
 #define COM_OUT_BUF_SIZE (2 * 64)
@@ -25,22 +22,7 @@
  */
 
 void com_init(void);
-void com_task(void);
 
-// USB CDC controls UART break
-void com_set_uart_break(bool en);
-
-// IN is sourced by USB CDC
-// IN is sunk here to UART
-size_t com_in_free(void);
-bool com_in_empty(void);
-void com_in_write(char ch);
-void com_in_write_ansi_CPR(int row, int col);
-
-// OUT is sourced here from UART
-// OUT is sourced from PIX $F:03
-// OUT is sunk to term
-// OUT is sunk by USB CDC
 bool com_out_empty(void);
 char com_out_peek(void);
 char com_out_read(void);
