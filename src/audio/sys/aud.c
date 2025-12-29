@@ -372,7 +372,7 @@ enum
 
 static inline void aud_i2s_pio_init(void)
 {
-    pio_set_gpio_base(AUD_I2S_PIO, 16);
+    // pio_set_gpio_base(AUD_I2S_PIO, 16);
 
     uint i2s_pins[] = {
         AUD_I2S_DIN_PIN,
@@ -648,11 +648,11 @@ void aud_task(void)
         done = true;
     }
 
-    // // play "sampled" noise
-    // while (!pio_sm_is_tx_fifo_full(AUD_I2S_PIO, AUD_I2S_SM))
-    // {
-    //     pio_sm_put_blocking(AUD_I2S_PIO, AUD_I2S_SM, get_rand_32());
-    // }
+    // play "sampled" noise
+    while (!pio_sm_is_tx_fifo_full(AUD_I2S_PIO, AUD_I2S_SM))
+    {
+        pio_sm_put_blocking(AUD_I2S_PIO, AUD_I2S_SM, get_rand_32());
+    }
 
     // // play sampled music
     // static size_t audio_data_offset = 0;

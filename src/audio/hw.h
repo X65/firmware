@@ -21,11 +21,11 @@
 #define AUD_SPI_RX_PIN   (AUD_SPI_PIN_BASE + 2)
 #define AUD_SPI_CS_PIN   (AUD_SPI_PIN_BASE + 3)
 
-#define AUD_I2S_PIN_BASE  44
+#define AUD_I2S_PIN_BASE  26
 #define AUD_I2S_DIN_PIN   (AUD_I2S_PIN_BASE + 0)
 #define AUD_I2S_SCLK_PIN  (AUD_I2S_PIN_BASE + 1)
 #define AUD_I2S_LRCLK_PIN (AUD_I2S_PIN_BASE + 2)
-#define AUD_I2S_DOUT_PIN  38 // WARNING: this PIN must be in the same GPIO bank as AUD_I2S_PIN_BASE
+#define AUD_I2S_DOUT_PIN  29 // WARNING: this PIN must be in the same GPIO bank as AUD_I2S_PIN_BASE
 
 #define AUD_I2C_SDA_PIN 8
 #define AUD_I2C_SCL_PIN 9
