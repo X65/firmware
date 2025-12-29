@@ -193,8 +193,10 @@ target_include_directories(x65_sgu PRIVATE
 target_sources(x65_sgu PRIVATE
     sound/main.c
     sound/sys/aud.c
+    sound/sys/com.c
     sound/sys/led.c
     sound/sys/sys.c
+    sound/usb/cdc.c
     sound/usb/descriptors.c
     sound/usb/usb.c
     ${CMAKE_CURRENT_BINARY_DIR}/version.h

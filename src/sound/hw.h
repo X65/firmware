@@ -4,13 +4,13 @@
  * SPDX-License-Identifier: BSD-3-Clause
  */
 
-#ifndef _SPU_HW_H_
-#define _SPU_HW_H_
+#ifndef _SND_HW_H_
+#define _SND_HW_H_
 
 /* All pin assignments
  */
 
-#define SPU_RGB_LED_PIN 25
+#define SND_RGB_LED_PIN 25
 
 #define COM_UART_TX_PIN 0
 #define COM_UART_RX_PIN (COM_UART_TX_PIN + 1)
@@ -47,4 +47,4 @@
 #define MIX_I2C_ADDRESS 0x40 // Address of Mixer on I2C bus
 #define I2S_I2C_ADDRESS 0x0A // Address of I2S DAC/ADC on I2C bus
 
-#endif /* _SPU_HW_H_ */
+#endif /* _SND_HW_H_ */

@@ -568,14 +568,6 @@ void aud_init(void)
     aud_i2s_init();
 }
 
-void aud_run(void)
-{
-}
-
-void aud_stop(void)
-{
-}
-
 #define AUD_CHANGE_DURATION_MS 10
 
 void aud_task(void)

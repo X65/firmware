@@ -27,10 +27,10 @@ absolute_time_t led_blink_timer;
 static void led_set(bool on)
 {
     led_state = on;
-#ifdef SPU_LED_PIN
-    gpio_init(SPU_LED_PIN);
-    gpio_set_dir(SPU_LED_PIN, GPIO_OUT);
-    gpio_put(SPU_LED_PIN, on);
+#ifdef SND_RGB_LED_PIN
+    gpio_init(SND_RGB_LED_PIN);
+    gpio_set_dir(SND_RGB_LED_PIN, GPIO_OUT);
+    gpio_put(SND_RGB_LED_PIN, on);
 #endif
 }
 

@@ -4,8 +4,8 @@
  * SPDX-License-Identifier: BSD-3-Clause
  */
 
-#ifndef _SB_SYS_SYS_H_
-#define _SB_SYS_SYS_H_
+#ifndef _SND_SYS_SYS_H_
+#define _SND_SYS_SYS_H_
 
 /* System Information
  */
@@ -17,4 +17,4 @@
 // SB version string
 const char *sys_version(void);
 
-#endif /* _SB_SYS_SYS_H_ */
+#endif /* _SND_SYS_SYS_H_ */

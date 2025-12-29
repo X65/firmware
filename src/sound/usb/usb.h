@@ -4,8 +4,8 @@
  * SPDX-License-Identifier: BSD-3-Clause
  */
 
-#ifndef _SB_USB_USB_H_
-#define _SB_USB_USB_H_
+#ifndef _SND_USB_USB_H_
+#define _SND_USB_USB_H_
 
 /* USB device driver
  */
@@ -25,4 +25,4 @@ void usb_task(void);
 
 extern char serno[];
 
-#endif /* _SB_USB_USB_H_ */
+#endif /* _SND_USB_USB_H_ */

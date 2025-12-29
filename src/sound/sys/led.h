@@ -4,8 +4,8 @@
  * SPDX-License-Identifier: BSD-3-Clause
  */
 
-#ifndef _SPU_SYS_LED_H_
-#define _SPU_SYS_LED_H_
+#ifndef _SND_SYS_LED_H_
+#define _SND_SYS_LED_H_
 
 /* System LED control
  */
@@ -23,4 +23,4 @@ void led_task(void);
 // Make it blink
 void led_blink(bool on);
 
-#endif /* _SPU_SYS_LED_H_ */
+#endif /* _SND_SYS_LED_H_ */
