@@ -201,6 +201,7 @@ pico_generate_pio_header(x65_sgu
 
 target_sources(x65_sgu PRIVATE
     audio/main.c
+    audio/su/su.c
     audio/sys/aud.c
     audio/sys/com.c
     audio/sys/led.c
