@@ -54,6 +54,9 @@
 
 #define AUD_CLOCK_FREQUENCY_KHZ 12288
 
+#define SGU1_SAMPLE_MEM_SIZE   65536
+#define SGU1_RESAMPLER_QUALITY 10
+
 #define MIX_I2C_ADDRESS 0x40 // Address of Mixer on I2C bus
 #define I2S_I2C_ADDRESS 0x0A // Address of I2S DAC/ADC on I2C bus
 

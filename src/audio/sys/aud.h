@@ -10,6 +10,8 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#define AUD_OUT_HZ 44100
+
 /* Kernel events
  */
 
@@ -17,8 +19,5 @@ void aud_init(void);
 void aud_task(void);
 
 void aud_print_status(void);
-
-uint8_t aud_read_fm_register(uint8_t reg);
-void aud_write_fm_register(uint8_t reg, uint8_t data);
 
 #endif /* _SND_SYS_AUD_H_ */

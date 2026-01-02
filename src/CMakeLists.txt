@@ -176,16 +176,16 @@ target_compile_definitions(x65_south PRIVATE
 
 # The X65 SGU-1 - Sound Generator Unit 1
 
-add_executable(x65_sgu)
-pico_add_extra_outputs(x65_sgu)
-pico_set_program_name(x65_sgu "X65 SGU-1")
-pico_set_binary_type(x65_sgu copy_to_ram)
+add_executable(x65_audio)
+pico_add_extra_outputs(x65_audio)
+pico_set_program_name(x65_audio "X65 SGU-1")
+pico_set_binary_type(x65_audio copy_to_ram)
 
-target_compile_options(x65_sgu PRIVATE
+target_compile_options(x65_audio PRIVATE
     -Wall -Wextra
 )
 
-target_include_directories(x65_sgu PRIVATE
+target_include_directories(x65_audio PRIVATE
     ${CMAKE_CURRENT_LIST_DIR}/audio
     ${CMAKE_CURRENT_LIST_DIR}
     ${CMAKE_CURRENT_LIST_DIR}/tinyusb/src
@@ -193,21 +193,22 @@ target_include_directories(x65_sgu PRIVATE
     ${CMAKE_CURRENT_LIST_DIR}/speexdsp/include/speex
 )
 
-pico_generate_pio_header(x65_sgu
+pico_generate_pio_header(x65_audio
     ${CMAKE_CURRENT_LIST_DIR}/audio/aud.pio
 )
 
-pico_generate_pio_header(x65_sgu
+pico_generate_pio_header(x65_audio
     ${CMAKE_CURRENT_LIST_DIR}/south/rgb.pio
 )
 
-target_sources(x65_sgu PRIVATE
+target_sources(x65_audio PRIVATE
     speexdsp/libspeexdsp/resample.c
     audio/main.c
-    audio/su/su.c
+    audio/snd/su.c
     audio/sys/aud.c
     audio/sys/com.c
     audio/sys/led.c
+    audio/sys/sgu.c
     audio/sys/sys.c
     audio/usb/cdc.c
     audio/usb/descriptors.c
@@ -215,7 +216,7 @@ target_sources(x65_sgu PRIVATE
     ${CMAKE_CURRENT_BINARY_DIR}/version.h
 )
 
-target_link_libraries(x65_sgu PRIVATE
+target_link_libraries(x65_audio PRIVATE
     pico_stdlib
     pico_multicore
     pico_rand
@@ -227,7 +228,7 @@ target_link_libraries(x65_sgu PRIVATE
     tinyusb_device
 )
 
-target_compile_definitions(x65_sgu PRIVATE
+target_compile_definitions(x65_audio PRIVATE
     PLL_SYS_REFDIV=1
     PLL_SYS_VCO_FREQ_HZ=1344000000
     PLL_SYS_POSTDIV1=4
@@ -247,7 +248,7 @@ target_compile_definitions(x65_sgu PRIVATE
 # Please change name for hardware forks.
 # For release, set version string and set code page to 0.
 
-set_property(TARGET x65_north x65_south x65_sgu
+set_property(TARGET x65_north x65_south x65_audio
     APPEND PROPERTY COMPILE_DEFINITIONS
     RP6502_NAME="X65 microcomputer"
     RP6502_VERSION=""
