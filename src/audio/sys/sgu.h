@@ -111,6 +111,8 @@ typedef struct
     float sample[SGU1_AUDIO_CHANNELS]; // Left, Right
 } sgu1_t;
 
+extern sgu1_t sgu1_instance;
+
 // initialize a new sgu1_t instance
 void sgu1_init();
 // reset a sgu1_t instance
