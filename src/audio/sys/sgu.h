@@ -25,6 +25,7 @@
 #*/
 
 #include "snd/su.h"
+#include "sys/aud.h"
 #include <stdbool.h>
 #include <stdint.h>
 
@@ -100,22 +101,22 @@
 #define SGU1_FLAGS1_CUT_SWEEP          (1 << 6)
 
 #define SGU1_OVERSAMPLING (2)
-#define SGU1_CHIP_CLOCK   (48000 * SGU1_OVERSAMPLING)
+#define SGU1_CHIP_CLOCK   (AUD_OUT_HZ * SGU1_OVERSAMPLING)
 
 typedef struct
 {
     SoundUnit su;
     uint8_t reg[32];
-    int16_t prev_sample[SGU1_AUDIO_CHANNELS];
-    float sample[SGU1_AUDIO_CHANNELS]; // Left, Right
+    int16_t rawL, rawR;
+    uint32_t sample; // two signed PCM samples packed: [31:16] Left, [15:0] Right
 } sgu1_t;
 
-extern sgu1_t sgu1_instance;
+extern sgu1_t sgu_instance;
 
 // initialize a new sgu1_t instance
-void sgu1_init();
+void sgu_init();
 // reset a sgu1_t instance
-void sgu1_reset();
+void sgu_reset();
 
-uint8_t sgu1_reg_read(uint8_t reg);
-void sgu1_reg_write(uint8_t reg, uint8_t data);
+uint8_t sgu_reg_read(uint8_t reg);
+void sgu_reg_write(uint8_t reg, uint8_t data);

@@ -15,10 +15,13 @@
 ; bit clock for a given fs (e.g. for 48kHz 24-bit, clock at at least
 ; (48000 * 24 * 2 (stereo)) * 4 = 9.216 MHz. Ideally 8x or more.
 
+.define PUBLIC IRQ_NUM 4
+
 start_l:
     wait 1 pin 1                ; sample DIN on BCK rising edge
     in pins, 1                  ; first bit is LSB of previous frame (I2S quirk)
     pull noblock                ; get next output word (if any)
+    irq IRQ_NUM                 ; signal it's time to produce new samples
     push noblock                ; send received word
     wait 0 pin 1                ; skip one BCK falling edge (start alignment)
 public entry_point:

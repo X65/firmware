@@ -372,6 +372,7 @@ enum
 
 static inline void aud_i2s_pio_init(void)
 {
+    assert(AUD_PIO_IRQ == aud_i2s_IRQ_NUM);
     // pio_set_gpio_base(AUD_I2S_PIO, 16);
 
     uint i2s_pins[] = {
@@ -490,9 +491,9 @@ static inline void aud_i2s_reg_init(void)
     //     // Route PLL to system clock
     //     aud_write_i2s_register(SGTL_CHIP_CLK_CTRL, SGTL5000_CHIP_CLK_CTRL_DEFAULT | SGTL5000_MCLK_FREQ_PLL);
     // SYS_FS is rate, Fs=48kHz, 256*Fs :: (256*48kHz(Fs) => 12.288Mhz(MCLK))
-    aud_write_i2s_register(SGTL_CHIP_CLK_CTRL,
-                           SGTL5000_CHIP_CLK_CTRL_DEFAULT
-                               | (SGTL5000_RATE_MODE_DIV_6 << SGTL5000_RATE_MODE_SHIFT));
+    aud_write_i2s_register(SGTL_CHIP_CLK_CTRL, SGTL5000_CHIP_CLK_CTRL_DEFAULT);
+    // The following 1/6 divisor would set the actual sampling frequency to 8kHz
+    // | (SGTL5000_RATE_MODE_DIV_6 << SGTL5000_RATE_MODE_SHIFT));
 
     /*
      * set ADC/DAC VAG to vdda / 2,
@@ -640,6 +641,8 @@ void aud_init(void)
 
 #define AUD_CHANGE_DURATION_MS 10
 
+// #include "../../../.././examples/src/cgia/data/audio_data.h"
+
 void aud_task(void)
 {
     static bool done = false;
@@ -650,17 +653,16 @@ void aud_task(void)
         done = true;
     }
 
-    // play "sampled" noise
-    while (!pio_sm_is_tx_fifo_full(AUD_I2S_PIO, AUD_I2S_SM))
-    {
-        pio_sm_put_blocking(AUD_I2S_PIO, AUD_I2S_SM, get_rand_32());
-    }
+    // // play "sampled" noise
+    // while (!pio_sm_is_tx_fifo_full(AUD_I2S_PIO, AUD_I2S_SM))
+    // {
+    //     pio_sm_put_blocking(AUD_I2S_PIO, AUD_I2S_SM, get_rand_32());
+    // }
 
     // // play sampled music
     // static size_t audio_data_offset = 0;
     // while (!pio_sm_is_tx_fifo_full(AUD_I2S_PIO, AUD_I2S_SM))
     // {
-    //     // pio_sm_put_blocking(AUD_I2S_PIO, AUD_I2S_SM, get_rand_32());
     //     int16_t sample = (int16_t)(audio_data[audio_data_offset++ % ARRAY_SIZE(audio_data)] << 8);
     //     pio_sm_put_blocking(AUD_I2S_PIO, AUD_I2S_SM, (sample & 0xFFFF) << 16 | (sample & 0xFFFF));
     //     sample += 1;

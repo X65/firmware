@@ -8,6 +8,7 @@
 #include "sys/aud.h"
 #include "sys/com.h"
 #include "sys/led.h"
+#include "sys/sgu.h"
 #include "usb/cdc.h"
 #include "usb/usb.h"
 #include <pico/stdlib.h>
@@ -17,6 +18,7 @@ static void init(void)
     com_init();
     usb_init();
     aud_init();
+    sgu_init();
     led_init();
 
     led_blink(true);
