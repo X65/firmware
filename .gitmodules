@@ -4,6 +4,3 @@
 [submodule "src/tinyusb"]
 	path = src/tinyusb
 	url = https://github.com/hathach/tinyusb.git
-[submodule "src/speexdsp"]
-	path = src/speexdsp
-	url = https://github.com/xiph/speexdsp.git

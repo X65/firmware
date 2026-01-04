@@ -189,8 +189,6 @@ target_include_directories(x65_audio PRIVATE
     ${CMAKE_CURRENT_LIST_DIR}/audio
     ${CMAKE_CURRENT_LIST_DIR}
     ${CMAKE_CURRENT_LIST_DIR}/tinyusb/src
-    ${CMAKE_CURRENT_LIST_DIR}/speexdsp/include
-    ${CMAKE_CURRENT_LIST_DIR}/speexdsp/include/speex
 )
 
 pico_generate_pio_header(x65_audio
@@ -202,7 +200,6 @@ pico_generate_pio_header(x65_audio
 )
 
 target_sources(x65_audio PRIVATE
-    speexdsp/libspeexdsp/resample.c
     audio/main.c
     audio/snd/su.c
     audio/sys/aud.c
@@ -238,9 +235,6 @@ target_compile_definitions(x65_audio PRIVATE
     SYS_CLK_VREG_VOLTAGE_MIN=VREG_VOLTAGE_1_30
     PICO_RP2040_USB_DEVICE_ENUMERATION_FIX=1
     PICO_RP2040_USB_DEVICE_UFRAME_FIX=1
-    OUTSIDE_SPEEX
-    RANDOM_PREFIX=x65_
-    FLOATING_POINT
 )
 
 

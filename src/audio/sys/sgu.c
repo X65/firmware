@@ -10,12 +10,12 @@ sgu1_t sgu1_instance;
 static inline void __attribute__((always_inline))
 _sgu1_tick(void)
 {
-    short l, r;
+    int16_t l, r;
     SoundUnit_NextSample(&SGU->su, &l, &r);
-    float in[2] = {((float)l / 32767.0f), ((float)r / 32767.0f)};
-    spx_uint32_t in_len = 1;  // 1 stereo frame
-    spx_uint32_t out_len = 1; // room for 1 stereo frame
-    speex_resampler_process_interleaved_float(SGU->resampler, in, &in_len, SGU->sample, &out_len);
+    SGU->sample[0] = (float)(((int)l + (int)SGU->prev_sample[0]) >> 1) / 32768.0f;
+    SGU->sample[1] = (float)(((int)r + (int)SGU->prev_sample[1]) >> 1) / 32768.0f;
+    SGU->prev_sample[0] = l;
+    SGU->prev_sample[1] = r;
 }
 
 __attribute__((optimize("O3"))) static void __no_inline_not_in_flash_func(sgu_loop)(void)
@@ -49,11 +49,6 @@ void sgu1_init()
 {
     memset(SGU, 0, sizeof(*SGU));
     SoundUnit_Init(&SGU->su, SGU1_SAMPLE_MEM_SIZE, false);
-    SGU->resampler = speex_resampler_init(
-        SGU1_AUDIO_CHANNELS,
-        SGU1_CHIP_CLOCK / SGU1_OVERSAMPLING,
-        AUD_OUT_HZ,
-        SGU1_RESAMPLER_QUALITY, nullptr);
 
     multicore_launch_core1(sgu_loop);
 }
@@ -63,7 +58,6 @@ void sgu1_reset()
     SoundUnit_Reset(&SGU->su);
     memset(SGU->reg, 0, sizeof(SGU->reg));
     SGU->sample[0] = SGU->sample[1] = 0.0f;
-    speex_resampler_reset_mem(SGU->resampler);
 }
 
 static inline uint8_t _sgu1_selected_channel()

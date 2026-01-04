@@ -25,7 +25,6 @@
 #*/
 
 #include "snd/su.h"
-#include <speex_resampler.h>
 #include <stdbool.h>
 #include <stdint.h>
 
@@ -107,7 +106,7 @@ typedef struct
 {
     SoundUnit su;
     uint8_t reg[32];
-    SpeexResamplerState *resampler;
+    int16_t prev_sample[SGU1_AUDIO_CHANNELS];
     float sample[SGU1_AUDIO_CHANNELS]; // Left, Right
 } sgu1_t;
 
