@@ -8,6 +8,7 @@
 #include "cgia/cgia.h"
 #include "hw.h"
 #include "pix.pio.h"
+#include "sys/aud.h"
 #include "sys/buz.h"
 #include "sys/led.h"
 #include "sys/out.h"
@@ -195,6 +196,14 @@ static void __isr pix_irq_handler(void)
             pix_rsp(PIX_DEV_DATA, value);
         }
         break;
+        case PIX_DEV_SPU:
+        {
+            const uint8_t reg = pix_buffer[1];
+            const uint8_t value = aud_read_register(reg);
+            // printf("PIX_DEV_READ SPU REG %02X = %02X\n", reg, value);
+            pix_rsp(PIX_DEV_DATA, value);
+        }
+        break;
         }
     }
     break;
@@ -209,6 +218,15 @@ static void __isr pix_irq_handler(void)
             const uint8_t value = pix_buffer[2];
             // printf("%02X=%02X\n", reg, value);
             cgia_reg_write(reg, value);
+            pix_ack();
+        }
+        break;
+        case PIX_DEV_SPU:
+        {
+            const uint8_t reg = pix_buffer[1];
+            const uint8_t value = pix_buffer[2];
+            printf("PIX_DEV_WRITE SPU %02X=%02X\n", reg, value);
+            aud_write_register(reg, value);
             pix_ack();
         }
         break;

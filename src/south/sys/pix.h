@@ -7,7 +7,7 @@
 #ifndef _SB_SYS_PIX_H_
 #define _SB_SYS_PIX_H_
 
-/* Listens on the PIX bus
+/* PIX bus
  */
 
 #include "../pix.h"

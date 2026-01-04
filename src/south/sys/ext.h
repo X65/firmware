@@ -9,7 +9,7 @@
 
 #include <stdint.h>
 
-/* Kernel events
+/* EXTension buses - I2C and GPIO expander
  */
 
 void ext_init(void);

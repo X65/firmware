@@ -7,6 +7,9 @@
 #ifndef _SB_SYS_OUT_H_
 #define _SB_SYS_OUT_H_
 
+/* Video output generation
+ */
+
 /** https://retrocomputing.stackexchange.com/a/13872
 > In standard bitmap mode the C64 outputs 320 pixels in 40µs.
 > The visible portion of a line is ~52µs; in 60Hz regions ~240 lines

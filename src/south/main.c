@@ -7,6 +7,7 @@
 
 #include "main.h"
 #include "cgia/cgia.h"
+#include "sys/aud.h"
 #include "sys/buz.h"
 #include "sys/com.h"
 #include "sys/ext.h"
@@ -30,6 +31,7 @@ static void init(void)
     led_init();
     ext_init();
     buz_init();
+    aud_init();
     pix_init();
 
     // Print startup message after setting code page
@@ -58,7 +60,11 @@ static void task(void)
     pix_task();
     com_task();
     led_task();
+    com_task();
     buz_task();
+    com_task();
+    aud_task();
+    com_task();
 }
 
 int main(void)

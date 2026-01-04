@@ -383,7 +383,7 @@ __attribute__((optimize("O1"))) static void __no_inline_not_in_flash_func(act_lo
                     }
                 }
                 // CGIA ------ FF00 - FF7F ------
-                else
+                else if (addr >= 0xFF00)
                 {
                     const uint8_t reg = addr & 0x7F;
                     if (is_read)
@@ -409,9 +409,33 @@ __attribute__((optimize("O1"))) static void __no_inline_not_in_flash_func(act_lo
                     }
                     else
                     {
-                        // printf("CGIA WR %02X=%02X\n", addr & 0x7F, data);
+                        // printf("CGIA WR %02X=%02X\n", reg, data);
                         pix_send_request(PIX_DEV_WRITE, 3,
                                          (uint8_t[]) {PIX_DEV_VPU, reg, data},
+                                         nullptr);
+                    }
+                }
+                // SGU-1 ------ FEC0 - FEFF ------
+                else if (addr >= 0xFEC0)
+                {
+                    const uint8_t reg = addr & 0x3F;
+                    if (is_read)
+                    {
+                        pix_response_t resp = {0};
+                        pix_send_request(PIX_DEV_READ, 2,
+                                         (uint8_t[]) {PIX_DEV_SPU, reg},
+                                         &resp);
+                        while (!resp.status)
+                            tight_loop_contents();
+                        data = PIX_REPLY_CODE(resp.reply) == PIX_DEV_DATA
+                                   ? (uint8_t)PIX_REPLY_PAYLOAD(resp.reply)
+                                   : 0xFF;
+                    }
+                    else
+                    {
+                        // printf("SGU-1 WR %02X=%02X\n", reg, data);
+                        pix_send_request(PIX_DEV_WRITE, 3,
+                                         (uint8_t[]) {PIX_DEV_SPU, reg, data},
                                          nullptr);
                     }
                 }
