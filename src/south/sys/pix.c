@@ -225,7 +225,7 @@ static void __isr pix_irq_handler(void)
         {
             const uint8_t reg = pix_buffer[1];
             const uint8_t value = pix_buffer[2];
-            printf("PIX_DEV_WRITE SPU %02X=%02X\n", reg, value);
+            // printf("PIX_DEV_WRITE SPU %02X=%02X\n", reg, value);
             aud_write_register(reg, value);
             pix_ack();
         }

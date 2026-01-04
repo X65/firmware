@@ -15,11 +15,11 @@
 #define COM_UART_TX_PIN 0
 #define COM_UART_RX_PIN (COM_UART_TX_PIN + 1)
 
-#define AUD_SPI_PIN_BASE 2
-#define AUD_SPI_SCK_PIN  (AUD_SPI_PIN_BASE + 0)
-#define AUD_SPI_TX_PIN   (AUD_SPI_PIN_BASE + 1)
-#define AUD_SPI_RX_PIN   (AUD_SPI_PIN_BASE + 2)
-#define AUD_SPI_CS_PIN   (AUD_SPI_PIN_BASE + 3)
+#define HST_SPI_PIN_BASE 2
+#define HST_SPI_SCK_PIN  (HST_SPI_PIN_BASE + 0)
+#define HST_SPI_TX_PIN   (HST_SPI_PIN_BASE + 1)
+#define HST_SPI_RX_PIN   (HST_SPI_PIN_BASE + 2)
+#define HST_SPI_CS_PIN   (HST_SPI_PIN_BASE + 3)
 
 #define AUD_I2S_PIN_BASE  26
 #define AUD_I2S_DIN_PIN   (AUD_I2S_PIN_BASE + 0)
@@ -41,8 +41,8 @@
 #define COM_UART_INTERFACE uart0
 #define COM_UART_BAUDRATE  115200
 
-#define AUD_SPI         spi0
-#define AUD_BAUDRATE_HZ 1000000
+#define HST_SPI         spi0
+#define HST_BAUDRATE_HZ 1000000
 
 // DAC chip I2S
 #define AUD_I2S_PIO pio0

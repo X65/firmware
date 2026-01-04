@@ -23,6 +23,7 @@
 
 #include "su.h"
 #include <assert.h>
+#include <pico.h>
 
 #define _USE_MATH_DEFINES
 #include <math.h>
@@ -126,7 +127,8 @@ This variable acts like the "Speed" control of the tape motor.
 #define DC_SHIFT_SLOW 12
 #define DC_THRESH_Q8  (64 << 8) // threshold in Q8 units (tune)
 
-static inline int32_t dc_block_q8(int32_t x, int32_t *dc_q8)
+static inline int32_t __attribute__((always_inline))
+dc_block_q8(int32_t x, int32_t *dc_q8)
 {
     int32_t x_q8 = x << 8;
     int32_t e = x_q8 - *dc_q8;
@@ -138,7 +140,7 @@ static inline int32_t dc_block_q8(int32_t x, int32_t *dc_q8)
     return x - (*dc_q8 >> 8);
 }
 
-void SoundUnit_NextSample(SoundUnit *su, int16_t *l, int16_t *r)
+void __not_in_flash_func(SoundUnit_NextSample)(SoundUnit *su, int16_t *l, int16_t *r)
 {
     // cache channel 0, so ring mod code below uses previous frame value
     // consistently for all channels, including 7 which feeds from 0

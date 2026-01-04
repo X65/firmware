@@ -206,6 +206,7 @@ target_sources(x65_audio PRIVATE
     audio/snd/su.c
     audio/sys/aud.c
     audio/sys/com.c
+    audio/sys/hst.c
     audio/sys/led.c
     audio/sys/sgu.c
     audio/sys/sys.c

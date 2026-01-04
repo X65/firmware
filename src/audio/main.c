@@ -7,6 +7,7 @@
 #include "main.h"
 #include "sys/aud.h"
 #include "sys/com.h"
+#include "sys/hst.h"
 #include "sys/led.h"
 #include "sys/sgu.h"
 #include "usb/cdc.h"
@@ -19,6 +20,7 @@ static void init(void)
     usb_init();
     aud_init();
     sgu_init();
+    hst_init();
     led_init();
 
     led_blink(true);
@@ -29,6 +31,7 @@ static void task(void)
     cdc_task();
     usb_task();
     aud_task();
+    hst_task();
     led_task();
 }
 
