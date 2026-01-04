@@ -26,6 +26,15 @@
 #include <stddef.h>
 #include <stdint.h>
 
+/// Originally tSU worked at half of 6.18MHz (NTSC),
+/// but this is too much oversampling work for a simple MCU unit.
+/// We aim at generating HiFi audio at 48kHz, with just 2x oversampling.
+/// This gives us (618000÷2)÷96000 = 3.21875 phase multiplier.
+/// To keep it simple, we round it to 3, which keeps the parameter values
+/// in the same ballpark as original tSU, with just integer math.
+
+#define SOUND_UNIT_PHASE_MULTIPLIER 3
+
 typedef struct
 {
     // private:
@@ -35,21 +44,21 @@ typedef struct
     int8_t SCpantabR[256];
     uint32_t ocycle[8];
     uint32_t cycle[8];
-    int32_t rcycle[8];
+    int32_t rcycle[8]; // Rest Timer
     uint32_t lfsr[8];
     int8_t ns[8];
-    int16_t fns[8];
-    int16_t nsL[8];
-    int16_t nsR[8];
-    int16_t nslow[8];
-    int16_t nshigh[8];
-    int16_t nsband[8];
+    int32_t fns[8];
+    int32_t nsL[8];
+    int32_t nsR[8];
+    int32_t nslow[8];
+    int32_t nshigh[8];
+    int32_t nsband[8];
+    int32_t dc[8];
     int32_t tnsL, tnsR;
-    uint8_t ilBufPeriod;
+    int32_t ilBufPeriod;
     uint16_t ilBufPos;
     int8_t ilFeedback0;
     int8_t ilFeedback1;
-    uint16_t oldfreq[8];
     uint32_t pcmSize;
     bool dsOut;
     uint8_t dsChannel;
@@ -60,10 +69,10 @@ typedef struct
     uint16_t volicycles[8];
     uint16_t fscycles[8];
     uint8_t sweep[8];
-    uint16_t swvolt[8];
-    uint16_t swfreqt[8];
-    uint16_t swcutt[8];
-    uint16_t pcmdec[8];
+    int32_t swvolt[8];
+    int32_t swfreqt[8];
+    int32_t swcutt[8];
+    int32_t pcmdec[8];
     struct SUChannel
     {
         uint16_t freq;

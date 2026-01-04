@@ -22,6 +22,7 @@
  */
 
 #include "su.h"
+#include <assert.h>
 
 #define _USE_MATH_DEFINES
 #include <math.h>
@@ -30,6 +31,85 @@
 #define minval(a, b) (((a) < (b)) ? (a) : (b))
 #define maxval(a, b) (((a) > (b)) ? (a) : (b))
 
+/*
+The **Input Line (IL)** is essentially a "Global Feedback and Delay" system. In the original hardware or engine this was
+modeled after, it allows the audio output of the channels to be fed back into a dedicated section of memory (your
+`pcm[]` buffer) to create **Echo, Reverb, or Chorus** effects.
+
+Because the `SoundUnit` only has 8 channels, the designer "stole" the unused registers of the later channels (4, 5, 6,
+and 7) to act as the control panel for this global effect.
+
+---
+
+### Breakdown of the Defines
+
+#### 1. Volume and Feedback Controls
+
+* **`MVOL` (Master Volume):** Controls the final output level of the entire unit.
+* **`FILVOL` (Filter/Feedback Volume):** Controls how loud the "Echo" signal is when it is mixed back into the main
+left/right output.
+* **`FIL1`:** A dual-purpose register.
+* **Lower 4 bits:** Controls the "Decay" of the echo (how much of the old sound is kept).
+* **Upper 4 bits:** Part of the timing logic that determines how fast the echo buffer advances.
+
+
+
+#### 2. The Input "Taps" (`IL0`, `IL1`, `IL2`)
+
+These are the **Mixed Input Sources**. Before the sound hits the speakers, it is sent to these "Input Lines."
+
+* **`IL0`**: Usually the mono mix of channels.
+* **`IL1` / `IL2**`: Usually represent the Left and Right accumulated mixes.
+The `switch (su->ILCTRL & 3)` in your code decides which of these is currently being written into the delay buffer.
+
+#### 3. Buffer Management (`ILSIZE`, `ILCTRL`)
+
+* **`ILSIZE`**:
+* **Bit 6 (0x40):** The Master Switch. If this isn't set, the entire Echo/Feedback system is **OFF**.
+* **Bits 0-5:** Determines the **Size** of the delay buffer (how "long" the echo can be). It carves out a piece of the
+end of your `pcm[]` memory.
+* **Bit 7 (0x80):** Usually a "Panning" or "Phase" flip switch for the feedback.
+
+
+* **`ILCTRL`**:
+* **Bits 0-1:** Selects the input source (`IL0`, `IL1`, or `IL2`).
+* **Bit 2 (0x04):** Enables the "Output" of the delay line. If this is off, you are recording an echo but not listening
+to it.
+
+
+
+---
+
+### How the Logic Works (The "Tape Loop")
+
+Imagine the `pcm[]` buffer is a loop of magnetic tape.
+
+1. **Read:** The engine looks at the current position (`ilBufPos`) and reads the "old" sound.
+2. **Feedback:** It multiplies that old sound by the decay factor in `FIL1`.
+3. **Mix:** It takes the "New" sound (from `IL1` or `IL2`) and adds it to that decayed old sound.
+4. **Write:** It writes the result back to `pcm[ilBufPos]`.
+5. **Advance:** It moves the "tape" forward.
+
+### Why `su->ilBufPeriod` is important
+
+This variable acts like the "Speed" control of the tape motor.
+
+* When we added `su->ilBufPeriod += Pm;`, we ensured the "tape" moves at the same physical speed at 96kHz as it did at
+309kHz.
+* Without this, your echoes would sound 3.2x deeper and last 3.2x longer because the "tape" would be moving too slowly.
+
+---
+
+### Summary Table
+
+| Define | Component | Function |
+| --- | --- | --- |
+| **`ILSIZE`** | **The Room** | How big is the echo chamber? Is it turned on? |
+| **`ILCTRL`** | **The Patch Bay** | Which channels are sent to the echo? Are we listening to it? |
+| **`FIL1`** | **The Dampening** | Does the echo last forever, or fade out quickly? |
+| **`FILVOL`** | **The Return** | How loud is the echo in the final mix? |
+
+*/
 #define FILVOL chan[4].special1C
 #define ILCTRL chan[4].special1D
 #define ILSIZE chan[5].special1C
@@ -39,16 +119,34 @@
 #define IL0    chan[7].special1C
 #define MVOL   chan[7].special1D
 
+// make the define it shorter, so it's easier to read in the code below
+#define Pm (SOUND_UNIT_PHASE_MULTIPLIER)
+
+#define DC_SHIFT_FAST 9
+#define DC_SHIFT_SLOW 12
+#define DC_THRESH_Q8  (64 << 8) // threshold in Q8 units (tune)
+
+static inline int32_t dc_block_q8(int32_t x, int32_t *dc_q8)
+{
+    int32_t x_q8 = x << 8;
+    int32_t e = x_q8 - *dc_q8;
+    int32_t ae = (e >= 0) ? e : -e;
+
+    int sh = (ae > DC_THRESH_Q8) ? DC_SHIFT_FAST : DC_SHIFT_SLOW;
+    *dc_q8 += (e >> sh);
+
+    return x - (*dc_q8 >> 8);
+}
+
 void SoundUnit_NextSample(SoundUnit *su, int16_t *l, int16_t *r)
 {
+    // cache channel 0, so ring mod code below uses previous frame value
+    // consistently for all channels, including 7 which feeds from 0
+    int8_t ns0 = su->ns[0];
+
     // run channels
     for (size_t i = 0; i < 8; i++)
     {
-        if (su->chan[i].vol == 0 && !(su->chan[i].flags1 & 32))
-        {
-            su->fns[i] = 0;
-            continue;
-        }
         if (su->chan[i].flags0 & 8)
         {
             su->ns[i] = su->pcm[su->chan[i].pcmpos];
@@ -85,7 +183,7 @@ void SoundUnit_NextSample(SoundUnit *su, int16_t *l, int16_t *r)
         // ring mod
         if (su->chan[i].flags0 & 16)
         {
-            su->ns[i] = (su->ns[i] * su->ns[(i + 1) & 7]) >> 7;
+            su->ns[i] = (su->ns[i] * (i == 7 ? ns0 : su->ns[(i + 1)])) >> 7;
         }
 
         // PCM
@@ -97,9 +195,9 @@ void SoundUnit_NextSample(SoundUnit *su, int16_t *l, int16_t *r)
             }
             else
             {
-                su->pcmdec[i] += su->chan[i].freq;
+                su->pcmdec[i] += su->chan[i].freq * Pm;
             }
-            if (su->pcmdec[i] >= 32768)
+            while (su->pcmdec[i] >= 32768)
             {
                 su->pcmdec[i] -= 32768;
                 if (su->chan[i].pcmpos < su->chan[i].pcmbnd)
@@ -128,22 +226,22 @@ void SoundUnit_NextSample(SoundUnit *su, int16_t *l, int16_t *r)
                 switch ((su->chan[i].duty >> 4) & 3)
                 {
                 case 0:
-                    su->cycle[i] += su->chan[i].freq * 1 - (su->chan[i].freq >> 3);
+                    su->cycle[i] += (su->chan[i].freq * 1 - (su->chan[i].freq >> 3)) * Pm;
                     break;
                 case 1:
-                    su->cycle[i] += su->chan[i].freq * 2 - (su->chan[i].freq >> 3);
+                    su->cycle[i] += (su->chan[i].freq * 2 - (su->chan[i].freq >> 3)) * Pm;
                     break;
                 case 2:
-                    su->cycle[i] += su->chan[i].freq * 4 - (su->chan[i].freq >> 3);
+                    su->cycle[i] += (su->chan[i].freq * 4 - (su->chan[i].freq >> 3)) * Pm;
                     break;
                 case 3:
-                    su->cycle[i] += su->chan[i].freq * 8 - (su->chan[i].freq >> 3);
+                    su->cycle[i] += (su->chan[i].freq * 8 - (su->chan[i].freq >> 3)) * Pm;
                     break;
                 }
             }
             else
             {
-                su->cycle[i] += su->chan[i].freq;
+                su->cycle[i] += su->chan[i].freq * Pm;
             }
             if ((su->cycle[i] & 0xF80000) != (su->ocycle[i] & 0xF80000))
             {
@@ -180,12 +278,14 @@ void SoundUnit_NextSample(SoundUnit *su, int16_t *l, int16_t *r)
             }
             if (su->chan[i].flags1 & 8)
             {
-                if (--su->rcycle[i] <= 0)
-                {
-                    su->cycle[i] = 0;
-                    su->rcycle[i] = su->chan[i].restimer;
-                    su->lfsr[i] = 0xAAAA;
-                }
+                su->rcycle[i] -= Pm;
+                if (su->chan[i].restimer)
+                    while (su->rcycle[i] <= 0)
+                    {
+                        su->rcycle[i] += su->chan[i].restimer;
+                        su->cycle[i] = 0;     // Reset phase
+                        su->lfsr[i] = 0xAAAA; // Reset noise seed
+                    }
             }
         }
         su->fns[i] = su->ns[i] * su->chan[i].vol;
@@ -193,7 +293,11 @@ void SoundUnit_NextSample(SoundUnit *su, int16_t *l, int16_t *r)
             su->fns[i] >>= 1;
         if ((su->chan[i].flags0 & 0xE0) != 0)
         {
-            int ff = su->chan[i].cutoff;
+            // Scale ff, but we must CLAMP it.
+            // At 96kHz, ff should not exceed roughly 32768 to stay stable.
+            int ff = su->chan[i].cutoff * Pm;
+            if (ff > 32768)
+                ff = 32768;
             su->nslow[i] = su->nslow[i] + (((ff)*su->nsband[i]) >> 16);
             su->nshigh[i] = su->fns[i] - su->nslow[i] - (((256 - su->chan[i].reson) * su->nsband[i]) >> 8);
             su->nsband[i] = (((ff)*su->nshigh[i]) >> 16) + su->nsband[i];
@@ -201,144 +305,157 @@ void SoundUnit_NextSample(SoundUnit *su, int16_t *l, int16_t *r)
                           + ((su->chan[i].flags0 & 64) ? (su->nshigh[i]) : (0))
                           + ((su->chan[i].flags0 & 128) ? (su->nsband[i]) : (0)));
         }
+        su->fns[i] = dc_block_q8(su->fns[i], &su->dc[i]);
         su->nsL[i] = (su->fns[i] * su->SCpantabL[(uint8_t)su->chan[i].pan]) >> 8;
         su->nsR[i] = (su->fns[i] * su->SCpantabR[(uint8_t)su->chan[i].pan]) >> 8;
-        su->oldfreq[i] = su->chan[i].freq;
         if (su->chan[i].flags1 & 32)
         {
-            if (--su->swvolt[i] <= 0)
-            {
-                su->swvolt[i] = su->chan[i].swvol.speed;
-                if (su->chan[i].swvol.amt & 32)
+            su->swvolt[i] -= Pm;
+            if (su->chan[i].swvol.speed)
+                while (su->swvolt[i] <= 0)
                 {
-                    su->chan[i].vol += su->chan[i].swvol.amt & 31;
-                    if (su->chan[i].vol > su->chan[i].swvol.bound && !(su->chan[i].swvol.amt & 64))
+                    su->swvolt[i] += su->chan[i].swvol.speed;
+                    if (su->chan[i].swvol.amt & 32)
                     {
-                        su->chan[i].vol = su->chan[i].swvol.bound;
-                    }
-                    if (su->chan[i].vol & 0x80)
-                    {
-                        if (su->chan[i].swvol.amt & 64)
+                        int v = su->chan[i].vol;
+                        v += su->chan[i].swvol.amt & 31;
+                        su->chan[i].vol = v > 127 ? 127 : v < -128 ? -128
+                                                                   : (int8_t)v;
+                        if (su->chan[i].vol > su->chan[i].swvol.bound && !(su->chan[i].swvol.amt & 64))
                         {
-                            if (su->chan[i].swvol.amt & 128)
+                            su->chan[i].vol = su->chan[i].swvol.bound;
+                        }
+                        if (su->chan[i].vol & 0x80)
+                        {
+                            if (su->chan[i].swvol.amt & 64)
                             {
-                                su->chan[i].swvol.amt ^= 32;
-                                su->chan[i].vol = 0xFF - su->chan[i].vol;
+                                if (su->chan[i].swvol.amt & 128)
+                                {
+                                    su->chan[i].swvol.amt ^= 32;
+                                    su->chan[i].vol = 0xFF - su->chan[i].vol;
+                                }
+                                else
+                                {
+                                    su->chan[i].vol &= ~0x80;
+                                }
                             }
                             else
                             {
-                                su->chan[i].vol &= ~0x80;
+                                su->chan[i].vol = 0x7F;
                             }
                         }
-                        else
-                        {
-                            su->chan[i].vol = 0x7F;
-                        }
                     }
-                }
-                else
-                {
-                    su->chan[i].vol -= su->chan[i].swvol.amt & 31;
-                    if (su->chan[i].vol & 0x80)
+                    else
                     {
-                        if (su->chan[i].swvol.amt & 64)
+                        int v = su->chan[i].vol;
+                        v -= su->chan[i].swvol.amt & 31;
+                        su->chan[i].vol = v > 127 ? 127 : v < -128 ? -128
+                                                                   : (int8_t)v;
+                        if (su->chan[i].vol & 0x80)
                         {
-                            if (su->chan[i].swvol.amt & 128)
+                            if (su->chan[i].swvol.amt & 64)
                             {
-                                su->chan[i].swvol.amt ^= 32;
-                                su->chan[i].vol = -su->chan[i].vol;
+                                if (su->chan[i].swvol.amt & 128)
+                                {
+                                    su->chan[i].swvol.amt ^= 32;
+                                    su->chan[i].vol = -su->chan[i].vol;
+                                }
+                                else
+                                {
+                                    su->chan[i].vol &= ~0x80;
+                                }
                             }
                             else
                             {
-                                su->chan[i].vol &= ~0x80;
+                                su->chan[i].vol = 0x00;
                             }
                         }
-                        else
+                        if (su->chan[i].vol < su->chan[i].swvol.bound && !(su->chan[i].swvol.amt & 64))
                         {
-                            su->chan[i].vol = 0x00;
+                            su->chan[i].vol = su->chan[i].swvol.bound;
                         }
                     }
-                    if (su->chan[i].vol < su->chan[i].swvol.bound && !(su->chan[i].swvol.amt & 64))
-                    {
-                        su->chan[i].vol = su->chan[i].swvol.bound;
-                    }
                 }
-            }
         }
         if (su->chan[i].flags1 & 16)
         {
-            if (--su->swfreqt[i] <= 0)
-            {
-                su->swfreqt[i] = su->chan[i].swfreq.speed;
-                if (su->chan[i].swfreq.amt & 128)
+            su->swfreqt[i] -= Pm;
+            if (su->chan[i].swfreq.speed)
+                while (su->swfreqt[i] <= 0)
                 {
-                    if (su->chan[i].freq > (0xFFFF - (su->chan[i].swfreq.amt & 127)))
+                    su->swfreqt[i] += su->chan[i].swfreq.speed;
+                    if (su->chan[i].swfreq.amt & 128)
                     {
-                        su->chan[i].freq = 0xFFFF;
+                        if (su->chan[i].freq > (0xFFFF - (su->chan[i].swfreq.amt & 127)))
+                        {
+                            su->chan[i].freq = 0xFFFF;
+                        }
+                        else
+                        {
+                            su->chan[i].freq = (su->chan[i].freq * (0x80 + (su->chan[i].swfreq.amt & 127))) >> 7;
+                            if ((su->chan[i].freq >> 8) > su->chan[i].swfreq.bound)
+                            {
+                                su->chan[i].freq = su->chan[i].swfreq.bound << 8;
+                            }
+                        }
                     }
                     else
                     {
-                        su->chan[i].freq = (su->chan[i].freq * (0x80 + (su->chan[i].swfreq.amt & 127))) >> 7;
-                        if ((su->chan[i].freq >> 8) > su->chan[i].swfreq.bound)
+                        if (su->chan[i].freq < (su->chan[i].swfreq.amt & 127))
                         {
-                            su->chan[i].freq = su->chan[i].swfreq.bound << 8;
+                            su->chan[i].freq = 0;
+                        }
+                        else
+                        {
+                            su->chan[i].freq = (su->chan[i].freq * (0xFF - (su->chan[i].swfreq.amt & 127))) >> 8;
+                            if ((su->chan[i].freq >> 8) < su->chan[i].swfreq.bound)
+                            {
+                                su->chan[i].freq = su->chan[i].swfreq.bound << 8;
+                            }
                         }
                     }
                 }
-                else
-                {
-                    if (su->chan[i].freq < (su->chan[i].swfreq.amt & 127))
-                    {
-                        su->chan[i].freq = 0;
-                    }
-                    else
-                    {
-                        su->chan[i].freq = (su->chan[i].freq * (0xFF - (su->chan[i].swfreq.amt & 127))) >> 8;
-                        if ((su->chan[i].freq >> 8) < su->chan[i].swfreq.bound)
-                        {
-                            su->chan[i].freq = su->chan[i].swfreq.bound << 8;
-                        }
-                    }
-                }
-            }
         }
         if (su->chan[i].flags1 & 64)
         {
-            if (--su->swcutt[i] <= 0)
-            {
-                su->swcutt[i] = su->chan[i].swcut.speed;
-                if (su->chan[i].swcut.amt & 128)
+            su->swcutt[i] -= Pm;
+            if (su->chan[i].swcut.speed)
+                while (su->swcutt[i] <= 0)
                 {
-                    if (su->chan[i].cutoff > (0xFFFF - (su->chan[i].swcut.amt & 127)))
+                    su->swcutt[i] += su->chan[i].swcut.speed;
+                    if (su->chan[i].swcut.amt & 128)
                     {
-                        su->chan[i].cutoff = 0xFFFF;
+                        if (su->chan[i].cutoff > (0xFFFF - (su->chan[i].swcut.amt & 127)))
+                        {
+                            su->chan[i].cutoff = 0xFFFF;
+                        }
+                        else
+                        {
+                            su->chan[i].cutoff += su->chan[i].swcut.amt & 127;
+                            if ((su->chan[i].cutoff >> 8) > su->chan[i].swcut.bound)
+                            {
+                                su->chan[i].cutoff = su->chan[i].swcut.bound << 8;
+                            }
+                        }
                     }
                     else
                     {
-                        su->chan[i].cutoff += su->chan[i].swcut.amt & 127;
-                        if ((su->chan[i].cutoff >> 8) > su->chan[i].swcut.bound)
+                        if (su->chan[i].cutoff < (su->chan[i].swcut.amt & 127))
                         {
-                            su->chan[i].cutoff = su->chan[i].swcut.bound << 8;
+                            su->chan[i].cutoff = 0;
+                        }
+                        else
+                        {
+                            su->chan[i].cutoff = ((2048 - (unsigned int)(su->chan[i].swcut.amt & 127))
+                                                  * (unsigned int)su->chan[i].cutoff)
+                                                 >> 11;
+                            if ((su->chan[i].cutoff >> 8) < su->chan[i].swcut.bound)
+                            {
+                                su->chan[i].cutoff = su->chan[i].swcut.bound << 8;
+                            }
                         }
                     }
                 }
-                else
-                {
-                    if (su->chan[i].cutoff < (su->chan[i].swcut.amt & 127))
-                    {
-                        su->chan[i].cutoff = 0;
-                    }
-                    else
-                    {
-                        su->chan[i].cutoff = ((2048 - (unsigned int)(su->chan[i].swcut.amt & 127)) * (unsigned int)su->chan[i].cutoff)
-                                             >> 11;
-                        if ((su->chan[i].cutoff >> 8) < su->chan[i].swcut.bound)
-                        {
-                            su->chan[i].cutoff = su->chan[i].swcut.bound << 8;
-                        }
-                    }
-                }
-            }
         }
         if (su->chan[i].flags1 & 1)
         {
@@ -349,8 +466,8 @@ void SoundUnit_NextSample(SoundUnit *su, int16_t *l, int16_t *r)
         }
         if (su->muted[i])
         {
-            su->nsL[i] = 0;
-            su->nsR[i] = 0;
+            su->nslow[i] = su->nshigh[i] = su->nsband[i] = 0;
+            su->nsL[i] = su->nsR[i] = 0;
         }
     }
 
@@ -373,70 +490,73 @@ void SoundUnit_NextSample(SoundUnit *su, int16_t *l, int16_t *r)
     // write input lines to sample memory
     if (su->ILSIZE & 64)
     {
-        if (++su->ilBufPeriod >= ((1 + (su->FIL1 >> 4)) << 2))
-        {
-            su->ilBufPeriod = 0;
-            uint16_t ilLowerBound = su->pcmSize - ((1 + (su->ILSIZE & 63)) << 7);
-            int16_t next;
-            if (su->ilBufPos < ilLowerBound)
-                su->ilBufPos = ilLowerBound;
-            switch (su->ILCTRL & 3)
+        su->ilBufPeriod += Pm;
+        int periodTreshold = ((1 + (su->FIL1 >> 4)) << 2);
+        if (periodTreshold)
+            while (su->ilBufPeriod >= periodTreshold)
             {
-            case 0:
-                su->ilFeedback0 = su->ilFeedback1 = su->pcm[su->ilBufPos];
-                next = ((int8_t)su->IL0) + ((su->pcm[su->ilBufPos] * (su->FIL1 & 15)) >> 4);
-                if (next < -128)
-                    next = -128;
-                if (next > 127)
-                    next = 127;
-                su->pcm[su->ilBufPos] = next;
-                if (++su->ilBufPos >= su->pcmSize)
+                su->ilBufPeriod -= periodTreshold;
+                uint16_t ilLowerBound = su->pcmSize - ((1 + (su->ILSIZE & 63)) << 7);
+                int16_t next;
+                if (su->ilBufPos < ilLowerBound)
                     su->ilBufPos = ilLowerBound;
-                break;
-            case 1:
-                su->ilFeedback0 = su->ilFeedback1 = su->pcm[su->ilBufPos];
-                next = ((int8_t)su->IL1) + ((su->pcm[su->ilBufPos] * (su->FIL1 & 15)) >> 4);
-                if (next < -128)
-                    next = -128;
-                if (next > 127)
-                    next = 127;
-                su->pcm[su->ilBufPos] = next;
-                if (++su->ilBufPos >= su->pcmSize)
-                    su->ilBufPos = ilLowerBound;
-                break;
-            case 2:
-                su->ilFeedback0 = su->ilFeedback1 = su->pcm[su->ilBufPos];
-                next = ((int8_t)su->IL2) + ((su->pcm[su->ilBufPos] * (su->FIL1 & 15)) >> 4);
-                if (next < -128)
-                    next = -128;
-                if (next > 127)
-                    next = 127;
-                su->pcm[su->ilBufPos] = next;
-                if (++su->ilBufPos >= su->pcmSize)
-                    su->ilBufPos = ilLowerBound;
-                break;
-            case 3:
-                su->ilFeedback0 = su->pcm[su->ilBufPos];
-                next = ((int8_t)su->IL1) + ((su->pcm[su->ilBufPos] * (su->FIL1 & 15)) >> 4);
-                if (next < -128)
-                    next = -128;
-                if (next > 127)
-                    next = 127;
-                su->pcm[su->ilBufPos] = next;
-                if (++su->ilBufPos >= su->pcmSize)
-                    su->ilBufPos = ilLowerBound;
-                su->ilFeedback1 = su->pcm[su->ilBufPos];
-                next = ((int8_t)su->IL2) + ((su->pcm[su->ilBufPos] * (su->FIL1 & 15)) >> 4);
-                if (next < -128)
-                    next = -128;
-                if (next > 127)
-                    next = 127;
-                su->pcm[su->ilBufPos] = next;
-                if (++su->ilBufPos >= su->pcmSize)
-                    su->ilBufPos = ilLowerBound;
-                break;
+                switch (su->ILCTRL & 3)
+                {
+                case 0:
+                    su->ilFeedback0 = su->ilFeedback1 = su->pcm[su->ilBufPos];
+                    next = ((int8_t)su->IL0) + ((su->pcm[su->ilBufPos] * (su->FIL1 & 15)) >> 4);
+                    if (next < -128)
+                        next = -128;
+                    if (next > 127)
+                        next = 127;
+                    su->pcm[su->ilBufPos] = next;
+                    if (++su->ilBufPos >= su->pcmSize)
+                        su->ilBufPos = ilLowerBound;
+                    break;
+                case 1:
+                    su->ilFeedback0 = su->ilFeedback1 = su->pcm[su->ilBufPos];
+                    next = ((int8_t)su->IL1) + ((su->pcm[su->ilBufPos] * (su->FIL1 & 15)) >> 4);
+                    if (next < -128)
+                        next = -128;
+                    if (next > 127)
+                        next = 127;
+                    su->pcm[su->ilBufPos] = next;
+                    if (++su->ilBufPos >= su->pcmSize)
+                        su->ilBufPos = ilLowerBound;
+                    break;
+                case 2:
+                    su->ilFeedback0 = su->ilFeedback1 = su->pcm[su->ilBufPos];
+                    next = ((int8_t)su->IL2) + ((su->pcm[su->ilBufPos] * (su->FIL1 & 15)) >> 4);
+                    if (next < -128)
+                        next = -128;
+                    if (next > 127)
+                        next = 127;
+                    su->pcm[su->ilBufPos] = next;
+                    if (++su->ilBufPos >= su->pcmSize)
+                        su->ilBufPos = ilLowerBound;
+                    break;
+                case 3:
+                    su->ilFeedback0 = su->pcm[su->ilBufPos];
+                    next = ((int8_t)su->IL1) + ((su->pcm[su->ilBufPos] * (su->FIL1 & 15)) >> 4);
+                    if (next < -128)
+                        next = -128;
+                    if (next > 127)
+                        next = 127;
+                    su->pcm[su->ilBufPos] = next;
+                    if (++su->ilBufPos >= su->pcmSize)
+                        su->ilBufPos = ilLowerBound;
+                    su->ilFeedback1 = su->pcm[su->ilBufPos];
+                    next = ((int8_t)su->IL2) + ((su->pcm[su->ilBufPos] * (su->FIL1 & 15)) >> 4);
+                    if (next < -128)
+                        next = -128;
+                    if (next > 127)
+                        next = 127;
+                    su->pcm[su->ilBufPos] = next;
+                    if (++su->ilBufPos >= su->pcmSize)
+                        su->ilBufPos = ilLowerBound;
+                    break;
+                }
             }
-        }
         if (su->ILCTRL & 4)
         {
             if (su->ILSIZE & 128)
@@ -466,7 +586,9 @@ void SoundUnit_NextSample(SoundUnit *su, int16_t *l, int16_t *r)
 
 void SoundUnit_Init(SoundUnit *su, size_t sampleMemSize, bool dsOutMode)
 {
+    assert((sampleMemSize & (sampleMemSize - 1)) == 0); // must be power of 2
     su->pcmSize = sampleMemSize ? sampleMemSize : 8192;
+    assert(su->pcmSize <= sizeof(su->pcm));
     su->dsOut = dsOutMode;
     SoundUnit_Reset(su);
     memset(su->pcm, 0, su->pcmSize);
@@ -504,11 +626,11 @@ void SoundUnit_Reset(SoundUnit *su)
         su->nslow[i] = 0;
         su->nshigh[i] = 0;
         su->nsband[i] = 0;
-        su->swvolt[i] = 1;
-        su->swfreqt[i] = 1;
-        su->swcutt[i] = 1;
+        su->dc[i] = 0;
+        su->swvolt[i] = Pm;
+        su->swfreqt[i] = Pm;
+        su->swcutt[i] = Pm;
         su->lfsr[i] = 0xAAAA;
-        su->oldfreq[i] = 0;
         su->pcmdec[i] = 0;
     }
     su->dsChannel = 0;
