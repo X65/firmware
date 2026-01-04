@@ -7,8 +7,6 @@
 sgu1_t sgu1_instance;
 #define SGU (&sgu1_instance)
 
-#define SGU1_HZ (CHIP_CLOCK / CHIP_DIVIDER)
-
 static inline void __attribute__((always_inline))
 _sgu1_tick(void)
 {
@@ -25,17 +23,17 @@ __attribute__((optimize("O3"))) static void __no_inline_not_in_flash_func(sgu_lo
     uint64_t next = time_us_64();
     uint64_t err = 0;
 
-    uint32_t base_us = 1000000u / SGU1_HZ;
-    uint32_t rem_us = 1000000u % SGU1_HZ;
+    uint32_t base_us = 1000000u / SGU1_CHIP_CLOCK;
+    uint32_t rem_us = 1000000u % SGU1_CHIP_CLOCK;
 
     while (true)
     {
         next += base_us;
         err += rem_us;
-        if (err >= SGU1_HZ)
+        if (err >= SGU1_CHIP_CLOCK)
         {
             next += 1; // add one extra us
-            err -= SGU1_HZ;
+            err -= SGU1_CHIP_CLOCK;
         }
 
         while ((int64_t)(time_us_64() - next) < 0)
@@ -53,7 +51,7 @@ void sgu1_init()
     SoundUnit_Init(&SGU->su, SGU1_SAMPLE_MEM_SIZE, false);
     SGU->resampler = speex_resampler_init(
         SGU1_AUDIO_CHANNELS,
-        CHIP_CLOCK / CHIP_DIVIDER,
+        SGU1_CHIP_CLOCK / SGU1_OVERSAMPLING,
         AUD_OUT_HZ,
         SGU1_RESAMPLER_QUALITY, nullptr);
 

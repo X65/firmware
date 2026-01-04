@@ -100,8 +100,8 @@
 #define SGU1_FLAGS1_VOL_SWEEP          (1 << 5)
 #define SGU1_FLAGS1_CUT_SWEEP          (1 << 6)
 
-#define CHIP_DIVIDER 2
-#define CHIP_CLOCK   618000 // tSU: 6.18MHz (NTSC)
+#define SGU1_OVERSAMPLING (2)
+#define SGU1_CHIP_CLOCK   (48000 * SGU1_OVERSAMPLING)
 
 typedef struct
 {
