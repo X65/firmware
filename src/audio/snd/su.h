@@ -58,11 +58,6 @@ typedef struct
     uint32_t pcmSize;
 
     // public:
-    uint16_t resetfreq[8];
-    uint16_t voldcycles[8];
-    uint16_t volicycles[8];
-    uint16_t fscycles[8];
-    uint8_t sweep[8];
     int32_t swvolt[8];
     int32_t swfreqt[8];
     int32_t swcutt[8];

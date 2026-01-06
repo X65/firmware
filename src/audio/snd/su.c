@@ -421,11 +421,6 @@ void SoundUnit_Reset(SoundUnit *su)
         su->ocycle[i] = 0;
         su->cycle[i] = 0;
         su->rcycle[i] = 0;
-        su->resetfreq[i] = 0;
-        su->voldcycles[i] = 0;
-        su->volicycles[i] = 0;
-        su->fscycles[i] = 0;
-        su->sweep[i] = 0;
         su->ns[i] = 0;
         su->fns[i] = 0;
         su->nsL[i] = 0;
