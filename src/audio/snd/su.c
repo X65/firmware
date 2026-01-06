@@ -278,16 +278,15 @@ void __not_in_flash_func(SoundUnit_NextSample)(SoundUnit *su, int16_t *l, int16_
                     }
                 }
             }
-            if (su->chan[i].flags1 & 8)
+            if ((su->chan[i].flags1 & 8) && su->chan[i].restimer)
             {
                 su->rcycle[i] -= Pm;
-                if (su->chan[i].restimer)
-                    while (su->rcycle[i] <= 0)
-                    {
-                        su->rcycle[i] += su->chan[i].restimer;
-                        su->cycle[i] = 0;     // Reset phase
-                        su->lfsr[i] = 0xAAAA; // Reset noise seed
-                    }
+                while (su->rcycle[i] <= 0)
+                {
+                    su->rcycle[i] += su->chan[i].restimer;
+                    su->cycle[i] = 0;     // Reset phase
+                    su->lfsr[i] = 0xAAAA; // Reset noise seed
+                }
             }
         }
         su->fns[i] = su->ns[i] * su->chan[i].vol;
@@ -310,154 +309,154 @@ void __not_in_flash_func(SoundUnit_NextSample)(SoundUnit *su, int16_t *l, int16_
         su->fns[i] = dc_block_q8(su->fns[i], &su->dc[i]);
         su->nsL[i] = (su->fns[i] * su->SCpantabL[(uint8_t)su->chan[i].pan]) >> 8;
         su->nsR[i] = (su->fns[i] * su->SCpantabR[(uint8_t)su->chan[i].pan]) >> 8;
-        if (su->chan[i].flags1 & 32)
+        if ((su->chan[i].flags1 & 32) && su->chan[i].swvol.speed)
         {
             su->swvolt[i] -= Pm;
-            if (su->chan[i].swvol.speed)
-                while (su->swvolt[i] <= 0)
+            while (su->swvolt[i] <= 0)
+            {
+                su->swvolt[i] += su->chan[i].swvol.speed;
+                if (su->chan[i].swvol.amt & 32)
                 {
-                    su->swvolt[i] += su->chan[i].swvol.speed;
-                    if (su->chan[i].swvol.amt & 32)
+                    int v = su->chan[i].vol;
+                    v += su->chan[i].swvol.amt & 31;
+                    su->chan[i].vol = v > 127
+                                          ? 127
+                                      : v < -128
+                                          ? -128
+                                          : (int8_t)v;
+                    if (su->chan[i].vol > su->chan[i].swvol.bound && !(su->chan[i].swvol.amt & 64))
                     {
-                        int v = su->chan[i].vol;
-                        v += su->chan[i].swvol.amt & 31;
-                        su->chan[i].vol = v > 127 ? 127 : v < -128 ? -128
-                                                                   : (int8_t)v;
-                        if (su->chan[i].vol > su->chan[i].swvol.bound && !(su->chan[i].swvol.amt & 64))
-                        {
-                            su->chan[i].vol = su->chan[i].swvol.bound;
-                        }
-                        if (su->chan[i].vol & 0x80)
-                        {
-                            if (su->chan[i].swvol.amt & 64)
-                            {
-                                if (su->chan[i].swvol.amt & 128)
-                                {
-                                    su->chan[i].swvol.amt ^= 32;
-                                    su->chan[i].vol = 0xFF - su->chan[i].vol;
-                                }
-                                else
-                                {
-                                    su->chan[i].vol &= ~0x80;
-                                }
-                            }
-                            else
-                            {
-                                su->chan[i].vol = 0x7F;
-                            }
-                        }
+                        su->chan[i].vol = su->chan[i].swvol.bound;
                     }
-                    else
+                    if (su->chan[i].vol & 0x80)
                     {
-                        int v = su->chan[i].vol;
-                        v -= su->chan[i].swvol.amt & 31;
-                        su->chan[i].vol = v > 127 ? 127 : v < -128 ? -128
-                                                                   : (int8_t)v;
-                        if (su->chan[i].vol & 0x80)
+                        if (su->chan[i].swvol.amt & 64)
                         {
-                            if (su->chan[i].swvol.amt & 64)
+                            if (su->chan[i].swvol.amt & 128)
                             {
-                                if (su->chan[i].swvol.amt & 128)
-                                {
-                                    su->chan[i].swvol.amt ^= 32;
-                                    su->chan[i].vol = -su->chan[i].vol;
-                                }
-                                else
-                                {
-                                    su->chan[i].vol &= ~0x80;
-                                }
+                                su->chan[i].swvol.amt ^= 32;
+                                su->chan[i].vol = 0xFF - su->chan[i].vol;
                             }
                             else
                             {
-                                su->chan[i].vol = 0x00;
+                                su->chan[i].vol &= ~0x80;
                             }
                         }
-                        if (su->chan[i].vol < su->chan[i].swvol.bound && !(su->chan[i].swvol.amt & 64))
+                        else
                         {
-                            su->chan[i].vol = su->chan[i].swvol.bound;
+                            su->chan[i].vol = 0x7F;
                         }
                     }
                 }
+                else
+                {
+                    int v = su->chan[i].vol;
+                    v -= su->chan[i].swvol.amt & 31;
+                    su->chan[i].vol = v > 127 ? 127 : v < -128 ? -128
+                                                               : (int8_t)v;
+                    if (su->chan[i].vol & 0x80)
+                    {
+                        if (su->chan[i].swvol.amt & 64)
+                        {
+                            if (su->chan[i].swvol.amt & 128)
+                            {
+                                su->chan[i].swvol.amt ^= 32;
+                                su->chan[i].vol = -su->chan[i].vol;
+                            }
+                            else
+                            {
+                                su->chan[i].vol &= ~0x80;
+                            }
+                        }
+                        else
+                        {
+                            su->chan[i].vol = 0x00;
+                        }
+                    }
+                    if (su->chan[i].vol < su->chan[i].swvol.bound && !(su->chan[i].swvol.amt & 64))
+                    {
+                        su->chan[i].vol = su->chan[i].swvol.bound;
+                    }
+                }
+            }
         }
-        if (su->chan[i].flags1 & 16)
+        if ((su->chan[i].flags1 & 16) && su->chan[i].swfreq.speed)
         {
             su->swfreqt[i] -= Pm;
-            if (su->chan[i].swfreq.speed)
-                while (su->swfreqt[i] <= 0)
+            while (su->swfreqt[i] <= 0)
+            {
+                su->swfreqt[i] += su->chan[i].swfreq.speed;
+                if (su->chan[i].swfreq.amt & 128)
                 {
-                    su->swfreqt[i] += su->chan[i].swfreq.speed;
-                    if (su->chan[i].swfreq.amt & 128)
+                    if (su->chan[i].freq > (0xFFFF - (su->chan[i].swfreq.amt & 127)))
                     {
-                        if (su->chan[i].freq > (0xFFFF - (su->chan[i].swfreq.amt & 127)))
-                        {
-                            su->chan[i].freq = 0xFFFF;
-                        }
-                        else
-                        {
-                            su->chan[i].freq = (su->chan[i].freq * (0x80 + (su->chan[i].swfreq.amt & 127))) >> 7;
-                            if ((su->chan[i].freq >> 8) > su->chan[i].swfreq.bound)
-                            {
-                                su->chan[i].freq = su->chan[i].swfreq.bound << 8;
-                            }
-                        }
+                        su->chan[i].freq = 0xFFFF;
                     }
                     else
                     {
-                        if (su->chan[i].freq < (su->chan[i].swfreq.amt & 127))
+                        su->chan[i].freq = (su->chan[i].freq * (0x80 + (su->chan[i].swfreq.amt & 127))) >> 7;
+                        if ((su->chan[i].freq >> 8) > su->chan[i].swfreq.bound)
                         {
-                            su->chan[i].freq = 0;
-                        }
-                        else
-                        {
-                            su->chan[i].freq = (su->chan[i].freq * (0xFF - (su->chan[i].swfreq.amt & 127))) >> 8;
-                            if ((su->chan[i].freq >> 8) < su->chan[i].swfreq.bound)
-                            {
-                                su->chan[i].freq = su->chan[i].swfreq.bound << 8;
-                            }
+                            su->chan[i].freq = su->chan[i].swfreq.bound << 8;
                         }
                     }
                 }
+                else
+                {
+                    if (su->chan[i].freq < (su->chan[i].swfreq.amt & 127))
+                    {
+                        su->chan[i].freq = 0;
+                    }
+                    else
+                    {
+                        su->chan[i].freq = (su->chan[i].freq * (0xFF - (su->chan[i].swfreq.amt & 127))) >> 8;
+                        if ((su->chan[i].freq >> 8) < su->chan[i].swfreq.bound)
+                        {
+                            su->chan[i].freq = su->chan[i].swfreq.bound << 8;
+                        }
+                    }
+                }
+            }
         }
-        if (su->chan[i].flags1 & 64)
+        if ((su->chan[i].flags1 & 64) && su->chan[i].swcut.speed)
         {
             su->swcutt[i] -= Pm;
-            if (su->chan[i].swcut.speed)
-                while (su->swcutt[i] <= 0)
+            while (su->swcutt[i] <= 0)
+            {
+                su->swcutt[i] += su->chan[i].swcut.speed;
+                if (su->chan[i].swcut.amt & 128)
                 {
-                    su->swcutt[i] += su->chan[i].swcut.speed;
-                    if (su->chan[i].swcut.amt & 128)
+                    if (su->chan[i].cutoff > (0xFFFF - (su->chan[i].swcut.amt & 127)))
                     {
-                        if (su->chan[i].cutoff > (0xFFFF - (su->chan[i].swcut.amt & 127)))
-                        {
-                            su->chan[i].cutoff = 0xFFFF;
-                        }
-                        else
-                        {
-                            su->chan[i].cutoff += su->chan[i].swcut.amt & 127;
-                            if ((su->chan[i].cutoff >> 8) > su->chan[i].swcut.bound)
-                            {
-                                su->chan[i].cutoff = su->chan[i].swcut.bound << 8;
-                            }
-                        }
+                        su->chan[i].cutoff = 0xFFFF;
                     }
                     else
                     {
-                        if (su->chan[i].cutoff < (su->chan[i].swcut.amt & 127))
+                        su->chan[i].cutoff += su->chan[i].swcut.amt & 127;
+                        if ((su->chan[i].cutoff >> 8) > su->chan[i].swcut.bound)
                         {
-                            su->chan[i].cutoff = 0;
-                        }
-                        else
-                        {
-                            su->chan[i].cutoff = ((2048 - (unsigned int)(su->chan[i].swcut.amt & 127))
-                                                  * (unsigned int)su->chan[i].cutoff)
-                                                 >> 11;
-                            if ((su->chan[i].cutoff >> 8) < su->chan[i].swcut.bound)
-                            {
-                                su->chan[i].cutoff = su->chan[i].swcut.bound << 8;
-                            }
+                            su->chan[i].cutoff = su->chan[i].swcut.bound << 8;
                         }
                     }
                 }
+                else
+                {
+                    if (su->chan[i].cutoff < (su->chan[i].swcut.amt & 127))
+                    {
+                        su->chan[i].cutoff = 0;
+                    }
+                    else
+                    {
+                        su->chan[i].cutoff = ((2048 - (unsigned int)(su->chan[i].swcut.amt & 127))
+                                              * (unsigned int)su->chan[i].cutoff)
+                                             >> 11;
+                        if ((su->chan[i].cutoff >> 8) < su->chan[i].swcut.bound)
+                        {
+                            su->chan[i].cutoff = su->chan[i].swcut.bound << 8;
+                        }
+                    }
+                }
+            }
         }
         if (su->chan[i].flags1 & 1)
         {
@@ -490,11 +489,12 @@ void __not_in_flash_func(SoundUnit_NextSample)(SoundUnit *su, int16_t *l, int16_
     }
 
     // write input lines to sample memory
-    if (su->ILSIZE & 64)
+    if ((su->ILSIZE & 64))
     {
-        su->ilBufPeriod += Pm;
         int periodTreshold = ((1 + (su->FIL1 >> 4)) << 2);
         if (periodTreshold)
+        {
+            su->ilBufPeriod += Pm;
             while (su->ilBufPeriod >= periodTreshold)
             {
                 su->ilBufPeriod -= periodTreshold;
@@ -559,6 +559,7 @@ void __not_in_flash_func(SoundUnit_NextSample)(SoundUnit *su, int16_t *l, int16_
                     break;
                 }
             }
+        }
         if (su->ILCTRL & 4)
         {
             if (su->ILSIZE & 128)

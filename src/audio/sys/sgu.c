@@ -9,6 +9,20 @@
 sgu1_t sgu_instance;
 #define SGU (&sgu_instance)
 
+static void sgu_dump_channel_state(int channel)
+{
+    printf("-- %02X --\n", channel);
+    uint8_t *ch = (uint8_t *)&SGU->su.chan[channel];
+    printf("%02X %02X %02X %02X %02X %02X %02X %02X  ",
+           ch[0], ch[1], ch[2], ch[3], ch[4], ch[5], ch[6], ch[7]);
+    printf("%02X %02X %02X %02X %02X %02X %02X %02X\n",
+           ch[8], ch[9], ch[10], ch[11], ch[12], ch[13], ch[14], ch[15]);
+    printf("%02X %02X %02X %02X %02X %02X %02X %02X  ",
+           ch[16], ch[17], ch[18], ch[19], ch[20], ch[21], ch[22], ch[23]);
+    printf("%02X %02X %02X %02X %02X %02X %02X %02X\n",
+           ch[24], ch[25], ch[26], ch[27], ch[28], ch[29], ch[30], ch[31]);
+}
+
 static inline void __attribute__((always_inline))
 _sgu_tick(void)
 {
