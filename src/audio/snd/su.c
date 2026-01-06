@@ -385,36 +385,18 @@ void __not_in_flash_func(SoundUnit_NextSample)(SoundUnit *su, int16_t *l, int16_
     }
 
     // mix
-    if (su->dsOut)
-    {
-        su->tnsL = su->nsL[su->dsChannel] << 3;
-        su->tnsR = su->nsR[su->dsChannel] << 3;
-        su->dsChannel = (su->dsChannel + 1) & 7;
-    }
-    else
-    {
-        su->tnsL = (su->nsL[0] + su->nsL[1] + su->nsL[2] + su->nsL[3] + su->nsL[4] + su->nsL[5] + su->nsL[6] + su->nsL[7]);
-        su->tnsR = (su->nsR[0] + su->nsR[1] + su->nsR[2] + su->nsR[3] + su->nsR[4] + su->nsR[5] + su->nsR[6] + su->nsR[7]);
-    }
+    su->tnsL = (su->nsL[0] + su->nsL[1] + su->nsL[2] + su->nsL[3] + su->nsL[4] + su->nsL[5] + su->nsL[6] + su->nsL[7]);
+    su->tnsR = (su->nsR[0] + su->nsR[1] + su->nsR[2] + su->nsR[3] + su->nsR[4] + su->nsR[5] + su->nsR[6] + su->nsR[7]);
 
-    if (su->dsOut)
-    {
-        *l = minval(32767, maxval(-32767, su->tnsL)) & 0xFF00;
-        *r = minval(32767, maxval(-32767, su->tnsR)) & 0xFF00;
-    }
-    else
-    {
-        *l = minval(32767, maxval(-32767, su->tnsL));
-        *r = minval(32767, maxval(-32767, su->tnsR));
-    }
+    *l = minval(32767, maxval(-32767, su->tnsL));
+    *r = minval(32767, maxval(-32767, su->tnsR));
 }
 
-void SoundUnit_Init(SoundUnit *su, size_t sampleMemSize, bool dsOutMode)
+void SoundUnit_Init(SoundUnit *su, size_t sampleMemSize)
 {
     assert((sampleMemSize & (sampleMemSize - 1)) == 0); // must be power of 2
     su->pcmSize = sampleMemSize ? sampleMemSize : 8192;
     assert(su->pcmSize <= sizeof(su->pcm));
-    su->dsOut = dsOutMode;
     SoundUnit_Reset(su);
     memset(su->pcm, 0, su->pcmSize);
     for (size_t i = 0; i < 256; i++)
@@ -458,7 +440,6 @@ void SoundUnit_Reset(SoundUnit *su)
         su->lfsr[i] = 0xAAAA;
         su->pcmdec[i] = 0;
     }
-    su->dsChannel = 0;
     su->tnsL = 0;
     su->tnsR = 0;
     memset(su->chan, 0, sizeof(struct SUChannel) * 8);

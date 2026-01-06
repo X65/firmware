@@ -67,7 +67,7 @@ __attribute__((optimize("O3"))) static void __no_inline_not_in_flash_func(sgu_lo
 void sgu_init()
 {
     memset(SGU, 0, sizeof(*SGU));
-    SoundUnit_Init(&SGU->su, SGU1_SAMPLE_MEM_SIZE, false);
+    SoundUnit_Init(&SGU->su, SGU1_SAMPLE_MEM_SIZE);
 
     printf("Starting SGU core...\n");
     multicore_launch_core1(sgu_loop);

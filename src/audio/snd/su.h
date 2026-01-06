@@ -106,7 +106,7 @@ typedef struct
     bool muted[8];
 } SoundUnit;
 
-void SoundUnit_Init(SoundUnit *su, size_t sampleMemSize, bool dsOutMode);
+void SoundUnit_Init(SoundUnit *su, size_t sampleMemSize);
 void SoundUnit_Reset(SoundUnit *su);
 
 void SoundUnit_Write(SoundUnit *su, uint8_t addr, uint8_t data);
