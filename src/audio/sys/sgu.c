@@ -1,6 +1,7 @@
 #include "./sgu.h"
 #include "hw.h"
 #include <hardware/pio.h>
+#include <math.h>
 #include <pico/multicore.h>
 #include <pico/rand.h>
 #include <stdint.h>
@@ -25,38 +26,43 @@ static void sgu_dump_channel_state(int channel)
            ch[24], ch[25], ch[26], ch[27], ch[28], ch[29], ch[30], ch[31]);
 }
 
-// The threshold where the curve hits the "roof".
-// 32768 is the standard max for 16-bit audio.
-#define SATURATION_LIMIT 32768
+volatile int16_t __uninitialized_ram(tanh_lut)[INT16_MAX + 1]
+    __attribute__((aligned(4)));
 
-static inline int16_t __attribute__((always_inline)) __attribute__((optimize("O3")))
-soft_clip_int32(int32_t x)
+// Tuning: Lower = Louder/Crunchier, Higher = Cleaner.
+// Try values between 2000.0 and 3500.0.
+static const double V_REF = 2800.0;
+
+static void sgu_init_tanh_lut()
 {
-    // 1. Hard Limiting for safety
-    // If the input is WAY too loud, just clamp it to avoid math overflow below.
-    if (x >= SATURATION_LIMIT)
-        return 32767;
-    if (x <= -SATURATION_LIMIT)
-        return -32767;
 
-    // 2. The "Soft" Curve Calculation
-    // We work with absolute values to simplify the math to one quadrant
-    int32_t abs_x = abs(x);
+    for (size_t i = 0; i <= INT16_MAX; i++)
+    {
+        // i / V_REF is the input to tanh
+        double x = (double)i / V_REF;
+        double y = tanh(x);
 
-    // Formula: y = (2 * Limit * x - x^2) / Limit
-    // This creates a parabola that starts at 0 and peaks exactly at Limit.
-    // We use int64_t for the intermediate calc to prevent overflow of (x*x)
-    int64_t numer = (2 * (int64_t)SATURATION_LIMIT * abs_x) - ((int64_t)abs_x * abs_x);
-
-    // Divide by limit (Bit shifting is faster if limit is power of 2)
-    // 32768 is 2^15, so we shift right by 15.
-    int32_t result = (int32_t)(numer >> 15);
-
-    // 3. Restore Sign
-    return (x < 0) ? -result : result;
+        // Scale back to 16-bit integer range
+        tanh_lut[i] = (int16_t)(y * INT16_MAX);
+    }
 }
 
-static inline void __attribute__((always_inline)) __attribute__((optimize("O3")))
+static inline int16_t __force_inline __attribute__((optimize("O3")))
+soft_clip_int32(int32_t sample)
+{
+    // Absolute value for LUT lookup
+    int32_t abs_s = (sample < 0) ? -sample : sample;
+
+    // Safety Clamp to LUT range
+    if (abs_s > INT16_MAX)
+        abs_s = INT16_MAX;
+
+    // Lookup with sign restoration
+    int16_t saturated = tanh_lut[abs_s];
+    return (sample < 0) ? -saturated : saturated;
+}
+
+static inline void __force_inline __attribute__((optimize("O3")))
 _sgu_tick(void)
 {
     int32_t l, r;
@@ -106,6 +112,8 @@ __attribute__((optimize("O3"))) static void __no_inline_not_in_flash_func(sgu_lo
 
 void sgu_init()
 {
+    sgu_init_tanh_lut();
+
     memset(SGU, 0, sizeof(*SGU));
     SoundUnit_Init(&SGU->su, SGU1_SAMPLE_MEM_SIZE);
 
