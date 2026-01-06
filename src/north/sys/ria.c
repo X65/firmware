@@ -18,6 +18,7 @@
 #include <hardware/dma.h>
 #include <hardware/pio.h>
 #include <littlefs/lfs_util.h>
+#include <pico/critical_section.h>
 #include <pico/multicore.h>
 #include <pico/rand.h>
 #include <pico/stdio.h>
@@ -33,30 +34,32 @@ static inline void DBG(const char *fmt, ...)
 }
 #endif
 
-static volatile uint8_t irq_mask = 0;
-static volatile uint8_t irq_state = 0;
-
 static uint8_t RGB_regs[8] = {0};
 static uint8_t BUZ_regs[4] = {0};
 
-static inline void ria_update_irq_pin(void)
+static volatile uint8_t irq_mask = 0;
+static volatile uint8_t irq_state = 0;
+static critical_section_t irq_lock;
+
+static inline __force_inline void ria_update_irq_pin(void)
 {
-    if (irq_state & irq_mask)
-        gpio_put(RIA_IRQB_PIN, false);
-    else
-        gpio_put(RIA_IRQB_PIN, true);
+    gpio_put(RIA_IRQB_PIN, !(irq_state & irq_mask));
 }
 
 void ria_set_irq(uint8_t source)
 {
+    critical_section_enter_blocking(&irq_lock);
     irq_state |= source;
     ria_update_irq_pin();
+    critical_section_exit(&irq_lock);
 }
 
 void ria_clear_irq(uint8_t source)
 {
+    critical_section_enter_blocking(&irq_lock);
     irq_state &= ~source;
     ria_update_irq_pin();
+    critical_section_exit(&irq_lock);
 }
 
 #define MEM_LOG_ENABLED (0)
@@ -190,13 +193,12 @@ __attribute__((optimize("O1"))) static void __no_inline_not_in_flash_func(act_lo
                         case CASE_READ(0xFFED): // IRQ_STATUS
                             data = 0xFF;
                             break;
-                        case CASE_WRIT(0xFFEC): // IRQ Enable
+                        case CASE_WRIT(0xFFEC): // IRQ Mask
                             irq_mask = data;
-                            __attribute__((fallthrough));
-                        case CASE_READ(0xFFEC): // IRQ ACK
-                            data = irq_state;
-                            irq_state = 0;
                             ria_update_irq_pin();
+                            break;
+                        case CASE_READ(0xFFEC):
+                            data = irq_mask;
                             break;
                         case CASE_READ(0xFFE3): // Random Number Generator
                         case CASE_READ(0xFFE2): // Two bytes to allow 16 bit values
@@ -553,6 +555,8 @@ void ria_init(void)
     gpio_init(RIA_IRQB_PIN);
     gpio_put(RIA_IRQB_PIN, true);
     gpio_set_dir(RIA_IRQB_PIN, true);
+
+    critical_section_init(&irq_lock);
 
     multicore_launch_core1(act_loop);
 }
