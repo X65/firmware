@@ -32,94 +32,6 @@
 #define minval(a, b) (((a) < (b)) ? (a) : (b))
 #define maxval(a, b) (((a) > (b)) ? (a) : (b))
 
-/*
-The **Input Line (IL)** is essentially a "Global Feedback and Delay" system. In the original hardware or engine this was
-modeled after, it allows the audio output of the channels to be fed back into a dedicated section of memory (your
-`pcm[]` buffer) to create **Echo, Reverb, or Chorus** effects.
-
-Because the `SoundUnit` only has 8 channels, the designer "stole" the unused registers of the later channels (4, 5, 6,
-and 7) to act as the control panel for this global effect.
-
----
-
-### Breakdown of the Defines
-
-#### 1. Volume and Feedback Controls
-
-* **`MVOL` (Master Volume):** Controls the final output level of the entire unit.
-* **`FILVOL` (Filter/Feedback Volume):** Controls how loud the "Echo" signal is when it is mixed back into the main
-left/right output.
-* **`FIL1`:** A dual-purpose register.
-* **Lower 4 bits:** Controls the "Decay" of the echo (how much of the old sound is kept).
-* **Upper 4 bits:** Part of the timing logic that determines how fast the echo buffer advances.
-
-
-
-#### 2. The Input "Taps" (`IL0`, `IL1`, `IL2`)
-
-These are the **Mixed Input Sources**. Before the sound hits the speakers, it is sent to these "Input Lines."
-
-* **`IL0`**: Usually the mono mix of channels.
-* **`IL1` / `IL2**`: Usually represent the Left and Right accumulated mixes.
-The `switch (su->ILCTRL & 3)` in your code decides which of these is currently being written into the delay buffer.
-
-#### 3. Buffer Management (`ILSIZE`, `ILCTRL`)
-
-* **`ILSIZE`**:
-* **Bit 6 (0x40):** The Master Switch. If this isn't set, the entire Echo/Feedback system is **OFF**.
-* **Bits 0-5:** Determines the **Size** of the delay buffer (how "long" the echo can be). It carves out a piece of the
-end of your `pcm[]` memory.
-* **Bit 7 (0x80):** Usually a "Panning" or "Phase" flip switch for the feedback.
-
-
-* **`ILCTRL`**:
-* **Bits 0-1:** Selects the input source (`IL0`, `IL1`, or `IL2`).
-* **Bit 2 (0x04):** Enables the "Output" of the delay line. If this is off, you are recording an echo but not listening
-to it.
-
-
-
----
-
-### How the Logic Works (The "Tape Loop")
-
-Imagine the `pcm[]` buffer is a loop of magnetic tape.
-
-1. **Read:** The engine looks at the current position (`ilBufPos`) and reads the "old" sound.
-2. **Feedback:** It multiplies that old sound by the decay factor in `FIL1`.
-3. **Mix:** It takes the "New" sound (from `IL1` or `IL2`) and adds it to that decayed old sound.
-4. **Write:** It writes the result back to `pcm[ilBufPos]`.
-5. **Advance:** It moves the "tape" forward.
-
-### Why `su->ilBufPeriod` is important
-
-This variable acts like the "Speed" control of the tape motor.
-
-* When we added `su->ilBufPeriod += Pm;`, we ensured the "tape" moves at the same physical speed at 96kHz as it did at
-309kHz.
-* Without this, your echoes would sound 3.2x deeper and last 3.2x longer because the "tape" would be moving too slowly.
-
----
-
-### Summary Table
-
-| Define | Component | Function |
-| --- | --- | --- |
-| **`ILSIZE`** | **The Room** | How big is the echo chamber? Is it turned on? |
-| **`ILCTRL`** | **The Patch Bay** | Which channels are sent to the echo? Are we listening to it? |
-| **`FIL1`** | **The Dampening** | Does the echo last forever, or fade out quickly? |
-| **`FILVOL`** | **The Return** | How loud is the echo in the final mix? |
-
-*/
-#define FILVOL chan[4].special1C
-#define ILCTRL chan[4].special1D
-#define ILSIZE chan[5].special1C
-#define FIL1   chan[5].special1D
-#define IL1    chan[6].special1C
-#define IL2    chan[6].special1D
-#define IL0    chan[7].special1C
-#define MVOL   chan[7].special1D
-
 // make the define it shorter, so it's easier to read in the code below
 #define Pm (SOUND_UNIT_PHASE_MULTIPLIER)
 
@@ -483,96 +395,6 @@ void __not_in_flash_func(SoundUnit_NextSample)(SoundUnit *su, int16_t *l, int16_
     {
         su->tnsL = (su->nsL[0] + su->nsL[1] + su->nsL[2] + su->nsL[3] + su->nsL[4] + su->nsL[5] + su->nsL[6] + su->nsL[7]);
         su->tnsR = (su->nsR[0] + su->nsR[1] + su->nsR[2] + su->nsR[3] + su->nsR[4] + su->nsR[5] + su->nsR[6] + su->nsR[7]);
-
-        su->IL1 = minval(32767, maxval(-32767, su->tnsL)) >> 8;
-        su->IL2 = minval(32767, maxval(-32767, su->tnsR)) >> 8;
-    }
-
-    // write input lines to sample memory
-    if ((su->ILSIZE & 64))
-    {
-        int periodTreshold = ((1 + (su->FIL1 >> 4)) << 2);
-        if (periodTreshold)
-        {
-            su->ilBufPeriod += Pm;
-            while (su->ilBufPeriod >= periodTreshold)
-            {
-                su->ilBufPeriod -= periodTreshold;
-                uint16_t ilLowerBound = su->pcmSize - ((1 + (su->ILSIZE & 63)) << 7);
-                int16_t next;
-                if (su->ilBufPos < ilLowerBound)
-                    su->ilBufPos = ilLowerBound;
-                switch (su->ILCTRL & 3)
-                {
-                case 0:
-                    su->ilFeedback0 = su->ilFeedback1 = su->pcm[su->ilBufPos];
-                    next = ((int8_t)su->IL0) + ((su->pcm[su->ilBufPos] * (su->FIL1 & 15)) >> 4);
-                    if (next < -128)
-                        next = -128;
-                    if (next > 127)
-                        next = 127;
-                    su->pcm[su->ilBufPos] = next;
-                    if (++su->ilBufPos >= su->pcmSize)
-                        su->ilBufPos = ilLowerBound;
-                    break;
-                case 1:
-                    su->ilFeedback0 = su->ilFeedback1 = su->pcm[su->ilBufPos];
-                    next = ((int8_t)su->IL1) + ((su->pcm[su->ilBufPos] * (su->FIL1 & 15)) >> 4);
-                    if (next < -128)
-                        next = -128;
-                    if (next > 127)
-                        next = 127;
-                    su->pcm[su->ilBufPos] = next;
-                    if (++su->ilBufPos >= su->pcmSize)
-                        su->ilBufPos = ilLowerBound;
-                    break;
-                case 2:
-                    su->ilFeedback0 = su->ilFeedback1 = su->pcm[su->ilBufPos];
-                    next = ((int8_t)su->IL2) + ((su->pcm[su->ilBufPos] * (su->FIL1 & 15)) >> 4);
-                    if (next < -128)
-                        next = -128;
-                    if (next > 127)
-                        next = 127;
-                    su->pcm[su->ilBufPos] = next;
-                    if (++su->ilBufPos >= su->pcmSize)
-                        su->ilBufPos = ilLowerBound;
-                    break;
-                case 3:
-                    su->ilFeedback0 = su->pcm[su->ilBufPos];
-                    next = ((int8_t)su->IL1) + ((su->pcm[su->ilBufPos] * (su->FIL1 & 15)) >> 4);
-                    if (next < -128)
-                        next = -128;
-                    if (next > 127)
-                        next = 127;
-                    su->pcm[su->ilBufPos] = next;
-                    if (++su->ilBufPos >= su->pcmSize)
-                        su->ilBufPos = ilLowerBound;
-                    su->ilFeedback1 = su->pcm[su->ilBufPos];
-                    next = ((int8_t)su->IL2) + ((su->pcm[su->ilBufPos] * (su->FIL1 & 15)) >> 4);
-                    if (next < -128)
-                        next = -128;
-                    if (next > 127)
-                        next = 127;
-                    su->pcm[su->ilBufPos] = next;
-                    if (++su->ilBufPos >= su->pcmSize)
-                        su->ilBufPos = ilLowerBound;
-                    break;
-                }
-            }
-        }
-        if (su->ILCTRL & 4)
-        {
-            if (su->ILSIZE & 128)
-            {
-                su->tnsL += su->ilFeedback1 * (int8_t)su->FILVOL;
-                su->tnsR += su->ilFeedback0 * (int8_t)su->FILVOL;
-            }
-            else
-            {
-                su->tnsL += su->ilFeedback0 * (int8_t)su->FILVOL;
-                su->tnsR += su->ilFeedback1 * (int8_t)su->FILVOL;
-            }
-        }
     }
 
     if (su->dsOut)
@@ -639,10 +461,6 @@ void SoundUnit_Reset(SoundUnit *su)
     su->dsChannel = 0;
     su->tnsL = 0;
     su->tnsR = 0;
-    su->ilBufPos = 0;
-    su->ilBufPeriod = 0;
-    su->ilFeedback0 = 0;
-    su->ilFeedback1 = 0;
     memset(su->chan, 0, sizeof(struct SUChannel) * 8);
 }
 

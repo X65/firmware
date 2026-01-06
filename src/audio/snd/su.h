@@ -55,13 +55,7 @@ typedef struct
     int32_t nsband[8];
     int32_t dc[8];
     int32_t tnsL, tnsR;
-    int32_t ilBufPeriod;
-    uint16_t ilBufPos;
-    int8_t ilFeedback0;
-    int8_t ilFeedback1;
     uint32_t pcmSize;
-    bool dsOut;
-    uint8_t dsChannel;
 
     // public:
     uint16_t resetfreq[8];
