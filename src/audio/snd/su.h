@@ -106,8 +106,8 @@ void SoundUnit_Reset(SoundUnit *su);
 
 void SoundUnit_Write(SoundUnit *su, uint8_t addr, uint8_t data);
 
-void SoundUnit_NextSample(SoundUnit *su, int16_t *l, int16_t *r);
-static inline int32_t __attribute__((always_inline)) SoundUnit_GetSample(SoundUnit *su, int32_t ch)
+void SoundUnit_NextSample(SoundUnit *su, int32_t *l, int32_t *r);
+static inline int32_t __attribute__((always_inline)) SoundUnit_GetSample(SoundUnit *su, uint8_t ch)
 {
     int32_t ret = (su->nsL[ch] + su->nsR[ch]) >> 1;
     if (ret < -32768)

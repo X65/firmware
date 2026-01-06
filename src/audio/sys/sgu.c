@@ -3,7 +3,9 @@
 #include <hardware/pio.h>
 #include <pico/multicore.h>
 #include <pico/rand.h>
+#include <stdint.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 sgu1_t sgu_instance;
@@ -23,15 +25,53 @@ static void sgu_dump_channel_state(int channel)
            ch[24], ch[25], ch[26], ch[27], ch[28], ch[29], ch[30], ch[31]);
 }
 
-static inline void __attribute__((always_inline))
+// The threshold where the curve hits the "roof".
+// 32768 is the standard max for 16-bit audio.
+#define SATURATION_LIMIT 32768
+
+static inline int16_t __attribute__((always_inline)) __attribute__((optimize("O3")))
+soft_clip_int32(int32_t x)
+{
+    // 1. Hard Limiting for safety
+    // If the input is WAY too loud, just clamp it to avoid math overflow below.
+    if (x >= SATURATION_LIMIT)
+        return 32767;
+    if (x <= -SATURATION_LIMIT)
+        return -32767;
+
+    // 2. The "Soft" Curve Calculation
+    // We work with absolute values to simplify the math to one quadrant
+    int32_t abs_x = abs(x);
+
+    // Formula: y = (2 * Limit * x - x^2) / Limit
+    // This creates a parabola that starts at 0 and peaks exactly at Limit.
+    // We use int64_t for the intermediate calc to prevent overflow of (x*x)
+    int64_t numer = (2 * (int64_t)SATURATION_LIMIT * abs_x) - ((int64_t)abs_x * abs_x);
+
+    // Divide by limit (Bit shifting is faster if limit is power of 2)
+    // 32768 is 2^15, so we shift right by 15.
+    int32_t result = (int32_t)(numer >> 15);
+
+    // 3. Restore Sign
+    return (x < 0) ? -result : result;
+}
+
+static inline void __attribute__((always_inline)) __attribute__((optimize("O3")))
 _sgu_tick(void)
 {
-    int16_t l, r;
+    int32_t l, r;
     SoundUnit_NextSample(&SGU->su, &l, &r);
-    ((int16_t *)(&SGU->sample))[1] = (int16_t)(((int)l + (int)SGU->rawL) >> 1);
-    ((int16_t *)(&SGU->sample))[0] = (int16_t)(((int)r + (int)SGU->rawR) >> 1);
-    SGU->rawL = l;
-    SGU->rawR = r;
+
+    // Gain then Saturate+Clip
+    const int16_t sL = soft_clip_int32(l << 2);
+    const int16_t sR = soft_clip_int32(r << 2);
+
+    ((int16_t *)(&SGU->sample))[1] = (int16_t)(((int32_t)sL + SGU->rawL) >> 1);
+    ((int16_t *)(&SGU->sample))[0] = (int16_t)(((int32_t)sR + SGU->rawR) >> 1);
+
+    // Store raw samples for next round's averaging
+    SGU->rawL = sL;
+    SGU->rawR = sR;
 }
 
 __attribute__((optimize("O3"))) static void __no_inline_not_in_flash_func(sgu_loop)(void)

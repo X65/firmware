@@ -52,7 +52,7 @@ dc_block_q8(int32_t x, int32_t *dc_q8)
     return x - (*dc_q8 >> 8);
 }
 
-void __not_in_flash_func(SoundUnit_NextSample)(SoundUnit *su, int16_t *l, int16_t *r)
+void __not_in_flash_func(SoundUnit_NextSample)(SoundUnit *su, int32_t *l, int32_t *r)
 {
     // cache channel 0, so ring mod code below uses previous frame value
     // consistently for all channels, including 7 which feeds from 0
@@ -385,11 +385,10 @@ void __not_in_flash_func(SoundUnit_NextSample)(SoundUnit *su, int16_t *l, int16_
     }
 
     // mix
-    su->tnsL = (su->nsL[0] + su->nsL[1] + su->nsL[2] + su->nsL[3] + su->nsL[4] + su->nsL[5] + su->nsL[6] + su->nsL[7]);
-    su->tnsR = (su->nsR[0] + su->nsR[1] + su->nsR[2] + su->nsR[3] + su->nsR[4] + su->nsR[5] + su->nsR[6] + su->nsR[7]);
-
-    *l = minval(32767, maxval(-32767, su->tnsL));
-    *r = minval(32767, maxval(-32767, su->tnsR));
+    const int64_t L = (su->nsL[0] + su->nsL[1] + su->nsL[2] + su->nsL[3] + su->nsL[4] + su->nsL[5] + su->nsL[6] + su->nsL[7]);
+    const int64_t R = (su->nsR[0] + su->nsR[1] + su->nsR[2] + su->nsR[3] + su->nsR[4] + su->nsR[5] + su->nsR[6] + su->nsR[7]);
+    *l = su->tnsL = (int32_t)((int64_t)(minval(INT32_MAX, maxval(INT32_MIN, L))));
+    *r = su->tnsR = (int32_t)((int64_t)(minval(INT32_MAX, maxval(INT32_MIN, R))));
 }
 
 void SoundUnit_Init(SoundUnit *su, size_t sampleMemSize)
