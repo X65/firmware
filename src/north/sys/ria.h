@@ -22,8 +22,10 @@ void ria_task(void);
 void ria_run();
 void ria_stop();
 
-// Trigger IRQ when enabled
-void ria_trigger_irq(void);
+// Update IRQ state
+#define RIA_IRQ_SOURCE_CIA 0x01
+void ria_set_irq(uint8_t source);
+void ria_clear_irq(uint8_t source);
 
 void ria_print_status(void);
 

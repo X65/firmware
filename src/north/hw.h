@@ -60,8 +60,4 @@
 #define PIX_PIO pio1
 #define PIX_SM  0
 
-// ESP-AT modem SPI
-#define ESP_SPI         spi0
-#define ESP_BAUDRATE_HZ 10000000
-
 #endif /* _RIA_HW_H_ */

@@ -25,6 +25,7 @@
 #include "net/ntp.h"
 #include "net/wfi.h"
 #include "sys/cfg.h"
+#include "sys/cia.h"
 #include "sys/com.h"
 #include "sys/cpu.h"
 #include "sys/led.h"
@@ -78,6 +79,7 @@ static void init(void)
     rom_init();
     clk_init();
     mdm_init();
+    cia_init();
 
     // Enable LED heartbeat after all inits.
     led_blink(true);
@@ -104,6 +106,7 @@ void main_task(void)
     ble_task();
     led_task();
     mdm_task();
+    cia_task();
 }
 
 // Tasks that call FatFs should be here instead of main_task().

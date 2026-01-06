@@ -86,6 +86,7 @@ target_sources(x65_north PRIVATE
     north/net/tel.c
     north/net/wfi.c
     north/sys/cfg.c
+    north/sys/cia.c
     north/sys/com.c
     north/sys/cpu.c
     north/sys/led.c

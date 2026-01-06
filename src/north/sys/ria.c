@@ -9,6 +9,7 @@
 #include "hw.h"
 #include "main.h"
 #include "south/cgia/cgia.h"
+#include "sys/cia.h"
 #include "sys/com.h"
 #include "sys/mem.h"
 #include "sys/pix.h"
@@ -32,15 +33,30 @@ static inline void DBG(const char *fmt, ...)
 }
 #endif
 
-static volatile bool irq_enabled;
+static volatile uint8_t irq_mask = 0;
+static volatile uint8_t irq_state = 0;
 
 static uint8_t RGB_regs[8] = {0};
 static uint8_t BUZ_regs[4] = {0};
 
-void ria_trigger_irq(void)
+static inline void ria_update_irq_pin(void)
 {
-    if (irq_enabled & 0x01)
+    if (irq_state & irq_mask)
         gpio_put(RIA_IRQB_PIN, false);
+    else
+        gpio_put(RIA_IRQB_PIN, true);
+}
+
+void ria_set_irq(uint8_t source)
+{
+    irq_state |= source;
+    ria_update_irq_pin();
+}
+
+void ria_clear_irq(uint8_t source)
+{
+    irq_state &= ~source;
+    ria_update_irq_pin();
 }
 
 #define MEM_LOG_ENABLED (0)
@@ -74,12 +90,13 @@ void ria_run(void)
 {
     mem_log_idx = 0;
     mem_dump = false;
+    ria_update_irq_pin();
 }
 
 void ria_stop(void)
 {
-    irq_enabled = false;
-    gpio_put(RIA_IRQB_PIN, true);
+    irq_state = irq_mask = 0x00;
+    ria_update_irq_pin();
 
     if (mem_dump)
         ria_mem_dump();
@@ -174,10 +191,12 @@ __attribute__((optimize("O1"))) static void __no_inline_not_in_flash_func(act_lo
                             data = 0xFF;
                             break;
                         case CASE_WRIT(0xFFEC): // IRQ Enable
-                            irq_enabled = data;
+                            irq_mask = data;
                             __attribute__((fallthrough));
                         case CASE_READ(0xFFEC): // IRQ ACK
-                            gpio_put(RIA_IRQB_PIN, true);
+                            data = irq_state;
+                            irq_state = 0;
+                            ria_update_irq_pin();
                             break;
                         case CASE_READ(0xFFE3): // Random Number Generator
                         case CASE_READ(0xFFE2): // Two bytes to allow 16 bit values
@@ -374,7 +393,63 @@ __attribute__((optimize("O1"))) static void __no_inline_not_in_flash_func(act_lo
                     // ------ FF98 - FF9F ------ (CIA-compatible timers)
                     else if (addr >= 0xFF98)
                     {
-                        data = 0xFF;
+                        const uint8_t reg = addr & 0x07;
+                        if (is_read)
+                        {
+                            switch (reg)
+                            {
+                            case 0: // TIMER A low byte
+                                data = cia_get_count(CIA_A) & 0xFF;
+                                break;
+                            case 1: // TIMER A high byte
+                                data = cia_get_count(CIA_A) >> 8;
+                                break;
+                            case 2: // TIMER B low byte
+                                data = cia_get_count(CIA_B) & 0xFF;
+                                break;
+                            case 3: // TIMER B high byte
+                                data = cia_get_count(CIA_B) >> 8;
+                                break;
+                            case 5: // ICR
+                                data = cia_get_icr();
+                                break;
+                            case 6: // CRA
+                                data = cia_get_control(CIA_A);
+                                break;
+                            case 7: // CRB
+                                data = cia_get_control(CIA_B);
+                                break;
+                            default:
+                                data = 0xFF;
+                            }
+                        }
+                        else
+                        {
+                            switch (reg)
+                            {
+                            case 0: // TIMER A low byte
+                                cia_set_count_lo(CIA_A, data);
+                                break;
+                            case 1: // TIMER A high byte
+                                cia_set_count_hi(CIA_A, data);
+                                break;
+                            case 2: // TIMER B low byte
+                                cia_set_count_lo(CIA_B, data);
+                                break;
+                            case 3: // TIMER B high byte
+                                cia_set_count_hi(CIA_B, data);
+                                break;
+                            case 5: // ICR
+                                cia_set_icr(data);
+                                break;
+                            case 6: // CRA
+                                cia_set_control(CIA_A, data);
+                                break;
+                            case 7: // CRB
+                                cia_set_control(CIA_B, data);
+                                break;
+                            }
+                        }
                     }
                     else
                     // ------ FF80 - FF97 ------ (GPIO extender)
