@@ -29,10 +29,10 @@ static void aud_i2c_init(void)
     gpio_set_function(AUD_I2C_SCL_PIN, GPIO_FUNC_I2C);
     gpio_set_pulls(AUD_I2C_SDA_PIN, true, false);
     gpio_set_pulls(AUD_I2C_SCL_PIN, true, false);
-    gpio_set_drive_strength(AUD_I2C_SDA_PIN, GPIO_DRIVE_STRENGTH_12MA);
-    gpio_set_drive_strength(AUD_I2C_SCL_PIN, GPIO_DRIVE_STRENGTH_12MA);
-    gpio_set_slew_rate(AUD_I2C_SDA_PIN, GPIO_SLEW_RATE_FAST);
-    gpio_set_slew_rate(AUD_I2C_SCL_PIN, GPIO_SLEW_RATE_FAST);
+    gpio_set_drive_strength(AUD_I2C_SDA_PIN, GPIO_DRIVE_STRENGTH_2MA);
+    gpio_set_drive_strength(AUD_I2C_SCL_PIN, GPIO_DRIVE_STRENGTH_2MA);
+    gpio_set_slew_rate(AUD_I2C_SDA_PIN, GPIO_SLEW_RATE_SLOW);
+    gpio_set_slew_rate(AUD_I2C_SCL_PIN, GPIO_SLEW_RATE_SLOW);
 
     // Set clocks
     i2c_set_baudrate(AUD_I2C, AUD_I2C_BAUDRATE);
@@ -382,13 +382,15 @@ static inline void aud_i2s_pio_init(void)
         AUD_I2S_DOUT_PIN,
     };
 
-    // Adjustments for GPIO performance. Important!
+    // Adjustments for noise level. Important!
     for (int i = 0; i < 4; ++i)
     {
         uint pin = i2s_pins[i];
         pio_gpio_init(AUD_I2S_PIO, pin);
         gpio_set_pulls(pin, false, false);
         gpio_set_input_hysteresis_enabled(pin, false);
+        gpio_set_drive_strength(pin, GPIO_DRIVE_STRENGTH_2MA);
+        gpio_set_slew_rate(pin, GPIO_SLEW_RATE_SLOW);
     }
 
     pio_sm_claim(AUD_I2S_PIO, AUD_I2S_SM);
