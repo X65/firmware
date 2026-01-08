@@ -35,7 +35,7 @@ set_target_properties(x65_north PROPERTIES
 target_link_options(x65_north PRIVATE ${IPO_PRINTF_LINK_OPTIONS})
 
 target_compile_options(x65_north PRIVATE
-    -Wall -Wextra
+    -Wall -Wextra -Os
 )
 
 target_include_directories(x65_north PRIVATE
@@ -129,6 +129,12 @@ target_sources(x65_north PRIVATE
     ${CMAKE_CURRENT_BINARY_DIR}/version.h
 )
 
+# FIXME: once on PCB tune this code to work with optimizations enabled
+set_source_files_properties(
+    north/sys/pix.c
+    PROPERTIES COMPILE_OPTIONS -O0
+)
+
 
 # The X65 SouthBridge (including CGIA)
 
@@ -144,7 +150,8 @@ set_target_properties(x65_south PROPERTIES
 target_link_options(x65_south PRIVATE ${IPO_PRINTF_LINK_OPTIONS})
 
 target_compile_options(x65_south PRIVATE
-    -Wall -Wextra -O3
+    -Wall -Wextra
+    $<$<CONFIG:Release>:-Ofast>
 )
 
 target_include_directories(x65_south PRIVATE
@@ -223,7 +230,8 @@ set_target_properties(x65_audio PROPERTIES
 target_link_options(x65_audio PRIVATE ${IPO_PRINTF_LINK_OPTIONS})
 
 target_compile_options(x65_audio PRIVATE
-    -Wall -Wextra -O3
+    -Wall -Wextra
+    $<$<CONFIG:Release>:-Ofast>
 )
 
 target_include_directories(x65_audio PRIVATE
