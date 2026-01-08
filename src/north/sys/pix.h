@@ -11,6 +11,7 @@
  */
 
 #include "../pix.h"
+#include <pico.h>
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -41,6 +42,15 @@ void pix_send_request(pix_req_type_t msg_type,
                       pix_response_t *resp);
 
 // pass EVERY RAM write through CGIA for updating VRAM cache banks
-void pix_mem_write(uint32_t addr24, uint8_t data);
+static inline __force_inline void __attribute__((optimize("O3")))
+pix_mem_write(uint32_t addr24, uint8_t data)
+{
+    pix_send_request(PIX_MEM_WRITE, 4,
+                     (uint8_t[]) {(uint8_t)(addr24 >> 16),
+                                  (uint8_t)(addr24 >> 8),
+                                  (uint8_t)(addr24 & 0xFF),
+                                  data},
+                     nullptr);
+}
 
 #endif /* _RIA_SYS_PIX_H_ */

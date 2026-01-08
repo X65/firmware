@@ -1,12 +1,42 @@
+# Force wrappers defined by pico_printf and pico_stdlib to be
+# preserved during link-time interprocedural optimizations.
+
+set(IPO_PRINTF_LINK_OPTIONS
+    -Wl,-u,__wrap_printf
+    -Wl,-u,__wrap_vprintf
+    -Wl,-u,__wrap_puts
+    -Wl,-u,__wrap_putchar
+    -Wl,-u,__wrap_getchar
+    -Wl,-u,__wrap_sprintf
+    -Wl,-u,__wrap_snprintf
+    -Wl,-u,__wrap_vsnprintf
+    -Wl,-u,__wrap_ceil
+    -Wl,-u,_fstat
+    -Wl,-u,_isatty
+    -Wl,-u,__assert_func
+)
+
+
 # The X65 NorthBridge (including RIA)
 set(RP6502_RIA_W TRUE)
 
 add_executable(x65_north)
 pico_add_extra_outputs(x65_north)
 pico_set_binary_type(x65_north copy_to_ram)
+
 target_compile_definitions(x65_north PRIVATE RP6502_RIA_W=1)
 target_link_libraries(x65_north PRIVATE pico_cyw43_arch_lwip_poll pico_btstack_cyw43)
 pico_set_program_name(x65_north "X65 NorthBridge")
+
+set_target_properties(x65_north PROPERTIES
+    INTERPROCEDURAL_OPTIMIZATION TRUE
+)
+
+target_link_options(x65_north PRIVATE ${IPO_PRINTF_LINK_OPTIONS})
+
+target_compile_options(x65_north PRIVATE
+    -Wall -Wextra
+)
 
 target_include_directories(x65_north PRIVATE
     ${CMAKE_CURRENT_LIST_DIR}/north
@@ -28,10 +58,6 @@ target_compile_definitions(x65_north PRIVATE
     LFS_NO_ASSERT=1
     LFS_NO_MALLOC=1
     LFS_NAME_MAX=16
-)
-
-target_compile_options(x65_north PRIVATE
-    -Wall -Wextra
 )
 
 target_link_libraries(x65_north PRIVATE
@@ -111,8 +137,14 @@ pico_add_extra_outputs(x65_south)
 pico_set_program_name(x65_south "X65 SouthBridge")
 pico_set_binary_type(x65_south copy_to_ram)
 
+set_target_properties(x65_south PROPERTIES
+    INTERPROCEDURAL_OPTIMIZATION TRUE
+)
+
+target_link_options(x65_south PRIVATE ${IPO_PRINTF_LINK_OPTIONS})
+
 target_compile_options(x65_south PRIVATE
-    -Wall -Wextra
+    -Wall -Wextra -O3
 )
 
 target_include_directories(x65_south PRIVATE
@@ -184,8 +216,14 @@ pico_add_extra_outputs(x65_audio)
 pico_set_program_name(x65_audio "X65 SGU-1")
 pico_set_binary_type(x65_audio copy_to_ram)
 
+set_target_properties(x65_audio PROPERTIES
+    INTERPROCEDURAL_OPTIMIZATION TRUE
+)
+
+target_link_options(x65_audio PRIVATE ${IPO_PRINTF_LINK_OPTIONS})
+
 target_compile_options(x65_audio PRIVATE
-    -Wall -Wextra
+    -Wall -Wextra -O3
 )
 
 target_include_directories(x65_audio PRIVATE

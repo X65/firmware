@@ -245,20 +245,9 @@ bool pix_connected(void)
     return absolute_time_diff_us(pix_last_activity, get_absolute_time()) < PIX_ACK_TIMEOUT_MS * 1000;
 }
 
-bool __attribute__((always_inline)) __attribute__((optimize("O3")))
+inline bool __attribute__((always_inline)) __attribute__((optimize("O3")))
 pix_raster_available(void)
 {
     // ~34.7us per raster line at 60Hz
     return absolute_time_diff_us(pix_last_activity, get_absolute_time()) < 35;
-}
-
-inline void __attribute__((always_inline)) __attribute__((optimize("O3")))
-pix_mem_write(uint32_t addr24, uint8_t data)
-{
-    pix_send_request(PIX_MEM_WRITE, 4,
-                     (uint8_t[]) {(uint8_t)(addr24 >> 16),
-                                  (uint8_t)(addr24 >> 8),
-                                  (uint8_t)(addr24 & 0xFF),
-                                  data},
-                     nullptr);
 }
