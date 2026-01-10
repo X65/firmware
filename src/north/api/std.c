@@ -9,7 +9,6 @@
 #include "fatfs/ff.h"
 #include "net/mdm.h"
 #include "sys/com.h"
-#include "sys/pix.h"
 #include "sys/rln.h"
 #include <assert.h>
 #include <stdio.h>
@@ -305,7 +304,7 @@ bool std_api_read_xram(void)
 
 static bool std_out_write(void)
 {
-    if (std_count_moved < std_count_std && com_tx_printable())
+    if (std_count_moved < std_count_std && com_putchar_ready())
         putchar(std_buf_ptr[std_count_moved++]);
     if (std_count_moved >= std_count_std)
     {

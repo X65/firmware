@@ -1,4 +1,4 @@
-/*`
+/*
  * Copyright (c) 2025 Rumbledethumps
  *
  * SPDX-License-Identifier: BSD-3-Clause
@@ -6,9 +6,8 @@
 
 #include "term/font.h"
 #include "font_8.h"
-#include <pico.h>
-
-#include <stdio.h>
+#include "term/term.h"
+#include <pico/stdlib.h>
 #include <string.h>
 
 // 8x8 and 8x16 fonts based on the IBM VGA typeface.
@@ -16,11 +15,7 @@
 // Code Page 437-999 data is only glyphs 128-255.
 // Setting a code page builds the complete font in RAM.
 
-uint8_t
-    __not_in_flash("font")
-        __attribute__((aligned(4)))
-        font8[2048]
-    = {};
+uint8_t __not_in_flash("font") font8[2048] = {};
 
 // missing pages supported by FatFs: 720, 932, 936, 949, 950
 
@@ -1172,6 +1167,22 @@ void font_init(void)
 
 static const uint8_t *font_8hi(uint16_t cp)
 {
+    (void)FONT8_CP437;
+    (void)FONT8_CP737;
+    (void)FONT8_CP771;
+    (void)FONT8_CP775;
+    (void)FONT8_CP850;
+    (void)FONT8_CP852;
+    (void)FONT8_CP855;
+    (void)FONT8_CP857;
+    (void)FONT8_CP860;
+    (void)FONT8_CP861;
+    (void)FONT8_CP862;
+    (void)FONT8_CP863;
+    (void)FONT8_CP864;
+    (void)FONT8_CP865;
+    (void)FONT8_CP866;
+    (void)FONT8_CP869;
     switch (cp)
     {
 #if RP6502_CODE_PAGE == 437 || RP6502_CODE_PAGE == 0
@@ -1252,9 +1263,8 @@ void font_set_code_page(uint16_t cp)
 
     if (current_cp == cp)
         return;
-    if (current_cp)
-        printf("\f");
     current_cp = cp;
+    term_RIS();
 
     if (!cp)
         memset(&font8[128 * 8], 0, 128 * 8);

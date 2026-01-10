@@ -5,10 +5,9 @@
  */
 
 #include "api/api.h"
-#include "fatfs/ff.h"
 #include "main.h"
 #include "sys/cpu.h"
-#include "sys/ria.h"
+#include <fatfs/ff.h>
 #include <pico.h>
 
 #if defined(DEBUG_RIA_API) || defined(DEBUG_RIA_API_API)

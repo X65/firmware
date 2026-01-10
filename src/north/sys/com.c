@@ -5,13 +5,10 @@
  */
 
 #include "sys/com.h"
-#include "api/api.h"
 #include "hid/kbd.h"
 #include "hw.h"
 #include "main.h"
-#include "sys/pix.h"
-#include "sys/rln.h"
-#include "sys/vpu.h"
+#include "sys/mem.h"
 #include <pico/stdio/driver.h>
 #include <pico/stdlib.h>
 
@@ -108,6 +105,14 @@ void com_init(void)
     stdio_set_driver_enabled(&com_stdio_driver, true);
     uart_init(COM_UART, COM_UART_BAUD_RATE);
     com_clear_all_rx();
+    // Wait for the UART to settle then purge everything.
+    // If we leave garbage then there is a chance for
+    // no startup message because break clears it or
+    // VGA detection will fail to detect.
+    busy_wait_ms(5); // 2 fails, 3 works, 5 for safety
+    while (stdio_getchar_timeout_us(0) != PICO_ERROR_TIMEOUT)
+        tight_loop_contents();
+    hw_clear_bits(&uart_get_hw(COM_UART)->rsr, UART_UARTRSR_BITS);
 }
 
 void com_run()

@@ -12,7 +12,7 @@
 #include "term/font.h"
 #ifdef PICO_SDK_VERSION_MAJOR
 #include <pico/stdio/driver.h>
-#include <pico/time.h>
+#include <pico/stdlib.h>
 #endif
 #include <stdio.h>
 
@@ -467,7 +467,7 @@ static void term_out_LF(term_state_t *term, bool wrapping)
     {
         --term->y;
         term_data_t *line_ptr = term->ptr - term->x;
-        for (uint8_t x = 0; x < term->width; x++)
+        for (size_t x = 0; x < term->width; x++)
         {
             line_ptr[x].font_code = ' ';
             line_ptr[x].fg_color = term->fg_color;
@@ -994,6 +994,11 @@ static void term_blink_cursor(term_state_t *term)
         else
             term->timer = delayed_by_us(now, 499700);
     }
+}
+
+void term_RIS()
+{
+    term_out_RIS(&term_96);
 }
 
 void term_task(void)

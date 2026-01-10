@@ -39,7 +39,6 @@ void main_break(void);
  */
 
 void main_task(void);
-bool main_xreg(uint8_t chan, uint8_t addr, uint16_t word);
 bool main_api(uint8_t operation);
 
 #endif /* _RIA_MAIN_H_ */
