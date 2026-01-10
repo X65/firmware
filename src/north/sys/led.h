@@ -10,9 +10,9 @@
 /* System LED control
  */
 
-#include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
+#include <stdbool.h>
 
 /* Main events
  */

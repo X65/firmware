@@ -8,6 +8,7 @@
 #include "hid/kbd.h"
 #include "hid/mou.h"
 #include "hid/pad.h"
+#include "mon/str.h"
 #include "usb/msc.h"
 #include "usb/usb.h"
 #include "usb/xin.h"
@@ -19,6 +20,20 @@
 #else
 static inline void DBG(const char *fmt, ...) { (void)fmt; }
 #endif
+
+#define X(name, value) \
+    static const char __in_flash(STRINGIFY(name)) name[] = value;
+
+X(STR_KEYBOARD_SINGULAR, "keyboard")
+X(STR_KEYBOARD_PLURAL, "keyboards")
+X(STR_MOUSE_SINGULAR, "mouse")
+X(STR_MOUSE_PLURAL, "mice")
+X(STR_GAMEPAD_SINGULAR, "gamepad")
+X(STR_GAMEPAD_PLURAL, "gamepads")
+X(STR_STORAGE_SINGULAR, "storage")
+X(STR_STORAGE_PLURAL, "storage")
+X(STR_STATUS_USB, "USB : %d %s, %d %s, %d %s, %d %s\n")
+#undef X
 
 static bool usb_hid_leds_dirty;
 static uint8_t usb_hid_leds;
@@ -46,15 +61,17 @@ void usb_task(void)
     }
 }
 
-void usb_print_status(void)
+int usb_status_response(char *buf, size_t buf_size, int state)
 {
+    (void)state;
     int count_gamepad = usb_count_hid_pad + xin_pad_count();
-    printf("USB : ");
-    printf("%d keyboard%s, %d %s",
-           usb_count_hid_kbd, usb_count_hid_kbd == 1 ? "" : "s",
-           usb_count_hid_mou, usb_count_hid_mou == 1 ? "mouse" : "mice");
-    printf(", %d gamepad%s", count_gamepad, count_gamepad == 1 ? "" : "s");
-    msc_print_status();
+    int count_storage = msc_count();
+    snprintf(buf, buf_size, STR_STATUS_USB,
+             usb_count_hid_kbd, usb_count_hid_kbd == 1 ? STR_KEYBOARD_SINGULAR : STR_KEYBOARD_PLURAL,
+             usb_count_hid_mou, usb_count_hid_mou == 1 ? STR_MOUSE_SINGULAR : STR_MOUSE_PLURAL,
+             count_gamepad, count_gamepad == 1 ? STR_GAMEPAD_SINGULAR : STR_GAMEPAD_PLURAL,
+             count_storage, count_storage == 1 ? STR_STORAGE_SINGULAR : STR_STORAGE_PLURAL);
+    return -1;
 }
 
 void usb_set_hid_leds(uint8_t leds)

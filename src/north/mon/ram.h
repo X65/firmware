@@ -10,9 +10,9 @@
 /* Monitor commands to inspect or change 6502 RAM.
  */
 
-#include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
+#include <stdbool.h>
 
 /* Main events
  */

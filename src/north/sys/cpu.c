@@ -8,9 +8,11 @@
 #include "api/api.h"
 #include "cpu.pio.h"
 #include "hw.h"
+#include "mon/mon.h"
+#include "mon/str.h"
 #include "sys/cfg.h"
 #include <hardware/clocks.h>
-#include <hardware/pio.h>
+#include <hardware/vreg.h>
 #include <pico/stdlib.h>
 #include <stdio.h>
 
@@ -24,8 +26,52 @@ static inline void DBG(const char *fmt, ...)
 }
 #endif
 
+static uint16_t cpu_phi2_khz;
+static uint16_t cpu_phi2_khz_active;
 static bool cpu_run_requested;
 static absolute_time_t cpu_resb_timer;
+
+#define CPU_PIO_CLKDIV(PHI2_KHZ) (PHI2_KHZ * KHZ * cpu_bus_TICKS * 2)
+
+static float cpu_compute_phi2_hz(uint32_t clk_sys_hz,
+                                 uint32_t clkdiv_int,
+                                 uint8_t clkdiv_frac)
+{
+    float clkdiv = (float)clkdiv_int + (float)clkdiv_frac / 256.0f;
+    float cpu_bus_hz = (float)clk_sys_hz / clkdiv;
+    return cpu_bus_hz / (cpu_bus_TICKS * 2);
+}
+
+static float cpu_get_phi2_hz(void)
+{
+    uint32_t clkdiv_raw = CPU_BUS_PIO->sm[CPU_BUS_SM].clkdiv;
+    uint32_t clkdiv_int = clkdiv_raw >> 16;
+    uint8_t clkdiv_frac = (clkdiv_raw >> 8) & 0xFF;
+
+    return cpu_compute_phi2_hz(clock_get_hz(clk_sys), clkdiv_int, clkdiv_frac);
+}
+
+static void cpu_change_phi2_khz(uint16_t freq_khz)
+{
+    if (freq_khz < CPU_PHI2_MIN_KHZ)
+        freq_khz = CPU_PHI2_MIN_KHZ;
+    if (freq_khz > CPU_PHI2_MAX_KHZ)
+        freq_khz = CPU_PHI2_MAX_KHZ;
+
+    uint32_t clk_sys_hz = clock_get_hz(clk_sys);
+    float clkdiv = (float)(clk_sys_hz) / (float)CPU_PIO_CLKDIV(freq_khz);
+    uint32_t clkdiv_int;
+    uint8_t clkdiv_frac;
+    pio_calculate_clkdiv8_from_float(clkdiv, &clkdiv_int, &clkdiv_frac);
+
+    cpu_phi2_khz = (uint16_t)(cpu_compute_phi2_hz(clk_sys_hz, clkdiv_int, clkdiv_frac) / KHZ);
+    if (cpu_phi2_khz_active == cpu_phi2_khz)
+        return;
+    cpu_phi2_khz_active = cpu_phi2_khz;
+
+    clkdiv = (float)(clk_sys_hz) / (float)CPU_PIO_CLKDIV(cpu_phi2_khz_active);
+    pio_sm_set_clkdiv(CPU_BUS_PIO, CPU_BUS_SM, clkdiv);
+}
 
 void cpu_task(void)
 {
@@ -47,18 +93,17 @@ void cpu_stop(void)
 {
     cpu_run_requested = false;
     gpio_put(CPU_RESB_PIN, false);
-    cpu_resb_timer = delayed_by_us(get_absolute_time(),
-                                   cpu_get_reset_us());
+    cpu_resb_timer = delayed_by_us(get_absolute_time(), cpu_get_reset_us());
+}
+
+bool cpu_api_phi2(void)
+{
+    return api_return_ax(cpu_phi2_khz);
 }
 
 bool cpu_active(void)
 {
     return cpu_run_requested;
-}
-
-bool cpu_api_phi2(void)
-{
-    return api_return_ax(cfg_get_phi2_khz());
 }
 
 uint32_t cpu_get_reset_us(void)
@@ -69,7 +114,7 @@ uint32_t cpu_get_reset_us(void)
     // If provided, use RP6502_RESB_US unless PHI2
     // speed needs longer for 2 clock cycles.
     // One extra microsecond to get ceil.
-    uint32_t reset_us = 2000 / cfg_get_phi2_khz() + 1;
+    uint32_t reset_us = 2000 / cpu_phi2_khz + 1;
     if (!RP6502_RESB_US)
         return reset_us;
     return RP6502_RESB_US < reset_us
@@ -77,47 +122,27 @@ uint32_t cpu_get_reset_us(void)
                : RP6502_RESB_US;
 }
 
-static float cpu_compute_phi2_hz(uint32_t clk_sys_hz,
-                                 uint32_t clkdiv_int,
-                                 uint8_t clkdiv_frac)
+void cpu_load_phi2_khz(const char *str, size_t len)
 {
-    float clkdiv = (float)clkdiv_int + (float)clkdiv_frac / 256.0f;
-    float cpu_bus_hz = (float)clk_sys_hz / clkdiv;
-    return cpu_bus_hz / (cpu_bus_TICKS * 2);
+    uint16_t phi2_khz;
+    if (str_parse_uint16(&str, &len, &phi2_khz) && phi2_khz)
+        cpu_change_phi2_khz(phi2_khz);
 }
 
-uint32_t cpu_validate_phi2_khz(uint32_t freq_khz)
+bool cpu_set_phi2_khz(uint16_t phi2_khz)
 {
-    if (!freq_khz)
-        freq_khz = CPU_PHI2_DEFAULT;
-    if (freq_khz < CPU_PHI2_MIN_KHZ)
-        freq_khz = CPU_PHI2_MIN_KHZ;
-    if (freq_khz > CPU_PHI2_MAX_KHZ)
-        freq_khz = CPU_PHI2_MAX_KHZ;
-
-    uint32_t clk_sys_hz = clock_get_hz(clk_sys);
-    float clkdiv = (float)(clk_sys_hz) / (float)(freq_khz * KHZ * cpu_bus_TICKS * 2);
-    uint32_t clkdiv_int;
-    uint8_t clkdiv_frac;
-    pio_calculate_clkdiv8_from_float(clkdiv, &clkdiv_int, &clkdiv_frac);
-
-    return (uint32_t)(cpu_compute_phi2_hz(clk_sys_hz, clkdiv_int, clkdiv_frac) / KHZ);
-}
-
-static float cpu_get_phi2_hz(void)
-{
-    uint32_t clkdiv_raw = CPU_BUS_PIO->sm[CPU_BUS_SM].clkdiv;
-    uint32_t clkdiv_int = clkdiv_raw >> 16;
-    uint8_t clkdiv_frac = (clkdiv_raw >> 8) & 0xFF;
-
-    return cpu_compute_phi2_hz(clock_get_hz(clk_sys), clkdiv_int, clkdiv_frac);
-}
-
-bool cpu_set_phi2_khz(uint32_t phi2_khz)
-{
-    const float clkdiv = (float)(clock_get_hz(clk_sys)) / (float)(phi2_khz * KHZ * cpu_bus_TICKS * 2);
-    pio_sm_set_clkdiv(CPU_BUS_PIO, CPU_BUS_SM, clkdiv);
+    if (phi2_khz < CPU_PHI2_MIN_KHZ || phi2_khz > CPU_PHI2_MAX_KHZ)
+        return false;
+    uint16_t old_phi2_khz = cpu_phi2_khz;
+    cpu_change_phi2_khz(phi2_khz);
+    if (old_phi2_khz != cpu_phi2_khz)
+        cfg_save();
     return true;
+}
+
+uint16_t cpu_get_phi2_khz(void)
+{
+    return cpu_phi2_khz;
 }
 
 static void cpu_bus_pio_init(void)
@@ -170,9 +195,15 @@ void cpu_init(void)
 
     if (!gpio_get(CPU_RESB_PIN))
         cpu_resb_timer = delayed_by_us(get_absolute_time(), cpu_get_reset_us());
+
+    // Setting default
+    cpu_change_phi2_khz(cpu_phi2_khz ? cpu_phi2_khz : CPU_PHI2_DEFAULT);
 }
 
-void cpu_print_status(void)
+int cpu_status_response(char *buf, size_t buf_size, int state)
 {
-    printf("CPU : %.2fMHz\n", cpu_get_phi2_hz() / MHZ);
+    if (state < 0)
+        return state;
+    snprintf(buf, buf_size, "CPU : %.2fMHz\n", cpu_get_phi2_hz() / MHZ);
+    return -1;
 }

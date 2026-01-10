@@ -7,6 +7,8 @@
 #include "sys/sys.h"
 #include "api/clk.h"
 #include "main.h"
+#include "mon/mon.h"
+#include "mon/str.h"
 #include "net/ble.h"
 #include "net/ntp.h"
 #include "net/wfi.h"
@@ -14,9 +16,11 @@
 #include "sys/mem.h"
 #include "sys/ria.h"
 #include "sys/vpu.h"
+#include "usb/msc.h"
 #include "usb/usb.h"
 #include "version.h"
 #include <hardware/watchdog.h>
+#include <pico/stdio.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -30,27 +34,47 @@ static inline void DBG(const char *fmt, ...)
 }
 #endif
 
-__in_flash("nb_sys_sys") static const char SYS_VERSION[] = "NBr "
+#define X(name, value) \
+    static const char __in_flash(STRINGIFY(name)) name[] = value;
+
+X(STR_SYS_FULL_TERM_RESET, "\30\33c\n")
+X(STR_SYS_DEBUG_TERM_RESET, "\30\33[0m\33[?25h\n\n")
+#undef X
+
+__in_flash("SYS_NAME") static const char SYS_NAME[] = RP6502_NAME "\n";
+
+__in_flash("SYS_VERSION") static const char SYS_VERSION[] = "NBr "
+#if !defined(RP6502_VERSION)
 #if defined(GIT_TAG)
     GIT_TAG
 #else
     GIT_REV "@" GIT_BRANCH
 #endif
-#ifdef RP6502_RIA_W
-                                                           " W"
+#else
+                                                            "Version " RP6502_VERSION
 #endif
-    ;
+#ifdef RP6502_RIA_W
+                                                            " W"
+#endif
+                                                            "\n";
 
-static void sys_print_status(void)
+void sys_init(void)
 {
-    puts(RP6502_NAME);
-    puts(SYS_VERSION);
+#ifdef NDEBUG
+    mon_add_response_str(STR_SYS_FULL_TERM_RESET);
+#else
+    mon_add_response_str(STR_SYS_DEBUG_TERM_RESET);
+#endif
+    mon_add_response_str(SYS_NAME);
+    mon_add_response_str(SYS_VERSION);
+    mon_add_response_fn(vpu_boot_response);
 }
 
 void sys_mon_reboot(const char *args, size_t len)
 {
     (void)(args);
     (void)(len);
+    stdio_flush();
     watchdog_reboot(0, 0, 0);
 }
 
@@ -65,24 +89,17 @@ void sys_mon_status(const char *args, size_t len)
 {
     (void)(args);
     (void)(len);
-    sys_print_status();
-    vpu_print_status();
-    ria_print_status();
-    vpu_fetch_status();
-    cpu_print_status();
-    ram_print_status();
-    wfi_print_status();
-    ntp_print_status();
-    clk_print_status();
-    ble_print_status();
-    usb_print_status();
-}
-
-void sys_init(void)
-{
-    // Reset terminal.
-    puts("\30\33c");
-    // Hello, world.
-    sys_print_status();
-    vpu_print_status();
+    mon_add_response_str(SYS_NAME);
+    mon_add_response_str(SYS_VERSION);
+    mon_add_response_fn(vpu_boot_response);
+    mon_add_response_fn(ria_status_response);
+    mon_add_response_fn(vpu_status_response);
+    mon_add_response_fn(cpu_status_response);
+    mon_add_response_fn(ram_status_response);
+    mon_add_response_fn(wfi_status_response);
+    mon_add_response_fn(ntp_status_response);
+    mon_add_response_fn(clk_status_response);
+    mon_add_response_fn(ble_status_response);
+    mon_add_response_fn(usb_status_response);
+    mon_add_response_fn(msc_status_response);
 }

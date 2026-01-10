@@ -14,7 +14,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#define CPU_PHI2_MIN_KHZ 800
+#define CPU_PHI2_MIN_KHZ 100
 #define CPU_PHI2_MAX_KHZ 14000
 #define CPU_PHI2_DEFAULT 8000
 
@@ -31,20 +31,15 @@ bool cpu_api_phi2(void);
 // we're waiting for the RESB timer.
 bool cpu_active(void);
 
-void cpu_print_status(void);
-
-/* Config handlers
- */
-
-// The will return a validated freq_khz from the
-// range defined above. 0 returns the default.
-uint32_t cpu_validate_phi2_khz(uint32_t freq_khz);
-
-// This was a major engineering effort.
-bool cpu_set_phi2_khz(uint32_t freq_khz);
+int cpu_status_response(char *buf, size_t buf_size, int state);
 
 // Return calculated reset time. May be higher than configured
 // to guarantee the CPU gets two clock cycles during reset.
 uint32_t cpu_get_reset_us();
+
+// Configuration setting PHI2
+void cpu_load_phi2_khz(const char *str, size_t len);
+bool cpu_set_phi2_khz(uint16_t phi2_khz);
+uint16_t cpu_get_phi2_khz(void);
 
 #endif /* _RIA_SYS_CPU_H_ */

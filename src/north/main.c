@@ -30,8 +30,6 @@
 #include "sys/cpu.h"
 #include "sys/led.h"
 #include "sys/lfs.h"
-#include "sys/mdm.h"
-#include "sys/mem.h"
 #include "sys/pix.h"
 #include "sys/ria.h"
 #include "sys/rln.h"
@@ -50,8 +48,11 @@
 // Initialization event for power up, reboot command, or reboot button.
 static void init(void)
 {
-    // Bring up stdio dispatcher first.
+    // Bring up stdio dispatcher first for DBG().
     com_init();
+
+    // Queue startup message.
+    sys_init();
 
     // PSRAM and L1 cache.
     ram_init();
@@ -66,11 +67,9 @@ static void init(void)
     lfs_init();
     cfg_init(); // Config stored on lfs
 
-    // Print startup message after setting code page.
-    oem_init();
-    sys_init(); // This clears screen
-
     // Misc device drivers, add yours here.
+    cyw_init();
+    oem_init();
     usb_init();
     led_init();
     kbd_init();
@@ -175,9 +174,11 @@ bool main_xreg(uint8_t chan, uint8_t addr, uint16_t word)
         return mou_xreg(word);
     case 0x002:
         return pad_xreg(word);
-    // Channel 1 for audio devices.
+    // // Channel 1 for audio devices.
     // case 0x100:
     //     return psg_xreg(word);
+    // case 0x101:
+    //     return opl_xreg(word);
     default:
         return false;
     }
@@ -315,12 +316,6 @@ bool main_active(void)
 int main(void)
 {
     init();
-
-    // Trigger a reclock
-    cpu_set_phi2_khz(cfg_get_phi2_khz());
-    // and reset Radio
-    cyw_reset_radio();
-
     while (true)
     {
         main_task();
@@ -348,6 +343,5 @@ int main(void)
             is_breaking = false;
         }
     }
-
     __builtin_unreachable();
 }

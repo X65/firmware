@@ -4,14 +4,10 @@
  * SPDX-License-Identifier: BSD-3-Clause
  */
 
-#include <btstack.h>
-
-#if !defined(RP6502_RIA_W) || !defined(ENABLE_BLE)
+#if !defined(RP6502_RIA_W)
 #include "net/ble.h"
 void ble_task(void) {}
-void ble_shutdown(void) {}
-void ble_print_status(void) {}
-void ble_set_config(uint8_t) {}
+int ble_status_response(char *, size_t, int) { return -1; }
 void ble_set_hid_leds(uint8_t) {}
 #else
 
@@ -21,10 +17,12 @@ void ble_set_hid_leds(uint8_t) {}
 #include "hid/pad.h"
 #include "net/ble.h"
 #include "net/cyw.h"
+#include "mon/str.h"
 #include "sys/cfg.h"
 #include "sys/led.h"
 #include <stdio.h>
 #include <pico/time.h>
+#include <btstack.h>
 
 #if defined(DEBUG_RIA_NET) || defined(DEBUG_RIA_NET_BLE)
 #include <stdio.h>
@@ -33,6 +31,23 @@ void ble_set_hid_leds(uint8_t) {}
 static inline void DBG(const char *fmt, ...) { (void)fmt; }
 #endif
 
+#define X(name, value) \
+    static const char __in_flash(STRINGIFY(name)) name[] = value;
+
+X(STR_STATUS_BLE_FULL, "BLE : %d %s, %d %s, %d %s%s\n")
+X(STR_STATUS_BLE_SIMPLE, "BLE : %s\n")
+X(STR_KEYBOARD_SINGULAR, "keyboard")
+X(STR_KEYBOARD_PLURAL, "keyboards")
+X(STR_MOUSE_SINGULAR, "mouse")
+X(STR_MOUSE_PLURAL, "mice")
+X(STR_GAMEPAD_SINGULAR, "gamepad")
+X(STR_GAMEPAD_PLURAL, "gamepads")
+X(STR_BLE_PAIRING, ", pairing")
+X(STR_RF_OFF, "RF off")
+X(STR_DISABLED, "Disabled")
+#undef X
+
+static uint8_t ble_enabled = 1;
 static bool ble_initialized;
 static bool ble_pairing;
 static uint8_t ble_count_kbd;
@@ -55,12 +70,34 @@ static uint8_t hid_descriptor_storage[3 * 1024];
 static absolute_time_t ble_scan_restarts_at;
 static hci_con_handle_t ble_hci_con_handle_in_progress;
 
-static inline void ble_restart_scan(void)
+static void ble_connect_with_whitelist(void)
+{
+    // Add all bonded devices to whitelist
+    gap_whitelist_clear();
+    int added = 0;
+    for (int i = 0; i < le_device_db_max_count(); i++)
+    {
+        int db_addr_type = BD_ADDR_TYPE_UNKNOWN;
+        bd_addr_t db_addr;
+        le_device_db_info(i, &db_addr_type, db_addr, NULL);
+        if (db_addr_type != BD_ADDR_TYPE_UNKNOWN)
+        {
+            gap_whitelist_add(db_addr_type, db_addr);
+            added++;
+        }
+    }
+    if (added > 0)
+    {
+        gap_connect_with_whitelist();
+        DBG("BLE: Started whitelist connection for %d bonded device(s)\n", added);
+    }
+}
+
+static inline void ble_restart_reconnection(void)
 {
     ble_hci_con_handle_in_progress = HCI_CON_HANDLE_INVALID;
-    // If pending, fire it off immediately.
-    if (ble_scan_restarts_at)
-        ble_scan_restarts_at = get_absolute_time();
+    // Always restart connection attempts for bonded devices
+    ble_scan_restarts_at = get_absolute_time();
 }
 
 void ble_set_hid_leds(uint8_t leds)
@@ -85,7 +122,7 @@ static void ble_hids_client_handler(uint8_t packet_type, uint16_t channel, uint8
     case GATTSERVICE_SUBEVENT_HID_SERVICE_CONNECTED:
     {
         DBG("BLE: GATTSERVICE_SUBEVENT_HID_SERVICE_CONNECTED\n");
-        ble_restart_scan();
+        ble_restart_reconnection();
         uint8_t status = gattservice_subevent_hid_service_connected_get_status(packet);
         uint16_t cid = gattservice_subevent_hid_service_connected_get_hids_cid(packet);
         if (status != ERROR_CODE_SUCCESS)
@@ -148,12 +185,17 @@ static void ble_hci_packet_handler(uint8_t packet_type, uint16_t channel, uint8_
         if (btstack_event_state_get_state(packet) == HCI_STATE_WORKING)
         {
             DBG("BLE: Bluetooth LE Central ready and working!\n");
-            ble_restart_scan();
+            // Start with whitelist connection for bonded devices
+            ble_connect_with_whitelist();
         }
         break;
 
     case GAP_EVENT_ADVERTISING_REPORT:
     {
+        // Only process advertisements during pairing mode
+        if (!ble_pairing || ble_scan_restarts_at)
+            break;
+
         bd_addr_t event_addr;
         gap_event_advertising_report_get_address(packet, event_addr);
         uint8_t addr_type = gap_event_advertising_report_get_address_type(packet);
@@ -161,41 +203,10 @@ static void ble_hci_packet_handler(uint8_t packet_type, uint16_t channel, uint8_
         uint8_t data_length = gap_event_advertising_report_get_data_length(packet);
         const uint8_t *data = gap_event_advertising_report_get_data(packet);
 
-        // Skip if we're connecting
-        if (ble_scan_restarts_at)
+        // Require HID service in advertisement for new devices
+        if (!ad_data_contains_uuid16(data_length, data,
+                                     ORG_BLUETOOTH_SERVICE_HUMAN_INTERFACE_DEVICE))
             break;
-
-        // DBG("BLE: GAP_EVENT_ADVERTISING_REPORT %s\n", bd_addr_to_str(event_addr));
-
-        // Look up device in LE device database to check if it's bonded
-        bool is_bonded = false;
-        for (int i = 0; i < le_device_db_max_count(); i++)
-        {
-            int db_addr_type = BD_ADDR_TYPE_UNKNOWN;
-            bd_addr_t db_addr;
-            le_device_db_info(i, &db_addr_type, db_addr, NULL);
-            // Skip unused entries
-            if (db_addr_type == BD_ADDR_TYPE_UNKNOWN)
-                continue;
-            // Check if this entry matches our device
-            if ((db_addr_type == addr_type) && !memcmp(db_addr, event_addr, 6))
-            {
-                is_bonded = true;
-                break;
-            }
-        }
-
-        if (!is_bonded)
-        {
-            // Don't add new devices unless pairing is active
-            if (!ble_pairing)
-                break;
-            // Bonded devices don't always advertise HID
-            // but it's required for pairing.
-            if (!ad_data_contains_uuid16(data_length, data,
-                                         ORG_BLUETOOTH_SERVICE_HUMAN_INTERFACE_DEVICE))
-                break;
-        }
 
         uint8_t connect_status = gap_connect(event_addr, addr_type);
         if (connect_status == ERROR_CODE_SUCCESS)
@@ -203,15 +214,14 @@ static void ble_hci_packet_handler(uint8_t packet_type, uint16_t channel, uint8_
             hci_connection_t *conn = hci_connection_for_bd_addr_and_type(event_addr, addr_type);
             if (conn)
                 ble_hci_con_handle_in_progress = conn->con_handle;
-            DBG("BLE: Found HID %s, connecting... (bonded: %s)\n",
-                bd_addr_to_str(event_addr), is_bonded ? "yes" : "no");
+            DBG("BLE: Found HID %s, connecting...\n", bd_addr_to_str(event_addr));
             gap_stop_scan();
             ble_scan_restarts_at = make_timeout_time_ms(BLE_CONNECT_TIMEOUT_MS);
         }
         else
         {
-            DBG("BLE: Found HID %s, connect failed with status 0x%02x (bonded: %s)\n",
-                bd_addr_to_str(event_addr), connect_status, is_bonded ? "yes" : "no");
+            DBG("BLE: Found HID %s, connect failed with status 0x%02x\n",
+                bd_addr_to_str(event_addr), connect_status);
         }
         break;
     }
@@ -226,7 +236,7 @@ static void ble_hci_packet_handler(uint8_t packet_type, uint16_t channel, uint8_
             if (status != ERROR_CODE_SUCCESS)
             {
                 DBG("BLE: LE Connection failed - Status: 0x%02x\n", status);
-                ble_restart_scan();
+                ble_restart_reconnection();
                 break;
             }
             hci_con_handle_t hci_con_handle = hci_subevent_le_connection_complete_get_connection_handle(packet);
@@ -236,7 +246,7 @@ static void ble_hci_packet_handler(uint8_t packet_type, uint16_t channel, uint8_
             if (hids_status != ERROR_CODE_SUCCESS)
             {
                 DBG("BLE: HIDS client connection failed: 0x%02x\n", hids_status);
-                ble_restart_scan();
+                ble_restart_reconnection();
             }
         }
         break;
@@ -248,7 +258,7 @@ static void ble_hci_packet_handler(uint8_t packet_type, uint16_t channel, uint8_
         DBG("BLE: Disconnection Complete - Handle: 0x%04x\n", con_handle);
         // New connection disconnected before success or timeout
         if (ble_hci_con_handle_in_progress == con_handle)
-            ble_restart_scan();
+            ble_restart_reconnection();
         break;
     }
     }
@@ -296,9 +306,11 @@ static void ble_sm_packet_handler(uint8_t packet_type, uint16_t channel, uint8_t
     case SM_EVENT_PAIRING_COMPLETE:
         if (sm_event_pairing_complete_get_status(packet) == ERROR_CODE_SUCCESS)
         {
-            DBG("BLE: Pairing complete - disabling pairing mode\n");
+            DBG("BLE: Pairing complete - switching to whitelist connection\n");
             ble_pairing = false;
             led_blink(false);
+            // Restart connection process to include newly bonded device
+            ble_scan_restarts_at = get_absolute_time();
         }
         else
         {
@@ -372,11 +384,12 @@ void ble_task(void)
 {
     if (!ble_initialized)
     {
-        if (cfg_get_rf() && cfg_get_ble())
+        if (cyw_get_rf_enable() && ble_enabled)
         {
             ble_init_stack();
             ble_initialized = true;
-            ble_scan_restarts_at = make_timeout_time_ms(BLE_CONNECT_TIMEOUT_MS);
+            // Start whitelist connection attempts after brief delay
+            ble_scan_restarts_at = make_timeout_time_ms(100);
         }
         return;
     }
@@ -386,12 +399,22 @@ void ble_task(void)
     {
         ble_scan_restarts_at = 0;
         gap_connect_cancel();
-        gap_start_scan();
-        DBG("BLE: restarting gap_start_scan\n");
+        
+        if (ble_pairing)
+        {
+            // In pairing mode, use active scanning for new devices
+            gap_start_scan();
+            DBG("BLE: Starting scan for pairing\n");
+        }
+        else
+        {
+            // Not in pairing mode, use whitelist for bonded devices
+            ble_connect_with_whitelist();
+        }
     }
 }
 
-void ble_set_config(uint8_t ble)
+static void ble_set_config(uint8_t ble)
 {
     switch (ble)
     {
@@ -401,12 +424,18 @@ void ble_set_config(uint8_t ble)
     case 1:
         ble_pairing = false;
         led_blink(false);
+        // Restart connection attempts for bonded devices
+        if (ble_initialized)
+            ble_scan_restarts_at = get_absolute_time();
         break;
     case 2:
-        if (cfg_get_rf())
+        if (cyw_get_rf_enable())
         {
             ble_pairing = true;
             led_blink(true);
+            // Trigger scan restart for pairing mode
+            if (ble_initialized)
+                ble_scan_restarts_at = get_absolute_time();
         }
         break;
     }
@@ -426,6 +455,7 @@ void ble_shutdown(void)
         hci_disconnect_all();
         gap_stop_scan();
         gap_connect_cancel();
+        gap_whitelist_clear();
         hci_power_control(HCI_POWER_OFF);
         hci_remove_event_handler(&hci_event_callback_registration);
         sm_remove_event_handler(&sm_event_callback_registration);
@@ -439,23 +469,53 @@ void ble_shutdown(void)
     ble_initialized = false;
 }
 
-void ble_print_status(void)
+int ble_status_response(char *buf, size_t buf_size, int state)
 {
-    if (cfg_get_ble())
+    (void)state;
+    if (ble_enabled)
     {
-        if (cfg_get_rf())
-            printf("BLE : %d keyboard%s, %d %s, %d gamepad%s%s\n",
-                   ble_count_kbd, ble_count_kbd == 1 ? "" : "s",
-                   ble_count_mou, ble_count_mou == 1 ? "mouse" : "mice",
-                   ble_count_pad, ble_count_pad == 1 ? "" : "s",
-                   ble_pairing ? ", pairing" : "");
+        if (cyw_get_rf_enable())
+            snprintf(buf, buf_size, STR_STATUS_BLE_FULL,
+                     ble_count_kbd, ble_count_kbd == 1 ? STR_KEYBOARD_SINGULAR : STR_KEYBOARD_PLURAL,
+                     ble_count_mou, ble_count_mou == 1 ? STR_MOUSE_SINGULAR : STR_MOUSE_PLURAL,
+                     ble_count_pad, ble_count_pad == 1 ? STR_GAMEPAD_SINGULAR : STR_GAMEPAD_PLURAL,
+                     ble_pairing ? STR_BLE_PAIRING : "");
         else
-            printf("BLE : radio off\n");
+            snprintf(buf, buf_size, STR_STATUS_BLE_SIMPLE, STR_RF_OFF);
     }
     else
     {
-        printf("BLE : disabled\n");
+        snprintf(buf, buf_size, STR_STATUS_BLE_SIMPLE, STR_DISABLED);
     }
+    return -1;
 }
 
-#endif /* RP6502_RIA_W && ENABLE_BLE */
+void ble_load_enabled(const char *str, size_t len)
+{
+    str_parse_uint8(&str, &len, &ble_enabled);
+    if (ble_enabled > 1)
+        ble_enabled = 0;
+    ble_set_config(ble_enabled);
+}
+
+bool ble_set_enabled(uint8_t ble)
+{
+    if (ble > 2)
+        return false;
+    ble_set_config(ble);
+    if (ble == 2)
+        ble = 1;
+    if (ble_enabled != ble)
+    {
+        ble_enabled = ble;
+        cfg_save();
+    }
+    return true;
+}
+
+uint8_t ble_get_enabled(void)
+{
+    return ble_enabled;
+}
+
+#endif /* RP6502_RIA_W */

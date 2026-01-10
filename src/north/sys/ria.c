@@ -561,10 +561,12 @@ void ria_init(void)
     multicore_launch_core1(act_loop);
 }
 
-void ria_print_status(void)
+int ria_status_response(char *buf, size_t buf_size, int state)
 {
+    (void)state;
     const float clk = (float)(clock_get_hz(clk_sys));
-    printf("CLKN: %.1fMHz\n", clk / MHZ);
+    snprintf(buf, buf_size, "CLKN: %.1fMHz\n", clk / MHZ);
+    return -1;
 }
 
 uint8_t ria_read_mem(uint32_t addr24)

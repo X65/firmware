@@ -7,7 +7,7 @@
 #ifndef _RIA_SYS_VPU_H_
 #define _RIA_SYS_VPU_H_
 
-/* Communications with VPU (inside South Bridge RP2350).
+/* Communications with RP6502-VGA.
  */
 
 #include <stdbool.h>
@@ -26,8 +26,8 @@ void vpu_break(void);
 // Global VPU status
 extern uint16_t vpu_raster;
 
-// For monitor status command.
-void vpu_print_status(void);
-void vpu_fetch_status(void);
+// Responders for status.
+int vpu_boot_response(char *buf, size_t buf_size, int state);
+int vpu_status_response(char *buf, size_t buf_size, int state);
 
 #endif /* _RIA_SYS_VPU_H_ */

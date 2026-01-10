@@ -1,22 +1,18 @@
 /*
  * Copyright (c) 2025 Rumbledethumps
+ * Copyright (c) 2024-2026 Tomasz Sterna
  *
  * SPDX-License-Identifier: BSD-3-Clause
  */
 
 #include "sys/vpu.h"
-#include "../pix.h"
-#include "sys/cpu.h"
-#include "sys/mem.h"
 #include "sys/pix.h"
-#include "sys/ria.h"
 #include "sys/rln.h"
 #include <hardware/clocks.h>
 #include <pico/stdlib.h>
 #include <stdio.h>
-#include <strings.h>
 
-#if defined(DEBUG_RIA_SYS) || defined(DEBUG_RIA_SYS_VPU)
+#if defined(DEBUG_RIA_SYS) || defined(DEBUG_RIA_SYS_VGA)
 #include <stdio.h>
 #define DBG(...) fprintf(stderr, __VA_ARGS__)
 #else
@@ -26,8 +22,10 @@ static inline void DBG(const char *fmt, ...)
 }
 #endif
 
-// How long to wait for version string
+// How long to wait before aborting version string
 #define VPU_VERSION_WATCHDOG_MS 2
+
+bool vpu_needs_reset = true;
 
 uint16_t vpu_raster;
 
@@ -95,17 +93,25 @@ void vpu_stop(void)
 
 void vpu_break(void)
 {
+    vpu_needs_reset = true;
 }
 
-void vpu_print_status(void)
+int vpu_boot_response(char *buf, size_t buf_size, int state)
 {
-    puts(*vpu_version_message ? vpu_version_message : "VPU Not Found");
+    (void)state;
+    if (!*vpu_version_message)
+        return -1;
+    snprintf(buf, buf_size, "%s\n", *vpu_version_message ? vpu_version_message : "VPU Not Found");
+    return -1;
 }
 
 static bool vpu_status_done;
 
 static void vpu_rln_status_callback(bool timeout, const char *buf, size_t length)
 {
+    (void)buf;
+    (void)length;
+
     if (timeout)
         vpu_status_done = true;
     else // reload for next line
@@ -113,10 +119,14 @@ static void vpu_rln_status_callback(bool timeout, const char *buf, size_t length
                       80, 0);
 }
 
-void vpu_fetch_status(void)
+int vpu_status_response(char *buf, size_t buf_size, int state)
 {
+    (void)buf;
+    (void)buf_size;
+    (void)state;
+
     if (!pix_connected())
-        return;
+        return -1;
 
     while (stdio_getchar_timeout_us(0) != PICO_ERROR_TIMEOUT)
         tight_loop_contents();
@@ -129,9 +139,11 @@ void vpu_fetch_status(void)
     while (!resp.status)
         tight_loop_contents();
     if (PIX_REPLY_CODE(resp.reply) != PIX_ACK)
-        return;
+        return -2;
     while (!vpu_status_done)
     {
         rln_task();
     }
+
+    return -1;
 }

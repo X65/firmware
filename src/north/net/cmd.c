@@ -5,10 +5,14 @@
  */
 
 #include "net/cmd.h"
+#include "net/cyw.h"
 #include "net/mdm.h"
+#include "net/wfi.h"
+#include "mon/str.h"
 #include "sys/cfg.h"
 #include <stdio.h>
 #include <ctype.h>
+#include <pico.h>
 #include <string.h>
 
 #if defined(DEBUG_RIA_NET) || defined(DEBUG_RIA_NET_CMD)
@@ -17,6 +21,18 @@
 #else
 static inline void DBG(const char *fmt, ...) { (void)fmt; }
 #endif
+
+#define X(name, value) \
+    static const char __in_flash(STRINGIFY(name)) name[] = value;
+
+X(STR_RF, "RF")
+X(STR_RFCC, "RFCC")
+X(STR_SSID, "SSID")
+X(STR_PASS, "PASS")
+X(STR_WORLDWIDE, "Worldwide")
+X(STR_PARENS_NONE, "(none)")
+X(STR_PARENS_SET, "(set)")
+#undef X
 
 // The design philosophy here is to use AT+XXX? and AT+XXX=YYY
 // for everything modern like WiFi and telnet configuration.
@@ -401,7 +417,7 @@ static bool cmd_parse_amp(const char **s)
 static int cmd_plus_rf_response(char *buf, size_t buf_size, int state)
 {
     (void)state;
-    snprintf(buf, buf_size, "%u\r\n", cfg_get_rf());
+    snprintf(buf, buf_size, "%u\r\n", cyw_get_rf_enable());
     return -1;
 }
 
@@ -413,7 +429,7 @@ static bool cmd_plus_rf(const char **s)
     switch (toupper(ch))
     {
     case '=':
-        return cfg_set_rf(cmd_parse_num(s));
+        return cyw_set_rf_enable(cmd_parse_num(s));
     case '?':
         mdm_set_response_fn(cmd_plus_rf_response, 0);
         return true;
@@ -426,8 +442,8 @@ static bool cmd_plus_rf(const char **s)
 static int cmd_plus_rfcc_response(char *buf, size_t buf_size, int state)
 {
     (void)state;
-    const char *cc = cfg_get_rfcc();
-    snprintf(buf, buf_size, "%s\r\n", strlen(cc) ? cc : "Worldwide");
+    const char *cc = cyw_get_rf_country_code();
+    snprintf(buf, buf_size, "%s\r\n", strlen(cc) ? cc : STR_WORLDWIDE);
     return -1;
 }
 
@@ -439,7 +455,7 @@ static bool cmd_plus_rfcc(const char **s)
     switch (toupper(ch))
     {
     case '=':
-        bool result = cfg_set_rfcc(*s);
+        bool result = cyw_set_rf_country_code(*s);
         *s += strlen(*s);
         return result;
     case '?':
@@ -454,7 +470,7 @@ static bool cmd_plus_rfcc(const char **s)
 static int cmd_plus_ssid_response(char *buf, size_t buf_size, int state)
 {
     (void)state;
-    snprintf(buf, buf_size, "%s\r\n", cfg_get_ssid());
+    snprintf(buf, buf_size, "%s\r\n", wfi_get_ssid());
     return -1;
 }
 
@@ -466,7 +482,7 @@ static bool cmd_plus_ssid(const char **s)
     switch (toupper(ch))
     {
     case '=':
-        bool result = cfg_set_ssid(*s);
+        bool result = wfi_set_ssid(*s);
         *s += strlen(*s);
         return result;
     case '?':
@@ -481,7 +497,7 @@ static bool cmd_plus_ssid(const char **s)
 static int cmd_plus_pass_response(char *buf, size_t buf_size, int state)
 {
     (void)state;
-    snprintf(buf, buf_size, "%s\r\n", strlen(cfg_get_pass()) ? "(set)" : "(none)");
+    snprintf(buf, buf_size, "%s\r\n", strlen(wfi_get_pass()) ? STR_PARENS_SET : STR_PARENS_NONE);
     return -1;
 }
 
@@ -493,7 +509,7 @@ static bool cmd_plus_pass(const char **s)
     switch (toupper(ch))
     {
     case '=':
-        bool result = cfg_set_pass(*s);
+        bool result = wfi_set_pass(*s);
         *s += strlen(*s);
         return result;
     case '?':
@@ -507,22 +523,22 @@ static bool cmd_plus_pass(const char **s)
 // +
 static bool cmd_parse_modern(const char **s)
 {
-    if (!strncasecmp(*s, "RFCC", 4))
+    if (!strncasecmp(*s, STR_RFCC, 4))
     {
         (*s) += 4;
         return cmd_plus_rfcc(s);
     }
-    if (!strncasecmp(*s, "RF", 2))
+    if (!strncasecmp(*s, STR_RF, 2))
     {
         (*s) += 2;
         return cmd_plus_rf(s);
     }
-    if (!strncasecmp(*s, "SSID", 4))
+    if (!strncasecmp(*s, STR_SSID, 4))
     {
         (*s) += 4;
         return cmd_plus_ssid(s);
     }
-    if (!strncasecmp(*s, "PASS", 4))
+    if (!strncasecmp(*s, STR_PASS, 4))
     {
         (*s) += 4;
         return cmd_plus_pass(s);

@@ -7,11 +7,12 @@
 #ifndef RP6502_RIA_W
 #include "net/ntp.h"
 void ntp_task() {}
-void ntp_print_status() {}
+int ntp_status_response(char *, size_t, int) { return -1; }
 #else
 
 #include "net/ntp.h"
 #include "net/wfi.h"
+#include "mon/str.h"
 #include <lwip/dns.h>
 #include <lwip/udp.h>
 #include <pico/aon_timer.h>
@@ -25,7 +26,23 @@ void ntp_print_status() {}
 static inline void DBG(const char *fmt, ...) { (void)fmt; }
 #endif
 
-#define NTP_SERVER "pool.ntp.org"
+#define X(name, value) \
+    static const char __in_flash(STRINGIFY(name)) name[] = value;
+
+X(STR_NTP_SERVER, "pool.ntp.org")
+
+X(STR_NTP_NO_NETWORK, "no network")
+X(STR_NTP_DNS_LOOKUP, "DNS lookup")
+X(STR_NTP_DNS_FAIL, "DNS fail")
+X(STR_NTP_REQUESTED, "requested")
+X(STR_NTP_REQUEST_TIMEOUT, "request timeout")
+X(STR_NTP_SET_TIME_FAILURE, "set time failure")
+X(STR_NTP_SUCCESS, "success")
+
+X(STR_INTERNAL_ERROR, "internal error")
+X(STR_STATUS_NTP, "NTP : %s\n")
+#undef X
+
 #define NTP_MSG_LEN 48
 #define NTP_PORT 123
 #define NTP_DELTA 2208988800 // (1 Jan 1970) - (1 Jan 1900)
@@ -148,7 +165,7 @@ void ntp_task(void)
         }
         break;
     case ntp_state_dns:
-        err_t err = dns_gethostbyname(NTP_SERVER, &ntp_server_address, ntp_dns_found, NULL);
+        err_t err = dns_gethostbyname(STR_NTP_SERVER, &ntp_server_address, ntp_dns_found, NULL);
         ntp_timeout_timer = make_timeout_time_ms(NTP_TIMEOUT_SECS * 1000);
         if (err == ERR_OK)
             ntp_state = ntp_state_request;
@@ -188,38 +205,37 @@ void ntp_task(void)
     }
 }
 
-void ntp_print_status(void)
+static const char *ntp_status_str(void)
 {
-    printf("NTP : ");
     switch (ntp_state)
     {
     case ntp_state_init:
-        puts("no network");
-        break;
+        return STR_NTP_NO_NETWORK;
     case ntp_state_dns:
     case ntp_state_dns_wait:
-        puts("DNS lookup");
-        break;
+        return STR_NTP_DNS_LOOKUP;
     case ntp_state_dns_fail:
-        puts("DNS fail");
-        break;
+        return STR_NTP_DNS_FAIL;
     case ntp_state_request:
     case ntp_state_request_wait:
-        puts("requested");
-        break;
+        return STR_NTP_REQUESTED;
     case ntp_state_request_timeout:
-        puts("request timeout");
-        break;
+        return STR_NTP_REQUEST_TIMEOUT;
     case ntp_state_set_time_fail:
-        puts("set time failure");
-        break;
+        return STR_NTP_SET_TIME_FAILURE;
     case ntp_state_success:
-        puts("success");
-        break;
+        return STR_NTP_SUCCESS;
     case ntp_state_internal_error:
-        puts("internal error");
-        break;
+    default:
+        return STR_INTERNAL_ERROR;
     }
+}
+
+int ntp_status_response(char *buf, size_t buf_size, int state)
+{
+    (void)state;
+    snprintf(buf, buf_size, STR_STATUS_NTP, ntp_status_str());
+    return -1;
 }
 
 #endif /* RP6502_RIA_W */

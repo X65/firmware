@@ -5,68 +5,232 @@
  * SPDX-License-Identifier: BSD-3-Clause
  */
 
+#include "main.h"
+#include "api/api.h"
+#include "mon/mon.h"
 #include "mon/ram.h"
 #include "mon/str.h"
-#include "sys/mem.h"
+#include "sys/pix.h"
 #include "sys/ria.h"
 #include "sys/rln.h"
 #include <stdio.h>
+#include <ctype.h>
 
 #if defined(DEBUG_RIA_MON) || defined(DEBUG_RIA_MON_RAM)
 #include <stdio.h>
 #define DBG(...) fprintf(stderr, __VA_ARGS__)
 #else
-static inline void DBG(const char *fmt, ...)
-{
-    (void)fmt;
-}
+static inline void DBG(const char *fmt, ...) { (void)fmt; }
 #endif
+
+#define X(name, value) \
+    static const char __in_flash(STRINGIFY(name)) name[] = value;
+
+X(STR_ERR_INVALID_ARGUMENT, "?Invalid argument\n")
+X(STR_ERR_RX_TIMEOUT, "?RX timeout\n")                                                                                                                                                        
+X(STR_ERR_CRC, "?CRC error\n")
+#undef X
 
 #define RAM_TIMEOUT_MS 200
 
 static enum {
     SYS_IDLE,
-    SYS_READ,
-    SYS_WRITE,
-    SYS_VERIFY,
     SYS_BINARY,
-    SYS_XRAM,
 } cmd_state;
 
-static uint32_t rw_addr;
-static uint32_t rw_len;
-static uint32_t rw_crc;
+static uint32_t ram_rw_addr;
+static uint32_t ram_rw_end;
+static uint32_t ram_rw_len;
+static uint32_t ram_rw_crc;
+static uint32_t ram_intel_hex_base;
+
+static int ram_print_response(char *buf, size_t buf_size, int state)
+{
+    (void)buf_size;
+    (void)state;
+    assert(mbuf_len <= 16);
+    if (state < 0)
+        return state;
+    sprintf(buf, "%04lX ", ram_rw_addr);
+    buf += strlen(buf);
+    for (size_t i = 0; i < mbuf_len; i++)
+    {
+        if (i == 8)
+            *buf++ = ' ';
+        uint8_t c = ram_rw_addr + mbuf[i];
+        sprintf(buf, " %02X", c);
+        buf += 3;
+    }
+    size_t spaces = (16 - mbuf_len) * 3;
+    if (mbuf_len <= 8)
+        ++spaces;
+    for (size_t s = 0; s < spaces; s++)
+        *buf++ = ' ';
+    *buf++ = ' ';
+    *buf++ = ' ';
+    *buf++ = '|';
+    for (size_t i = 0; i < mbuf_len; i++)
+    {
+        uint8_t c = ram_rw_addr + mbuf[i];
+        if (c < 32 || c >= 127)
+            c = '.';
+        *buf++ = c;
+    }
+    *buf++ = '|';
+    *buf++ = '\n';
+    *buf = '\0';
+    ram_rw_addr += mbuf_len;
+    if (ram_rw_addr <= ram_rw_end)
+    {
+        mbuf_len = ram_rw_end - ram_rw_addr + 1;
+        if (mbuf_len > 16)
+            mbuf_len = 16;
+        ria_read_buf(ram_rw_addr);
+        mon_add_response_fn(ram_print_response);
+    }
+    return -1;
+}
+
+static void ram_intel_hex(const char *args, size_t len)
+{
+    assert(len < MBUF_SIZE);
+    args += 1;
+    len -= 1;
+    while (len && args[len - 1] == ' ')
+        len--;
+    if (len < 10 || len % 2)
+    {
+        mon_add_response_str(STR_ERR_INVALID_ARGUMENT);
+        return;
+    }
+    uint8_t ichecksum = 0;
+    uint8_t icount = 0;
+    uint8_t itype = 0;
+    ram_rw_addr = 0;
+    mbuf_len = 0;
+    for (size_t i = 0; i < len; i += 2)
+    {
+        if (!isxdigit((unsigned char)args[i]) ||
+            !isxdigit((unsigned char)args[i + 1]))
+        {
+            mon_add_response_str(STR_ERR_INVALID_ARGUMENT);
+            return;
+        }
+        uint8_t val = str_xdigit_to_int(args[i]) * 16 +
+                      str_xdigit_to_int(args[i + 1]);
+        ichecksum += val;
+        if (i == 0)
+            icount = val;
+        else if (i == 2 || i == 4)
+            ram_rw_addr = ram_rw_addr * 0x100 + val;
+        else if (i == 6)
+            itype = val;
+        else
+            mbuf[mbuf_len++] = val;
+    }
+    if (icount != --mbuf_len || ichecksum)
+    {
+        mon_add_response_str(STR_ERR_INVALID_ARGUMENT);
+        return;
+    }
+    switch (itype)
+    {
+    case 0: // Data
+        ram_rw_addr += ram_intel_hex_base;
+        ria_write_buf(ram_rw_addr);
+        break;
+    case 1: // End of file
+        ram_intel_hex_base = 0;
+        break;
+    case 2: // Extended segment address
+        if (icount == 2)
+            ram_intel_hex_base = mbuf[0] * 0x1000 + mbuf[1] * 0x10;
+        break;
+    case 4: // Extended linear address
+        if (icount == 2)
+            ram_intel_hex_base = mbuf[0] * 0x1000000 + mbuf[1] * 0x10000;
+        break;
+    case 3: // Start segment address
+    case 5: // Start linear address
+        if (icount == 4)
+        {
+            mbuf[0] = mbuf[2];
+            mbuf[1] = mbuf[3];
+            ram_rw_addr = 0xFFFC;
+            mbuf_len = 2;
+            ria_write_buf(ram_rw_addr);
+        }
+        break;
+    default:
+        mon_add_response_str(STR_ERR_INVALID_ARGUMENT);
+        break;
+    }
+}
 
 // Commands that start with a hex address. Read or write memory.
 void ram_mon_address(const char *args, size_t len)
 {
-    // addr syntax is already validated by dispatch
-    rw_addr = 0;
+    if (len && *args == ':')
+        return ram_intel_hex(args, len);
+    ram_rw_addr = 0;
+    ram_rw_end = 0;
+    bool second_found = false;
+    bool second_selected = false;
     size_t i = 0;
     for (; i < len; i++)
     {
         char ch = args[i];
-        if (str_char_is_hex(ch))
-            rw_addr = rw_addr * 16 + str_char_to_int(ch);
+        if (isxdigit(ch))
+        {
+            if (!second_selected)
+                ram_rw_addr = ram_rw_addr * 16 + str_xdigit_to_int(ch);
+            else
+            {
+                second_found = true;
+                ram_rw_end = ram_rw_end * 16 + str_xdigit_to_int(ch);
+            }
+        }
+        else if (ch == '-' && second_selected == true)
+            break;
+        else if (ch == '-')
+            second_selected = true;
         else
             break;
     }
+    if (!second_selected)
+    {
+        ram_rw_end = ram_rw_addr + 15;
+        if (ram_rw_end >= 0x1000000)
+            ram_rw_end = 0xFFFFFF;
+    }
+    else if (!second_found)
+    {
+        ram_rw_end = 0xFFFFFF;
+    }
+    if (args[i] == ':')
+        i++;
     for (; i < len; i++)
         if (args[i] != ' ')
             break;
-    if (rw_addr > 0xFFFFFF)
+    if (args[i] == ':')
+        i++;
+    if (ram_rw_addr > 0xFFFFFF || ram_rw_end > 0xFFFFFF || ram_rw_addr > ram_rw_end)
     {
-        printf("?invalid address\n");
+        mon_add_response_str(STR_ERR_INVALID_ARGUMENT);
         return;
     }
     if (i == len)
     {
-        mbuf_len = (rw_addr | 0xF) - rw_addr + 1;
-        ria_read_buf(rw_addr);
-        printf("%04lX", rw_addr);
-        for (size_t i = 0; i < mbuf_len; i++)
-            printf(" %02X", mbuf[i]);
-        printf("\n");
+        mbuf_len = ram_rw_end - ram_rw_addr + 1;
+        if (mbuf_len > 16)
+            mbuf_len = 16;
+        ria_read_buf(ram_rw_addr);
+        mon_add_response_fn(ram_print_response);
+        return;
+    }
+    if (second_selected)
+    {
+        mon_add_response_str(STR_ERR_INVALID_ARGUMENT);
         return;
     }
     uint32_t data = 0x80000000;
@@ -74,11 +238,13 @@ void ram_mon_address(const char *args, size_t len)
     for (; i < len; i++)
     {
         char ch = args[i];
-        if (str_char_is_hex(ch))
-            data = data * 16 + str_char_to_int(ch);
+        if (ch == '|')
+            break;
+        else if (isxdigit(ch))
+            data = data * 16 + str_xdigit_to_int(ch);
         else if (ch != ' ')
         {
-            printf("?invalid data character\n");
+            mon_add_response_str(STR_ERR_INVALID_ARGUMENT);
             return;
         }
         if (ch == ' ' || i == len - 1)
@@ -90,7 +256,7 @@ void ram_mon_address(const char *args, size_t len)
             }
             else
             {
-                printf("?invalid data value\n");
+                mon_add_response_str(STR_ERR_INVALID_ARGUMENT);
                 return;
             }
             for (; i + 1 < len; i++)
@@ -98,26 +264,24 @@ void ram_mon_address(const char *args, size_t len)
                     break;
         }
     }
-    ria_write_buf(rw_addr);
+    ria_write_buf(ram_rw_addr);
 }
 
 static void sys_com_rx_mbuf(bool timeout, const char *buf, size_t length)
 {
     mbuf_len = length;
     cmd_state = SYS_IDLE;
-
     if (timeout)
     {
-        puts("?timeout");
+        mon_add_response_str(STR_ERR_RX_TIMEOUT);
         return;
     }
-    if (mbuf_crc32() != rw_crc)
+    if (mbuf_crc32() != ram_rw_crc)
     {
-        puts("?CRC does not match");
+        mon_add_response_str(STR_ERR_CRC);
         return;
     }
-
-    uint32_t addr = rw_addr;
+    uint32_t addr = ram_rw_addr;
     while (length--)
     {
         mem_write_ram(addr++, *(buf++));
@@ -126,26 +290,27 @@ static void sys_com_rx_mbuf(bool timeout, const char *buf, size_t length)
 
 void ram_mon_binary(const char *args, size_t len)
 {
-    if (str_parse_uint32(&args, &len, &rw_addr)
-        && str_parse_uint32(&args, &len, &rw_len)
-        && str_parse_uint32(&args, &len, &rw_crc)
-        && str_parse_end(args, len))
+    if (str_parse_uint32(&args, &len, &ram_rw_addr) &&
+        str_parse_uint32(&args, &len, &ram_rw_len) &&
+        str_parse_uint32(&args, &len, &ram_rw_crc) &&
+        str_parse_end(args, len))
     {
-        if (rw_addr > 0xFFFFFF)
+        if (ram_rw_addr > 0xFFFFFF)
         {
-            printf("?invalid address\n");
+            mon_add_response_str(STR_ERR_INVALID_ARGUMENT);
             return;
         }
-        if (!rw_len || rw_len > MBUF_SIZE)
+        if (!ram_rw_len || ram_rw_len > MBUF_SIZE ||
+            ram_rw_addr + ram_rw_len > 0x1000000)
         {
-            printf("?invalid length\n");
+            mon_add_response_str(STR_ERR_INVALID_ARGUMENT);
             return;
         }
-        rln_read_binary(RAM_TIMEOUT_MS, sys_com_rx_mbuf, mbuf, rw_len);
+        rln_read_binary(RAM_TIMEOUT_MS, sys_com_rx_mbuf, mbuf, ram_rw_len);
         cmd_state = SYS_BINARY;
         return;
     }
-    printf("?invalid argument\n");
+    mon_add_response_str(STR_ERR_INVALID_ARGUMENT);
 }
 
 bool ram_active(void)
@@ -155,5 +320,6 @@ bool ram_active(void)
 
 void ram_break(void)
 {
+    ram_intel_hex_base = 0;
     cmd_state = SYS_IDLE;
 }

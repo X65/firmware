@@ -10,20 +10,34 @@
 /* Device driver for the CYW43 radio module.
  */
 
-#include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
+#include <stdbool.h>
 
 /* Main events
  */
 
+void cyw_init(void);
 void cyw_task(void);
 
 /* Utility
  */
 
-void cyw_led(bool ison);
-bool cyw_validate_country_code(char *cc);
-void cyw_reset_radio(void);
+// Pico W has LED on a CYW gpio
+void cyw_led_set(bool on);
+
+// Configuration setting RF
+void cyw_load_rf_enable(const char *str, size_t len);
+bool cyw_set_rf_enable(uint8_t rf);
+uint8_t cyw_get_rf_enable(void);
+
+// Configuration setting RFCC
+void cyw_load_rf_country_code(const char *str, size_t len);
+bool cyw_set_rf_country_code(const char *rfcc);
+const char *cyw_get_rf_country_code(void);
+const char *cyw_get_rf_country_code_verbose(void);
+
+// List known country codes for help
+int cyw_country_code_response(char *buf, size_t buf_size, int state);
 
 #endif /* _RIA_NET_CYW_H_ */

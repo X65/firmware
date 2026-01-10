@@ -35,7 +35,7 @@ static void led_set(bool on)
 #endif
 #ifdef RP6502_RIA_W
     // LED is connected to cyw43
-    cyw_led(on);
+    cyw_led_set(on);
 #endif
 }
 

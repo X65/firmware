@@ -9,7 +9,8 @@
 #define _RIA_MON_STR_H_
 
 /*
- * Miscellaneous string functions.
+ * String constants in flash and
+ * miscellaneous string functions.
  * Used by the monitor for parsing input.
  * Also used to parse config files.
  */
@@ -18,11 +19,11 @@
 #include <stdint.h>
 #include <stdbool.h>
 
-// Test for 0-9 a-f A-F
-bool str_char_is_hex(char ch);
+#define _STRINGIFY(x) #x
+#define STRINGIFY(x)  _STRINGIFY(x)
 
-// Change chars 0-9 a-f A-F to a binary int, -1 on fail
-int str_char_to_int(char ch);
+// Change chars 0-9 a-f A-F to a binary int, no error checking.
+int str_xdigit_to_int(char ch);
 
 // Parse everything else as a string, truncating trailing spaces.
 bool str_parse_string(const char **args, size_t *len, char *dest, size_t size);

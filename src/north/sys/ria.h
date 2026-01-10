@@ -27,7 +27,7 @@ void ria_stop();
 void ria_set_irq(uint8_t source);
 void ria_clear_irq(uint8_t source);
 
-void ria_print_status(void);
+int ria_status_response(char *buf, size_t buf_size, int state);
 
 // read/write memory or RIA registers
 uint8_t ria_read_mem(uint32_t addr24);

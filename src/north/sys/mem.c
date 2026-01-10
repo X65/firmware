@@ -279,6 +279,8 @@ static void __no_inline_not_in_flash_func(setup_psram)(uint8_t bank)
 uint8_t xstack[XSTACK_SIZE + 1];
 size_t volatile xstack_ptr;
 
+char response_buf[RESPONSE_BUF_SIZE];
+
 uint8_t mbuf[MBUF_SIZE] __attribute__((aligned(4)));
 size_t mbuf_len;
 
@@ -313,35 +315,43 @@ void ram_init(void)
     }
 }
 
-void ram_print_status(void)
+int ram_status_response(char *buf, size_t buf_size, int state)
 {
-    int total_ram_size = 0;
-    for (uint8_t bank = 0; bank < PSRAM_BANKS_NO; bank++)
-    {
-        total_ram_size += psram_size[bank];
-    }
-    uint32_t sysHz = clock_get_hz(clk_sys);
-    printf("RAM : %dMB, %d banks, %.1fMHz\n",
-           total_ram_size / (1024 * 1024),
-           PSRAM_BANKS_NO,
-           (float)sysHz / (qmi_hw->m[1].timing & 0xFF) / 1e6);
-    setup_psram(0);
+    if (state < 0)
+        return state;
 
-    for (uint8_t bank = 0; bank < PSRAM_BANKS_NO; bank++)
+    if (state == 0)
     {
-        printf("RAM%d: ", bank);
-        if (psram_size[bank] == 0)
+        int total_ram_size = 0;
+        for (uint8_t bank = 0; bank < PSRAM_BANKS_NO; bank++)
         {
-            printf("[invalid]\n");
+            total_ram_size += psram_size[bank];
         }
-        else
-        {
-            printf("%dMB%s (%llx)%s\n", psram_size[bank] / (1024 * 1024),
-                   psram_readid_response[bank][0] == PSRAM_MF_AP ? " AP Memory" : "",
-                   *((uint64_t *)psram_readid_response[bank]) & 0xffffffffffff,
-                   psram_readid_response[bank][1] != PSRAM_KGD ? " [FAIL]" : "");
-        }
+        uint32_t sysHz = clock_get_hz(clk_sys);
+        snprintf(buf, buf_size, "RAM : %dMB, %d banks, %.1fMHz\n",
+                 total_ram_size / (1024 * 1024),
+                 PSRAM_BANKS_NO,
+                 (float)sysHz / (qmi_hw->m[1].timing & 0xFF) / 1e6);
+        return 1;
     }
+
+    const uint8_t bank = (uint8_t)(state - 1);
+    if (bank >= PSRAM_BANKS_NO)
+        return -1;
+
+    if (psram_size[bank] == 0)
+    {
+        printf("RAM%d: [invalid]\n", bank);
+    }
+    else
+    {
+        printf("RAM%d: %dMB%s (%llx)%s\n", bank, psram_size[bank] / (1024 * 1024),
+               psram_readid_response[bank][0] == PSRAM_MF_AP ? " AP Memory" : "",
+               *((uint64_t *)psram_readid_response[bank]) & 0xffffffffffff,
+               psram_readid_response[bank][1] != PSRAM_KGD ? " [FAIL]" : "");
+    }
+
+    return state + 1;
 }
 
 uint8_t __uninitialized_ram(mem_cache)[64 * 1024]

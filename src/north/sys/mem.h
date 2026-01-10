@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2023 Rumbledethumps
- * Copyright (c) 2024 Tomasz Sterna
+ * Copyright (c) 2024-2026 Tomasz Sterna
  *
  * SPDX-License-Identifier: BSD-3-Clause
  */
@@ -43,6 +43,11 @@ extern volatile uint8_t regs[];
 extern uint8_t mbuf[];
 extern size_t mbuf_len;
 
+// This is used by the monitor when in reset,
+// and by modem emulation when CPU is running.
+#define RESPONSE_BUF_SIZE 128
+extern char response_buf[RESPONSE_BUF_SIZE];
+
 // Compute CRC32 of mbuf to match zlib.
 uint32_t mbuf_crc32(void);
 
@@ -50,7 +55,7 @@ uint32_t mbuf_crc32(void);
  */
 
 void ram_init(void);
-void ram_print_status(void);
+int ram_status_response(char *buf, size_t buf_size, int state);
 
 // 16MB of XIP QPI PSRAM interface
 // accessed through fast L1 cache implemented in internal SRAM

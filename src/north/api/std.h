@@ -10,9 +10,9 @@
 /* Provides STDIO to the CPU.
  */
 
-#include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
+#include <stdbool.h>
 
 /* Main events
  */

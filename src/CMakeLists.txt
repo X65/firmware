@@ -295,7 +295,7 @@ target_compile_definitions(x65_audio PRIVATE
 set_property(TARGET x65_north x65_south x65_audio
     APPEND PROPERTY COMPILE_DEFINITIONS
     RP6502_NAME="X65 microcomputer"
-    RP6502_VERSION=""
+    # RP6502_VERSION=""
     RP6502_CODE_PAGE=0
     RP6502_EXFAT=0
 )

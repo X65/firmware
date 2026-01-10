@@ -7,18 +7,16 @@
 #include "sys/rln.h"
 #include <pico/stdlib.h>
 #include <stdio.h>
+#include <ctype.h>
 
 #if defined(DEBUG_RIA_SYS) || defined(DEBUG_RIA_SYS_RLN)
 #include <stdio.h>
 #define DBG(...) fprintf(stderr, __VA_ARGS__)
 #else
-static inline void DBG(const char *fmt, ...)
-{
-    (void)fmt;
-}
+static inline void DBG(const char *fmt, ...) { (void)fmt; }
 #endif
 
-#define RLN_BUF_SIZE          256
+#define RLN_BUF_SIZE 256
 #define RLN_CSI_PARAM_MAX_LEN 16
 
 typedef enum
@@ -258,7 +256,7 @@ static void rln_line_state_SS3(char ch)
 static void rln_line_state_CSI(char ch)
 {
     // Silently discard overflow parameters but still count to + 1.
-    if (ch >= '0' && ch <= '9')
+    if (isdigit(ch))
     {
         if (rln_csi_param_count < RLN_CSI_PARAM_MAX_LEN)
         {
@@ -391,7 +389,7 @@ void rln_task(void)
                 rln_line_rx(ch);
             ch = stdio_getchar_timeout_us(0);
         }
-        if (rln_callback && rln_timeout_ms && absolute_time_diff_us(get_absolute_time(), rln_timer) < 0)
+        if (rln_timeout_ms && absolute_time_diff_us(get_absolute_time(), rln_timer) < 0)
         {
             rln_read_callback_t cc = rln_callback;
             rln_callback = NULL;
