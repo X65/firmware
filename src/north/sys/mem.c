@@ -397,7 +397,7 @@ static void l2_init(void)
     }
 }
 
-static inline void __attribute__((always_inline))
+__force_inline static void
 fast_fill_32b(uint32_t *dest, const uint32_t *src_nocache)
 {
     __asm volatile(
@@ -411,7 +411,7 @@ fast_fill_32b(uint32_t *dest, const uint32_t *src_nocache)
     );
 }
 
-uint8_t __attribute__((optimize("O3")))
+__force_inline uint8_t __attribute__((optimize("O3")))
 __not_in_flash_func(mem_read_ram)(uint32_t addr24)
 {
     const uint16_t index = (addr24 >> 5) & CACHE_LINE_MASK;
@@ -420,7 +420,7 @@ __not_in_flash_func(mem_read_ram)(uint32_t addr24)
     if (((stored_tag & TAG_MASK) != tag) || !(stored_tag & TAG_VALID_BIT))
     {
         // Cache miss - fetch the cache line from PSRAM
-        mem_select_bank((addr24 >> 23) & 0x01);
+        gpio_put(QMI_PSRAM_BS_PIN, addr24 & 0x800000);
         fast_fill_32b((uint32_t *)l2_data[index],
                       (const uint32_t *)(XIP_PSRAM_NOCACHE | (addr24 & 0x7FFFE0)));
         // Update the tag store
@@ -429,11 +429,12 @@ __not_in_flash_func(mem_read_ram)(uint32_t addr24)
 
     return l2_data[index][addr24 & OFFSET_MASK];
 }
-void __attribute__((optimize("O3")))
+
+__force_inline void __attribute__((optimize("O3")))
 __not_in_flash_func(mem_write_ram)(uint32_t addr24, uint8_t data)
 {
     // L2 write-through cache
-    mem_select_bank((addr24 >> 23) & 0x01);
+    gpio_put(QMI_PSRAM_BS_PIN, addr24 & 0x800000);
     *(volatile uint8_t *)(XIP_PSRAM_NOCACHE | (addr24 & 0x7FFFFF)) = data;
 
     // Update L2 cache if present
