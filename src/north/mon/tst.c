@@ -18,15 +18,15 @@
 
 // Reach for other modules internals
 // (I don't really want to expose these in global headers)
-extern volatile uint8_t mem_cache[];
+extern volatile uint8_t l2_data[];
 extern size_t psram_size[PSRAM_BANKS_NO];
 extern uint8_t psram_readid_response[PSRAM_BANKS_NO][8];
 
 #define BUF_SIZE            (64 * 1024)   // 64KB buffer
 #define FLASH_TARGET_OFFSET (1024 * 1024) // +1MB should be safe to use
 
-volatile uint32_t *random_buf = (volatile uint32_t *)mem_cache;
-volatile uint32_t *copy_buf = (volatile uint32_t *)(mem_cache + BUF_SIZE);
+volatile uint32_t *random_buf = (volatile uint32_t *)l2_data;
+volatile uint32_t *copy_buf = (volatile uint32_t *)(l2_data + BUF_SIZE);
 
 // Flash erase and program function trampolines
 static bool verify_buffer(const uint32_t *src, const uint32_t *dst, size_t len)

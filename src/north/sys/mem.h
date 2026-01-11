@@ -58,7 +58,7 @@ void ram_init(void);
 int ram_status_response(char *buf, size_t buf_size, int state);
 
 // 16MB of XIP QPI PSRAM interface
-// accessed through fast L1 cache implemented in internal SRAM
+// accessed through fast L2 cache implemented in internal SRAM
 uint8_t mem_read_ram(uint32_t addr24);
 void mem_write_ram(uint32_t addr24, uint8_t data);
 

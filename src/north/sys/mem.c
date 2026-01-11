@@ -1,5 +1,4 @@
 /*
- * Copyright (c) 2025 Rumbledethumps
  * Copyright (c) 2024 Tomasz Sterna
  *
  * SPDX-License-Identifier: BSD-3-Clause
@@ -26,6 +25,8 @@ static inline void DBG(const char *fmt, ...)
     (void)fmt;
 }
 #endif
+
+static void l2_init(void);
 
 size_t psram_size[PSRAM_BANKS_NO];
 uint8_t psram_readid_response[PSRAM_BANKS_NO][8];
@@ -293,7 +294,7 @@ uint32_t mbuf_crc32(void)
 volatile uint8_t __uninitialized_ram(regs)[0x40]
     __attribute__((aligned(0x40)));
 
-static inline __attribute__((always_inline)) void mem_select_bank(uint8_t bank)
+static inline __force_inline void mem_select_bank(uint8_t bank)
 {
     gpio_put(QMI_PSRAM_BS_PIN, (bool)bank);
 }
@@ -313,6 +314,9 @@ void ram_init(void)
         mem_select_bank(bank);
         setup_psram(bank);
     }
+
+    // Initialize L2 cache
+    l2_init();
 }
 
 int ram_status_response(char *buf, size_t buf_size, int state)
@@ -354,23 +358,109 @@ int ram_status_response(char *buf, size_t buf_size, int state)
     return state + 1;
 }
 
-uint8_t __uninitialized_ram(mem_cache)[64 * 1024]
-    __attribute__((aligned(4)));
+// ---------------------------------------------------------------
+// L2 memory cache implementation
+// ---------------------------------------------------------------
+// Cache Size: 64 kB
+// Cache Line Size: 32 Bytes [XIP fast fetch]
+//
+// We split the incoming 65C816 address into three parts to look up data:
+// [AAAA AAAA][BBBB BBBB BBB][CCCCC]
+// Offset (5 bits): Which of the 32 bytes in the line do we want?
+// Index (11 bits): Which of the 2048 cache lines do we check? ($2^{11} = 2048$)
+// Tag (8 bits): The remaining upper bits. We store this to verify if the cache
+//               line actually holds the memory we asked for.
 
-uint8_t mem_read_ram(uint32_t addr24)
+#define CACHE_LINE_SIZE  32
+#define CACHE_LINE_COUNT 2048
+#define CACHE_LINE_MASK  (CACHE_LINE_COUNT - 1) // 0x7FF
+#define OFFSET_MASK      (CACHE_LINE_SIZE - 1)  // 0x1F
+#define TAG_MASK         0xFF
+#define TAG_VALID_BIT    0x100
+
+// The Data Store: 64kB
+uint8_t __attribute__((aligned(32)))
+__uninitialized_ram(l2_data)[CACHE_LINE_COUNT][CACHE_LINE_SIZE];
+
+// The Tag Store: 2048 entries
+// We need to store the 8-bit Tag AND a "Valid" bit.
+// A 16-bit int is faster to align/access than a packed byte struct.
+uint16_t __attribute__((aligned(2)))
+__uninitialized_ram(l2_tags)[CACHE_LINE_COUNT];
+
+static void l2_init(void)
 {
-    return mem_cache[addr24 & 0xFFFF];
+    // Invalidate all cache lines.
+    for (size_t i = 0; i < CACHE_LINE_COUNT; i++)
+    {
+        l2_tags[i] = 0;
+    }
 }
-void mem_write_ram(uint32_t addr24, uint8_t data)
+
+static inline void __attribute__((always_inline))
+fast_fill_32b(uint32_t *dest, const uint32_t *src_nocache)
 {
-    mem_cache[addr24 & 0xFFFF] = data;
+    __asm volatile(
+        "ldmia %1!, {r0-r3}\n\t" // Burst Load 4 words (16B) from PSRAM
+        "stmia %0!, {r0-r3}\n\t" // Burst Store 4 words (16B) to SRAM
+        "ldmia %1!, {r0-r3}\n\t" // Repeat to complete 32B
+        "stmia %0!, {r0-r3}\n\t"
+        : "+r"(dest), "+r"(src_nocache)    // Outputs (pointers define the address)
+        :                                  // No other inputs
+        : "r0", "r1", "r2", "r3", "memory" // Clobbers
+    );
+}
+
+uint8_t __attribute__((optimize("O3")))
+__not_in_flash_func(mem_read_ram)(uint32_t addr24)
+{
+    const uint16_t index = (addr24 >> 5) & CACHE_LINE_MASK;
+    const uint8_t tag = (addr24 >> 16) & TAG_MASK;
+    const uint16_t stored_tag = l2_tags[index];
+    if (((stored_tag & TAG_MASK) != tag) || !(stored_tag & TAG_VALID_BIT))
+    {
+        // Cache miss - fetch the cache line from PSRAM
+        mem_select_bank((addr24 >> 23) & 0x01);
+        fast_fill_32b((uint32_t *)l2_data[index],
+                      (const uint32_t *)(XIP_PSRAM_NOCACHE | (addr24 & 0x7FFFE0)));
+        // Update the tag store
+        l2_tags[index] = tag | TAG_VALID_BIT;
+    }
+
+    return l2_data[index][addr24 & OFFSET_MASK];
+}
+void __attribute__((optimize("O3")))
+__not_in_flash_func(mem_write_ram)(uint32_t addr24, uint8_t data)
+{
+    // L2 write-through cache
+    mem_select_bank((addr24 >> 23) & 0x01);
+    *(volatile uint8_t *)(XIP_PSRAM_NOCACHE | (addr24 & 0x7FFFFF)) = data;
+
+    // Update L2 cache if present
+    const uint16_t index = (addr24 >> 5) & CACHE_LINE_MASK;
+    const uint8_t tag = (addr24 >> 16) & TAG_MASK;
+    const uint16_t stored_tag = l2_tags[index];
+    if (((stored_tag & TAG_MASK) == tag) && (stored_tag & TAG_VALID_BIT))
+    {
+        l2_data[index][addr24 & OFFSET_MASK] = data;
+    }
 
     // Sync write to CGIA L1 cache
     pix_mem_write(addr24, data);
 }
 
-uint8_t *mem_fetch_row(uint8_t bank, uint16_t addr)
+// Buffer for DMA line fetches.
+// Use separate buffer to avoid cache pollution.
+uint8_t __attribute__((aligned(32)))
+__uninitialized_ram(fetch_row_data)[CACHE_LINE_SIZE];
+
+uint8_t *__attribute__((optimize("O3")))
+__not_in_flash_func(mem_fetch_row)(uint8_t bank, uint16_t addr)
 {
     const uint32_t addr24 = bank << 16 | addr;
-    return &mem_cache[addr24 & 0xFFFF];
+    // Fetch the line from PSRAM
+    mem_select_bank((addr24 >> 23) & 0x01);
+    fast_fill_32b((uint32_t *)fetch_row_data,
+                  (const uint32_t *)(XIP_PSRAM_NOCACHE | (addr24 & 0x7FFFE0)));
+    return fetch_row_data;
 }

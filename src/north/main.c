@@ -54,7 +54,7 @@ static void init(void)
     // Queue startup message.
     sys_init();
 
-    // PSRAM and L1 cache.
+    // PSRAM and L2 cache.
     ram_init();
 
     // GPIO drivers.
