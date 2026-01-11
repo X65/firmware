@@ -7,7 +7,7 @@
 #include "term/font.h"
 #include "font_8.h"
 #include "term/term.h"
-#include <pico/stdlib.h>
+#include <pico.h>
 #include <string.h>
 
 // 8x8 and 8x16 fonts based on the IBM VGA typeface.
