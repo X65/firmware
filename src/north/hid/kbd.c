@@ -849,6 +849,11 @@ void kbd_report(int slot, uint8_t const *data, size_t size)
     kbd_keys[0] |= (kdb_hid_leds & 7) << 1;
 }
 
+uint8_t kbd_get_reg(uint8_t idx)
+{
+    return ((uint8_t *)kbd_keys)[idx];
+}
+
 int kbd_stdio_in_chars(char *buf, int length)
 {
     int i = 0;

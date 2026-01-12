@@ -65,6 +65,9 @@ bool kbd_umount(int slot);
 // Process HID keyboard report.
 void kbd_report(int slot, uint8_t const *data, size_t size);
 
+// Get the mmap register value.
+uint8_t kbd_get_reg(uint8_t idx);
+
 // Handler for stdio_driver_t
 int kbd_stdio_in_chars(char *buf, int length);
 

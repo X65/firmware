@@ -71,6 +71,26 @@ void mou_stop(void)
 {
 }
 
+uint8_t mou_get_reg(uint8_t idx)
+{
+    if (idx < sizeof(mou_state))
+        return ((uint8_t *)(&mou_state))[idx];
+
+    switch (idx)
+    {
+    case 0x08:
+        return mou_x & 0xFF;
+    case 0x09:
+        return mou_x >> 8;
+    case 0x0A:
+        return mou_y & 0xFF;
+    case 0x0B:
+        return mou_y >> 8;
+    default:
+        return 0xFF;
+    }
+}
+
 bool __in_flash("mou_mount") mou_mount(int slot, uint8_t const *desc_data, uint16_t desc_len)
 {
     int desc_idx = -1;

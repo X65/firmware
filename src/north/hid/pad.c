@@ -640,6 +640,28 @@ static void pad_reset_xram(int player)
     pad_parse_report(player, 0, 0, &pad_state[player]); // get blank
 }
 
+uint8_t pad_get_reg(uint8_t pad, uint8_t idx)
+{
+    if (pad > PAD_MAX_PLAYERS)
+        return 0xFF;
+    if (idx >= sizeof(pad_xram_t))
+        return 0xFF;
+
+    if (pad == 0)
+    {
+        // merge all pads' dpad and feature bits
+        uint8_t merged = 0;
+        for (int i = 0; i < PAD_MAX_PLAYERS; i++)
+        {
+            if ((pad_state[i].dpad & 0b10000000))
+                merged |= ((uint8_t *)(&pad_state[i]))[idx];
+        }
+        return merged;
+    }
+
+    return ((uint8_t *)(&pad_state[pad - 1]))[idx];
+}
+
 bool __in_flash("pad_mount") pad_mount(int slot, uint8_t const *desc_data, uint16_t desc_len,
                                        uint16_t vendor_id, uint16_t product_id)
 {

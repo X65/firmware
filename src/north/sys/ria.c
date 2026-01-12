@@ -6,6 +6,9 @@
 
 #include "sys/ria.h"
 #include "api/api.h"
+#include "hid/kbd.h"
+#include "hid/mou.h"
+#include "hid/pad.h"
 #include "hw.h"
 #include "main.h"
 #include "south/cgia/cgia.h"
@@ -36,6 +39,7 @@ static inline void DBG(const char *fmt, ...)
 
 static uint8_t RGB_regs[8] = {0};
 static uint8_t BUZ_regs[4] = {0};
+static uint8_t HID_dev = 0;
 
 static volatile uint8_t irq_mask = 0;
 static volatile uint8_t irq_state = 0;
@@ -316,8 +320,35 @@ __attribute__((optimize("O1"))) static void __no_inline_not_in_flash_func(act_lo
                 // devices Memory-MAPped by RIA
                 else if (addr >= 0xFF80)
                 {
-                    // ------ FFAC - FFBF ------
-                    if (addr >= 0xFFAC)
+                    // ------ FFB0 - FFBF ------ (HID devices)
+                    if (addr >= 0xFFB0)
+                    {
+                        const uint8_t reg = addr & 0x0F;
+                        if (is_read)
+                        {
+                            switch (HID_dev & 0xF)
+                            {
+                            case RIA_HID_DEV_KEYBOARD:
+                                data = kbd_get_reg((HID_dev & 0xF0) | reg);
+                                break;
+                            case RIA_HID_DEV_MOUSE:
+                                data = mou_get_reg(reg);
+                                break;
+                            case RIA_HID_DEV_GAMEPAD:
+                                data = pad_get_reg(HID_dev >> 4, reg);
+                                break;
+                            default:
+                                data = 0xFF; // invalid
+                            }
+                        }
+                        else
+                        {
+                            if (reg == 0x00) // HID SELECT
+                                HID_dev = data;
+                        }
+                    }
+                    // ------ FFAC - FFAF ------
+                    else if (addr >= 0xFFAC)
                     {
                         data = 0xFF; // unused
                     }

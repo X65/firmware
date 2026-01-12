@@ -14,6 +14,11 @@
 #include <stddef.h>
 #include <stdint.h>
 
+// HID device selectors
+#define RIA_HID_DEV_KEYBOARD 0x00
+#define RIA_HID_DEV_MOUSE    0x01
+#define RIA_HID_DEV_GAMEPAD  0x02
+
 /* Main events
  */
 

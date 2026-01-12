@@ -20,6 +20,9 @@
 void pad_init(void);
 void pad_stop(void);
 
+// Get the mmap register value.
+uint8_t pad_get_reg(uint8_t pad, uint8_t idx);
+
 // Parse HID report descriptor for gamepad.
 bool pad_mount(int slot, uint8_t const *desc_data, uint16_t desc_len,
                uint16_t vendor_id, uint16_t product_id);
