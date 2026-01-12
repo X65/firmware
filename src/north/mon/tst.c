@@ -81,11 +81,6 @@ static bool check_data_block(int32_t *source_data, int32_t *data_buffer, int32_t
     return true;
 }
 
-static inline __attribute__((always_inline)) void mem_select_bank(uint8_t bank)
-{
-    gpio_put(QMI_PSRAM_BS_PIN, (bool)bank);
-}
-
 void tst_mon_memtest(const char *args, size_t len)
 {
     (void)(args);

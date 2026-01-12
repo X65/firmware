@@ -294,11 +294,6 @@ uint32_t mbuf_crc32(void)
 volatile uint8_t __uninitialized_ram(regs)[0x40]
     __attribute__((aligned(0x40)));
 
-static inline __force_inline void mem_select_bank(uint8_t bank)
-{
-    gpio_put(QMI_PSRAM_BS_PIN, (bool)bank);
-}
-
 void ram_init(void)
 {
     // safety check for compiler alignment
@@ -307,6 +302,7 @@ void ram_init(void)
     // PSRAM Bank-Select pin
     gpio_init(QMI_PSRAM_BS_PIN);
     gpio_set_dir(QMI_PSRAM_BS_PIN, true);
+    gpio_put(QMI_PSRAM_BS_PIN, false);
 
     // Setup PSRAM controller and chips
     for (uint8_t bank = 0; bank < PSRAM_BANKS_NO; bank++)
@@ -382,19 +378,23 @@ int ram_status_response(char *buf, size_t buf_size, int state)
 uint8_t __attribute__((aligned(32)))
 __uninitialized_ram(l2_data)[CACHE_LINE_COUNT][CACHE_LINE_SIZE];
 
+#if MEM_USE_L2_CACHE
 // The Tag Store: 2048 entries
 // We need to store the 8-bit Tag AND a "Valid" bit.
 // A 16-bit int is faster to align/access than a packed byte struct.
 uint16_t __attribute__((aligned(2)))
 __uninitialized_ram(l2_tags)[CACHE_LINE_COUNT];
+#endif
 
 static void l2_init(void)
 {
+#if MEM_USE_L2_CACHE
     // Invalidate all cache lines.
     for (size_t i = 0; i < CACHE_LINE_COUNT; i++)
     {
         l2_tags[i] = 0;
     }
+#endif
 }
 
 __force_inline static void
@@ -411,6 +411,7 @@ fast_fill_32b(uint32_t *dest, const uint32_t *src_nocache)
     );
 }
 
+#if MEM_USE_L2_CACHE
 __force_inline uint8_t __attribute__((optimize("O3")))
 __not_in_flash_func(mem_read_ram)(uint32_t addr24)
 {
@@ -420,7 +421,7 @@ __not_in_flash_func(mem_read_ram)(uint32_t addr24)
     if (((stored_tag & TAG_MASK) != tag) || !(stored_tag & TAG_VALID_BIT))
     {
         // Cache miss - fetch the cache line from PSRAM
-        gpio_put(QMI_PSRAM_BS_PIN, addr24 & 0x800000);
+        mem_select_bank(addr24 & 0x800000);
         fast_fill_32b((uint32_t *)l2_data[index],
                       (const uint32_t *)(XIP_PSRAM_NOCACHE | (addr24 & 0x7FFFE0)));
         // Update the tag store
@@ -434,7 +435,7 @@ __force_inline void __attribute__((optimize("O3")))
 __not_in_flash_func(mem_write_ram)(uint32_t addr24, uint8_t data)
 {
     // L2 write-through cache
-    gpio_put(QMI_PSRAM_BS_PIN, addr24 & 0x800000);
+    mem_select_bank(addr24 & 0x800000);
     *(volatile uint8_t *)(XIP_PSRAM_NOCACHE | (addr24 & 0x7FFFFF)) = data;
 
     // Update L2 cache if present
@@ -449,9 +450,11 @@ __not_in_flash_func(mem_write_ram)(uint32_t addr24, uint8_t data)
     // Sync write to CGIA L1 cache
     pix_mem_write(addr24, data);
 }
+#endif
 
 // Buffer for DMA line fetches.
-// Use separate buffer to avoid cache pollution.
+// Use separate buffer to protect from bank change
+// and avoid cache pollution.
 uint8_t __attribute__((aligned(32)))
 __uninitialized_ram(fetch_row_data)[CACHE_LINE_SIZE];
 
@@ -460,7 +463,7 @@ __not_in_flash_func(mem_fetch_row)(uint8_t bank, uint16_t addr)
 {
     const uint32_t addr24 = bank << 16 | addr;
     // Fetch the line from PSRAM
-    mem_select_bank((addr24 >> 23) & 0x01);
+    mem_select_bank(addr24 & 0x800000);
     fast_fill_32b((uint32_t *)fetch_row_data,
                   (const uint32_t *)(XIP_PSRAM_NOCACHE | (addr24 & 0x7FFFE0)));
     return fetch_row_data;

@@ -11,6 +11,10 @@
 /* Various large chunks of memory used globally.
  */
 
+#include "hw.h"
+#include <hardware/gpio.h>
+#include <hardware/xip_cache.h>
+#include <pico.h>
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -58,9 +62,47 @@ void ram_init(void);
 int ram_status_response(char *buf, size_t buf_size, int state);
 
 // 16MB of XIP QPI PSRAM interface
+
 // accessed through fast L2 cache implemented in internal SRAM
+#define MEM_USE_L2_CACHE (1)
+
+// in 2 banks of 8MB each
+__force_inline static void __attribute__((optimize("O3")))
+mem_select_bank(bool bank)
+{
+#if !MEM_USE_L2_CACHE
+    if (gpio_get(QMI_PSRAM_BS_PIN) != bank)
+    {
+        xip_cache_clean_all();
+        xip_cache_invalidate_all();
+        gpio_put(QMI_PSRAM_BS_PIN, bank);
+    }
+#else
+    gpio_put(QMI_PSRAM_BS_PIN, bank);
+#endif
+}
+
+#if MEM_USE_L2_CACHE
 uint8_t mem_read_ram(uint32_t addr24);
 void mem_write_ram(uint32_t addr24, uint8_t data);
+#else
+__force_inline static uint8_t __attribute__((optimize("O3")))
+mem_read_ram(uint32_t addr24)
+{
+    // No L2 cache - direct read from PSRAM
+    mem_select_bank(addr24 & 0x800000);
+    return *(volatile uint8_t *)(XIP_PSRAM_CACHED | (addr24 & 0x7FFFFF));
+}
+__force_inline static void __attribute__((optimize("O3")))
+mem_write_ram(uint32_t addr24, uint8_t data)
+{
+    // No L2 cache - direct write to PSRAM
+    mem_select_bank(addr24 & 0x800000);
+    *(volatile uint8_t *)(XIP_PSRAM_CACHED | (addr24 & 0x7FFFFF)) = data;
+    // Sync write to CGIA L1 cache
+    pix_mem_write(addr24, data);
+}
+#endif
 
 // Fetch a PSRAM cache row (32 bytes) and return a pointer to it
 uint8_t *mem_fetch_row(uint8_t bank, uint16_t addr);
