@@ -5,7 +5,6 @@
  */
 
 #include "main.h"
-#include "api/api.h"
 #include "api/oem.h"
 #include "hid/kbd.h"
 #include "hid/hid.h"
@@ -18,6 +17,7 @@
 #include <fatfs/ff.h>
 #include <pico/time.h>
 #include <stdio.h>
+#include <string.h>
 
 #if defined(DEBUG_RIA_HID) || defined(DEBUG_RIA_HID_KBD)
 #include <stdio.h>
@@ -101,7 +101,6 @@ X(STR_ERR_DEAD_KEY_CACHE_OVERFLOW, "?Dead key cache overflow\n")
 
 static bool kbd_layout_loaded;
 static int kbd_layout_index;
-static uint16_t kbd_xram;
 static absolute_time_t kbd_repeat_timer;
 static uint8_t kbd_repeat_modifier;
 static uint8_t kbd_repeat_keycode;
@@ -636,7 +635,6 @@ void kbd_task(void)
 
 void kbd_stop(void)
 {
-    kbd_xram = 0xFFFF;
 }
 
 int kbd_layouts_response(char *buf, size_t buf_size, int state)
@@ -849,20 +847,6 @@ void kbd_report(int slot, uint8_t const *data, size_t size)
 
     // NUMLOCK CAPSLOCK SCROLLLOCK
     kbd_keys[0] |= (kdb_hid_leds & 7) << 1;
-
-    // // Send it to xram
-    // if (kbd_xram != 0xFFFF)
-    //     memcpy(&xram[kbd_xram], kbd_keys, sizeof(kbd_keys));
-}
-
-bool kbd_xreg(uint16_t word)
-{
-    if (word != 0xFFFF && word > 0x10000 - sizeof(kbd_keys))
-        return false;
-    kbd_xram = word;
-    // if (kbd_xram != 0xFFFF)
-    //     memcpy(&xram[kbd_xram], kbd_keys, sizeof(kbd_keys));
-    return true;
 }
 
 int kbd_stdio_in_chars(char *buf, int length)

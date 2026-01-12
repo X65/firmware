@@ -161,29 +161,6 @@ static void break_(void) // break is keyword
     rln_break();
 }
 
-// PIX XREG writes to the RIA device will dispatch here.
-bool main_xreg(uint8_t chan, uint8_t addr, uint16_t word)
-{
-    (void)addr;
-    switch (chan * 256 + addr)
-    {
-    // Channel 0 for human interface devices.
-    case 0x000:
-        return kbd_xreg(word);
-    case 0x001:
-        return mou_xreg(word);
-    case 0x002:
-        return pad_xreg(word);
-    // // Channel 1 for audio devices.
-    // case 0x100:
-    //     return psg_xreg(word);
-    // case 0x101:
-    //     return opl_xreg(word);
-    default:
-        return false;
-    }
-}
-
 // API call implementations should return true if they have more
 // work to process. They will be called repeatedly until returning
 // false. Be sure any state is reset in a stop() handler.
@@ -191,8 +168,6 @@ bool main_api(uint8_t operation)
 {
     switch (operation)
     {
-    // case 0x01:
-    //     return pix_api_xreg();
     case API_OP_PHI2:
         return cpu_api_phi2();
     case API_OP_OEM_CODEPAGE:

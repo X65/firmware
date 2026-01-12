@@ -65,9 +65,6 @@ bool kbd_umount(int slot);
 // Process HID keyboard report.
 void kbd_report(int slot, uint8_t const *data, size_t size);
 
-// Set the extended register value.
-bool kbd_xreg(uint16_t word);
-
 // Handler for stdio_driver_t
 int kbd_stdio_in_chars(char *buf, int length);
 

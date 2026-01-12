@@ -6,7 +6,6 @@
 
 #include "hid/hid.h"
 #include "hid/mou.h"
-#include "sys/mem.h"
 #include <btstack_hid_parser.h>
 #include <pico.h>
 #include <string.h>
@@ -32,8 +31,6 @@ static struct
 // Higher resolution x and y
 uint16_t mou_x;
 uint16_t mou_y;
-
-static uint16_t mou_xram;
 
 // Mouse descriptors are normalized to this structure.
 typedef struct
@@ -72,17 +69,6 @@ void mou_init(void)
 
 void mou_stop(void)
 {
-    mou_xram = 0xFFFF;
-}
-
-bool mou_xreg(uint16_t word)
-{
-    if (word != 0xFFFF && word > 0x10000 - sizeof(mou_state))
-        return false;
-    mou_xram = word;
-    // if (mou_xram != 0xFFFF)
-    //     memcpy(&xram[mou_xram], &mou_state, sizeof(mou_state));
-    return true;
 }
 
 bool __in_flash("mou_mount") mou_mount(int slot, uint8_t const *desc_data, uint16_t desc_len)
@@ -216,8 +202,4 @@ void mou_report(int slot, void const *data, size_t size)
     if (conn->pan_size > 0)
         mou_state.pan += hid_extract_signed(report_data, report_data_len,
                                             conn->pan_offset, conn->pan_size);
-
-    // // Update XRAM with new state
-    // if (mou_xram != 0xFFFF)
-    //     memcpy(&xram[mou_xram], &mou_state, sizeof(mou_state));
 }

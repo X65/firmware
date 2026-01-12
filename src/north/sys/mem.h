@@ -107,4 +107,15 @@ mem_write_ram(uint32_t addr24, uint8_t data)
 // Fetch a PSRAM cache row (32 bytes) and return a pointer to it
 uint8_t *mem_fetch_row(uint8_t bank, uint16_t addr);
 
+// helper function to copy memory to PSRAM
+__force_inline static void __attribute__((optimize("O3")))
+mem_cpy(uint32_t dest_addr24, const void *src, size_t len)
+{
+    const uint8_t *s = (const uint8_t *)src;
+    while (len--)
+    {
+        mem_write_ram(dest_addr24++, *s++);
+    }
+}
+
 #endif /* _RIA_SYS_MEM_H_ */
