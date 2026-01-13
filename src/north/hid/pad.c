@@ -120,6 +120,24 @@ static void pad_remap_playstation_classic(
     pad_swap_buttons(conn, 5, 7); // r1/st
 }
 
+// Generic pad coming in all kinds of shapes.
+// 030000001f08000001e4000010010000,Super Famicom Controller,a:b2,b:b1,back:b8,dpdown:+a1,dpleft:-a0,dpright:+a0,dpup:-a1,leftshoulder:b4,rightshoulder:b5,start:b9,x:b3,y:b0,platform:Linux,
+// https://devicehunt.com/view/type/usb/vendor/081F
+static void pad_remap_manta_gamepad(
+    pad_connection_t *conn, uint16_t vendor_id, uint16_t product_id)
+{
+    (void)product_id;
+    if (vendor_id != 0x081F) // Manta
+        return;
+    DBG("Manta gamepad remap: vid=0x%04X, pid=0x%04X\n", vendor_id, product_id);
+    pad_swap_buttons(conn, 1, 2); // Z B C Y A ? L R X R2
+    pad_swap_buttons(conn, 0, 5); // ? B C Y A Z L R X R2
+    pad_swap_buttons(conn, 0, 4); // A B C Y ? Z L R X R2
+    pad_swap_buttons(conn, 3, 4); // A B C ? Y Z L R X R2
+    pad_swap_buttons(conn, 3, 8); // A B C X Y Z L R L2 R2 SEL STR HOM L3 R3
+    pad_swap_buttons(conn, 9, 11);
+}
+
 // The 8BitDo M30 is a Sega-style gamepad with wonky button mappings.
 // It has different L1/R1/L2/R2 mappings for XInput and DInput, which we leave alone.
 // Sadly, remapping C/Z into the correct place would mean a confusing third mapping.
@@ -478,6 +496,7 @@ static void pad_distill_descriptor(
     // Add your gamepad override here.
     pad_remap_8bitdo_m30(conn, vendor_id, product_id);
     pad_remap_playstation_classic(conn, vendor_id, product_id);
+    pad_remap_manta_gamepad(conn, vendor_id, product_id);
 
     // Sony gamepads use a pre-computed descriptor.
     // Some may report a descriptor, which we discard.
