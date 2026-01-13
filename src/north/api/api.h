@@ -241,13 +241,13 @@ static inline bool api_return_ax(uint16_t val)
 }
 
 // Failure returns -1 and sets errno
-static inline bool api_return_errno(api_errno errno)
+static inline bool api_return_errno(api_errno err_no)
 {
-    // uint16_t platform_errno = api_platform_errno(errno);
+    // uint16_t platform_errno = api_platform_errno(err_no);
     // if (platform_errno)
     //     API_ERRNO = platform_errno;
     xstack_ptr = XSTACK_SIZE;
-    api_set_ax(errno);
+    api_set_ax(err_no);
     api_set_regs_errored();
     return false;
 }
