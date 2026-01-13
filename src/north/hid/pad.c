@@ -98,7 +98,6 @@ typedef struct
 // Parsed descriptor structure for fast report parsing.
 static pad_connection_t pad_connections[PAD_MAX_PLAYERS];
 
-#ifdef PICO_SDK_VERSION_MAJOR
 static inline void pad_swap_buttons(pad_connection_t *conn, int b0, int b1)
 {
     uint16_t temp = conn->button_offsets[b0];
@@ -344,6 +343,8 @@ static void pad_parse_descriptor(
     pad_connection_t *conn, uint8_t const *desc_data, uint16_t desc_len)
 {
     memset(conn, 0, sizeof(pad_connection_t));
+
+#ifdef PICO_SDK_VERSION_MAJOR
     for (int i = 0; i < PAD_MAX_BUTTONS; i++)
         conn->button_offsets[i] = 0xFFFF;
 
@@ -483,6 +484,11 @@ static void pad_parse_descriptor(
             DBG("[%d]=%d ", i, conn->button_offsets[i]);
     }
     DBG("\n");
+#else
+    for (int i = 0; i < PAD_MAX_BUTTONS; i++)
+        conn->button_offsets[i] = i;
+    conn->valid = true;
+#endif // PICO_SDK_VERSION_MAJOR
 }
 
 static void pad_distill_descriptor(
@@ -517,7 +523,6 @@ static void pad_distill_descriptor(
     if (!conn->valid)
         DBG("HID descriptor not a gamepad.\n");
 }
-#endif // PICO_SDK_VERSION_MAJOR
 
 static uint8_t pad_encode_stick(int8_t x, int8_t y)
 {
@@ -552,6 +557,10 @@ static uint8_t pad_encode_stick(int8_t x, int8_t y)
     return result;
 }
 
+#ifndef PICO_SDK_VERSION_MAJOR
+static void pad_synth_report(pad_connection_t *gamepad, void *data, uint16_t event_type, pad_xram_t *report);
+#endif
+
 static void pad_parse_report(int player, uint8_t const *data, uint16_t report_len, pad_xram_t *report)
 {
     // Default empty gamepad report
@@ -568,6 +577,7 @@ static void pad_parse_report(int player, uint8_t const *data, uint16_t report_le
     if (report_len == 0)
         return;
 
+#ifdef PICO_SDK_VERSION_MAJOR
     // Extract analog sticks
     if (gamepad->x_size > 0)
     {
@@ -625,6 +635,10 @@ static void pad_parse_report(int player, uint8_t const *data, uint16_t report_le
         // Look for xbone-style discrete dpad buttons in 16-19
         report->dpad |= (buttons & 0xF0000) >> 16;
     }
+#else
+    pad_synth_report(gamepad, data, report_len, report);
+    uint32_t buttons = ((report->button1 & 0xFF) << 8) | (report->button0 & 0xFF);
+#endif // PICO_SDK_VERSION_MAJOR
 
     // Generate dpad values for sticks
     uint8_t stick_l = pad_encode_stick(report->lx, report->ly);
@@ -685,7 +699,6 @@ uint8_t pad_get_reg(uint8_t pad, uint8_t idx)
     return ((uint8_t *)(&pad_state[pad - 1]))[idx];
 }
 
-#ifdef PICO_SDK_VERSION_MAJOR
 bool __in_flash("pad_mount") pad_mount(int slot, uint8_t const *desc_data, uint16_t desc_len,
                                        uint16_t vendor_id, uint16_t product_id)
 {
@@ -711,6 +724,9 @@ bool __in_flash("pad_mount") pad_mount(int slot, uint8_t const *desc_data, uint1
     if (gamepad->valid)
     {
         gamepad->slot = slot;
+#ifndef PICO_SDK_VERSION_MAJOR
+        gamepad->report_id = 0; // force generic report type
+#endif
         pad_reset_xram(player);
         return true;
     }
@@ -728,7 +744,6 @@ bool pad_umount(int slot)
     pad_reset_xram(player);
     return true;
 }
-#endif // PICO_SDK_VERSION_MAJOR
 
 void pad_report(int slot, uint8_t const *data, uint16_t len)
 {

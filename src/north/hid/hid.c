@@ -6,12 +6,15 @@
 
 #include "hid/hid.h"
 
+#include <pico.h>
+#ifdef PICO_SDK_VERSION_MAJOR
 #if defined(DEBUG_RIA_HID) || defined(DEBUG_RIA_HID_HID)
 #include <stdio.h>
 #define DBG(...) fprintf(stderr, __VA_ARGS__)
 #else
 static inline void DBG(const char *fmt, ...) { (void)fmt; }
 #endif
+#endif // PICO_SDK_VERSION_MAJOR
 
 static inline int32_t hid_extend_signed(uint32_t raw_value, uint8_t bit_size)
 {
