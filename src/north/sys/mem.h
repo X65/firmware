@@ -11,10 +11,12 @@
 /* Various large chunks of memory used globally.
  */
 
+#include <pico.h>
+#ifdef PICO_SDK_VERSION_MAJOR
 #include "hw.h"
 #include <hardware/gpio.h>
 #include <hardware/xip_cache.h>
-#include <pico.h>
+#endif
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -55,6 +57,7 @@ extern char response_buf[RESPONSE_BUF_SIZE];
 // Compute CRC32 of mbuf to match zlib.
 uint32_t mbuf_crc32(void);
 
+#ifdef PICO_SDK_VERSION_MAJOR
 /* Main events
  */
 
@@ -117,5 +120,7 @@ mem_cpy(uint32_t dest_addr24, const void *src, size_t len)
         mem_write_ram(dest_addr24++, *s++);
     }
 }
+
+#endif // PICO_SDK_VERSION_MAJOR
 
 #endif /* _RIA_SYS_MEM_H_ */

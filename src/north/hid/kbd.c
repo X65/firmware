@@ -4,10 +4,12 @@
  * SPDX-License-Identifier: BSD-3-Clause
  */
 
-#include "main.h"
-#include "api/oem.h"
+#include <pico.h>
 #include "hid/kbd.h"
 #include "hid/hid.h"
+#ifdef PICO_SDK_VERSION_MAJOR
+#include "api/oem.h"
+#include "main.h"
 #include "mon/mon.h"
 #include "net/ble.h"
 #include "mon/str.h"
@@ -25,6 +27,7 @@
 #else
 static inline void DBG(const char *fmt, ...) { (void)fmt; }
 #endif
+#endif // PICO_SDK_VERSION_MAJOR
 
 #define X(name, value) \
     static const char __in_flash(STRINGIFY(name)) name[] = value;
@@ -94,6 +97,7 @@ X(STR_ERR_DEAD_KEY_CACHE_OVERFLOW, "?Dead key cache overflow\n")
 #define KBD_LED_CAPSLOCK 1 << 1   // Caps Lock LED
 #define KBD_LED_SCROLLLOCK 1 << 2 // Scroll Lock LED
 
+#ifdef PICO_SDK_VERSION_MAJOR
 #define KBD_REPEAT_DELAY 500000
 #define KBD_REPEAT_RATE 30000
 
@@ -107,6 +111,7 @@ static uint8_t kbd_repeat_keycode;
 static char kbd_key_queue[KBD_KEY_QUEUE_SIZE];
 static uint8_t kbd_key_queue_head;
 static uint8_t kbd_key_queue_tail;
+#endif
 static uint8_t kdb_hid_leds;
 static uint32_t kbd_keys[8];
 static bool kbd_alt_mode;
@@ -142,6 +147,7 @@ static kbd_connection_t kbd_connections[KBD_MAX_KEYBOARDS];
 // Direct access to modifier byte of a kbd_connection_t.keys
 #define KBD_MODIFIER(keys) ((uint8_t *)keys)[KBD_HID_KEY_CONTROL_LEFT >> 3]
 
+#ifdef PICO_SDK_VERSION_MAJOR
 #define X(suffix, name, desc)                                          \
     static const char __in_flash("kbd_layout_strings")                 \
         KBD_LAYOUT_NAME_##suffix[] = name;                             \
@@ -186,6 +192,7 @@ static DWORD const __in_flash("kbd_layout_dead2") (*kbd_layout_dead2[])[3] = {
 static DWORD const __in_flash("kbd_layout_dead3") (*kbd_layout_dead3[])[4] = {
     KBD_LAYOUTS};
 #undef X
+#endif
 
 static kbd_connection_t *kbd_get_connection_by_slot(int slot)
 {
@@ -195,6 +202,7 @@ static kbd_connection_t *kbd_get_connection_by_slot(int slot)
     return NULL;
 }
 
+#ifdef PICO_SDK_VERSION_MAJOR
 static void kbd_send_leds()
 {
     usb_set_hid_leds(kdb_hid_leds);
@@ -759,6 +767,7 @@ bool kbd_umount(int slot)
     conn->valid = false;
     return true;
 }
+#endif // PICO_SDK_VERSION_MAJOR
 
 void kbd_report(int slot, uint8_t const *data, size_t size)
 {
@@ -854,6 +863,7 @@ uint8_t kbd_get_reg(uint8_t idx)
     return ((uint8_t *)kbd_keys)[idx];
 }
 
+#ifdef PICO_SDK_VERSION_MAJOR
 int kbd_stdio_in_chars(char *buf, int length)
 {
     int i = 0;
@@ -899,3 +909,4 @@ const char *kbd_get_layout_verbose(void)
 {
     return kbd_layout_descriptions[kbd_layout_index];
 }
+#endif // PICO_SDK_VERSION_MAJOR

@@ -4,10 +4,11 @@
  * SPDX-License-Identifier: BSD-3-Clause
  */
 
+#include <pico.h>
 #include "hid/hid.h"
 #include "hid/pad.h"
+#ifdef PICO_SDK_VERSION_MAJOR
 #include <btstack_hid_parser.h>
-#include <pico.h>
 #include <string.h>
 
 #if defined(DEBUG_RIA_HID) || defined(DEBUG_RIA_HID_PAD)
@@ -16,6 +17,7 @@
 #else
 static inline void DBG(const char *fmt, ...) { (void)fmt; }
 #endif
+#endif // PICO_SDK_VERSION_MAJOR
 
 // If you're here to remap HID buttons on a new HID gamepad, create
 // a new pad_remap_ function and add it to pad_distill_descriptor().
@@ -96,6 +98,7 @@ typedef struct
 // Parsed descriptor structure for fast report parsing.
 static pad_connection_t pad_connections[PAD_MAX_PLAYERS];
 
+#ifdef PICO_SDK_VERSION_MAJOR
 static inline void pad_swap_buttons(pad_connection_t *conn, int b0, int b1)
 {
     uint16_t temp = conn->button_offsets[b0];
@@ -514,6 +517,7 @@ static void pad_distill_descriptor(
     if (!conn->valid)
         DBG("HID descriptor not a gamepad.\n");
 }
+#endif // PICO_SDK_VERSION_MAJOR
 
 static uint8_t pad_encode_stick(int8_t x, int8_t y)
 {
@@ -681,6 +685,7 @@ uint8_t pad_get_reg(uint8_t pad, uint8_t idx)
     return ((uint8_t *)(&pad_state[pad - 1]))[idx];
 }
 
+#ifdef PICO_SDK_VERSION_MAJOR
 bool __in_flash("pad_mount") pad_mount(int slot, uint8_t const *desc_data, uint16_t desc_len,
                                        uint16_t vendor_id, uint16_t product_id)
 {
@@ -723,6 +728,7 @@ bool pad_umount(int slot)
     pad_reset_xram(player);
     return true;
 }
+#endif // PICO_SDK_VERSION_MAJOR
 
 void pad_report(int slot, uint8_t const *data, uint16_t len)
 {

@@ -4,10 +4,11 @@
  * SPDX-License-Identifier: BSD-3-Clause
  */
 
+#include <pico.h>
 #include "hid/hid.h"
 #include "hid/mou.h"
+#ifdef PICO_SDK_VERSION_MAJOR
 #include <btstack_hid_parser.h>
-#include <pico.h>
 #include <string.h>
 
 #if defined(DEBUG_RIA_HID) || defined(DEBUG_RIA_HID_MOU)
@@ -16,6 +17,7 @@
 #else
 static inline void DBG(const char *fmt, ...) { (void)fmt; }
 #endif
+#endif // PICO_SDK_VERSION_MAJOR
 
 #define MOU_MAX_MICE 4
 
@@ -62,6 +64,7 @@ static mou_connection_t *find_connection_by_slot(int slot)
     return NULL;
 }
 
+#ifdef PICO_SDK_VERSION_MAJOR
 void mou_init(void)
 {
     mou_stop();
@@ -70,6 +73,7 @@ void mou_init(void)
 void mou_stop(void)
 {
 }
+#endif // PICO_SDK_VERSION_MAJOR
 
 uint8_t mou_get_reg(uint8_t idx)
 {
@@ -91,6 +95,7 @@ uint8_t mou_get_reg(uint8_t idx)
     }
 }
 
+#ifdef PICO_SDK_VERSION_MAJOR
 bool __in_flash("mou_mount") mou_mount(int slot, uint8_t const *desc_data, uint16_t desc_len)
 {
     int desc_idx = -1;
@@ -174,6 +179,7 @@ bool mou_umount(int slot)
     conn->valid = false;
     return true;
 }
+#endif // PICO_SDK_VERSION_MAJOR
 
 void mou_report(int slot, void const *data, size_t size)
 {

@@ -1,6 +1,6 @@
 #include "cgia.h"
 
-#include "pico.h"
+#include <pico.h>
 #ifdef PICO_SDK_VERSION_MAJOR
 #include "hardware/dma.h"
 #include "hardware/gpio.h"
