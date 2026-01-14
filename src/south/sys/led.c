@@ -6,9 +6,11 @@
  * SPDX-License-Identifier: BSD-3-Clause
  */
 
-#include "sys/led.h"
 #include "hw.h"
+#include <pico.h>
+#ifdef PICO_SDK_VERSION_MAJOR
 #include "rgb.pio.h"
+#include "sys/led.h"
 #include <hardware/clocks.h>
 #include <hardware/gpio.h>
 #include <hardware/pio.h>
@@ -42,20 +44,23 @@ static void led_set(bool on)
 
 #define WS2812B_RESTART_US 1000
 
-static volatile bool rgb_update = false;
 static absolute_time_t rgb_restart_at;
+#endif // PICO_SDK_VERSION_MAJOR
+
+static volatile bool rgb_update = false;
 
 static uint32_t RGB_LEDS[RGB_LED_MAX] = {0};
 static size_t led_used_no = 4;
 
-static inline void put_pixel(uint32_t pixel_grb)
-{
-    pio_sm_put_blocking(RGB_LED_PIO, RGB_LED_SM, pixel_grb << 8u);
-}
-
 static inline uint32_t urgb_u32(uint8_t r, uint8_t g, uint8_t b)
 {
     return ((uint32_t)(r) << 8) | ((uint32_t)(g) << 16) | (uint32_t)(b);
+}
+
+#ifdef PICO_SDK_VERSION_MAJOR
+static inline void put_pixel(uint32_t pixel_grb)
+{
+    pio_sm_put_blocking(RGB_LED_PIO, RGB_LED_SM, pixel_grb << 8u);
 }
 
 static void led_rgb_init(void)
@@ -117,6 +122,7 @@ void led_blink(bool on)
         led_set(true);
     led_blinking = on;
 }
+#endif // PICO_SDK_VERSION_MAJOR
 
 void led_set_pixel(size_t index, uint8_t r, uint8_t g, uint8_t b)
 {
