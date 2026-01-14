@@ -618,6 +618,7 @@ void kbd_init(void)
     kbd_stop();
     kdb_hid_leds = KBD_LED_NUMLOCK;
     kbd_send_leds();
+    kbd_keys[0] = (kdb_hid_leds << 1) | 1;
     if (!kbd_layout_loaded)
     {
         kbd_layout_index = kbd_sanitize_layout("");
