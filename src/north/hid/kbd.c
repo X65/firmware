@@ -772,6 +772,7 @@ bool kbd_umount(int slot)
 
 void kbd_report(int slot, uint8_t const *data, size_t size)
 {
+#ifdef PICO_SDK_VERSION_MAJOR
     kbd_connection_t *conn = kbd_get_connection_by_slot(slot);
     if (conn == NULL)
         return;
@@ -845,6 +846,9 @@ void kbd_report(int slot, uint8_t const *data, size_t size)
             kbd_queue_char(kbd_alt_code);
         }
     }
+#else
+        memcpy(kbd_keys, data, sizeof(kbd_keys));
+#endif // PICO_SDK_VERSION_MAJOR
 
     // Check for no keys pressed.
     bool any_key = false;
