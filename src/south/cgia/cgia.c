@@ -1320,7 +1320,6 @@ void cgia_task(void)
     _cgia_transfer_vcache_bank(1);
 }
 
-#ifdef PICO_SDK_VERSION_MAJOR
 static void _cgia_transfer_vcache_bank(uint8_t vcache_bank)
 {
     if (vcache_dma_blocks_remaining == 0)
@@ -1350,4 +1349,3 @@ static void _cgia_transfer_vcache_bank(uint8_t vcache_bank)
         }
     }
 }
-#endif
