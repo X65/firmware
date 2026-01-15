@@ -57,7 +57,7 @@ static int ram_print_response(char *buf, size_t buf_size, int state)
     {
         if (i == 8)
             *buf++ = ' ';
-        uint8_t c = ram_rw_addr + mbuf[i];
+        uint8_t c = mbuf[i];
         sprintf(buf, " %02X", c);
         buf += 3;
     }
@@ -71,7 +71,7 @@ static int ram_print_response(char *buf, size_t buf_size, int state)
     *buf++ = '|';
     for (size_t i = 0; i < mbuf_len; i++)
     {
-        uint8_t c = ram_rw_addr + mbuf[i];
+        uint8_t c = mbuf[i];
         if (c < 32 || c >= 127)
             c = '.';
         *buf++ = c;
