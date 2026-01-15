@@ -242,7 +242,7 @@ void cgia_task(void);
 extern uint8_t vram_cache[CGIA_VRAM_BANKS][0x10000];
 // pass EVERY RAM write through CGIA for updating VRAM cache banks
 void cgia_ram_write(uint8_t bank, uint16_t addr, uint8_t data);
-// VCACHE DMA trtansfer control
+// VCACHE DMA transfer control
 extern uint8_t vcache_dma_bank;
 extern uint16_t vcache_dma_blocks_remaining;
 extern uint8_t *vcache_dma_dest;

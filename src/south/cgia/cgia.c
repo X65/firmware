@@ -158,9 +158,11 @@ inline __attribute__((always_inline)) __attribute__((optimize("O3"))) uint8_t cg
 
 inline __attribute__((always_inline)) __attribute__((optimize("O3"))) void cgia_reg_write(uint8_t reg_no, uint8_t value)
 {
+    // update the reg value
     const uint8_t reg = reg_no & 0x7F;
     regs_int[reg] = value;
 
+    // some regs have side effects
     switch (reg)
     {
     case CGIA_REG_BCKGND_BANK:
