@@ -70,26 +70,6 @@ uint8_t
         vram_cache_bank[CGIA_VRAM_BANKS]
     = {0, 0};
 
-// store in which vram cache bank a cgia bank (backgnd/sprite) is stored
-// these may be shared - backgnd and sprites in same bank
-uint8_t *
-    __scratch_x("")
-        vram_cache_ptr[CGIA_VRAM_BANKS]
-    = {vram_cache[0], vram_cache[0]};
-
-inline void __attribute__((always_inline)) __attribute__((optimize("O3")))
-cgia_ram_write(uint8_t bank, uint16_t addr, uint8_t data)
-{
-    if (bank == vram_cache_bank[0])
-    {
-        vram_cache_ptr[0][addr] = data;
-    }
-    if (bank == vram_cache_bank[1])
-    {
-        vram_cache_ptr[1][addr] = data;
-    }
-}
-
 // store which memory bank is wanted in vram cache bank
 // used to trigger DMA transfer during cgia_run() workloop
 uint8_t
@@ -97,6 +77,28 @@ uint8_t
     __scratch_x("")
         vram_wanted_bank[CGIA_VRAM_BANKS]
     = {0, 0};
+
+inline void __attribute__((always_inline)) __attribute__((optimize("O3")))
+cgia_ram_write(uint8_t bank, uint16_t addr, uint8_t data)
+{
+    // We use wanted_bank, not cache_bank because the switch may already be in progress
+    // and we want to update the bank we are switching to, not the one we are switching from
+    if (bank == vram_wanted_bank[0])
+    {
+        vram_cache[0][addr] = data;
+    }
+    if (bank == vram_wanted_bank[1])
+    {
+        vram_cache[1][addr] = data;
+    }
+}
+
+// store in which vram cache bank a cgia bank (backgnd/sprite) is stored
+// these may be shared - backgnd and sprites in same bank
+uint8_t *
+    __scratch_x("")
+        vram_cache_ptr[CGIA_VRAM_BANKS]
+    = {vram_cache[0], vram_cache[0]};
 
 void cgia_set_bank(uint8_t cgia_bank_id, uint8_t mem_bank_no)
 {
