@@ -1143,23 +1143,8 @@ static const __in_flash("font") uint8_t FONT8_CP869[] = {
 
 void font_init(void)
 {
-#if 0
-    // font data is provided in rows for every character.
-    // 128x row0, 128x row1, etc.
-    // Convert it to linear format
-    for (int row = 0; row < 8; ++row)
-    {
-        for (int i = 0; i < 128; ++i)
-        {
-            uint8_t byte = FONT8_ASCII[row * 128 + i];
-            font8[i * 8 + row] = byte;
-        }
-    }
-    memset(&font8[128 * 8], 0, 128 * 8);
-#else
     // Use X65 font as base font for terminal
     memcpy(font8, font8_data, sizeof(font8));
-#endif
 
     if (RP6502_CODE_PAGE)
         font_set_code_page(RP6502_CODE_PAGE);
@@ -1269,6 +1254,9 @@ void font_set_code_page(uint16_t cp)
     if (!cp)
         memset(&font8[128 * 8], 0, 128 * 8);
     else
+        // font data is provided in rows for every character.
+        // 128x row0, 128x row1, etc.
+        // Convert it to linear format
         for (int row = 0; row < 8; ++row)
         {
             for (int i = 0; i < 128; ++i)
@@ -1307,7 +1295,10 @@ uint8_t font_get_byte(uint16_t byte_index, uint16_t cp)
             if (!font8hi)
                 return font8_data[byte_index];
 
-            return font8hi[byte_index - 128 * 8];
+            const uint16_t base_index = byte_index - 128 * 8;
+            const uint8_t row = base_index % 8;
+            const uint8_t chr = base_index / 8;
+            return font8hi[row * 128 + chr];
         }
     }
 }
