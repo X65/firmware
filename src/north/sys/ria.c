@@ -271,41 +271,37 @@ __attribute__((optimize("O1"))) static void __no_inline_not_in_flash_func(act_lo
                     else if (addr >= 0xFFC0)
                         switch (rw_addr_bus & (CPU_RWB_MASK | (CPU_IODEV_MASK << 8)))
                         {
-                        // unused - return 0xFF
+                        // monotonic clock
                         case CASE_READ(0xFFCF):
                         case CASE_READ(0xFFCE):
-                            data = 0xFF;
-                            break;
-
-                        // monotonic clock
                         case CASE_READ(0xFFCD):
                         case CASE_READ(0xFFCC):
                         case CASE_READ(0xFFCB):
                         case CASE_READ(0xFFCA):
-                        case CASE_READ(0xFFC9):
-                        case CASE_READ(0xFFC8):
                         {
                             uint64_t us = to_us_since_boot(get_absolute_time());
-                            data = ((uint8_t *)&us)[addr & 0x07];
+                            data = ((uint8_t *)&us)[(addr - 2) & 0x07];
                             break;
                         }
 
                         // Signed OPERA / unsigned OPERB - division accelerator
-                        case CASE_READ(0xFFC7):
-                        case CASE_READ(0xFFC6):
+                        case CASE_READ(0xFFC9):
+                        case CASE_READ(0xFFC8):
                         {
                             const int16_t oper_a = (int16_t)REGSW(0xFFC0);
                             const uint16_t oper_b = (uint16_t)REGSW(0xFFC2);
                             uint16_t div = oper_b ? (oper_a / oper_b) : 0xFFFF;
-                            data = (addr & 1) ? (div >> 8) : (div & 0xFF);
+                            data = ((uint8_t *)&div)[addr & 0x01];
                         }
                         break;
                         // OPERA * OPERB - multiplication accelerator
+                        case CASE_READ(0xFFC7):
+                        case CASE_READ(0xFFC6):
                         case CASE_READ(0xFFC5):
                         case CASE_READ(0xFFC4):
                         {
-                            uint16_t mul = REGSW(0xFFC0) * REGSW(0xFFC2);
-                            data = (addr & 1) ? (mul >> 8) : (mul & 0xFF);
+                            uint32_t mul = REGSW(0xFFC0) * REGSW(0xFFC2);
+                            data = ((uint8_t *)&mul)[addr & 0x03];
                         }
                         break;
                         default:
