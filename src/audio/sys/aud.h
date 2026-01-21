@@ -10,8 +10,6 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#define AUD_OUT_HZ 48000
-
 /* Kernel events
  */
 

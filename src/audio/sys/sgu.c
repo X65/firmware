@@ -66,7 +66,7 @@ static inline void __force_inline __attribute__((optimize("O3")))
 _sgu_tick(void)
 {
     int32_t l, r;
-    SoundUnit_NextSample(&SGU->su, &l, &r);
+    SGU_NextSample(&SGU->su, &l, &r);
 
     // Gain then Saturate+Clip
     const int16_t sL = soft_clip_int32(l << 2);
@@ -115,7 +115,7 @@ void sgu_init()
     sgu_init_tanh_lut();
 
     memset(SGU, 0, sizeof(*SGU));
-    SoundUnit_Init(&SGU->su, SGU1_SAMPLE_MEM_SIZE);
+    SGU_Init(&SGU->su, SGU1_SAMPLE_MEM_SIZE);
 
     printf("Starting SGU core...\n");
     multicore_launch_core1(sgu_loop);
@@ -123,7 +123,7 @@ void sgu_init()
 
 void sgu_reset()
 {
-    SoundUnit_Reset(&SGU->su);
+    SGU_Reset(&SGU->su);
     memset(SGU->reg, 0, sizeof(SGU->reg));
     SGU->sample = 0;
     SGU->rawL = SGU->rawR = 0;

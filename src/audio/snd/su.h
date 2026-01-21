@@ -109,56 +109,56 @@ typedef struct
     // ------------------------------------------------------------
 
     // 8-bit waveform lookup tables (one full cycle, 256 steps).
-    // Note: SCsine is bipolar (-127..127), SCtriangle as built is 0..127 (unipolar).
-    int8_t SCsine[256];
-    int8_t SCtriangle[256];
+    // Note: wave_sine_lut is bipolar (-127..127), wave_triangle_lut as built is 0..127 (unipolar).
+    int8_t wave_sine_lut[256];
+    int8_t wave_triangle_lut[256];
 
     // Panning lookup tables (0..127-ish gain factors).
     // Index is chan[i].pan interpreted as uint8_t.
     // Output is scaled by >>8 later, so these behave like Q0.8-ish gains.
-    int8_t SCpantabL[256];
-    int8_t SCpantabR[256];
+    int8_t pan_gain_lut_l[256];
+    int8_t pan_gain_lut_r[256];
 
     // Phase accumulator per channel (fixed-point).
-    // cycle[i] advances by freq*Pm per produced sample.
-    // ocycle[i] is previous phase, used to detect "phase region" changes for noise stepping.
-    uint32_t ocycle[8];
-    uint32_t cycle[8];
+    // phase_accum[i] advances by freq*Pm per produced sample.
+    // phase_accum_prev[i] is previous phase, used to detect "phase region" changes for noise stepping.
+    uint32_t phase_accum[8];
+    uint32_t phase_accum_prev[8];
 
     // Phase reset "rest timer" countdown accumulator (in the same tick domain as Pm).
-    // When enabled, rcycle is decremented each generated sample and forces phase/LFSR reset on expiry.
-    int32_t rcycle[8];
+    // When enabled, phase_reset_countdown is decremented each generated sample and forces phase/LFSR reset on expiry.
+    int32_t phase_reset_countdown[8];
 
     // Noise generator state per channel.
     // For SGU1_FLAGS0_WAVE_NOISE uses 32-bit LFSR taps.
     // For SGU1_FLAGS0_WAVE_PERIODIC_NOISE uses a small (6-bit-ish) LFSR constructed in the low bits.
-    uint32_t lfsr[8];
+    uint32_t noise_lfsr[8];
 
-    // ns[i] = raw oscillator/PCM sample for channel i (nominally -128..127).
-    // fns[i] = processed sample after volume/filter/DC-block (higher precision int32).
-    int8_t ns[8];
-    int32_t fns[8];
+    // src_sample_i8[i] = raw oscillator/PCM sample for channel i (nominally -128..127).
+    // voice_sample[i] = processed sample after volume/filter/DC-block (higher precision int32).
+    int8_t src_sample_i8[8];
+    int32_t voice_sample[8];
 
     // Per-channel stereo contributions after pan (still int32).
-    int32_t nsL[8];
-    int32_t nsR[8];
+    int32_t voice_left[8];
+    int32_t voice_right[8];
 
     // State-variable filter state per channel.
-    // nslow: low-pass integrator state
-    // nshigh: high-pass output state
-    // nsband: band-pass integrator state
-    int32_t nslow[8];
-    int32_t nshigh[8];
-    int32_t nsband[8];
+    // svf_low: low-pass integrator state
+    // svf_high: high-pass output state
+    // svf_band: band-pass integrator state
+    int32_t svf_low[8];
+    int32_t svf_high[8];
+    int32_t svf_band[8];
 
     // DC blocker state per channel (stored in Q8 fixed-point in dc_block_q8()).
-    int32_t dc[8];
+    int32_t dc_tracker_q8[8];
 
     // Last mixed output sample (left/right), also returned by NextSample().
-    int32_t tnsL, tnsR;
+    int32_t mix_left, mix_right;
 
     // Size of PCM RAM actually used (must be power of 2, <= pcm[] size).
-    uint32_t pcmSize;
+    uint32_t pcm_ram_size;
 
     // ------------------------------------------------------------
     // PUBLIC (register-visible + helpers)
@@ -166,14 +166,14 @@ typedef struct
 
     // Sweep countdown timers (per channel). They count down by Pm each generated sample.
     // When <= 0, they "tick" and apply one sweep step, then reload by sw*.speed.
-    int32_t swvolt[8];  // volume sweep timer accumulator
-    int32_t swfreqt[8]; // frequency sweep timer accumulator
-    int32_t swcutt[8];  // cutoff sweep timer accumulator
+    int32_t vol_sweep_countdown[8];  // volume sweep timer accumulator
+    int32_t freq_sweep_countdown[8]; // frequency sweep timer accumulator
+    int32_t cut_sweep_countdown[8];  // cutoff sweep timer accumulator
 
     // PCM fractional position accumulator per channel.
-    // pcmdec integrates playback rate; when it crosses 32768, pcmpos advances by 1.
+    // pcm_phase_accum integrates playback rate; when it crosses 32768, pcmpos advances by 1.
     // This is essentially a fixed-point resampling stepper.
-    int32_t pcmdec[8];
+    int32_t pcm_phase_accum[8];
 
     // Channel "register file" (what SoundUnit_Write() writes into, byte-addressed).
     struct SUChannel
@@ -268,7 +268,7 @@ void SoundUnit_NextSample(SoundUnit *su, int32_t *l, int32_t *r);
 static inline int32_t __attribute__((always_inline))
 SoundUnit_GetSample(SoundUnit *su, uint8_t ch)
 {
-    int32_t ret = (su->nsL[ch] + su->nsR[ch]) >> 1;
+    int32_t ret = (su->voice_left[ch] + su->voice_right[ch]) >> 1;
     if (ret < -32768)
         ret = -32768;
     if (ret > 32767)
