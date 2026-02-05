@@ -23,10 +23,6 @@
 
 #pragma once
 
-#ifndef SGU_EG_DEBUG
-#define SGU_EG_DEBUG 0
-#endif
-
 /**
  * SGU-1 - Sound Generator Unit 1
  *
@@ -73,34 +69,33 @@
 #define SGU_WAVEFORM_LENGTH (0x400)   // 1024 samples per waveform
 
 /*
-### Operator bit layout
+### Key differences vs OPL/OPM/ESFM
 
-```
-R0  [7]TRM  [6]VIB  [5]FIX  [4]---  [3:0]MUL
-R1  [7:6]KSL        [5:0]TL(0..63)
+- Envelopes: AR/DR/SR/SL/RR structure (like OPN/OPM), vs OPL's AR/DR/SL+RR.
+  For better percussive envelope shaping.
+- TL is 7-bit (0..127) vs OPL's 6-bit (0..63), for finer attenuation steps.
+- KSR is 2-bit (0..3) vs OPL's 1-bit (0/1), for better rate scaling.
+- MUL is OPL-style (0=0.5x, 1..15=1x..15x) vs OPN/OPM's (1..16=1x..16x).
+- DT is 3-bit (0..7) vs OPL's 2-bit (0..3), for finer detune steps.
+- SR (D2R) is explicit 5-bit (0..31) vs OPL's implicit (0 or 15).
+- WAVE selection is per-operator (3-bit) vs OPL's global per-channel (2-bit).
+- MOD/OUT routing like ESFM (per-operator) vs OPL's fixed 2-op algorithms.
 
-R2  [7:4]AR_lo4                     [3:0]DR_lo4
-R3  [7:4]SL(0..15)                  [3:0]RR(0..15)
+### Tremolo/Vibrato
 
-R4  [7:5]DT                 [4:0]SR(0..31)
+- Tremolo (AM) and Vibrato (PM) enable bits are per-operator (R0[7], R0[6])
+  vs OPL's per-channel (R0[7:6]).
+- Tremolo depth is global per-channel (like OPL).
+- Vibrato depth is global per-channel (like OPL).
+- Hard sync and ring modulation are per-operator (R6[5], R6[4]).
 
-R5  [7:5]DELAY              [4:3]KSR            [2:0]WPAR
+### Fixed frequency mode (OPZ-like)
 
-R6  [7]TRMD [6]VIBD [5]SYNC [4]RING [3:1]MOD [0]TL_msb
-R7  [7:5]OUT                [4]AR_msb [3]DR_msb [2:0]WAVE
-```
-
-### Assembled parameter widths (OPL/ESFM-like; OPN/OPM-like where it matters)
-
-* **AR** = `(AR_msb<<4) | AR_lo4`  → 0..31 (5-bit)
-* **DR (D1R)** = `(DR_msb<<4) | DR_lo4` → 0..31 (5-bit)
-* **SR (D2R)** = `SR` → 0..31 (5-bit)
-* **SL (D1L)** = `SL` → 0..15 (4-bit)
-* **RR** = `RR` → 0..15 (4-bit)
-* **TL** = `(TL_msb<<6) | TL_lo6` → 0..127 (7-bit, closer to OPN/OPM feel)
-
-This keeps OPL-style packing in R2/R3 intact (low nibbles),
-but upgrades AR/DR to 5-bit and adds true SR.
+- Enabled by FIX bit (R0[5]) per-operator.
+- In fixed mode, operator ignores channel base frequency.
+- Fixed frequency is derived from MUL and DT reinterpreted:
+  `freq16 = (8 + (MUL * 247 + 7) / 15) << DT`  (range ≈ 8..32640).
+- In fixed mode, DT does not act as detune.
 
 ---
 
@@ -135,10 +130,27 @@ Additional WAVE form related parameter (per-operator, 3 bits)
   bit 0 => selects rising/falling (inverted value)
   bits 1..2 => quantize wave table look-up; zero { 0, 4, 6, 8 } last bits
 - SINE, TRIANGLE
-  bit 0 => skew waveform peak position using channel duty value
+  bit 0 (SKEW): skew waveform peak position using channel duty value
+  bit 1 (HALF): half-sine - negative portion silenced
+  bit 2 (ABS): absolute sine - negative portion mirrored
+  Examples: WPAR=2 = half-sine/triangle (positive only)
+            WPAR=4 = absolute sine/triangle (frequency doubled)
+            WPAR=3 = skewed + half
 - PERIODIC_NOISE
-  bits 0..1 => LFSR tap configuration (0-3) for different timbres
+  WPAR[1:0] selects 6-bit LFSR tap configuration:
+    0: taps 3,4 (~31 states)
+    1: taps 2,3 (~31 states)
+    2: taps 0,2,3 (~63 states)
+    3: taps 0,2,3,5 (~63 states)
   This is per-operator, allowing different noise timbres in each operator
+- XOR_SINE (SU-style XOR waveform combining)
+  Each WPAR bit enables XORing a waveform into the output:
+    bit 0: Pulse (uses channel duty for width)
+    bit 1: Sine (from waveform LUT)
+    bit 2: Triangle (computed)
+  Examples: WPAR=3 (011) = pulse XOR sine (original SU wave 6)
+            WPAR=5 (101) = pulse XOR triangle (original SU wave 7)
+            WPAR=7 (111) = pulse XOR sine XOR triangle
 
 
 ## MOD / OUT routing
@@ -160,18 +172,31 @@ Additional WAVE form related parameter (per-operator, 3 bits)
 #include <stdint.h>
 
 // -----------------------------------------------------------------------------
+// Operator register offsets (0-7 within each operator's 8-byte block)
+// -----------------------------------------------------------------------------
+#define SGU_OP_REG_MUL      0 // R0: [7]TRM [6]VIB [5:4]KSR [3:0]MUL
+#define SGU_OP_REG_TL       1 // R1: [7:6]KSL [5:0]TL_lo6
+#define SGU_OP_REG_AR_DR    2 // R2: [7:4]AR_lo4 [3:0]DR_lo4
+#define SGU_OP_REG_SL_RR    3 // R3: [7:4]SL [3:0]RR
+#define SGU_OP_REG_DT_SR    4 // R4: [7:5]DT [4:0]SR
+#define SGU_OP_REG_DELAY    5 // R5: [7:5]DELAY [4]FIX [3:0]WPAR
+#define SGU_OP_REG_MOD      6 // R6: [7]TRMD [6]VIBD [5]SYNC [4]RING [3:1]MOD [0]TL_msb
+#define SGU_OP_REG_OUT_WAVE 7 // R7: [7:5]OUT [4]AR_msb [3]DR_msb [2:0]WAVE
+
+// -----------------------------------------------------------------------------
 // Operator bitfields
 // -----------------------------------------------------------------------------
 
-// R0: [7]TRM [6]VIB [5]FIX [4]--- [3:0]MUL
-#define SGU_OP0_MUL_MASK 0x0F
-#define SGU_OP0_FIX_BIT  0x20
-#define SGU_OP0_VIB_BIT  0x40
-#define SGU_OP0_TRM_BIT  0x80
+// R0: [7]TRM [6]VIB [5:4]KSR [3:0]MUL
+#define SGU_OP0_MUL_MASK  0x0F
+#define SGU_OP0_KSR_MASK  0x30
+#define SGU_OP0_KSR_SHIFT 4
+#define SGU_OP0_VIB_BIT   0x40
+#define SGU_OP0_TRM_BIT   0x80
 
 #define SGU_OP0_TRM(reg) ((reg) & SGU_OP0_TRM_BIT)
 #define SGU_OP0_VIB(reg) ((reg) & SGU_OP0_VIB_BIT)
-#define SGU_OP0_FIX(reg) ((reg) & SGU_OP0_FIX_BIT)
+#define SGU_OP0_KSR(reg) (((reg) & SGU_OP0_KSR_MASK) >> SGU_OP0_KSR_SHIFT)
 #define SGU_OP0_MUL(reg) ((reg) & SGU_OP0_MUL_MASK)
 
 // R1: [7:6]KSL [5:0]TL_lo6
@@ -206,19 +231,23 @@ Additional WAVE form related parameter (per-operator, 3 bits)
 #define SGU_OP4_DT_MASK  0xE0
 #define SGU_OP4_DT_SHIFT 5
 
-#define SGU_OP4_SR(reg) ((reg) & SGU_OP4_SR_MASK)
 #define SGU_OP4_DT(reg) (((reg) & SGU_OP4_DT_MASK) >> SGU_OP4_DT_SHIFT)
+#define SGU_OP4_SR(reg) ((reg) & SGU_OP4_SR_MASK)
 
-// R5: [7:5]DELAY [4:3]KSR [2:0]WPAR
-#define SGU_OP5_WPAR_MASK   0x07
-#define SGU_OP5_KSR_MASK    0x18
-#define SGU_OP5_KSR_SHIFT   3
+// R5: [7:5]DELAY [4]FIX [3:0]WPAR
+#define SGU_OP5_WPAR_MASK   0x0F
+#define SGU_OP5_FIX_BIT     0x10
 #define SGU_OP5_DELAY_MASK  0xE0
 #define SGU_OP5_DELAY_SHIFT 5
 
-#define SGU_OP5_WPAR(reg)  ((reg) & SGU_OP5_WPAR_MASK)
 #define SGU_OP5_DELAY(reg) (((reg) & SGU_OP5_DELAY_MASK) >> SGU_OP5_DELAY_SHIFT)
-#define SGU_OP5_KSR(reg)   (((reg) & SGU_OP5_KSR_MASK) >> SGU_OP5_KSR_SHIFT)
+#define SGU_OP5_FIX(reg)   ((reg) & SGU_OP5_FIX_BIT)
+#define SGU_OP5_WPAR(reg)  ((reg) & SGU_OP5_WPAR_MASK)
+
+// WPAR bit meanings for SINE/TRIANGLE waveforms (OPL-style modifiers)
+#define SGU_WPAR_SKEW (1 << 0) // bit 0: skew peak position using channel duty
+#define SGU_WPAR_HALF (1 << 1) // bit 1: half-sine - negative portion silenced
+#define SGU_WPAR_ABS  (1 << 2) // bit 2: absolute - negative portion mirrored
 
 // R6: [7]TRMD [6]VIBD [5]SYNC [4]RING [3:1]MOD [0]TL_msb
 #define SGU_OP6_TL_MSB_BIT 0x01
@@ -293,7 +322,7 @@ Additional WAVE form related parameter (per-operator, 3 bits)
 #define SGU1_CHN_SPECIAL2     (0x1F)
 
 // channel control bits
-#define SGU1_FLAGS0_CTL_KEYON     (1 << 0)
+#define SGU1_FLAGS0_CTL_GATE      (1 << 0)
 #define SGU1_FLAGS0_PCM_SHIFT     (3)
 #define SGU1_FLAGS0_PCM_MASK      (0x1 << SGU1_FLAGS0_PCM_SHIFT)
 #define SGU1_FLAGS0_CONTROL_SHIFT (4)
@@ -314,24 +343,32 @@ Additional WAVE form related parameter (per-operator, 3 bits)
 // -----------------------------------------------------------------------------
 // Notes on behavior (implementation-level, not register-level)
 // - Operator envelope is AR -> DR toward SL, then SR while key held, then RR on key-off.
+// - Envelope timing: SGU EG runs at 16kHz (48kHz/3), vs OPN/ESFM at ~17.7kHz.
+//   This results in ~10% slower envelope timing compared to ESFM reference.
 // - MOD is phase modulation gain from previous op; op0 uses MOD as feedback gain.
 // - SYNC resets this op phase on previous op wrap; RING multiplies by previous op sign/value.
 // - FIX mode ignores channel pitch and derives a fixed frequency from MUL+DT.
 // -----------------------------------------------------------------------------
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-// Waveform types for operator R7[2:0] (0..5 implemented)
+// Waveform types for operator R7[2:0] (all 8 waveforms implemented)
+// - WAVE_SINE, WAVE_TRIANGLE: OPL-style wave modifiers via WPAR
+//     bit 0 (SKEW): shift peak position using channel duty
+//     bit 1 (HALF): half-sine - negative portion silenced
+//     bit 2 (ABS): absolute sine - negative portion mirrored
 // - WAVE_NOISE: 32-bit LFSR white noise, SID-compatible clocking (freq16 * 0.9537 Hz)
-// - WAVE_PERIODIC_NOISE: 6-bit LFSR metallic/tonal noise
+// - WAVE_PERIODIC_NOISE: Configurable 6-bit LFSR metallic/tonal noise
 //     Frequency: channel freq16 × operator multiplier (R0[3:0])
-//     Timbre: channel duty[5:4] selects LFSR tap configuration:
-//       0: taps 3,4     (~31 states)
-//       1: taps 2,3     (~31 states)
-//       2: taps 0,2,3   (different timbre)
-//       3: taps 0,2,3,5 (max length ~63 states)
+//     Timbre: WPAR[1:0] selects tap configuration (per-operator):
+//       0: taps 3,4 (~31 states)
+//       1: taps 2,3 (~31 states)
+//       2: taps 0,2,3 (~63 states)
+//       3: taps 0,2,3,5 (~63 states)
+// - WAVE_XOR_SINE: SU-style XOR waveform combining
+//     Each WPAR bit enables a waveform: bit0=pulse, bit1=sine, bit2=triangle
+//     WPAR=3: pulse XOR sine, WPAR=5: pulse XOR triangle, WPAR=7: all three
+// - WAVE_SAMPLE: PCM sample playback as FM operator waveform
+//     Uses channel pcmrst register as base address for 1024-sample waveform
+//     Phase (0-1023) indexes into sample region, looping naturally
 typedef enum : uint8_t
 {
     SGU_WAVE_SINE = 0,
@@ -340,9 +377,18 @@ typedef enum : uint8_t
     SGU_WAVE_PULSE = 3,
     SGU_WAVE_NOISE = 4,
     SGU_WAVE_PERIODIC_NOISE = 5,
-    SGU_WAVE_XOR_SINE = 6,     // reserved (unimplemented)
-    SGU_WAVE_XOR_TRIANGLE = 7, // reserved (unimplemented)
+    SGU_WAVE_RESERVED6 = 6, // reserved for future use
+    SGU_WAVE_SAMPLE = 7,    // sample from PCM memory as waveform
 } sgu_waveform_t;
+
+// WPAR[1:0] selects 6-bit LFSR tap configuration for PERIODIC_NOISE
+typedef enum : uint8_t
+{
+    SGU_LFSR_TAP34 = 0,   // taps 3,4 (XOR) - simple periodic
+    SGU_LFSR_TAP23 = 1,   // taps 2,3 (XOR) - simple periodic
+    SGU_LFSR_TAP023 = 2,  // taps 0,2,3 (XOR) - intermediate
+    SGU_LFSR_TAP0235 = 3, // taps 0,2,3,5 (XOR) - most complex/noisy
+} sgu_lfsr_t;
 
 // Envelope states
 enum envelope_state : uint8_t
@@ -409,8 +455,8 @@ struct SGU
         int8_t pan;    // positive Right, negative Left
 
         // flags0:
-        //  - bit 0: (KEY) triggers key-on for the associated channel,
-        //    starting the envelope generator and resetting the signal phase.
+        //  - bit 0: (GATE) ADSR envelope is running when set; key-on/key-off,
+        //    rising edge is starting the envelope generator and resetting the signal phase.
         //  - bit 3: PCM enable (when set, src = pcm[pcmpos])
         //  - bit 4: ring mod enable (multiply by next channel's raw sample)
         //  - bits 5..7: filter mode selects (LP/HP/BP) (implemented as bitmask picks)
@@ -483,12 +529,13 @@ struct SGU
     bool muted[SGU_CHNS];
 
     // ------ private generator state ------
-    uint32_t sample_counter; // sample clock ticks
+    uint32_t sample_counter;   // sample clock ticks
+    uint32_t envelope_counter; // envelope counter; low 2 bits are sub-counter
 
     // internal state - global LFO
-    uint16_t m_lfo_am_counter; // LFO AM counter
-    uint16_t m_lfo_pm_counter; // LFO PM counter
-    uint8_t m_lfo_am;          // current LFO AM value
+    uint16_t lfo_am_counter; // LFO AM counter
+    uint16_t lfo_pm_counter; // LFO PM counter
+    uint8_t lfo_am;          // current LFO AM value
 
     // channels internal state
     struct sgu_ch_state
@@ -496,20 +543,20 @@ struct SGU
         int16_t op0_fb;                                    // feedback memory for first operator
         uint32_t phase[SGU_OP_PER_CH];                     // current phase value (10.22 format)
         uint32_t prev_phase[SGU_OP_PER_CH];                // previous phase value (for noise boundary detection)
-        int16_t value[SGU_OP_PER_CH];                      // current output value
+        int16_t value[SGU_OP_PER_CH];                      // current operator value
+        int16_t out[SGU_OP_PER_CH];                        // current output value
         uint16_t envelope_attenuation[SGU_OP_PER_CH];      // computed envelope attenuation (4.6 format)
         enum envelope_state envelope_state[SGU_OP_PER_CH]; // current envelope state
-        uint32_t noise_lfsr[SGU_OP_PER_CH];                // per-operator noise LFSR state
+        uint32_t lfsr_state[SGU_OP_PER_CH];                // per-operator noise LFSR state
         bool phase_wrap[SGU_OP_PER_CH];                    // phase wrap flag for current sample (for SYNC)
         bool key_state[SGU_OP_PER_CH];                     // current key state: on or off
         bool keyon_live[SGU_OP_PER_CH];                    // live key on state
         bool keyon_gate[SGU_OP_PER_CH];                    // last raw key state (edge detect for delay)
         bool eg_delay_run[SGU_OP_PER_CH];                  // envelope delay active
         uint16_t eg_delay_counter[SGU_OP_PER_CH];          // delay counter (samples)
-#if SGU_EG_DEBUG
-        uint32_t eg_last_transition[SGU_OP_PER_CH];       // sample index of last state transition
-        enum envelope_state eg_last_state[SGU_OP_PER_CH]; // last logged state
-#endif
+        uint8_t blep[SGU_OP_PER_CH];                       // BLEP damping after dramatic phase changes
+        uint16_t blep_frac[SGU_OP_PER_CH];                 // fractional phase at edge (for sub-sample interpolation)
+        int16_t blep_prev_sample[SGU_OP_PER_CH];           // previous raw sample for edge detection
     } m_channel[SGU_CHNS];
 
     // precomputed waveforms (1024 samples each)
@@ -566,7 +613,3 @@ void SGU_NextSample(struct SGU *sgu, int32_t *l, int32_t *r);
 // Convenience getter: returns mono downmix of current per-channel post-pan samples (averaged).
 // This is not used in NextSample, but useful for taps/meters/debug.
 int32_t SGU_GetSample(struct SGU *sgu, uint8_t ch);
-
-#ifdef __cplusplus
-}
-#endif
