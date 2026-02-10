@@ -119,11 +119,15 @@ bool oem_api_get_chargen(void)
 {
     if (!pending_chargen_bytes)
     {
+        uint16_t chargen_addr_low16;
+        uint8_t chargen_addr_high8;
+
         if (!api_pop_uint16(&chargen_cp)
-            || !api_pop_uint16(&((uint16_t *)(&chargen_addr))[0])
-            || !api_pop_uint8(&((uint8_t *)(&chargen_addr))[2]))
+            || !api_pop_uint16(&chargen_addr_low16)
+            || !api_pop_uint8(&chargen_addr_high8))
             return api_return_errno(API_EINVAL);
 
+        chargen_addr = ((uint32_t)chargen_addr_high8 << 16) | chargen_addr_low16;
         pending_chargen_bytes = CHARGEN_TOTAL_BYTES;
     }
 

@@ -76,9 +76,10 @@ _sgu_tick(void)
     int32_t l, r;
     SGU_NextSample(&SGU->sgu, &l, &r);
 
-    // Gain then Saturate+Clip
-    ((int16_t *)(&SGU->sample))[1] = soft_clip_int32(l << 2);
-    ((int16_t *)(&SGU->sample))[0] = soft_clip_int32(r << 2);
+    // Gain then saturate+clip, packed as [31:16] Left and [15:0] Right.
+    const int16_t left = soft_clip_int32(l << 2);
+    const int16_t right = soft_clip_int32(r << 2);
+    SGU->sample = ((uint32_t)(uint16_t)left << 16) | (uint16_t)right;
 }
 
 __attribute__((optimize("O3"))) static void __no_inline_not_in_flash_func(sgu_loop)(void)
