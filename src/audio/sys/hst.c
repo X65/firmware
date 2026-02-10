@@ -22,7 +22,7 @@ static void __isr __not_in_flash_func(hst_spi_irq_handler)(void)
     while (spi_is_readable(HST_SPI))
     {
         const uint16_t rcv = (uint16_t)spi_hw->dr;
-        const uint8_t reg = (rcv >> 8) & 0x3F;
+        const uint8_t reg = (rcv >> 8) & (SGU_REGS_PER_CH - 1);
 
         if (rcv & SPI_READ_BIT)
         {

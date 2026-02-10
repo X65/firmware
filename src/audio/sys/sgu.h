@@ -24,24 +24,15 @@
     OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 #*/
 
-#include "snd/su.h"
+#include "snd/sgu.h"
 #include "sys/aud.h"
 #include <stdbool.h>
 #include <stdint.h>
 
-#define SGU1_AUDIO_CHANNELS (2)
-
-#define SGU1_NUM_CHANNELS     (8)
-#define SGU1_NUM_CHANNEL_REGS (32)
-
-// control registers
-#define SGU1_REG_CHANNEL_SELECT (0x00)
-
 typedef struct
 {
-    SoundUnit su;
-    uint8_t reg[32];
-    int16_t rawL, rawR;
+    struct SGU sgu;
+    uint8_t selected_channel;
     uint32_t sample; // two signed PCM samples packed: [31:16] Left, [15:0] Right
 } sgu1_t;
 

@@ -15,7 +15,7 @@ sgu1_t sgu_instance;
 static void sgu_dump_channel_state(int channel)
 {
     printf("-- %02X --\n", channel);
-    uint8_t *ch = (uint8_t *)&SGU->su.chan[channel];
+    uint8_t *ch = (uint8_t *)&SGU->sgu.chan[channel];
     printf("%02X %02X %02X %02X %02X %02X %02X %02X  ",
            ch[0], ch[1], ch[2], ch[3], ch[4], ch[5], ch[6], ch[7]);
     printf("%02X %02X %02X %02X %02X %02X %02X %02X\n",
@@ -24,6 +24,14 @@ static void sgu_dump_channel_state(int channel)
            ch[16], ch[17], ch[18], ch[19], ch[20], ch[21], ch[22], ch[23]);
     printf("%02X %02X %02X %02X %02X %02X %02X %02X\n",
            ch[24], ch[25], ch[26], ch[27], ch[28], ch[29], ch[30], ch[31]);
+    printf("%02X %02X %02X %02X %02X %02X %02X %02X  ",
+           ch[32], ch[33], ch[34], ch[35], ch[36], ch[37], ch[38], ch[39]);
+    printf("%02X %02X %02X %02X %02X %02X %02X %02X\n",
+           ch[40], ch[41], ch[42], ch[43], ch[44], ch[45], ch[46], ch[47]);
+    printf("%02X %02X %02X %02X %02X %02X %02X %02X  ",
+           ch[48], ch[49], ch[50], ch[51], ch[52], ch[53], ch[54], ch[55]);
+    printf("%02X %02X %02X %02X %02X %02X %02X %02X\n",
+           ch[56], ch[57], ch[58], ch[59], ch[60], ch[61], ch[62], ch[63]);
 }
 
 volatile int16_t __uninitialized_ram(tanh_lut)[INT16_MAX + 1]
@@ -66,18 +74,11 @@ static inline void __force_inline __attribute__((optimize("O3")))
 _sgu_tick(void)
 {
     int32_t l, r;
-    SGU_NextSample(&SGU->su, &l, &r);
+    SGU_NextSample(&SGU->sgu, &l, &r);
 
     // Gain then Saturate+Clip
-    const int16_t sL = soft_clip_int32(l << 2);
-    const int16_t sR = soft_clip_int32(r << 2);
-
-    ((int16_t *)(&SGU->sample))[1] = (int16_t)(((int32_t)sL + SGU->rawL) >> 1);
-    ((int16_t *)(&SGU->sample))[0] = (int16_t)(((int32_t)sR + SGU->rawR) >> 1);
-
-    // Store raw samples for next round's averaging
-    SGU->rawL = sL;
-    SGU->rawR = sR;
+    ((int16_t *)(&SGU->sample))[1] = soft_clip_int32(l << 2);
+    ((int16_t *)(&SGU->sample))[0] = soft_clip_int32(r << 2);
 }
 
 __attribute__((optimize("O3"))) static void __no_inline_not_in_flash_func(sgu_loop)(void)
@@ -90,11 +91,7 @@ __attribute__((optimize("O3"))) static void __no_inline_not_in_flash_func(sgu_lo
         }
         pio_interrupt_clear(AUD_I2S_PIO, AUD_PIO_IRQ);
 
-        int runs = SGU1_OVERSAMPLING;
-        do
-        {
-            _sgu_tick();
-        } while (--runs);
+        _sgu_tick();
 
         pio_sm_put_blocking(AUD_I2S_PIO, AUD_I2S_SM, SGU->sample);
 
@@ -115,7 +112,7 @@ void sgu_init()
     sgu_init_tanh_lut();
 
     memset(SGU, 0, sizeof(*SGU));
-    SGU_Init(&SGU->su, SGU1_SAMPLE_MEM_SIZE);
+    SGU_Init(&SGU->sgu, SGU_PCM_RAM_SIZE);
 
     printf("Starting SGU core...\n");
     multicore_launch_core1(sgu_loop);
@@ -123,44 +120,35 @@ void sgu_init()
 
 void sgu_reset()
 {
-    SGU_Reset(&SGU->su);
-    memset(SGU->reg, 0, sizeof(SGU->reg));
+    SGU_Reset(&SGU->sgu);
     SGU->sample = 0;
-    SGU->rawL = SGU->rawR = 0;
-}
-
-static inline uint8_t _sgu_selected_channel()
-{
-    return SGU->reg[SGU1_REG_CHANNEL_SELECT] & (SGU1_NUM_CHANNELS - 1);
+    SGU->selected_channel = 0;
 }
 
 uint8_t sgu_reg_read(uint8_t reg)
 {
     uint8_t data;
-    if (reg < 32)
+    if (reg == SGU_REGS_PER_CH - 1)
     {
-        data = SGU->reg[reg];
+        data = SGU->selected_channel;
     }
     else
     {
-        uint8_t chan = _sgu_selected_channel();
-        data = ((unsigned char *)SGU->su.chan)[chan << 5 | (reg & (SGU1_NUM_CHANNEL_REGS - 1))];
+        data = ((unsigned char *)SGU->sgu.chan)[(SGU->selected_channel % SGU_CHNS) << 6 | (reg & (SGU_REGS_PER_CH - 1))];
     }
     return data;
 }
 
 void sgu_reg_write(uint8_t reg, uint8_t data)
 {
-    if (reg < 32)
+    if (reg == SGU_REGS_PER_CH - 1)
     {
-        if (reg == SGU1_REG_CHANNEL_SELECT)
-        {
-            SGU->reg[reg] = data;
-        }
+        SGU->selected_channel = data;
     }
     else
     {
-        uint8_t chan = _sgu_selected_channel();
-        ((unsigned char *)SGU->su.chan)[chan << 5 | (reg & (SGU1_NUM_CHANNEL_REGS - 1))] = data;
+        // ((unsigned char*)SGU->sgu.chan)[(SGU->selected_channel % SGU_CHNS) << 6 | (reg & (SGU_REGS_PER_CH - 1))] =
+        // data;
+        SGU_Write(&SGU->sgu, (uint16_t)((SGU->selected_channel % SGU_CHNS) << 6) | (reg & (SGU_REGS_PER_CH - 1)), data);
     }
 }

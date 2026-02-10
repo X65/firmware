@@ -1420,7 +1420,7 @@ void SGU_Reset(struct SGU *sgu)
     sgu->lfo_pm_counter = 0;
     sgu->lfo_am = 0;
 
-    for (size_t ch = 0; ch < SGU_CHNS; ch++)
+    for (uint8_t ch = 0; ch < SGU_CHNS; ch++)
     {
         fm_channel_reset(&sgu->m_channel[ch], ch);
 
