@@ -120,6 +120,15 @@ static inline uint32_t opl_key_scale_atten(uint32_t block, uint32_t fnum_4msb)
 //-------------------------------------------------
 static inline int32_t detune_adjustment(uint32_t detune, uint32_t keycode)
 {
+    // Detune uses following encoding:
+    //   0 = -3 (strongest negative)
+    //   1 = -2
+    //   2 = -1
+    //   3 =  0 (no detune)
+    //   4 = +1
+    //   5 = +2
+    //   6 = +3 (strongest positive)
+    //   7 =  0 (no detune, degenerate)
     static uint8_t const s_detune_adjustment[32][4] = {
         // clang-format off
         { 0,  0,  1,  2 },  { 0,  0,  1,  2 },  { 0,  0,  1,  2 },  { 0,  0,  1,  2 },
@@ -263,71 +272,6 @@ static inline uint32_t attenuation_increment(uint32_t rate, uint32_t index)
         0x88888888, 0x88888888, 0x88888888, 0x88888888  // 60-63  (0x3C-0x3F)
     };
     return bitfield(s_increment_table[rate], 4 * index, 4);
-}
-
-// freq16 is SID-style frequency word (monotonic with Hz, doubles per octave)
-// op_ksr(op_data) is 0/1 (OPL-style KSR strength)
-static inline uint32_t ksrval_from_freq16(uint16_t freq16, uint8_t ksr_bit)
-{
-    if (freq16 == 0)
-        return 0;
-
-    // msb position of freq16 (0..15)
-    uint32_t msb = 31u - __builtin_clz((uint32_t)freq16);
-
-    // Choose reference so C0 (~274 = 0x0112) lands at block=0
-    // 274 has msb=8, so base_msb=8.
-    int32_t block = (int32_t)msb - 8;
-    if (block < 0)
-        block = 0;
-    if (block > 7)
-        block = 7;
-
-    // one "half-octave-ish" bit, analogous to OPL keycode LSB
-    uint32_t frac = (msb >= 1) ? ((freq16 >> (msb - 1)) & 1u) : 0u;
-
-    uint32_t keycode = ((uint32_t)block << 1) | frac; // 0..15
-
-    // KSR=1: strong (0..15), KSR=0: weak/coarse (0..3)
-    return keycode >> (ksr_bit ? 0 : 2);
-}
-static inline uint32_t ksrval_from_freq16_fast(uint16_t freq16, uint8_t ksr_bit)
-{
-    if (freq16 < 0x0100)
-        return 0; // below C0-ish => treat as lowest key
-
-    // msb in [8..15] for your musical range
-    uint32_t msb = 31u - __builtin_clz((uint32_t)freq16);
-    uint32_t block = msb - 8u; // 0..7, no clamp needed
-
-    // half-octave-ish bit: test bit (msb-1) without a variable shift
-    static const uint16_t msb1_mask[16] = {
-        0, 1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024, 2048, 4096, 8192, 16384};
-    uint32_t frac = (freq16 & msb1_mask[msb]) ? 1u : 0u;
-
-    uint32_t keycode = (block << 1) | frac; // 0..15
-    return keycode >> (ksr_bit ? 0 : 2);    // KSR=1: 0..15, KSR=0: 0..3
-}
-static inline uint32_t ksrval_from_freq16_cheaper(uint16_t freq16, uint8_t ksr_bit)
-{
-    if (freq16 < 0x0100)
-        return 0;
-
-    uint32_t msb = 31u - __builtin_clz((uint32_t)freq16); // 8..15
-    uint32_t block = msb - 8u;                            // 0..7
-
-    uint32_t keycode = (block << 1); // 0,2,4,...14
-    return keycode >> (ksr_bit ? 0 : 2);
-}
-static inline uint32_t keycode_from_freq16_cheaper(uint16_t freq16)
-{
-    if (freq16 < 0x0100)
-        return 0;
-
-    uint32_t msb = 31u - __builtin_clz((uint32_t)freq16); // 8..15
-    uint32_t block = msb - 8u;                            // 0..7
-
-    return (block << 1); // 0,2,4,...14
 }
 
 // Extract block (octave 0-7) and top 4 fractional bits from freq16 for KSL calculation

@@ -91,7 +91,7 @@
 
 ### Fixed frequency mode (OPZ-like)
 
-- Enabled by FIX bit (R0[5]) per-operator.
+- Enabled by FIX bit (R5[4]) per-operator.
 - In fixed mode, operator ignores channel base frequency.
 - Fixed frequency is derived from MUL and DT reinterpreted:
   `freq16 = (8 + (MUL * 247 + 7) / 15) << DT`  (range ≈ 8..32640).
@@ -120,7 +120,7 @@ Let channel base frequency be `f_ch` (from channel FREQ).
 
 ### Wave parameter WPAR
 
-Additional WAVE form related parameter (per-operator, 3 bits)
+Additional WAVE form related parameter (per-operator, 4 bits)
 
 - PULSE
   Selects channel pulse width or a fixed per-operator pulse width:
@@ -395,9 +395,9 @@ struct SGU
     {
         struct SGU_OP
         {
-            // R0: [7]TRM [6]VIB [5]FIX [4]--- [3:0]MUL
+            // R0: [7]TRM [6]VIB [5:4]KSR [3:0]MUL
             // - TRM/VIB enable LFO AM/PM (depth set in R6).
-            // - FIX selects fixed-frequency mode.
+            // - KSR selects rate-scaling strength (2-bit).
             // - MUL is OPL-style multiplier (0 => 0.5×, 1..15 => 1×..15×).
             uint8_t reg0;
 
@@ -417,9 +417,9 @@ struct SGU
             uint8_t reg3;
             uint8_t reg4;
 
-            // R5: [7:5]DELAY [4:3]KSR [2:0]WPAR
+            // R5: [7:5]DELAY [4]FIX [3:0]WPAR
             // - DELAY adds 2**(DELAY + 8) samples to key-on (phase + envelope).
-            // - KSR selects rate-scaling strength (2-bit).
+            // - FIX selects fixed-frequency mode.
             // - WPAR is a per-waveform shape parameter.
             uint8_t reg5;
 
