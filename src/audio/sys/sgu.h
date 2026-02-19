@@ -33,15 +33,15 @@ typedef struct
 {
     struct SGU sgu;
     uint8_t selected_channel;
-    uint32_t sample; // two signed PCM samples packed: [31:16] Left, [15:0] Right
+    volatile uint32_t sample; // two signed PCM samples packed: [31:16] Left, [15:0] Right
 } sgu1_t;
 
 extern sgu1_t sgu_instance;
 
 // initialize a new sgu1_t instance
-void sgu_init();
+void sgu_init(void);
 // reset a sgu1_t instance
-void sgu_reset();
+void sgu_reset(void);
 
 uint8_t sgu_reg_read(uint8_t reg);
 void sgu_reg_write(uint8_t reg, uint8_t data);

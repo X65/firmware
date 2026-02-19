@@ -23,6 +23,7 @@ void led_task(void);
 
 // Make it blink
 void led_blink(bool on);
+void led_blink_color(uint32_t grb);
 
 // RGB LED control
 void led_put(uint32_t grb);

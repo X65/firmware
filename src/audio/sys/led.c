@@ -26,9 +26,10 @@ static inline void DBG(const char *fmt, ...)
 
 #define LED_BLINK_TIME_MS 100
 
-bool led_state;
-bool led_blinking;
-absolute_time_t led_blink_timer;
+static bool led_state;
+static bool led_blinking;
+static absolute_time_t led_blink_timer;
+volatile static uint32_t led_blink_color_grb = 0x220000;
 
 static void led_set(bool on)
 {
@@ -85,7 +86,7 @@ void led_task(void)
     {
         led_state = !led_state;
         led_set(led_state);
-        led_put(led_state ? 0x220000 : 0);
+        led_put(led_state ? led_blink_color_grb : 0);
         led_blink_timer = make_timeout_time_ms(LED_BLINK_TIME_MS);
     }
 }
@@ -95,4 +96,9 @@ void led_blink(bool on)
     if (!on)
         led_set(true);
     led_blinking = on;
+}
+
+void led_blink_color(uint32_t grb)
+{
+    led_blink_color_grb = grb;
 }

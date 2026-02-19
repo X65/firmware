@@ -1,5 +1,6 @@
 #include "./sgu.h"
 #include "hw.h"
+#include "sys/led.h"
 #include <hardware/pio.h>
 #include <math.h>
 #include <pico/multicore.h>
@@ -34,40 +35,15 @@ static void sgu_dump_channel_state(int channel)
            ch[56], ch[57], ch[58], ch[59], ch[60], ch[61], ch[62], ch[63]);
 }
 
-volatile int16_t __uninitialized_ram(tanh_lut)[INT16_MAX + 1]
-    __attribute__((aligned(4)));
-
-// Tuning: Lower = Louder/Crunchier, Higher = Cleaner.
-// Try values between 2000.0 and 3500.0.
-static const double V_REF = 2800.0;
-
-static void sgu_init_tanh_lut()
-{
-
-    for (size_t i = 0; i <= INT16_MAX; i++)
-    {
-        // i / V_REF is the input to tanh
-        double x = (double)i / V_REF;
-        double y = tanh(x);
-
-        // Scale back to 16-bit integer range
-        tanh_lut[i] = (int16_t)(y * INT16_MAX);
-    }
-}
-
 static inline int16_t __force_inline __attribute__((optimize("O3")))
-soft_clip_int32(int32_t sample)
+clamp(int32_t sample)
 {
-    // Absolute value for LUT lookup
-    int32_t abs_s = (sample < 0) ? -sample : sample;
-
-    // Safety Clamp to LUT range
-    if (abs_s > INT16_MAX)
-        abs_s = INT16_MAX;
-
-    // Lookup with sign restoration
-    int16_t saturated = tanh_lut[abs_s];
-    return (sample < 0) ? -saturated : saturated;
+    if (sample < INT16_MIN)
+        return INT16_MIN;
+    else if (sample > INT16_MAX)
+        return INT16_MAX;
+    else
+        return (int16_t)sample;
 }
 
 static inline void __force_inline __attribute__((optimize("O3")))
@@ -76,9 +52,8 @@ _sgu_tick(void)
     int32_t l, r;
     SGU_NextSample(&SGU->sgu, &l, &r);
 
-    // Gain then saturate+clip, packed as [31:16] Left and [15:0] Right.
-    const int16_t left = soft_clip_int32(l << 2);
-    const int16_t right = soft_clip_int32(r << 2);
+    const int16_t left = clamp(l >> 1);
+    const int16_t right = clamp(r >> 1);
     SGU->sample = ((uint32_t)(uint16_t)left << 16) | (uint16_t)right;
 }
 
@@ -95,14 +70,15 @@ __attribute__((optimize("O3"))) static void __no_inline_not_in_flash_func(sgu_lo
         _sgu_tick();
 
         pio_sm_put_blocking(AUD_I2S_PIO, AUD_I2S_SM, SGU->sample);
+        led_blink_color(SGU->sample >> 4);
 
         // check whether generation managed frame timing constraint
         if (pio_interrupt_get(AUD_I2S_PIO, AUD_PIO_IRQ))
         {
             printf("SGU tick overrun!\n");
+            led_blink_color(0x00FF00);
             while (true)
             {
-                // blink led or something
             }
         }
     }
@@ -110,13 +86,12 @@ __attribute__((optimize("O3"))) static void __no_inline_not_in_flash_func(sgu_lo
 
 void sgu_init()
 {
-    sgu_init_tanh_lut();
-
     memset(SGU, 0, sizeof(*SGU));
     SGU_Init(&SGU->sgu, SGU_PCM_RAM_SIZE);
 
     printf("Starting SGU core...\n");
     multicore_launch_core1(sgu_loop);
+    // aud_print_status();
 }
 
 void sgu_reset()
@@ -135,7 +110,7 @@ uint8_t sgu_reg_read(uint8_t reg)
     }
     else
     {
-        data = ((unsigned char *)SGU->sgu.chan)[(SGU->selected_channel % SGU_CHNS) << 6 | (reg & (SGU_REGS_PER_CH - 1))];
+        data = ((unsigned char *)SGU->sgu.chan)[((SGU->selected_channel % SGU_CHNS) << 6) | (reg & (SGU_REGS_PER_CH - 1))];
     }
     return data;
 }
@@ -148,7 +123,7 @@ void sgu_reg_write(uint8_t reg, uint8_t data)
     }
     else
     {
-        // ((unsigned char*)SGU->sgu.chan)[(SGU->selected_channel % SGU_CHNS) << 6 | (reg & (SGU_REGS_PER_CH - 1))] =
+        // ((unsigned char*)SGU->sgu.chan)[((SGU->selected_channel % SGU_CHNS) << 6) | (reg & (SGU_REGS_PER_CH - 1))] =
         // data;
         SGU_Write(&SGU->sgu, (uint16_t)((SGU->selected_channel % SGU_CHNS) << 6) | (reg & (SGU_REGS_PER_CH - 1)), data);
     }
