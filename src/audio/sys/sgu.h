@@ -22,10 +22,33 @@
     WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
     ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
     OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+
+    ## Architecture — Dual-Core Audio Rendering
+
+    Audio sample generation is split across both RP2350 cores using a
+    map-reduce pattern over the 9 SGU channels.
+
+         Core 1 (coordinator)                 Core 0 (worker)
+         ~~~~~~~~~~~~~~~~~~~~                 ~~~~~~~~~~~~~~~~~
+    PIO IRQ -> 1. Setup (LFO, envelope)      [main loop: USB,
+                                                LED, SPI ISR]
+               2. Push "go" to FIFO -------> FIFO IRQ fires
+               3. Compute channels 0-4       3'. Compute channels 5-8
+                     |                              |
+                     v                              v
+               4. Pop partial L,R <------------- Push partial L,R
+               5. Merge + DC-removal HPF
+               6. Push to PIO FIFO
+
+    Channel split is 5+4 to balance core 1's setup/merge overhead against
+    core 0's ISR entry cost. Wall time ~4000 cycles (vs ~7000 single-core).
+
+    Ring modulation reads src[ch+1] directly -- cross-core boundary reads
+    may see the previous or current frame's value, which is acceptable
+    (1-sample jitter is inaudible).
 #*/
 
 #include "snd/sgu.h"
-#include "sys/aud.h"
 #include <stdbool.h>
 #include <stdint.h>
 

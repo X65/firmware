@@ -1,14 +1,20 @@
 #include "./sgu.h"
 #include "hw.h"
 #include "sys/led.h"
+#include <hardware/irq.h>
 #include <hardware/pio.h>
+#include <hardware/structs/sio.h>
 #include <math.h>
 #include <pico/multicore.h>
 #include <pico/rand.h>
+#include <pico/time.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+// Channel split: core 1 does 0..(SGU_CORE1_CHNS-1), core 0 does SGU_CORE1_CHNS..(SGU_CHNS-1)
+#define SGU_CORE1_CHNS 5
 
 sgu1_t sgu_instance;
 #define SGU (&sgu_instance)
@@ -35,29 +41,57 @@ static void sgu_dump_channel_state(int channel)
            ch[56], ch[57], ch[58], ch[59], ch[60], ch[61], ch[62], ch[63]);
 }
 
-static inline int16_t __force_inline __attribute__((optimize("O3")))
+__force_inline static inline int16_t __attribute__((optimize("O2")))
 clamp(int32_t sample)
 {
-    if (sample < INT16_MIN)
-        return INT16_MIN;
-    else if (sample > INT16_MAX)
-        return INT16_MAX;
-    else
-        return (int16_t)sample;
+    return (int16_t)__builtin_arm_ssat(sample, 16);
 }
 
-static inline void __force_inline __attribute__((optimize("O3")))
+// Core 0 FIFO IRQ handler — computes channels SGU_CORE1_CHNS..(SGU_CHNS-1)
+// and pushes partial L,R sums back to core 1 via FIFO.
+static void __isr __not_in_flash_func(core0_audio_isr)(void)
+{
+    // Drain the "go" signal and clear IRQ
+    while (multicore_fifo_rvalid())
+        (void)sio_hw->fifo_rd;
+    multicore_fifo_clear_irq();
+
+    // Compute channels SGU_CORE1_CHNS .. SGU_CHNS-1
+    int32_t l = 0, r = 0;
+    SGU_NextSample_Channels(&SGU->sgu, SGU_CORE1_CHNS, SGU_CHNS, &l, &r);
+
+    // Send partial sums to core 1
+    multicore_fifo_push_blocking_inline((uint32_t)l);
+    multicore_fifo_push_blocking_inline((uint32_t)r);
+}
+
+__force_inline static inline void __attribute__((optimize("O2")))
 _sgu_tick(void)
 {
+    // 1. Global setup (LFO, envelope counters)
+    SGU_NextSample_Setup(&SGU->sgu);
+
+    // 2. Signal core 0 to start its channel subset
+    multicore_fifo_push_blocking_inline(1);
+
+    // 3. Compute channels 0..(SGU_CORE1_CHNS-1) on this core
+    int32_t l1 = 0, r1 = 0;
+    SGU_NextSample_Channels(&SGU->sgu, 0, SGU_CORE1_CHNS, &l1, &r1);
+
+    // 4. Wait for core 0's partial sums
+    int32_t l0 = (int32_t)multicore_fifo_pop_blocking_inline();
+    int32_t r0 = (int32_t)multicore_fifo_pop_blocking_inline();
+
+    // 5. Merge and finalize (DC-removal HPF)
     int32_t l, r;
-    SGU_NextSample(&SGU->sgu, &l, &r);
+    SGU_NextSample_Finalize(&SGU->sgu, (int64_t)l1 + l0, (int64_t)r1 + r0, &l, &r);
 
     const int16_t left = clamp(l >> 1);
     const int16_t right = clamp(r >> 1);
     SGU->sample = ((uint32_t)(uint16_t)left << 16) | (uint16_t)right;
 }
 
-__attribute__((optimize("O3"))) static void __no_inline_not_in_flash_func(sgu_loop)(void)
+__attribute__((optimize("O2"))) static void __no_inline_not_in_flash_func(sgu_loop)(void)
 {
     while (true)
     {
@@ -67,15 +101,18 @@ __attribute__((optimize("O3"))) static void __no_inline_not_in_flash_func(sgu_lo
         }
         pio_interrupt_clear(AUD_I2S_PIO, AUD_PIO_IRQ);
 
+        static uint32_t tick_start, tick_elapsed;
+        tick_start = time_us_32();
         _sgu_tick();
+        tick_elapsed = time_us_32() - tick_start;
 
         pio_sm_put_blocking(AUD_I2S_PIO, AUD_I2S_SM, SGU->sample);
-        led_blink_color(SGU->sample >> 4);
+        led_blink_color((SGU->sample >> 4) | 0x441122);
 
         // check whether generation managed frame timing constraint
         if (pio_interrupt_get(AUD_I2S_PIO, AUD_PIO_IRQ))
         {
-            printf("SGU tick overrun!\n");
+            printf("SGU tick overrun!\nTook %lu us\n", tick_elapsed);
             led_blink_color(0x00FF00);
             while (true)
             {
@@ -89,9 +126,13 @@ void sgu_init()
     memset(SGU, 0, sizeof(*SGU));
     SGU_Init(&SGU->sgu, SGU_PCM_RAM_SIZE);
 
+    // Register core 0 FIFO IRQ handler for dual-core audio rendering
+    irq_set_exclusive_handler(SIO_IRQ_FIFO, core0_audio_isr);
+    irq_set_priority(SIO_IRQ_FIFO, 0); // highest priority — preempts SPI
+    irq_set_enabled(SIO_IRQ_FIFO, true);
+
     printf("Starting SGU core...\n");
     multicore_launch_core1(sgu_loop);
-    // aud_print_status();
 }
 
 void sgu_reset()

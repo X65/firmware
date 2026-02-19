@@ -553,6 +553,11 @@ struct SGU
         struct sgu_op_state op[SGU_OP_PER_CH]; // per-operator state (AoS layout)
     } m_channel[SGU_CHNS];
 
+    // Cached per-sample globals (written by Setup, read by both cores)
+    int32_t cached_lfo_raw_pm;
+    bool cached_env_tick;
+    uint32_t cached_env_counter_tick;
+
     // src[i] = raw oscillator sample for channel i (16-bit, used for ring mod).
     // post[i] = processed sample after volume/filter (higher precision int32).
     int16_t src[SGU_CHNS];
@@ -612,6 +617,16 @@ void SGU_Reset(struct SGU *sgu);
 void SGU_Write(struct SGU *sgu, uint16_t addr13, uint8_t data);
 
 void SGU_NextSample(struct SGU *sgu, int32_t *l, int32_t *r);
+
+// Split API for dual-core rendering:
+// Setup: update global state (LFO, envelope). Call once per sample.
+void SGU_NextSample_Setup(struct SGU *sgu);
+// Channels: process channels [ch_start, ch_end). Accumulates into *l, *r.
+void SGU_NextSample_Channels(struct SGU *sgu, unsigned ch_start, unsigned ch_end,
+                             int32_t *l, int32_t *r);
+// Finalize: DC-removal HPF and output clamping.
+void SGU_NextSample_Finalize(struct SGU *sgu, int64_t L, int64_t R,
+                             int32_t *l, int32_t *r);
 
 // Convenience getter: returns mono downmix of current per-channel post-pan samples (averaged).
 // This is not used in NextSample, but useful for taps/meters/debug.

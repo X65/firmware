@@ -556,17 +556,12 @@ static inline uint32_t attenuation_to_volume(uint32_t input)
 //  10) apply one-shot phase reset / timer sync
 // Finally: sum all outL/outR into output with global HPF.
 // -----------------------------------------------------------------------------
-void __attribute__((optimize("Ofast"))) SGU_NextSample(struct SGU *restrict sgu, int32_t *restrict l, int32_t *restrict r)
+// ---------------------------------------------------------------------------
+// Phase 1: Global per-sample setup (LFO, envelope counters).
+// Call once per sample before SGU_NextSample_Channels.
+// ---------------------------------------------------------------------------
+void __attribute__((optimize("Ofast"))) SGU_NextSample_Setup(struct SGU *restrict sgu)
 {
-    // uses int64 to avoid overflow during summation.
-    int64_t L = 0;
-    int64_t R = 0;
-
-    // Cache channel 0's raw sample from the previous iteration.
-    // Ring mod uses "next channel" sample; channel 8 uses channel 0, so caching makes it
-    // consistent (uses previous sample period's value, not the freshly computed one).
-    int16_t src0_cached = sgu->src[0];
-
     sgu->sample_counter += 1;
     // YMFM-style envelope counter with 2-bit subcounter
     if (EG_CLOCK_DIVIDER == 1)
@@ -575,15 +570,31 @@ void __attribute__((optimize("Ofast"))) SGU_NextSample(struct SGU *restrict sgu,
         sgu->envelope_counter += 4 - EG_CLOCK_DIVIDER;
 
     // clock the global LFO (once per sample)
-    int32_t lfo_raw_pm = clock_lfo(
+    sgu->cached_lfo_raw_pm = clock_lfo(
         &sgu->lfo_am_counter,
         &sgu->lfo_pm_counter,
         &sgu->lfo_am);
-    const bool env_tick = ((sgu->envelope_counter & 3u) == 0u);
-    const uint32_t env_counter_tick = sgu->envelope_counter >> 2;
+    sgu->cached_env_tick = ((sgu->envelope_counter & 3u) == 0u);
+    sgu->cached_env_counter_tick = sgu->envelope_counter >> 2;
+}
 
-    // now update the state of all the channels and operators
-    for (uint8_t ch = 0; ch < SGU_CHNS; ch++)
+// ---------------------------------------------------------------------------
+// Phase 2: Process channels [ch_start, ch_end).
+// Can be called from multiple cores with non-overlapping ranges.
+// Accumulates partial stereo sums into *l, *r (caller initializes to 0).
+// ---------------------------------------------------------------------------
+void __attribute__((optimize("Ofast"))) SGU_NextSample_Channels(
+    struct SGU *restrict sgu, unsigned ch_start, unsigned ch_end,
+    int32_t *restrict l, int32_t *restrict r)
+{
+    int32_t L = 0;
+    int32_t R = 0;
+
+    const int32_t lfo_raw_pm = sgu->cached_lfo_raw_pm;
+    const bool env_tick = sgu->cached_env_tick;
+    const uint32_t env_counter_tick = sgu->cached_env_counter_tick;
+
+    for (unsigned ch = ch_start; ch < ch_end; ch++)
     {
         struct SGU_CH *restrict ch_reg = &sgu->chan[ch];
         struct sgu_ch_state *restrict ch_state = &sgu->m_channel[ch];
@@ -953,60 +964,44 @@ void __attribute__((optimize("Ofast"))) SGU_NextSample(struct SGU *restrict sgu,
         }
 
         // ------------------------------------------------------------
-        // Store raw FM output for ring modulation (used by previous channel next sample)
+        // Store raw FM output for ring modulation (used by next channel)
         // ------------------------------------------------------------
         int16_t raw_sample = (int16_t)__builtin_arm_ssat(ch_sample, 16);
 
         // ------------------------------------------------------------
-        // 4a) Channel-level ring modulation (amplitude modulation style)
-        // Uses previous sample period's output from next channel (or ch0 for last channel)
+        // Channel-level ring modulation (amplitude modulation style)
+        // Reads src[ch+1] directly; in dual-core mode cross-boundary reads
+        // may see previous or current frame's value (1-sample jitter is OK).
         // ------------------------------------------------------------
         if (ch_flags0 & SGU1_FLAGS0_CTL_RING_MOD)
         {
-            // Multiply by next channel's cached sample (ch+1, or cached ch0 for last channel)
-            // >>15 rescales back to 16-bit range (two 16-bit values multiplied)
-            const int16_t ring_src = (ch == SGU_CHNS - 1) ? src0_cached : sgu->src[ch + 1];
+            const int16_t ring_src = sgu->src[(ch + 1 < SGU_CHNS) ? ch + 1 : 0];
             ch_sample = ((int32_t)ch_sample * ring_src) >> 15;
         }
 
-        // Store this channel's raw sample for next iteration's ring modulation
+        // Store this channel's raw sample for ring modulation
         sgu->src[ch] = raw_sample;
 
         // ------------------------------------------------------------
-        // 4b) Apply channel volume scaling
+        // Apply channel volume scaling
         // ------------------------------------------------------------
-        // ch_sample is already the FM operator sum; now apply channel volume
-        // vol is signed 8-bit (-128..127), allowing phase inversion
         int32_t voice_sample = (ch_sample * ch_reg->vol) >> 7;
 
         // ------------------------------------------------------------
-        // 5) Optional resonant filter (state-variable filter)
+        // Resonant filter (state-variable filter)
         // flags0 bits 5..7 select which outputs to mix: LP/HP/BP.
         // ------------------------------------------------------------
         if (ch_flags0 & (SGU1_FLAGS0_CTL_NSLOW | SGU1_FLAGS0_CTL_NSHIGH | SGU1_FLAGS0_CTL_NSBAND))
         {
-            // Scale cutoff for 48kHz operation.
-            // SGU runs at 48kHz vs SU's ~297kHz (~6× slower).
-            // 3× scaling gives 0.35Hz-23kHz range, stable for all filter modes.
-            // Formula: fc ≈ (ff / 65536) × (sample_rate / 2π)
-            // With 3× scaling at 48kHz: fc ≈ cutoff × 0.35 Hz (0.35Hz to ~23kHz)
-            // Max effective ff = 196,605, well within int32_t multiply safety.
             const int32_t ff = (int32_t)ch_reg->cutoff * 3;
 
-            // Apply resonance-driven distortion before filter (SID characteristic).
-            // Higher resonance drives harder saturation, adding harmonic distortion.
-            // Gain scales from 1.0× (reson=0) to 1.5× (reson=255).
-            const int32_t drive = 256 + (ch_reg->reson >> 1); // 256-383
+            const int32_t drive = 256 + (ch_reg->reson >> 1);
             voice_sample = svf_saturate((voice_sample * drive) >> 8);
 
-            // SVF core with soft saturation for analog warmth.
-            // Saturation on low/band states emulates analog op-amp behavior,
-            // prevents harsh digital clipping at high resonance.
             sgu->svf_low[ch] = svf_saturate(sgu->svf_low[ch] + ((ff * sgu->svf_band[ch]) >> 16));
             sgu->svf_high[ch] = voice_sample - sgu->svf_low[ch] - (((256 - ch_reg->reson) * sgu->svf_band[ch]) >> 8);
             sgu->svf_band[ch] = svf_saturate(((ff * sgu->svf_high[ch]) >> 16) + sgu->svf_band[ch]);
 
-            // Select which components to output (LP/HP/BP can be combined).
             voice_sample = ((ch_flags0 & SGU1_FLAGS0_CTL_NSLOW) ? sgu->svf_low[ch] : 0)
                            + ((ch_flags0 & SGU1_FLAGS0_CTL_NSHIGH) ? sgu->svf_high[ch] : 0)
                            + ((ch_flags0 & SGU1_FLAGS0_CTL_NSBAND) ? sgu->svf_band[ch] : 0);
@@ -1015,17 +1010,12 @@ void __attribute__((optimize("Ofast"))) SGU_NextSample(struct SGU *restrict sgu,
         // Store post-processed sample for debug/meters
         sgu->post[ch] = voice_sample;
 
-        // ------------------------------------------------------------
-        // 7) Panning (apply per-channel stereo gains)
-        // ------------------------------------------------------------
+        // Panning
         int32_t out_l = (voice_sample * sgu->pan_gain_lut_l[(uint8_t)ch_reg->pan]) >> 7;
         int32_t out_r = (voice_sample * sgu->pan_gain_lut_r[(uint8_t)ch_reg->pan]) >> 7;
 
-        // ------------------------------------------------------------
-        // 8) Sweeps (affect parameters for future samples)
-        // ------------------------------------------------------------
-
-        // 8a) Volume sweep (flags1 bit5).
+        // Sweeps (affect parameters for future samples)
+        // (flags1 bit5).
         // swvol.amt encoding:
         //   bit5 (0x20): direction (1=up, 0=down)
         //   bits0..4: step size
@@ -1064,7 +1054,7 @@ void __attribute__((optimize("Ofast"))) SGU_NextSample(struct SGU *restrict sgu,
                         }
                         else
                         {
-                            ch_reg->vol = 0x7F; // clamp
+                            ch_reg->vol = 0x7F; // clamp at upper bound
                         }
                     }
                 }
@@ -1101,8 +1091,6 @@ void __attribute__((optimize("Ofast"))) SGU_NextSample(struct SGU *restrict sgu,
             }
         }
 
-        // 8b) Frequency sweep (flags1 bit4).
-        // swfreq.amt bit7: direction (1=up, 0=down), bits0..6 magnitude.
         if ((ch_reg->flags1 & SGU1_FLAGS1_FREQ_SWEEP) && ch_reg->swfreq.speed)
         {
             if (--sgu->freq_sweep_countdown[ch] <= 0)
@@ -1118,7 +1106,6 @@ void __attribute__((optimize("Ofast"))) SGU_NextSample(struct SGU *restrict sgu,
                         // Multiply by (1.0 + amt/128).
                         ch_reg->freq = (uint16_t)((ch_reg->freq * (0x80 + (ch_reg->swfreq.amt & 127))) >> 7);
 
-                        // Clamp to bound (stored as coarse high-byte limit).
                         if ((ch_reg->freq >> 8) > ch_reg->swfreq.bound)
                             ch_reg->freq = (uint16_t)(ch_reg->swfreq.bound << 8);
                     }
@@ -1139,8 +1126,6 @@ void __attribute__((optimize("Ofast"))) SGU_NextSample(struct SGU *restrict sgu,
             }
         }
 
-        // 8c) Cutoff sweep (flags1 bit6).
-        // swcut.amt bit7: direction (1=up, 0=down), bits0..6 magnitude.
         if ((ch_reg->flags1 & SGU1_FLAGS1_CUT_SWEEP) && ch_reg->swcut.speed)
         {
             if (--sgu->cut_sweep_countdown[ch] <= 0)
@@ -1175,25 +1160,21 @@ void __attribute__((optimize("Ofast"))) SGU_NextSample(struct SGU *restrict sgu,
             }
         }
 
-        // ------------------------------------------------------------
-        // 9) One-shot phase reset request (flags1 bit0)
-        // ------------------------------------------------------------
+        // Phase reset requests
         if (ch_reg->flags1 & SGU1_FLAGS1_PHASE_RESET)
         {
-            // Reset all operator phases for this channel
             for (uint8_t op = 0; op < SGU_OP_PER_CH; op++)
             {
                 phase_reset(ch_state, ch, op);
             }
-            sgu->phase_reset_countdown[ch] = ch_reg->restimer; // preload timer sync counter
-            ch_reg->flags1 &= ~SGU1_FLAGS1_PHASE_RESET;        // clear request
+            sgu->phase_reset_countdown[ch] = ch_reg->restimer;
+            ch_reg->flags1 &= ~SGU1_FLAGS1_PHASE_RESET;
         }
 
-        // Filter phase reset (flags1 bit1)
         if (ch_reg->flags1 & SGU1_FLAGS1_FILTER_PHASE_RESET)
         {
             sgu->svf_low[ch] = sgu->svf_high[ch] = sgu->svf_band[ch] = 0;
-            ch_reg->flags1 &= ~SGU1_FLAGS1_FILTER_PHASE_RESET; // clear request
+            ch_reg->flags1 &= ~SGU1_FLAGS1_FILTER_PHASE_RESET;
         }
 
         // Timer sync: periodic phase reset (flags1 bit3)
@@ -1202,7 +1183,6 @@ void __attribute__((optimize("Ofast"))) SGU_NextSample(struct SGU *restrict sgu,
             if (--sgu->phase_reset_countdown[ch] <= 0)
             {
                 sgu->phase_reset_countdown[ch] += ch_reg->restimer;
-                // Reset all operator phases
                 for (uint8_t op = 0; op < SGU_OP_PER_CH; op++)
                 {
                     phase_reset(ch_state, ch, op);
@@ -1220,26 +1200,31 @@ void __attribute__((optimize("Ofast"))) SGU_NextSample(struct SGU *restrict sgu,
         sgu->outL[ch] = out_l;
         sgu->outR[ch] = out_r;
 
-        // ------------------------------------------------------------
-        // Mixdown: sum all channel stereo contributions into output.
-        // ------------------------------------------------------------
         L += out_l;
         R += out_r;
     }
 
-    // --------------- Final output processing ----------------
-    // Leaky Integrator HPF to remove DC offset and create pulse droop
+    *l = L;
+    *r = R;
+}
 
-    // 1. Calculate the difference (delta) from the last input
+// ---------------------------------------------------------------------------
+// Phase 3: DC-removal HPF and final output clamping.
+// Call once per sample after merging all channel partial sums.
+// ---------------------------------------------------------------------------
+void __attribute__((optimize("Ofast"))) SGU_NextSample_Finalize(
+    struct SGU *restrict sgu, int64_t L, int64_t R,
+    int32_t *restrict l, int32_t *restrict r)
+{
+    // Leaky Integrator HPF to remove DC offset and create pulse droop
     int64_t diff_L = L - sgu->L_in;
     int64_t diff_R = R - sgu->R_in;
 
-    // 2. High Pass Filter: y[n] = alpha * (y[n-1] + x[n] - x[n-1])
+    // High Pass Filter: y[n] = alpha * (y[n-1] + x[n] - x[n-1])
     // We shift the diff to Q16 to match the state's fixed-point scale
     int64_t L_q16 = (SGU_ALPHA_RC_DECAY_Q16 * (sgu->L_q16 + (diff_L << 16))) >> 16;
     int64_t R_q16 = (SGU_ALPHA_RC_DECAY_Q16 * (sgu->R_q16 + (diff_R << 16))) >> 16;
 
-    // 3. Store states for next iteration
     sgu->L_in = L;
     sgu->R_in = R;
     sgu->L_q16 = L_q16;
@@ -1251,6 +1236,18 @@ void __attribute__((optimize("Ofast"))) SGU_NextSample(struct SGU *restrict sgu,
     int32_t final_R = (int32_t)(R_q16 >> 16);
     *l = sgu->L = (int32_t)minval(INT32_MAX, maxval(INT32_MIN, final_L));
     *r = sgu->R = (int32_t)minval(INT32_MAX, maxval(INT32_MIN, final_R));
+}
+
+// ---------------------------------------------------------------------------
+// Single-core wrapper: calls all 3 phases sequentially.
+// Preserves the original API for backward compatibility and testing.
+// ---------------------------------------------------------------------------
+void __attribute__((optimize("Ofast"))) SGU_NextSample(struct SGU *restrict sgu, int32_t *restrict l, int32_t *restrict r)
+{
+    SGU_NextSample_Setup(sgu);
+    int32_t L = 0, R = 0;
+    SGU_NextSample_Channels(sgu, 0, SGU_CHNS, &L, &R);
+    SGU_NextSample_Finalize(sgu, L, R, l, r);
 }
 
 void SGU_Init(struct SGU *sgu, size_t sampleMemSize)
