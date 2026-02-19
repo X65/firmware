@@ -504,6 +504,30 @@ struct SGU_CH
     uint8_t special2;
 };
 
+// Per-operator state, packed for cache locality (20 bytes per operator)
+struct sgu_op_state
+{
+    uint32_t phase;                     // current phase value (10.22 format)
+    int16_t value;                      // current operator value
+    uint16_t envelope_attenuation;      // computed envelope attenuation (4.6 format)
+    uint16_t eg_delay_counter;          // delay counter (samples)
+    uint16_t blep_frac;                 // fractional phase at edge (for sub-sample interpolation)
+    int16_t blep_prev_sample;           // previous raw sample for edge detection
+    enum envelope_state envelope_state; // current envelope state
+    uint8_t blep;                       // BLEP damping after dramatic phase changes
+    uint32_t lfsr_state;                // per-operator noise LFSR state
+};
+
+// op_flags packed boolean bit groups (4 bits each, one per operator)
+#define OP_FLAGS_PHASE_WRAP 0  // bits 0-3:   phase wrap flag (for SYNC)
+#define OP_FLAGS_KEY_STATE  4  // bits 4-7:   current key state
+#define OP_FLAGS_KEYON_GATE 8  // bits 8-11:  last raw key state (edge detect)
+#define OP_FLAGS_EG_DELAY   12 // bits 12-15: envelope delay active
+
+#define OP_FLAG_GET(flags, group, op) (((flags) >> ((group) + (op))) & 1u)
+#define OP_FLAG_SET(flags, group, op) ((flags) |= (1u << ((group) + (op))))
+#define OP_FLAG_CLR(flags, group, op) ((flags) &= ~(1u << ((group) + (op))))
+
 struct SGU
 {
 
@@ -524,20 +548,9 @@ struct SGU
     // channels internal state
     struct sgu_ch_state
     {
-        int16_t op0_fb;                                    // feedback memory for first operator
-        uint32_t phase[SGU_OP_PER_CH];                     // current phase value (10.22 format)
-        int16_t value[SGU_OP_PER_CH];                      // current operator value
-        uint16_t envelope_attenuation[SGU_OP_PER_CH];      // computed envelope attenuation (4.6 format)
-        enum envelope_state envelope_state[SGU_OP_PER_CH]; // current envelope state
-        uint32_t lfsr_state[SGU_OP_PER_CH];                // per-operator noise LFSR state
-        bool phase_wrap[SGU_OP_PER_CH];                    // phase wrap flag for current sample (for SYNC)
-        bool key_state[SGU_OP_PER_CH];                     // current key state: on or off
-        bool keyon_gate[SGU_OP_PER_CH];                    // last raw key state (edge detect for delay)
-        bool eg_delay_run[SGU_OP_PER_CH];                  // envelope delay active
-        uint16_t eg_delay_counter[SGU_OP_PER_CH];          // delay counter (samples)
-        uint8_t blep[SGU_OP_PER_CH];                       // BLEP damping after dramatic phase changes
-        uint16_t blep_frac[SGU_OP_PER_CH];                 // fractional phase at edge (for sub-sample interpolation)
-        int16_t blep_prev_sample[SGU_OP_PER_CH];           // previous raw sample for edge detection
+        int16_t op0_fb;                        // feedback memory for first operator
+        uint16_t op_flags;                     // packed boolean flags (see OP_FLAGS_*)
+        struct sgu_op_state op[SGU_OP_PER_CH]; // per-operator state (AoS layout)
     } m_channel[SGU_CHNS];
 
     // src[i] = raw oscillator sample for channel i (16-bit, used for ring mod).

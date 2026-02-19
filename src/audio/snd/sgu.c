@@ -34,8 +34,6 @@
 #include <intrin.h>
 #endif
 
-#define CHANNELS_ENABLED 6
-
 #include "./sgu.h"
 
 #define minval(a, b)   (((a) < (b)) ? (a) : (b))
@@ -355,13 +353,13 @@ static inline int32_t clock_lfo(uint16_t *lfo_am_counter, uint16_t *lfo_pm_count
 static inline void start_attack(struct sgu_ch_state *self, uint8_t op, uint8_t op_reg[], uint32_t keycode)
 {
     // don't change anything if already in attack state
-    if (self->envelope_state[op] == SGU_EG_ATTACK)
+    if (self->op[op].envelope_state == SGU_EG_ATTACK)
         return;
-    self->envelope_state[op] = SGU_EG_ATTACK;
+    self->op[op].envelope_state = SGU_EG_ATTACK;
 
     // if the attack rate >= 62 then immediately go to max attenuation
     if (compute_eg_rate(op_reg, keycode, SGU_EG_ATTACK) >= 62)
-        self->envelope_attenuation[op] = 0;
+        self->op[op].envelope_attenuation = 0;
 }
 
 //-------------------------------------------------
@@ -371,17 +369,17 @@ static inline void start_attack(struct sgu_ch_state *self, uint8_t op, uint8_t o
 static inline void start_release(struct sgu_ch_state *self, uint8_t op)
 {
     // don't change anything if already in release state
-    if (self->envelope_state[op] >= SGU_EG_RELEASE)
+    if (self->op[op].envelope_state >= SGU_EG_RELEASE)
         return;
-    self->envelope_state[op] = SGU_EG_RELEASE;
+    self->op[op].envelope_state = SGU_EG_RELEASE;
 }
 
 static inline void phase_reset(struct sgu_ch_state *self, uint8_t ch, uint8_t op)
 {
-    self->phase[op] = 0;
-    self->phase_wrap[op] = false;
+    self->op[op].phase = 0;
+    OP_FLAG_CLR(self->op_flags, OP_FLAGS_PHASE_WRAP, op);
     // initialize per-operator noise LFSR with unique seed per channel/operator
-    self->lfsr_state[op] = 0x1FFFFF ^ ((uint32_t)(ch * SGU_OP_PER_CH + op) << 8);
+    self->op[op].lfsr_state = 0x1FFFFF ^ ((uint32_t)(ch * SGU_OP_PER_CH + op) << 8);
 }
 
 //-------------------------------------------------
@@ -390,15 +388,13 @@ static inline void phase_reset(struct sgu_ch_state *self, uint8_t ch, uint8_t op
 static void fm_channel_reset(struct sgu_ch_state *self, uint8_t ch)
 {
     // reset our data
+    self->op_flags = 0; // clear all packed booleans
     for (uint8_t op = 0; op < SGU_OP_PER_CH; op++)
     {
         phase_reset(self, ch, op);
-        self->envelope_attenuation[op] = 0x3ff;
-        self->envelope_state[op] = SGU_EG_RELEASE;
-        self->key_state[op] = false;
-        self->keyon_gate[op] = false;
-        self->eg_delay_run[op] = false;
-        self->eg_delay_counter[op] = 0;
+        self->op[op].envelope_attenuation = 0x3ff;
+        self->op[op].envelope_state = SGU_EG_RELEASE;
+        self->op[op].eg_delay_counter = 0;
     }
 }
 
@@ -408,20 +404,22 @@ static void fm_channel_reset(struct sgu_ch_state *self, uint8_t ch)
 //-------------------------------------------------
 static inline void clock_envelope(struct sgu_ch_state *self, uint8_t op, uint8_t op_reg[], uint32_t keycode, uint32_t env_counter)
 {
+    struct sgu_op_state *os = &self->op[op];
+
     // handle attack->decay transitions
-    if (self->envelope_state[op] == SGU_EG_ATTACK && self->envelope_attenuation[op] == 0)
-        self->envelope_state[op] = SGU_EG_DECAY;
+    if (os->envelope_state == SGU_EG_ATTACK && os->envelope_attenuation == 0)
+        os->envelope_state = SGU_EG_DECAY;
 
     // handle decay->sustain transitions; it is important to do this immediately
     // after the attack->decay transition above in the event that the sustain level
     // is set to 0 (in which case we will skip right to sustain without doing any
     // decay); as an example where this can be heard, check the cymbals sound
     // in channel 0 of shinobi's test mode sound #5
-    if (self->envelope_state[op] == SGU_EG_DECAY && self->envelope_attenuation[op] >= compute_eg_sustain(op_reg))
-        self->envelope_state[op] = SGU_EG_SUSTAIN;
+    if (os->envelope_state == SGU_EG_DECAY && os->envelope_attenuation >= compute_eg_sustain(op_reg))
+        os->envelope_state = SGU_EG_SUSTAIN;
 
     // compute the 6-bit rate value for the current envelope state
-    uint32_t rate = compute_eg_rate(op_reg, keycode, self->envelope_state[op]);
+    uint32_t rate = compute_eg_rate(op_reg, keycode, os->envelope_state);
 
     // compute the rate shift value; this is the shift needed to
     // apply to the env_counter such that it becomes a 5.11 fixed
@@ -438,23 +436,23 @@ static inline void clock_envelope(struct sgu_ch_state *self, uint8_t op, uint8_t
     uint32_t increment = attenuation_increment(rate, relevant_bits);
 
     // attack is the only one that increases
-    if (self->envelope_state[op] == SGU_EG_ATTACK)
+    if (os->envelope_state == SGU_EG_ATTACK)
     {
         // glitch means that attack rates of 62/63 don't increment if
         // changed after the initial key on (where they are handled
         // specially); nukeykt confirms this happens on OPM, OPN, OPL/OPLL
         // at least so assuming it is true for everyone
         if (rate < 62)
-            self->envelope_attenuation[op] += (~self->envelope_attenuation[op] * increment) >> 4;
+            os->envelope_attenuation += (~os->envelope_attenuation * increment) >> 4;
     }
     // all other cases are similar
     else
     {
-        self->envelope_attenuation[op] += increment;
+        os->envelope_attenuation += increment;
 
         // clamp the final attenuation
-        if (self->envelope_attenuation[op] >= 0x400)
-            self->envelope_attenuation[op] = 0x3ff;
+        if (os->envelope_attenuation >= 0x400)
+            os->envelope_attenuation = 0x3ff;
     }
 }
 
@@ -484,7 +482,7 @@ static inline void clock_phase(struct sgu_ch_state *self, uint8_t op, uint8_t op
     }
 
     // finally apply the step to the current phase value
-    self->phase[op] += phase_step;
+    self->op[op].phase += phase_step;
 }
 
 //-------------------------------------------------
@@ -585,7 +583,7 @@ void __attribute__((optimize("Ofast"))) SGU_NextSample(struct SGU *restrict sgu,
     const uint32_t env_counter_tick = sgu->envelope_counter >> 2;
 
     // now update the state of all the channels and operators
-    for (uint8_t ch = 0; ch < CHANNELS_ENABLED; ch++)
+    for (uint8_t ch = 0; ch < SGU_CHNS; ch++)
     {
         struct SGU_CH *restrict ch_reg = &sgu->chan[ch];
         struct sgu_ch_state *restrict ch_state = &sgu->m_channel[ch];
@@ -649,32 +647,40 @@ void __attribute__((optimize("Ofast"))) SGU_NextSample(struct SGU *restrict sgu,
                 uint8_t op_reg[8];
                 memcpy(op_reg, &ch_reg->op[op], 8);
 
-                // clock the key state (with optional per-operator delay)
-                if (ch_state->eg_delay_run[op] && ch_state->eg_delay_counter[op] < 32768)
-                    ch_state->eg_delay_counter[op]++;
+                struct sgu_op_state *os = &ch_state->op[op];
 
-                if (key_live && !ch_state->keyon_gate[op])
+                // clock the key state (with optional per-operator delay)
+                if (OP_FLAG_GET(ch_state->op_flags, OP_FLAGS_EG_DELAY, op) && os->eg_delay_counter <= INT16_MAX)
+                    os->eg_delay_counter++;
+
+                if (key_live && !OP_FLAG_GET(ch_state->op_flags, OP_FLAGS_KEYON_GATE, op))
                 {
-                    ch_state->eg_delay_run[op] = true;
-                    ch_state->eg_delay_counter[op] = 0;
+                    OP_FLAG_SET(ch_state->op_flags, OP_FLAGS_EG_DELAY, op);
+                    os->eg_delay_counter = 0;
                 }
                 else if (!key_live)
                 {
-                    ch_state->eg_delay_run[op] = false;
-                    ch_state->eg_delay_counter[op] = 0;
+                    OP_FLAG_CLR(ch_state->op_flags, OP_FLAGS_EG_DELAY, op);
+                    os->eg_delay_counter = 0;
                 }
 
                 const unsigned delay = SGU_OP5_DELAY(op_reg[5]);
                 const unsigned delay_target = delay ? (256u << delay) : 0;
                 bool keystate = key_live
-                                && (!ch_state->eg_delay_run[op]
-                                    || ch_state->eg_delay_counter[op] >= delay_target);
-                ch_state->keyon_gate[op] = key_live;
+                                && (!OP_FLAG_GET(ch_state->op_flags, OP_FLAGS_EG_DELAY, op)
+                                    || os->eg_delay_counter >= delay_target);
+                if (key_live)
+                    OP_FLAG_SET(ch_state->op_flags, OP_FLAGS_KEYON_GATE, op);
+                else
+                    OP_FLAG_CLR(ch_state->op_flags, OP_FLAGS_KEYON_GATE, op);
 
                 // has the key changed?
-                if ((keystate ^ ch_state->key_state[op]) != 0)
+                if ((keystate ^ OP_FLAG_GET(ch_state->op_flags, OP_FLAGS_KEY_STATE, op)) != 0)
                 {
-                    ch_state->key_state[op] = (uint8_t)keystate;
+                    if (keystate)
+                        OP_FLAG_SET(ch_state->op_flags, OP_FLAGS_KEY_STATE, op);
+                    else
+                        OP_FLAG_CLR(ch_state->op_flags, OP_FLAGS_KEY_STATE, op);
 
                     // if the key has turned on, start the attack
                     if (keystate != 0)
@@ -685,7 +691,7 @@ void __attribute__((optimize("Ofast"))) SGU_NextSample(struct SGU *restrict sgu,
                 }
 
                 // save previous phase for noise boundary detection
-                const uint32_t phase_before = ch_state->phase[op];
+                const uint32_t phase_before = os->phase;
 
                 // clock the envelope (only on envelope ticks)
                 if (env_tick)
@@ -693,7 +699,7 @@ void __attribute__((optimize("Ofast"))) SGU_NextSample(struct SGU *restrict sgu,
 
                 // handle phase reset due to SYNC (previous op wrap from last sample)
                 const unsigned prev_op = op ? (op - 1u) : (SGU_OP_PER_CH - 1u);
-                const bool sync_reset = (SGU_OP6_SYNC(op_reg[6]) && ch_state->phase_wrap[prev_op]);
+                const bool sync_reset = (SGU_OP6_SYNC(op_reg[6]) && OP_FLAG_GET(ch_state->op_flags, OP_FLAGS_PHASE_WRAP, prev_op));
                 if (sync_reset)
                 {
                     phase_reset(ch_state, ch, op);
@@ -708,7 +714,10 @@ void __attribute__((optimize("Ofast"))) SGU_NextSample(struct SGU *restrict sgu,
                 }
 
                 // record wrap for next operator's SYNC
-                ch_state->phase_wrap[op] = (ch_state->phase[op] < phase_before);
+                if (os->phase < phase_before)
+                    OP_FLAG_SET(ch_state->op_flags, OP_FLAGS_PHASE_WRAP, op);
+                else
+                    OP_FLAG_CLR(ch_state->op_flags, OP_FLAGS_PHASE_WRAP, op);
 
                 // compute LFSR state 6x per operator cycle (only for noise waveforms)
                 unsigned wave = SGU_OP7_WAVE(op_reg[7]);
@@ -717,9 +726,9 @@ void __attribute__((optimize("Ofast"))) SGU_NextSample(struct SGU *restrict sgu,
                     // NOTE: This is a 6-bit LFSR, thus it takes 6 shift cycles to complete a full period.
                     // So if we take 6 times per cycle, the LFSR repeating output frequency matches the
                     // operator frequency.
-                    if (((ch_state->phase[op] >> 8) * 6 >> 24) != ((phase_before >> 8) * 6 >> 24))
+                    if (((os->phase >> 8) * 6 >> 24) != ((phase_before >> 8) * 6 >> 24))
                     {
-                        uint32_t *lfsr = &ch_state->lfsr_state[op];
+                        uint32_t *lfsr = &os->lfsr_state;
                         if (wave == SGU_WAVE_NOISE)
                         {
                             *lfsr = (*lfsr >> 1 | (((*lfsr) ^ (*lfsr >> 2) ^ (*lfsr >> 3) ^ (*lfsr >> 5)) & 1) << 31);
@@ -760,13 +769,13 @@ void __attribute__((optimize("Ofast"))) SGU_NextSample(struct SGU *restrict sgu,
                 int32_t val = 0;
 
                 // skip work if the envelope is effectively off
-                if (ch_state->envelope_attenuation[op] < EG_QUIET)
+                if (os->envelope_attenuation < EG_QUIET)
                 {
                     // get the phase modulation input
                     const unsigned mod = SGU_OP6_MOD(op_reg[6]);
                     // Feedback: >> 1 to average two samples, >> 1 to prevent runaway (ESFM design).
-                    const int16_t in_val = op ? ch_state->value[op - 1]
-                                              : (ch_state->op0_fb + ch_state->value[0]) >> (1 + 1);
+                    const int16_t in_val = op ? ch_state->op[op - 1].value
+                                              : (ch_state->op0_fb + ch_state->op[0].value) >> (1 + 1);
                     // ESFM uses 13-bit samples and >> (7 - mod); SGU uses 14-bit, thus >> (8 - mod).
                     const int16_t p_mod = (mod == 0)
                                               ? 0
@@ -776,7 +785,7 @@ void __attribute__((optimize("Ofast"))) SGU_NextSample(struct SGU *restrict sgu,
 
                     // scale down to 10-bit phase for waveform lookup
                     // Round instead of truncate to reduce phase drift artifacts
-                    int phase = (((ch_state->phase[op] + (1 << 21)) >> 22) + p_mod) & 0x3FF;
+                    int phase = (((os->phase + (1 << 21)) >> 22) + p_mod) & 0x3FF;
 
                     int sample = 0;
                     bool need_blep = false;
@@ -828,7 +837,7 @@ void __attribute__((optimize("Ofast"))) SGU_NextSample(struct SGU *restrict sgu,
                         }
 
                         // BLEP for hard edge: detect dramatic sample change (|delta| > half range)
-                        int32_t delta = (int32_t)sample - (int32_t)ch_state->blep_prev_sample[op];
+                        int32_t delta = (int32_t)sample - (int32_t)os->blep_prev_sample;
                         need_blep = (delta > INT16_MAX || delta < INT16_MIN);
                     }
                     break;
@@ -840,13 +849,13 @@ void __attribute__((optimize("Ofast"))) SGU_NextSample(struct SGU *restrict sgu,
                         sample = ((phase >> 3) >= duty) ? INT16_MAX : INT16_MIN;
 
                         // Detect edge by comparing with previous RAW sample (not enveloped value)
-                        need_blep = sample != ch_state->blep_prev_sample[op];
+                        need_blep = sample != os->blep_prev_sample;
                     }
                     break;
                     case SGU_WAVE_NOISE:
                     case SGU_WAVE_PERIODIC_NOISE:
                         // Bipolar output spanning full INT16 range
-                        sample = (ch_state->lfsr_state[op] & 1) ? INT16_MAX : INT16_MIN;
+                        sample = (os->lfsr_state & 1) ? INT16_MAX : INT16_MIN;
                         break;
                     case SGU_WAVE_RESERVED6:
                         // Reserved - outputs silence
@@ -867,14 +876,14 @@ void __attribute__((optimize("Ofast"))) SGU_NextSample(struct SGU *restrict sgu,
 
                     if (need_blep)
                     {
-                        ch_state->blep[op] = 1; // Only 1 sample needs interpolation
+                        os->blep = 1; // Only 1 sample needs interpolation
                         // Capture fractional phase (22 bits) as 16-bit for sub-sample position
                         // High frac = crossed early in sample = more "new" value
                         // Low frac = crossed late in sample = more "old" value
-                        ch_state->blep_frac[op] = (uint16_t)(ch_state->phase[op] >> 6);
+                        os->blep_frac = (uint16_t)(os->phase >> 6);
                     }
                     // store current sample for next cycle's BLEP detection
-                    ch_state->blep_prev_sample[op] = (int16_t)sample;
+                    os->blep_prev_sample = (int16_t)sample;
 
                     // Apply ring modulation if RING bit set (R6[4])
                     // 1-bit ring mod: flip sign based on previous operator's output
@@ -882,14 +891,14 @@ void __attribute__((optimize("Ofast"))) SGU_NextSample(struct SGU *restrict sgu,
                     // Creates sum/difference sidebands for metallic/bell-like timbres
                     if (SGU_OP6_RING(op_reg[6]))
                     {
-                        const int16_t ring_src = (op > 0) ? ch_state->value[op - 1]
-                                                          : ch_state->value[SGU_OP_PER_CH - 1];
+                        const int16_t ring_src = (op > 0) ? ch_state->op[op - 1].value
+                                                          : ch_state->op[SGU_OP_PER_CH - 1].value;
                         if (ring_src < 0)
                             sample = -sample;
                     }
 
                     // compute the effective attenuation of the envelope
-                    uint32_t env_att = ch_state->envelope_attenuation[op];
+                    uint32_t env_att = os->envelope_attenuation;
 
                     // add in LFO AM modulation (apply per-operator AM depth)
                     if (SGU_OP0_TRM(op_reg[0]))
@@ -923,18 +932,18 @@ void __attribute__((optimize("Ofast"))) SGU_NextSample(struct SGU *restrict sgu,
                 if (op == 0)
                 {
                     // cache operator 0 output for delayed feedback on next sample
-                    ch_state->op0_fb = ch_state->value[0];
+                    ch_state->op0_fb = ch_state->op[0].value;
                 }
 
-                const int32_t out_delta = val - ch_state->value[op];
+                const int32_t out_delta = val - os->value;
                 // Store raw value for modulation (NO anti-aliasing - modulators need precise edges)
-                ch_state->value[op] = (int16_t)val;
+                os->value = (int16_t)val;
 
                 // BLEP anti-aliasing correction for hard edges
-                if (ch_state->blep[op] > 0)
+                if (os->blep > 0)
                 {
-                    val -= ((int32_t)out_delta * (65536 - ch_state->blep_frac[op])) >> 16;
-                    ch_state->blep[op]--;
+                    val -= ((int32_t)out_delta * (65536 - os->blep_frac)) >> 16;
+                    os->blep--;
                 }
 
                 const unsigned out = SGU_OP7_OUT(op_reg[7]);
