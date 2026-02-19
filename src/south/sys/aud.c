@@ -14,8 +14,24 @@
 
 #define SPI_READ_BIT 0x8000
 
+#define USE_MIRROR_REGS (1)
+#if USE_MIRROR_REGS
+static uint8_t reg_bank = 0;
+static uint8_t reg_mirror[10 * 64] = {0};
+#endif
+
 uint8_t aud_read_register(uint8_t reg)
 {
+#if USE_MIRROR_REGS
+    if ((reg & 0x3F) == 0x3F)
+    {
+        return reg_bank;
+    }
+    else
+    {
+        return reg_mirror[reg_bank * 64 + (reg & 0x3F)];
+    }
+#endif
     uint16_t packet = (uint16_t)(SPI_READ_BIT | ((uint16_t)(reg & 0x3F) << 8));
     int retries = 10;
     uint16_t response = 0;
@@ -30,6 +46,17 @@ uint8_t aud_read_register(uint8_t reg)
 
 void aud_write_register(uint8_t reg, uint8_t data)
 {
+#if USE_MIRROR_REGS
+    if ((reg & 0x3F) == 0x3F)
+    {
+        // bank select register - update bank index
+        reg_bank = data & 0x0F;
+    }
+    else
+    {
+        reg_mirror[reg_bank * 64 + (reg & 0x3F)] = data;
+    }
+#endif
     uint16_t packet = (uint16_t)(((uint16_t)(reg & 0x3F) << 8) | data);
     spi_write16_blocking(AUD_SPI, &packet, 1);
 }

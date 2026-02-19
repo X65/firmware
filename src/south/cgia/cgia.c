@@ -134,7 +134,7 @@ uint8_t int_mask = 0;
 
 #define INT_STATUS_MASKED (regs_int[CGIA_REG_INT_STATUS] & regs_int[CGIA_REG_INT_ENABLE] & int_mask)
 
-inline __attribute__((always_inline)) __attribute__((optimize("O3"))) void cgia_vbi(void)
+inline __attribute__((always_inline)) __attribute__((optimize("O2"))) void cgia_vbi(void)
 {
     int_mask |= CGIA_REG_INT_FLAG_VBI;
 
@@ -144,7 +144,7 @@ inline __attribute__((always_inline)) __attribute__((optimize("O3"))) void cgia_
     }
 }
 
-inline __attribute__((always_inline)) __attribute__((optimize("O3"))) uint8_t cgia_reg_read(uint8_t reg_no)
+inline __attribute__((always_inline)) __attribute__((optimize("O2"))) uint8_t cgia_reg_read(uint8_t reg_no)
 {
     const uint8_t reg = reg_no & 0x7F;
     switch (reg)
@@ -156,7 +156,7 @@ inline __attribute__((always_inline)) __attribute__((optimize("O3"))) uint8_t cg
     return regs_int[reg];
 }
 
-inline __attribute__((always_inline)) __attribute__((optimize("O3"))) void cgia_reg_write(uint8_t reg_no, uint8_t value)
+inline __attribute__((always_inline)) __attribute__((optimize("O2"))) void cgia_reg_write(uint8_t reg_no, uint8_t value)
 {
     // update the reg value
     const uint8_t reg = reg_no & 0x7F;
@@ -431,7 +431,7 @@ static inline __attribute__((always_inline)) void set_mode7_scans(union cgia_pla
 }
 #endif
 
-void __attribute__((optimize("O3"))) cgia_render(uint16_t y, uint32_t *rgbbuf)
+void __attribute__((optimize("O2"))) cgia_render(uint16_t y, uint32_t *rgbbuf)
 {
     static union cgia_plane_regs_t *plane;
     static uint16_t *plane_offset;
