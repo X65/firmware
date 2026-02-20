@@ -65,6 +65,10 @@ static inline uint32_t __builtin_arm_usat(int32_t val, unsigned bits)
 #ifdef __clang__
 #pragma clang diagnostic ignored "-Wunknown-attributes"
 #endif
+
+#if defined(PICO_BUILD)
+#error "Are you building for microcontroller? You need to define SGU_ON_MCU."
+#endif
 #endif
 
 // precomputed waveforms (1024 samples each)

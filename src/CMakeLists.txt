@@ -276,6 +276,7 @@ target_link_libraries(x65_audio PRIVATE
 )
 
 target_compile_definitions(x65_audio PRIVATE
+    SGU_ON_MCU=1
     PLL_SYS_REFDIV=1
     PLL_SYS_VCO_FREQ_HZ=1344000000
     PLL_SYS_POSTDIV1=4
