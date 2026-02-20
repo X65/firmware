@@ -55,5 +55,13 @@
         "editor.defaultFormatter": "vscode.json-language-features"
     },
     "sonarlint.pathToCompileCommands": "${workspaceFolder}/build/compile_commands.json",
-    "cortex-debug.variableUseNaturalFormat": false
+    "cortex-debug.variableUseNaturalFormat": false,
+    "cSpell.words": [
+        "atten",
+        "BLEP",
+        "CHNS",
+        "ESFM",
+        "TRMD",
+        "VIBD"
+    ]
 }
