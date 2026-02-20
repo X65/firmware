@@ -21,14 +21,16 @@
  * SOFTWARE.
  */
 
+// SGU implemented on RP2350 MCU uses hardware specific shortcuts
+// Remove this define to compile for a generic platform
+#define SGU_ON_MCU
+
 #define _USE_MATH_DEFINES
 #include <assert.h>
 #include <math.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
-
-#include <pico.h>
 
 #if defined(_MSC_VER)
 #include <intrin.h>
@@ -40,6 +42,13 @@
 #define maxval(a, b)   (((a) > (b)) ? (a) : (b))
 #define clamp(v, a, b) minval((b), maxval((a), (v)))
 
+#ifdef SGU_ON_MCU
+#include <pico.h>
+// PCM sample memory (signed 8-bit)
+static int8_t __uninitialized_ram(pcm_mem)[SGU_PCM_RAM_SIZE];
+#else
+#endif
+
 // precomputed waveforms (1024 samples each)
 static int16_t __attribute__((aligned(2)))
 __uninitialized_ram(sine_lut)[SGU_WAVEFORM_LENGTH];
@@ -50,6 +59,9 @@ __uninitialized_ram(sawtooth_lut)[SGU_WAVEFORM_LENGTH];
 // precomputed envelope attenuation to volume
 static uint16_t __attribute__((aligned(2)))
 __uninitialized_ram(env_gain_lut)[0x400];
+// Panning gain lookup tables
+static uint8_t __uninitialized_ram(pan_gain_lut_l)[256];
+static uint8_t __uninitialized_ram(pan_gain_lut_r)[256];
 
 static inline uint32_t sgu_clz32(uint32_t value)
 {
@@ -106,7 +118,7 @@ static inline uint32_t opl_key_scale_atten(uint32_t block, uint32_t fnum_4msb)
     // subtracting 8 for each block below 7.
     static uint8_t const fnum_to_atten[16] = {0, 24, 32, 37, 40, 43, 45, 47, 48, 50, 51, 52, 53, 54, 55, 56};
     int32_t result = fnum_to_atten[fnum_4msb] - 8 * (block ^ 7);
-    return maxval(0, result);
+    return (uint32_t)__builtin_arm_usat(result, 31);
 }
 
 //-------------------------------------------------
@@ -245,7 +257,7 @@ static inline uint32_t sgu_compute_phase_step_from_base(uint32_t phase_step, uin
 // raw value is 0, and clamping to 63
 static inline uint32_t effective_rate(uint32_t rawrate, uint32_t ksr)
 {
-    return (rawrate == 0) ? 0 : minval(rawrate + ksr, 63);
+    return (rawrate == 0) ? 0 : __builtin_arm_usat(rawrate + ksr, 6);
 }
 
 //-------------------------------------------------
@@ -1011,8 +1023,8 @@ void __attribute__((optimize("Ofast"))) SGU_NextSample_Channels(
         sgu->post[ch] = voice_sample;
 
         // Panning
-        int32_t out_l = (voice_sample * sgu->pan_gain_lut_l[(uint8_t)ch_reg->pan]) >> 7;
-        int32_t out_r = (voice_sample * sgu->pan_gain_lut_r[(uint8_t)ch_reg->pan]) >> 7;
+        int32_t out_l = (voice_sample * pan_gain_lut_l[(uint8_t)ch_reg->pan]) >> 7;
+        int32_t out_r = (voice_sample * pan_gain_lut_r[(uint8_t)ch_reg->pan]) >> 7;
 
         // Sweeps (affect parameters for future samples)
         // (flags1 bit5).
@@ -1255,6 +1267,12 @@ void SGU_Init(struct SGU *sgu, size_t sampleMemSize)
     (void)sampleMemSize;
     memset(sgu, 0, sizeof(struct SGU));
 
+    /**
+     * Compute lookup tables.
+     * NOTE: these are shared among all SGU instances,
+     * but with exactly same values, so we compute them per-instance for simplicity.
+     * TODO: move to pre-computed static const tables.
+     */
     for (int32_t i = 0; i < SGU_WAVEFORM_LENGTH; i++)
     {
         uint16_t t = (uint16_t)((i * UINT16_MAX) / (SGU_WAVEFORM_LENGTH - 1));
@@ -1288,18 +1306,25 @@ void SGU_Init(struct SGU *sgu, size_t sampleMemSize)
     // Start with "center pan": both gains 127
     for (size_t i = 0; i < 256; i++)
     {
-        sgu->pan_gain_lut_l[i] = 127;
-        sgu->pan_gain_lut_r[i] = 127;
+        pan_gain_lut_l[i] = 127;
+        pan_gain_lut_r[i] = 127;
     }
     // Pan shaping:
     // - For i=0..127: left gain decreases from 127->0 (panned right)
     // - For i=128..255: right gain increases from 0->126 (panned left)
     for (size_t i = 0; i < 128; i++)
     {
-        sgu->pan_gain_lut_l[i] = (uint8_t)(127 - i);
-        sgu->pan_gain_lut_r[128 + i] = (uint8_t)(i - 1);
+        pan_gain_lut_l[i] = (uint8_t)(127 - i);
+        pan_gain_lut_r[128 + i] = (uint8_t)(i - 1);
     }
-    sgu->pan_gain_lut_r[128] = 0;
+    pan_gain_lut_r[128] = 0;
+
+#ifdef SGU_ON_MCU
+    // there can be only one…
+    sgu->pcm = pcm_mem;
+#else
+    sgu->pcm = malloc(SGU_PCM_RAM_SIZE);
+#endif
 
     SGU_Reset(sgu);
 }

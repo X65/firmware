@@ -589,24 +589,17 @@ struct SGU
     // PCM phase accumulator for fractional PCM playback
     int32_t pcm_phase_accum[SGU_CHNS];
 
-    // Panning gain lookup tables (computed once in Init)
-    uint8_t pan_gain_lut_l[256];
-    uint8_t pan_gain_lut_r[256];
+    // PCM sample memory (signed 8-bit)
+    int8_t *pcm;
 
     // Per-channel mute (software-side, not part of chip spec).
     bool muted[SGU_CHNS];
 
-    // Size of PCM RAM actually used (must be power of 2, <= pcm[] size).
-    uint32_t pcm_size;
-
     // ========================================================================
-    // REGISTER MAP + PCM (cold data, must be contiguous for SGU_Write)
+    // REGISTER MAP (must be contiguous for SGU_Write)
     // SGU_Write does: ((uint8_t *)sgu->chan)[addr13] = data;
     // ========================================================================
-    struct SGU_CH chan[SGU_CHNS];
-
-    // PCM sample memory (signed 8-bit). Immediately follows chan[] for contiguous addressing.
-    int8_t pcm[SGU_PCM_RAM_SIZE];
+    struct SGU_CH __attribute__((aligned(4))) chan[SGU_CHNS];
 };
 
 // -----------------------------------------------------------------------------
