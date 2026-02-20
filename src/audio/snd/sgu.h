@@ -125,16 +125,16 @@ Additional WAVE form related parameter (per-operator, 4 bits)
 - PULSE
   Selects channel pulse width or a fixed per-operator pulse width:
   0 => use channel pulse width
-  1..7 => x/8 pulse width (x low units, 8-x high units)
+  1..15 => x/16 pulse width (x low units, 16-x high units)
 - SINE, TRIANGLE, SAWTOOTH
   bit 3 = 0:
     bits 0..2 selects OPL-style variant of the base waveform:
     1 (HALF_L): "half-sine" - part of the wave before DUTY is silenced
-    2 (HALF_H): "half-sine" - part of the wave AFTER DUTY is silenced
+    2 (HALF_H): "half-sine" - part of the wave after DUTY is silenced
     3 (ABS_L) : "absolute-sine" - negate part of the wave before DUTY
     4 (ABS_H) : "absolute-sine" - negate part of the wave after DUTY
   bit 3 = 1: quantize wave table look-up by zeroing out some low bits, creating stepped waveforms:
-    bits 0..2: selects which bits to zero-out
+    bits 0..2: selects how many bits to zero-out (bits0..2 + 1)
 - PERIODIC_NOISE
   bits 0..1: selects 6-bit LFSR tap configuration:
     0: taps 3,4 (~31 states)

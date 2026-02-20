@@ -844,7 +844,7 @@ void __attribute__((optimize("Ofast"))) SGU_NextSample_Channels(
                         if (wpar & SGU_WPAR_QUANT)
                         {
                             // WPAR[2:0] quantizes phase by zeroing LSBs
-                            phase &= ~((wpar & 0x07) << 1);
+                            phase &= ~((1 << ((wpar & 0x07) + 1)) - 1);
                         }
 
                         switch (wave)
@@ -873,10 +873,10 @@ void __attribute__((optimize("Ofast"))) SGU_NextSample_Channels(
                                 sample = high ? 0 : sample;
                                 break;
                             case SGU_WPAR_ABS_L:
-                                sample = high ? (int16_t)-sample : sample;
+                                sample = high ? sample : (int16_t)-sample;
                                 break;
                             case SGU_WPAR_ABS_H:
-                                sample = high ? sample : (int16_t)-sample;
+                                sample = high ? (int16_t)-sample : sample;
                                 break;
                             }
                         }
@@ -889,8 +889,8 @@ void __attribute__((optimize("Ofast"))) SGU_NextSample_Channels(
                     case SGU_WAVE_PULSE:
                     {
                         // compare phase-derived 7-bit ramp against duty (0..127).
-                        // WPAR: 0 => channel duty, 1..7 => fixed pulse width (x/8)
-                        const uint8_t duty = wpar ? (uint8_t)((uint8_t)wpar << 4) : ch_reg->duty;
+                        // WPAR: 0 => channel duty, 1..15 => fixed pulse width (x/16th of period)
+                        const uint8_t duty = wpar ? (uint8_t)((uint8_t)wpar << 3) : ch_reg->duty;
                         sample = ((phase >> 3) >= duty) ? INT16_MAX : INT16_MIN;
 
                         // Detect edge by comparing with previous RAW sample (not enveloped value)
@@ -1274,7 +1274,6 @@ void __attribute__((optimize("Ofast"))) SGU_NextSample_Finalize(
 
 // ---------------------------------------------------------------------------
 // Single-core wrapper: calls all 3 phases sequentially.
-// Preserves the original API for backward compatibility and testing.
 // ---------------------------------------------------------------------------
 void __attribute__((optimize("Ofast"))) SGU_NextSample(struct SGU *restrict sgu, int32_t *restrict l, int32_t *restrict r)
 {
@@ -1284,7 +1283,7 @@ void __attribute__((optimize("Ofast"))) SGU_NextSample(struct SGU *restrict sgu,
     SGU_NextSample_Finalize(sgu, L, R, l, r);
 }
 
-void SGU_Init(struct SGU *sgu, size_t sampleMemSize)
+void __attribute__((optimize("Ofast"))) SGU_Init(struct SGU *sgu, size_t sampleMemSize)
 {
     (void)sampleMemSize;
     memset(sgu, 0, sizeof(struct SGU));
@@ -1382,59 +1381,11 @@ void SGU_Reset(struct SGU *sgu)
         sgu->outL[ch] = 0;
         sgu->outR[ch] = 0;
     }
-
-#if IN_EMU
-    uint8_t AR5 = 4;
-    uint8_t DR5 = 31;
-    uint8_t SL4 = 12;
-    uint8_t SR5 = 0;
-    uint8_t RR4 = 15;
-
-    // channel FREQ and gate
-    SGU_Write(sgu, 0x20, 0xD6);
-    SGU_Write(sgu, 0x21, 0x1C);
-#if 0
-    SGU_Write(sgu, 0x24, 0x01); // KEY
-    SGU_Write(sgu, 0x28, 0x44); // DUTY
-    // operator 1
-    SGU_Write(sgu, 0x00, 0x01);
-    SGU_Write(sgu, 0x02, 0xF0);
-    SGU_Write(sgu, 0x07, 0xE0);
-#else
-    SGU_Write(sgu, 0x00, 0x01); // MUL=1
-    // Envelope
-    SGU_Write(sgu, 0x02, (uint8_t)((AR5 & 0xF) << 4) | (DR5 & 0xF));
-    SGU_Write(sgu, 0x03, (uint8_t)((SL4 & 0xF) << 4) | (RR4 & 0xF));
-    SGU_Write(sgu, 0x04, (uint8_t)((SR5 & 0x1F)));
-    SGU_Write(sgu, 0x07, (uint8_t)((AR5 & 0x10) | ((DR5 & 0x10) >> 1) | SGU_WAVE_SINE | 0xE0)); // Full OUT, sine
-#endif
-    // // operator 2
-    // SGU_Write(sgu, 0x08, 0x02);
-    // SGU_Write(sgu, 0x0a, 0xF0);
-    // SGU_Write(sgu, 0x0e, 0x0E);
-    // SGU_Write(sgu, 0x0f, 0xF0);
-    // // operator 3
-    // SGU_Write(sgu, 0x10, 0x03);
-    // SGU_Write(sgu, 0x12, 0xF0);
-    // SGU_Write(sgu, 0x17, 0x80);
-    // // operator 4
-    // SGU_Write(sgu, 0x18, 0x05);
-    // SGU_Write(sgu, 0x1a, 0xF0);
-    // SGU_Write(sgu, 0x1f, 0xF0);
-
-    // SGU_Write(sgu, 0x40 + 0x00, 0x01);
-    // SGU_Write(sgu, 0x40 + 0x02, 0xF0);
-    // SGU_Write(sgu, 0x40 + 0x07, 0xF0);
-    // SGU_Write(sgu, 0x80 + 0x00, 0x01);
-    // SGU_Write(sgu, 0x80 + 0x02, 0xF0);
-    // SGU_Write(sgu, 0x80 + 0x07, 0xF0);
-#endif
 }
 
 void SGU_Write(struct SGU *sgu, uint16_t addr13, uint8_t data)
 {
     ((uint8_t *)sgu->chan)[addr13] = data;
-    // printf("SGU_Write: addr=0x%02X data=0x%02X -> (chan=%u)\n", addr13, data, channel);
 }
 
 static_assert(sizeof(struct SGU_CH) == (SGU_OP_PER_CH * SGU_OP_REGS + SGU_CH_REGS), "SGU channel size mismatch");
@@ -1443,5 +1394,5 @@ static_assert(SGU_REGS_PER_CH == (SGU_OP_PER_CH * SGU_OP_REGS + SGU_CH_REGS), "S
 int32_t SGU_GetSample(struct SGU *sgu, uint8_t ch)
 {
     // Return the post-processed mono sample (after volume/filter, before pan)
-    return __builtin_arm_ssat(sgu->post[ch], 16);
+    return sgu->post[ch];
 }
