@@ -21,10 +21,6 @@
  * SOFTWARE.
  */
 
-// SGU implemented on RP2350 MCU uses hardware specific shortcuts
-// Remove this define to compile for a generic platform
-#define SGU_ON_MCU
-
 #define _USE_MATH_DEFINES
 #include <assert.h>
 #include <math.h>
@@ -42,11 +38,33 @@
 #define maxval(a, b)   (((a) > (b)) ? (a) : (b))
 #define clamp(v, a, b) minval((b), maxval((a), (v)))
 
+// SGU implemented on RP2350 MCU uses hardware specific shortcuts
 #ifdef SGU_ON_MCU
 #include <pico.h>
 // PCM sample memory (signed 8-bit)
 static int8_t __uninitialized_ram(pcm_mem)[SGU_PCM_RAM_SIZE];
 #else
+#include <stdlib.h>
+
+#define __uninitialized_ram(x) x
+
+static inline int32_t __builtin_arm_ssat(int32_t val, unsigned bits)
+{
+    const int32_t max = (1 << (bits - 1)) - 1;
+    const int32_t min = -(1 << (bits - 1));
+    return val > max ? max : val < min ? min
+                                       : val;
+}
+static inline uint32_t __builtin_arm_usat(int32_t val, unsigned bits)
+{
+    const uint32_t max = (1u << bits) - 1;
+    return val < 0 ? 0 : (uint32_t)val > max ? max
+                                             : (uint32_t)val;
+}
+
+#ifdef __clang__
+#pragma clang diagnostic ignored "-Wunknown-attributes"
+#endif
 #endif
 
 // precomputed waveforms (1024 samples each)
