@@ -244,7 +244,7 @@ target_include_directories(x65_audio PRIVATE
 )
 
 pico_generate_pio_header(x65_audio
-    ${CMAKE_CURRENT_LIST_DIR}/audio/aud.pio
+    ${CMAKE_CURRENT_LIST_DIR}/audio/i2s.pio
 )
 
 pico_generate_pio_header(x65_audio

@@ -14,7 +14,7 @@
 #include "hardware/timer.h"
 #include "hw.h"
 
-#include "aud.pio.h"
+#include "i2s.pio.h"
 
 #include <pico/rand.h>
 #include <stdio.h>
