@@ -19,6 +19,9 @@
 #include <hardware/uart.h>
 #include <pico/multicore.h>
 
+#include "pico_hdmi/hstx_data_island_queue.h"
+#include "pico_hdmi/hstx_packet.h"
+
 #include <limits.h>
 #include <stdio.h>
 #include <string.h>
@@ -40,6 +43,8 @@ static bool trigger_vbl = false;
 
 volatile out_mode_t out_mode = OUT_MODE_VT;
 static volatile out_mode_t active_mode = OUT_MODE_CGIA;
+
+static bool dvi_mode = true; // Start in DVI mode (safe default)
 
 // ----------------------------------------------------------------------------
 // DVI constants
@@ -64,6 +69,28 @@ static volatile out_mode_t active_mode = OUT_MODE_CGIA;
 #define HSTX_CMD_TMDS        (0x2u << 12)
 #define HSTX_CMD_TMDS_REPEAT (0x3u << 12)
 #define HSTX_CMD_NOP         (0xfu << 12)
+
+// ----------------------------------------------------------------------------
+// HDMI constants
+
+// Data Island preamble: Lane 0 = sync, Lanes 1&2 = CTRL_01 pattern
+// Per HDMI 1.3a Table 5-2: CTL0=1, CTL1=0, CTL2=1, CTL3=0
+#define PREAMBLE_V0_H0 (TMDS_CTRL_00 | (TMDS_CTRL_01 << 10) | (TMDS_CTRL_01 << 20))
+#define PREAMBLE_V1_H0 (TMDS_CTRL_10 | (TMDS_CTRL_01 << 10) | (TMDS_CTRL_01 << 20))
+
+// Video preamble: Lane 0 = sync, Lane 1 = CTRL_01, Lane 2 = CTRL_00
+// Per HDMI 1.3a Table 5-2: CTL0=1, CTL1=0, CTL2=0, CTL3=0
+#define VIDEO_PREAMBLE_V0_H1 (TMDS_CTRL_01 | (TMDS_CTRL_01 << 10) | (TMDS_CTRL_00 << 20))
+#define VIDEO_PREAMBLE_V1_H1 (TMDS_CTRL_11 | (TMDS_CTRL_01 << 10) | (TMDS_CTRL_00 << 20))
+
+// Video guard band: Per HDMI 1.3a Table 5-5
+// CH0 = 0b1011001100 (0x2CC), CH1 = 0b0100110011 (0x133), CH2 = 0b1011001100 (0x2CC)
+#define VIDEO_GUARD_BAND (0x2CCu | (0x133u << 10) | (0x2CCu << 20))
+
+// Data Island timing (must fit in MODE_H_SYNC_WIDTH = 72 pixels)
+#define SYNC_AFTER_DI      (MODE_H_SYNC_WIDTH - W_PREAMBLE - W_DATA_ISLAND) // 72-8-36=28
+#define W_VIDEO_PREAMBLE   8
+#define W_VIDEO_GUARD_BAND 2
 
 // ----------------------------------------------------------------------------
 // HSTX command lists
@@ -101,6 +128,87 @@ static uint32_t vactive_line[] = {
     HSTX_CMD_TMDS | MODE_H_ACTIVE_PIXELS};
 
 // ----------------------------------------------------------------------------
+// HDMI command list buffers
+
+// Static pre-encoded command lists (built once at init)
+static uint32_t vblank_acr_vsync_on[64], vblank_acr_vsync_on_len;
+static uint32_t vblank_acr_vsync_off[64], vblank_acr_vsync_off_len;
+static uint32_t vblank_infoframe_vsync_on[64], vblank_infoframe_vsync_on_len;
+static uint32_t vblank_infoframe_vsync_off[64], vblank_infoframe_vsync_off_len;
+static uint32_t vblank_avi_infoframe[64], vblank_avi_infoframe_len;
+static uint32_t vblank_di_null[64], vblank_di_null_len;
+static uint32_t vactive_di_null[128], vactive_di_null_len;
+
+// Dynamic ping/pong buffers (built per-scanline with audio data)
+static uint32_t vactive_di_ping[128], vactive_di_pong[128];
+static uint32_t vblank_di_ping[128], vblank_di_pong[128];
+
+// ----------------------------------------------------------------------------
+// Data island command list builder
+
+static uint32_t build_line_with_di(uint32_t *buf, const uint32_t *di_words,
+                                   bool vsync, bool active)
+{
+    uint32_t *p = buf;
+    uint32_t sync_h0 = vsync ? SYNC_V0_H0 : SYNC_V1_H0;
+    uint32_t sync_h1 = vsync ? SYNC_V0_H1 : SYNC_V1_H1;
+    uint32_t preamble = vsync ? PREAMBLE_V0_H0 : PREAMBLE_V1_H0;
+
+    // Front porch
+    *p++ = HSTX_CMD_RAW_REPEAT | MODE_H_FRONT_PORCH;
+    *p++ = sync_h1;
+    *p++ = HSTX_CMD_NOP;
+
+    // Data Island preamble (8 pixels)
+    *p++ = HSTX_CMD_RAW_REPEAT | W_PREAMBLE;
+    *p++ = preamble;
+    *p++ = HSTX_CMD_NOP;
+
+    // Data Island (36 pixels: 2 guard + 32 data + 2 guard)
+    *p++ = HSTX_CMD_RAW | W_DATA_ISLAND;
+    for (int i = 0; i < W_DATA_ISLAND; i++)
+        *p++ = di_words[i];
+    *p++ = HSTX_CMD_NOP;
+
+    // Remaining hsync period
+    *p++ = HSTX_CMD_RAW_REPEAT | SYNC_AFTER_DI;
+    *p++ = sync_h0;
+    *p++ = HSTX_CMD_NOP;
+
+    if (active)
+    {
+        // HDMI 1.3a Section 5.2.2: Video Data Period requires preamble + guard
+        uint32_t video_preamble = vsync ? VIDEO_PREAMBLE_V0_H1 : VIDEO_PREAMBLE_V1_H1;
+
+        // Back porch control period (minus preamble and guard band)
+        *p++ = HSTX_CMD_RAW_REPEAT | (MODE_H_BACK_PORCH - W_VIDEO_PREAMBLE - W_VIDEO_GUARD_BAND);
+        *p++ = sync_h1;
+        *p++ = HSTX_CMD_NOP;
+
+        // Video Preamble (8 pixels)
+        *p++ = HSTX_CMD_RAW_REPEAT | W_VIDEO_PREAMBLE;
+        *p++ = video_preamble;
+        *p++ = HSTX_CMD_NOP;
+
+        // Video Guard Band (2 pixels)
+        *p++ = HSTX_CMD_RAW_REPEAT | W_VIDEO_GUARD_BAND;
+        *p++ = VIDEO_GUARD_BAND;
+
+        // Active video pixels (TMDS encoded by HSTX)
+        *p++ = HSTX_CMD_TMDS | MODE_H_ACTIVE_PIXELS;
+    }
+    else
+    {
+        // Blanking: fill back porch + active region with sync
+        *p++ = HSTX_CMD_RAW_REPEAT | (MODE_H_BACK_PORCH + MODE_H_ACTIVE_PIXELS);
+        *p++ = sync_h1;
+        *p++ = HSTX_CMD_NOP;
+    }
+
+    return (uint32_t)(p - buf);
+}
+
+// ----------------------------------------------------------------------------
 // DMA logic
 
 // First we ping. Then we pong. Then... we ping again.
@@ -124,12 +232,38 @@ void __isr dma_irq_handler(void)
     dma_hw->intr = 1u << ch_num;
     dma_pong = !dma_pong;
 
-    if (v_scanline >= MODE_V_FRONT_PORCH && v_scanline < (MODE_V_FRONT_PORCH + MODE_V_SYNC_WIDTH))
-    {
-        ch->read_addr = (uintptr_t)vblank_line_vsync_on;
-        ch->transfer_count = count_of(vblank_line_vsync_on);
+    // Advance audio/data-island scheduler once per scanline (HDMI mode only)
+    if (!dvi_mode && !vactive_cmdlist_posted)
+        hstx_di_queue_tick();
 
+    bool vsync_active = (v_scanline >= MODE_V_FRONT_PORCH
+                         && v_scanline < (MODE_V_FRONT_PORCH + MODE_V_SYNC_WIDTH));
+    bool blanking = (v_scanline < MODE_V_FRONT_PORCH + MODE_V_SYNC_WIDTH + MODE_V_BACK_PORCH);
+
+    if (vsync_active)
+    {
+        // Vsync period: sync + mode switching
         a_scanline = 0;
+
+        if (dvi_mode)
+        {
+            ch->read_addr = (uintptr_t)vblank_line_vsync_on;
+            ch->transfer_count = count_of(vblank_line_vsync_on);
+        }
+        else
+        {
+            // First vsync line: ACR packet, others: audio infoframe
+            if (v_scanline == MODE_V_FRONT_PORCH)
+            {
+                ch->read_addr = (uintptr_t)vblank_acr_vsync_on;
+                ch->transfer_count = vblank_acr_vsync_on_len;
+            }
+            else
+            {
+                ch->read_addr = (uintptr_t)vblank_infoframe_vsync_on;
+                ch->transfer_count = vblank_infoframe_vsync_on_len;
+            }
+        }
 
         if (out_mode == OUT_MODE_VT && active_mode != OUT_MODE_VT)
         {
@@ -148,21 +282,82 @@ void __isr dma_irq_handler(void)
                                          | 0 << HSTX_CTRL_EXPAND_SHIFT_RAW_SHIFT_LSB;
         }
     }
-    else if (v_scanline < MODE_V_FRONT_PORCH + MODE_V_SYNC_WIDTH + MODE_V_BACK_PORCH)
+    else if (blanking)
     {
-        ch->read_addr = (uintptr_t)vblank_line_vsync_off;
-        ch->transfer_count = count_of(vblank_line_vsync_off);
-
+        // Blanking period (front porch + back porch)
         a_scanline = 0;
+
+        if (dvi_mode)
+        {
+            ch->read_addr = (uintptr_t)vblank_line_vsync_off;
+            ch->transfer_count = count_of(vblank_line_vsync_off);
+        }
+        else
+        {
+            // Send ACR every 4th line during back porch
+            bool back_porch = (v_scanline >= MODE_V_FRONT_PORCH + MODE_V_SYNC_WIDTH);
+            bool send_acr = back_porch && (v_scanline % 4 == 0);
+
+            if (send_acr)
+            {
+                ch->read_addr = (uintptr_t)vblank_acr_vsync_off;
+                ch->transfer_count = vblank_acr_vsync_off_len;
+            }
+            else if (v_scanline == 0)
+            {
+                // AVI InfoFrame on first line of frame
+                ch->read_addr = (uintptr_t)vblank_avi_infoframe;
+                ch->transfer_count = vblank_avi_infoframe_len;
+            }
+            else
+            {
+                // Audio data island or null
+                const uint32_t *di_words = hstx_di_queue_get_audio_packet();
+                if (di_words)
+                {
+                    uint32_t *buf = dma_pong ? vblank_di_ping : vblank_di_pong;
+                    uint32_t len = build_line_with_di(buf, di_words, false, false);
+                    ch->read_addr = (uintptr_t)buf;
+                    ch->transfer_count = len;
+                }
+                else
+                {
+                    ch->read_addr = (uintptr_t)vblank_di_null;
+                    ch->transfer_count = vblank_di_null_len;
+                }
+            }
+        }
     }
     else if (!vactive_cmdlist_posted)
     {
-        ch->read_addr = (uintptr_t)vactive_line;
-        ch->transfer_count = count_of(vactive_line);
+        // Active video: post command list
+        if (dvi_mode)
+        {
+            ch->read_addr = (uintptr_t)vactive_line;
+            ch->transfer_count = count_of(vactive_line);
+        }
+        else
+        {
+            // Audio data island or null (with video preamble + guard)
+            const uint32_t *di_words = hstx_di_queue_get_audio_packet();
+            if (di_words)
+            {
+                uint32_t *buf = dma_pong ? vactive_di_ping : vactive_di_pong;
+                uint32_t len = build_line_with_di(buf, di_words, false, true);
+                ch->read_addr = (uintptr_t)buf;
+                ch->transfer_count = len;
+            }
+            else
+            {
+                ch->read_addr = (uintptr_t)vactive_di_null;
+                ch->transfer_count = vactive_di_null_len;
+            }
+        }
         vactive_cmdlist_posted = true;
     }
     else
     {
+        // Active video: pixel data
         if (a_scanline >= gen_scanline && cur_scanline != gen_scanline)
         {
             cur_scanline = gen_scanline;
@@ -188,6 +383,79 @@ void __isr dma_irq_handler(void)
         }
     }
 }
+
+// ----------------------------------------------------------------------------
+// HDMI packet initialization
+
+static void hdmi_init_packets(void)
+{
+    hstx_di_queue_init();
+    hstx_di_queue_set_v_total(MODE_V_TOTAL_LINES);
+    hstx_di_queue_set_sample_rate(48000);
+
+    hstx_packet_t pkt;
+    hstx_data_island_t island;
+
+    // ACR packets (N=6144, CTS=28800 for 28.8 MHz pixel clock @ 48kHz)
+    hstx_packet_set_acr(&pkt, 6144, 28800);
+    hstx_encode_data_island(&island, &pkt, true, true);
+    vblank_acr_vsync_on_len = build_line_with_di(vblank_acr_vsync_on, island.words, true, false);
+    hstx_encode_data_island(&island, &pkt, false, true);
+    vblank_acr_vsync_off_len = build_line_with_di(vblank_acr_vsync_off, island.words, false, false);
+
+    // Audio InfoFrame (48kHz, 2ch, 16-bit)
+    hstx_packet_set_audio_infoframe(&pkt, 48000, 2, 16);
+    hstx_encode_data_island(&island, &pkt, true, true);
+    vblank_infoframe_vsync_on_len = build_line_with_di(vblank_infoframe_vsync_on, island.words, true, false);
+    hstx_encode_data_island(&island, &pkt, false, true);
+    vblank_infoframe_vsync_off_len = build_line_with_di(vblank_infoframe_vsync_off, island.words, false, false);
+
+    // AVI InfoFrame (VIC=0 for non-standard 768x480)
+    hstx_packet_set_avi_infoframe(&pkt, 0, 0);
+    hstx_encode_data_island(&island, &pkt, false, true);
+    vblank_avi_infoframe_len = build_line_with_di(vblank_avi_infoframe, island.words, false, false);
+
+    // Null data island command lists
+    vblank_di_null_len = build_line_with_di(vblank_di_null, hstx_get_null_data_island(false, true), false, false);
+    vactive_di_null_len = build_line_with_di(vactive_di_null, hstx_get_null_data_island(false, true), false, true);
+}
+
+// ----------------------------------------------------------------------------
+// 440 Hz test tone generator
+
+#define TEST_TONE_HZ     440
+#define TEST_SAMPLE_RATE 48000
+#define TEST_AMPLITUDE   0x2000 // ~25% volume, 16-bit signed
+
+static uint32_t audio_phase_acc = 0;
+static const uint32_t audio_phase_inc = (uint32_t)((uint64_t)TEST_TONE_HZ * UINT32_MAX / TEST_SAMPLE_RATE);
+static int audio_frame_counter = 0;
+
+static void audio_test_task(void)
+{
+    // Keep the data island queue fed with a 440Hz pulse wave
+    while (hstx_di_queue_get_level() < 200)
+    {
+        audio_sample_t samples[4];
+        for (int i = 0; i < 4; i++)
+        {
+            int16_t val = (audio_phase_acc & 0x80000000) ? -TEST_AMPLITUDE : TEST_AMPLITUDE;
+            samples[i].left = val;
+            samples[i].right = val;
+            audio_phase_acc += audio_phase_inc;
+        }
+        hstx_packet_t pkt;
+        audio_frame_counter = hstx_packet_set_audio_samples(
+            &pkt, samples, 4, audio_frame_counter);
+        hstx_data_island_t island;
+        hstx_encode_data_island(&island, &pkt, false, true);
+        if (!hstx_di_queue_push(&island))
+            break;
+    }
+}
+
+// ----------------------------------------------------------------------------
+// Core1 main loop
 
 void __not_in_flash_func(out_core1_main)(void)
 {
@@ -258,6 +526,9 @@ void __not_in_flash_func(out_core1_main)(void)
         gpio_set_function(i, 0); // HSTX
     }
 
+    // Initialize HDMI data island packets (safe to call even in DVI mode)
+    hdmi_init_packets();
+
     // Both channels are set up identically, to transfer a whole scanline and
     // then chain to the opposite channel. Each time a channel finishes, we
     // reconfigure the one that just finished, meanwhile the opposite channel
@@ -326,6 +597,10 @@ void __not_in_flash_func(out_core1_main)(void)
                 gen_scanline = active_scanline;
             }
         }
+
+        // Feed HDMI audio pipeline (independent of rasterizer)
+        if (!dvi_mode)
+            audio_test_task();
 
         __wfi(); // wait for interrupt
     }
@@ -400,4 +675,9 @@ void out_write_status(void)
     uint32_t div = clocks_hw->clk[clk_hstx].div;
     printf("HSTX CTRL: 0x%08x, DIV: 0x%08x\n", ctrl, div);
 #endif
+}
+
+void out_set_dvi_mode(bool enabled)
+{
+    dvi_mode = enabled;
 }

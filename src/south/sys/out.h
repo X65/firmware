@@ -7,6 +7,8 @@
 #ifndef _SB_SYS_OUT_H_
 #define _SB_SYS_OUT_H_
 
+#include <stdbool.h>
+
 /* Video output generation
  */
 
@@ -55,5 +57,7 @@ inline void out_set_mode(out_mode_t mode)
 {
     out_mode = mode;
 }
+
+void out_set_dvi_mode(bool enabled);
 
 #endif /* _SB_SYS_OUT_H_ */

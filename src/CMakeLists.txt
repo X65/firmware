@@ -158,6 +158,7 @@ target_include_directories(x65_south PRIVATE
     ${CMAKE_CURRENT_LIST_DIR}/south
     ${CMAKE_CURRENT_LIST_DIR}
     ${CMAKE_CURRENT_LIST_DIR}/tinyusb/src
+    ${CMAKE_CURRENT_LIST_DIR}/pico_hdmi/include
 )
 
 pico_generate_pio_header(x65_south
@@ -187,6 +188,8 @@ target_sources(x65_south PRIVATE
     south/usb/cdc.c
     south/usb/descriptors.c
     south/usb/usb.c
+    pico_hdmi/src/hstx_packet.c
+    pico_hdmi/src/hstx_data_island_queue.c
     ${CMAKE_CURRENT_BINARY_DIR}/version.h
 )
 
