@@ -44,7 +44,7 @@ static bool trigger_vbl = false;
 volatile out_mode_t out_mode = OUT_MODE_VT;
 static volatile out_mode_t active_mode = OUT_MODE_CGIA;
 
-static bool dvi_mode = true; // Start in DVI mode (safe default)
+static bool dvi_mode = false; // Start in DVI mode (safe default)
 
 // ----------------------------------------------------------------------------
 // DVI constants
@@ -421,36 +421,27 @@ static void hdmi_init_packets(void)
 }
 
 // ----------------------------------------------------------------------------
-// 440 Hz test tone generator
+// Audio sample submission from I2S receiver
 
-#define TEST_TONE_HZ     440
-#define TEST_SAMPLE_RATE 48000
-#define TEST_AMPLITUDE   0x2000 // ~25% volume, 16-bit signed
-
-static uint32_t audio_phase_acc = 0;
-static const uint32_t audio_phase_inc = (uint32_t)((uint64_t)TEST_TONE_HZ * UINT32_MAX / TEST_SAMPLE_RATE);
+static audio_sample_t audio_sample_buf[4];
+static int audio_sample_count = 0;
 static int audio_frame_counter = 0;
 
-static void audio_test_task(void)
+void out_audio_submit(int16_t left, int16_t right)
 {
-    // Keep the data island queue fed with a 440Hz pulse wave
-    while (hstx_di_queue_get_level() < 200)
+    audio_sample_buf[audio_sample_count].left = left;
+    audio_sample_buf[audio_sample_count].right = right;
+    audio_sample_count++;
+
+    if (audio_sample_count == 4)
     {
-        audio_sample_t samples[4];
-        for (int i = 0; i < 4; i++)
-        {
-            int16_t val = (audio_phase_acc & 0x80000000) ? -TEST_AMPLITUDE : TEST_AMPLITUDE;
-            samples[i].left = val;
-            samples[i].right = val;
-            audio_phase_acc += audio_phase_inc;
-        }
         hstx_packet_t pkt;
         audio_frame_counter = hstx_packet_set_audio_samples(
-            &pkt, samples, 4, audio_frame_counter);
+            &pkt, audio_sample_buf, 4, audio_frame_counter);
         hstx_data_island_t island;
         hstx_encode_data_island(&island, &pkt, false, true);
-        if (!hstx_di_queue_push(&island))
-            break;
+        hstx_di_queue_push(&island);
+        audio_sample_count = 0;
     }
 }
 
@@ -597,10 +588,6 @@ void __not_in_flash_func(out_core1_main)(void)
                 gen_scanline = active_scanline;
             }
         }
-
-        // Feed HDMI audio pipeline (independent of rasterizer)
-        if (!dvi_mode)
-            audio_test_task();
 
         __wfi(); // wait for interrupt
     }

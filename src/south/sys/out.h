@@ -8,6 +8,7 @@
 #define _SB_SYS_OUT_H_
 
 #include <stdbool.h>
+#include <stdint.h>
 
 /* Video output generation
  */
@@ -59,5 +60,7 @@ inline void out_set_mode(out_mode_t mode)
 }
 
 void out_set_dvi_mode(bool enabled);
+
+void out_audio_submit(int16_t left, int16_t right);
 
 #endif /* _SB_SYS_OUT_H_ */

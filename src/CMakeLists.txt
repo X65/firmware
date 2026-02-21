@@ -169,6 +169,10 @@ pico_generate_pio_header(x65_south
     ${CMAKE_CURRENT_LIST_DIR}/south/rgb.pio
 )
 
+pico_generate_pio_header(x65_south
+    ${CMAKE_CURRENT_LIST_DIR}/south/aud.pio
+)
+
 target_sources(x65_south PRIVATE
     south/main.c
     south/cgia/cgia.c

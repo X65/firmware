@@ -5,9 +5,13 @@
  */
 
 #include "./aud.h"
+#include "./out.h"
+#include "aud.pio.h"
 #include "hw.h"
 
+#include <hardware/clocks.h>
 #include <hardware/gpio.h>
+#include <hardware/pio.h>
 #include <hardware/spi.h>
 #include <pico/types.h>
 #include <stdio.h>
@@ -61,6 +65,67 @@ void aud_write_register(uint8_t reg, uint8_t data)
     spi_write16_blocking(AUD_SPI, &packet, 1);
 }
 
+static void aud_i2s_rx_irq_handler()
+{
+    // PIO packs stereo into one 32-bit word: (left << 16) | right.
+    while (!pio_sm_is_rx_fifo_empty(AUD_I2S_PIO, AUD_I2S_SM))
+    {
+        uint32_t word = pio_sm_get(AUD_I2S_PIO, AUD_I2S_SM);
+        out_audio_submit((int16_t)(word >> 16), (int16_t)(word & 0xFFFF));
+    }
+}
+
+static inline void aud_i2s_pio_init(void)
+{
+    // pio_set_gpio_base(AUD_I2S_PIO, 16);
+
+    uint i2s_pins[] = {
+        AUD_I2S_DIN_PIN,
+        AUD_I2S_SCLK_PIN,
+        AUD_I2S_LRCLK_PIN,
+    };
+
+    // Adjustments for noise level. Important!
+    for (int i = 0; i < 3; ++i)
+    {
+        uint pin = i2s_pins[i];
+        pio_gpio_init(AUD_I2S_PIO, pin);
+        gpio_set_pulls(pin, false, false);
+        gpio_set_input_hysteresis_enabled(pin, false);
+        gpio_set_drive_strength(pin, GPIO_DRIVE_STRENGTH_2MA);
+        gpio_set_slew_rate(pin, GPIO_SLEW_RATE_SLOW);
+    }
+
+    pio_sm_claim(AUD_I2S_PIO, AUD_I2S_SM);
+    uint offset = pio_add_program(AUD_I2S_PIO, &aud_i2s_program);
+    pio_sm_config sm_config = aud_i2s_program_get_default_config(offset);
+    sm_config_set_in_pins(&sm_config, AUD_I2S_PIN_BASE);
+    sm_config_set_sideset_pins(&sm_config, AUD_I2S_SCLK_PIN);
+    sm_config_set_in_shift(&sm_config, false, false, 32);
+    sm_config_set_fifo_join(&sm_config, PIO_FIFO_JOIN_RX);
+    // PIO runs at BCK * 2 = 48000 Hz * 16 bits * 2 channels * 2 = 3.072 MHz
+    float pio_freq = 48000.0f * 16 * 2 * 2;
+    uint32_t sys_hz = clock_get_hz(clk_sys);
+    float div = (float)sys_hz / pio_freq;
+    sm_config_set_clkdiv(&sm_config, div);
+    pio_sm_init(AUD_I2S_PIO, AUD_I2S_SM, offset + aud_i2s_offset_entry_point, &sm_config);
+
+    // Setup input pins
+    pio_sm_set_consecutive_pindirs(AUD_I2S_PIO, AUD_I2S_SM, AUD_I2S_DIN_PIN, 1, false);
+    pio_sm_set_consecutive_pindirs(AUD_I2S_PIO, AUD_I2S_SM, AUD_I2S_SCLK_PIN, 2, true);
+
+    // Connect the interrupt handler (higher priority than DMA video IRQ
+    // to prevent FIFO overflow and audio sample loss)
+    const int num = pio_get_irq_num(AUD_I2S_PIO, 0);
+    irq_set_exclusive_handler(num, aud_i2s_rx_irq_handler);
+    irq_set_priority(num, PICO_HIGHEST_IRQ_PRIORITY);
+    pio_interrupt_source_t src = pio_get_rx_fifo_not_empty_interrupt_source(AUD_I2S_SM);
+    pio_set_irqn_source_enabled(AUD_I2S_PIO, 0, src, true);
+    irq_set_enabled(num, true);
+
+    pio_sm_set_enabled(AUD_I2S_PIO, AUD_I2S_SM, true);
+}
+
 void aud_init(void)
 {
 #ifdef AUD_CLOCK_PIN
@@ -80,6 +145,8 @@ void aud_init(void)
     gpio_set_function(AUD_SPI_SCK_PIN, GPIO_FUNC_SPI);
     gpio_set_function(AUD_SPI_TX_PIN, GPIO_FUNC_SPI);
     gpio_set_function(AUD_SPI_CS_PIN, GPIO_FUNC_SPI);
+
+    aud_i2s_pio_init();
 }
 
 static void aud_dump_registers(void)

@@ -1,0 +1,40 @@
+.program aud_i2s
+; I2S 16-bit master receiver. Generates BCLK and LRCLK via side-set,
+; reads audio data from DIN.
+; Must run at BCLK * 2 (= 48000 * 16 * 2 * 2 = 3.072 MHz).
+;
+; 16 BCLK per channel. Packs L+R into one 32-bit push:
+;   bits [31:16] = left, bits [15:0] = right.
+;
+; Handles I2S quirk: first bit after LRCLK transition
+; is the LSB of the previous frame.
+;
+; Pin mapping:
+;   in pin 0       = DIN
+;   side-set pin 0 = BCLK
+;   side-set pin 1 = LRCLK
+
+.side_set 2
+
+.wrap_target
+frame_l:            ;        ,--- LRCLK
+                    ;        |,-- BCLK
+                    ;        ||
+    in pins, 1        side 0b00  ; Read LSB of previous R frame (completes stereo word)
+    push noblock      side 0b01  ; Push stereo frame: (L << 16) | R
+public entry_point:              ; Entry here on startup to skip initial garbage push
+    set x, 13         side 0b00  ; x=13 → 14 loop iterations
+    in pins, 1        side 0b01  ; Read MSB of L frame
+data_l:
+    in pins, 1        side 0b00  ; Read L data bits [14 ... 1]
+    jmp x-- data_l    side 0b01  ; 14 iterations → 14 bits
+
+frame_r:
+    in pins, 1        side 0b10  ; Read LSB of L frame (no push — keep accumulating)
+    nop               side 0b11  ; Pad to match timing (replaces push)
+    set x, 13         side 0b10
+    in pins, 1        side 0b11  ; Read MSB of R frame
+data_r:
+    in pins, 1        side 0b10  ; Read R data bits [14 ... 1]
+    jmp x-- data_r    side 0b11  ; 14 iterations → 14 bits
+.wrap
