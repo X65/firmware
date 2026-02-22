@@ -245,7 +245,7 @@ bool pix_connected(void)
     return absolute_time_diff_us(pix_last_activity, get_absolute_time()) < PIX_ACK_TIMEOUT_MS * 1000;
 }
 
-inline bool __attribute__((always_inline)) __attribute__((optimize("O3")))
+inline bool __attribute__((always_inline)) __attribute__((optimize("O2")))
 pix_raster_available(void)
 {
     // ~34.7us per raster line at 60Hz

@@ -35,7 +35,7 @@ uint8_t
 
 uint8_t
     __attribute__((aligned(4)))
-    __scratch_x("")
+    __scratch_x("cgia_data")
         regs_int[CGIA_REGS_NO]
     = {0};
 #define CGIA (*((struct cgia_t *)regs_int))
@@ -53,20 +53,20 @@ struct cgia_plane_internal
 };
 struct cgia_plane_internal
     __attribute__((aligned(4)))
-    __scratch_x("")
+    __scratch_x("cgia_data")
         plane_int[CGIA_PLANES]
     = {0};
 
 static uint16_t
     __attribute__((aligned(4)))
-    __scratch_x("")
+    __scratch_x("cgia_data")
         sprite_dsc_offsets[CGIA_PLANES][CGIA_SPRITES]
     = {0};
 
 // store which PSRAM bank is currently mirrored in cache
 uint8_t
     __attribute__((aligned(4)))
-    __scratch_x("")
+    __scratch_x("cgia_data")
         vram_cache_bank[CGIA_VRAM_BANKS]
     = {0, 0};
 
@@ -74,7 +74,7 @@ uint8_t
 // used to trigger DMA transfer during cgia_run() workloop
 uint8_t
     __attribute__((aligned(4)))
-    __scratch_x("")
+    __scratch_x("cgia_data")
         vram_wanted_bank[CGIA_VRAM_BANKS]
     = {0, 0};
 
@@ -96,7 +96,7 @@ cgia_ram_write(uint8_t bank, uint16_t addr, uint8_t data)
 // store in which vram cache bank a cgia bank (backgnd/sprite) is stored
 // these may be shared - backgnd and sprites in same bank
 uint8_t *
-    __scratch_x("")
+    __scratch_x("cgia_data")
         vram_cache_ptr[CGIA_VRAM_BANKS]
     = {vram_cache[0], vram_cache[0]};
 
@@ -305,7 +305,7 @@ void cgia_init(void)
 // clang-format off
 static uint8_t
     __attribute__((aligned(4)))
-    __scratch_x("")
+    __scratch_x("cgia_data")
         log2_tab[256]
     = {
         0x00, 0x01, 0x02, 0x02, 0x03, 0x03, 0x03, 0x03, //
@@ -344,7 +344,7 @@ static uint8_t
 
 static uint16_t
     __attribute__((aligned(4)))
-    __scratch_x("")
+    __scratch_x("cgia_data")
         plane_order_tab[24] // SJT order
     = {
         0x3210, 0x2310, 0x2130, 0x2103, 0x1203, 0x1230, //

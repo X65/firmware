@@ -1010,7 +1010,7 @@ void term_task(void)
 #ifdef PICO_SDK_VERSION_MAJOR
 #include <hardware/interp.h>
 
-inline void __attribute__((optimize("O3")))
+inline void __attribute__((optimize("O2")))
 term_render(int16_t y, uint32_t *rgbbuf)
 {
     interp_config cfg = interp_default_config();

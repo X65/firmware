@@ -42,7 +42,7 @@ void pix_send_request(pix_req_type_t msg_type,
                       pix_response_t *resp);
 
 // pass EVERY RAM write through CGIA for updating VRAM cache banks
-__force_inline static void __attribute__((optimize("O3")))
+__force_inline static void
 pix_mem_write(uint32_t addr24, uint8_t data)
 {
     pix_send_request(PIX_MEM_WRITE, 4,
