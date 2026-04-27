@@ -891,7 +891,7 @@ ham_command:
   push {r4-r8,r11, lr}
 
   ldr r4, =cgia_rgb_palette
-  ldr r12, [r4, r3]  // get current color from background color
+  ldr r12, [r4, r3, LSL #2]  // get current color from background color
 
   ldr r3, =(SIO_BASE + SIO_INTERP0_ACCUM0_OFFSET)
 
