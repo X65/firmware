@@ -398,11 +398,13 @@ static inline __attribute__((always_inline)) void set_mode7_interp_config(union 
 
     // interp0 will scan texture row
     // interp1 will scan row begin address
-    const uint texture_width_bits = plane->affine.texture_bits & 0b0111;
+    // MODE7 stores texture dimensions as encoded bit counts: 0..7 means 1..8 bits,
+    // yielding texture dimensions from 2 to 256 pixels.
+    const uint texture_width_bits = (plane->affine.texture_bits & 0b0111) + 1;
     interp_config_set_shift(&cfg, CGIA_AFFINE_FRACTIONAL_BITS);
     interp_config_set_mask(&cfg, 0, texture_width_bits - 1);
     interp_set_config(interp0, 0, &cfg);
-    const uint texture_height_bits = (plane->affine.texture_bits >> 4) & 0b0111;
+    const uint texture_height_bits = ((plane->affine.texture_bits >> 4) & 0b0111) + 1;
     interp_config_set_shift(&cfg, CGIA_AFFINE_FRACTIONAL_BITS - texture_width_bits);
     interp_config_set_mask(&cfg, texture_width_bits, texture_width_bits + texture_height_bits - 1);
     interp_set_config(interp0, 1, &cfg);

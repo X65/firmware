@@ -102,7 +102,7 @@ union cgia_plane_regs_t
         uint8_t flags;
         uint8_t border_columns;
         uint8_t row_height;
-        uint8_t texture_bits; // 2-0 texture_width_bits, 6-4 texture_height_bits
+        uint8_t texture_bits; // 2-0 width_bits-1, 6-4 height_bits-1; 0..7 => 2..256 px
         int16_t u;
         int16_t v;
         int16_t du;
