@@ -827,12 +827,14 @@ void __attribute__((optimize("O2"))) cgia_render(uint16_t y, uint32_t *rgbbuf)
                                         switch (plane->bckgnd.flags & PLANE_MASK_PIXEL_BITS)
                                         {
                                         case PLANE_BITS_1BPP:
-                                        case PLANE_BITS_3BPP:
+                                        case PLANE_BITS_2BPP:
                                             cgia_encode_mode_0(_multi, _2bpp, _doubled, _shared);
                                             break;
-                                        case PLANE_BITS_2BPP:
-                                        case PLANE_BITS_4BPP:
+                                        case PLANE_BITS_3BPP:
                                             cgia_encode_mode_0(_multi, _3bpp, _doubled, _shared);
+                                            break;
+                                        case PLANE_BITS_4BPP:
+                                            cgia_encode_mode_0(_multi, _4bpp, _doubled, _shared);
                                             break;
                                         }
                                     }
@@ -851,12 +853,14 @@ void __attribute__((optimize("O2"))) cgia_render(uint16_t y, uint32_t *rgbbuf)
                                         switch (plane->bckgnd.flags & PLANE_MASK_PIXEL_BITS)
                                         {
                                         case PLANE_BITS_1BPP:
-                                        case PLANE_BITS_3BPP:
+                                        case PLANE_BITS_2BPP:
                                             cgia_encode_mode_0(_multi, _2bpp, , _shared);
                                             break;
-                                        case PLANE_BITS_2BPP:
-                                        case PLANE_BITS_4BPP:
+                                        case PLANE_BITS_3BPP:
                                             cgia_encode_mode_0(_multi, _3bpp, , _shared);
+                                            break;
+                                        case PLANE_BITS_4BPP:
+                                            cgia_encode_mode_0(_multi, _4bpp, , _shared);
                                             break;
                                         }
                                     }
@@ -976,12 +980,14 @@ void __attribute__((optimize("O2"))) cgia_render(uint16_t y, uint32_t *rgbbuf)
                                         switch (plane->bckgnd.flags & PLANE_MASK_PIXEL_BITS)
                                         {
                                         case PLANE_BITS_1BPP:
-                                        case PLANE_BITS_3BPP:
+                                        case PLANE_BITS_2BPP:
                                             cgia_encode_mode_0(_multi, _2bpp, _doubled, _mapped);
                                             break;
-                                        case PLANE_BITS_2BPP:
-                                        case PLANE_BITS_4BPP:
+                                        case PLANE_BITS_3BPP:
                                             cgia_encode_mode_0(_multi, _3bpp, _doubled, _mapped);
+                                            break;
+                                        case PLANE_BITS_4BPP:
+                                            cgia_encode_mode_0(_multi, _4bpp, _doubled, _mapped);
                                             break;
                                         }
                                     }
@@ -1000,12 +1006,14 @@ void __attribute__((optimize("O2"))) cgia_render(uint16_t y, uint32_t *rgbbuf)
                                         switch (plane->bckgnd.flags & PLANE_MASK_PIXEL_BITS)
                                         {
                                         case PLANE_BITS_1BPP:
-                                        case PLANE_BITS_3BPP:
+                                        case PLANE_BITS_2BPP:
                                             cgia_encode_mode_0(_multi, _2bpp, , _mapped);
                                             break;
-                                        case PLANE_BITS_2BPP:
-                                        case PLANE_BITS_4BPP:
+                                        case PLANE_BITS_3BPP:
                                             cgia_encode_mode_0(_multi, _3bpp, , _mapped);
+                                            break;
+                                        case PLANE_BITS_4BPP:
+                                            cgia_encode_mode_0(_multi, _4bpp, , _mapped);
                                             break;
                                         }
                                     }

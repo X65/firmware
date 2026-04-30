@@ -32,9 +32,13 @@ CGIA_ENCODE_MODE_0(_multi, _3bpp, _doubled, _shared);
 CGIA_ENCODE_MODE_0(, _3bpp, _doubled, _mapped);
 CGIA_ENCODE_MODE_0(_multi, _3bpp, _doubled, _mapped);
 CGIA_ENCODE_MODE_0(, _4bpp, , _shared);
+CGIA_ENCODE_MODE_0(_multi, _4bpp, , _shared);
 CGIA_ENCODE_MODE_0(, _4bpp, , _mapped);
+CGIA_ENCODE_MODE_0(_multi, _4bpp, , _mapped);
 CGIA_ENCODE_MODE_0(, _4bpp, _doubled, _shared);
+CGIA_ENCODE_MODE_0(_multi, _4bpp, _doubled, _shared);
 CGIA_ENCODE_MODE_0(, _4bpp, _doubled, _mapped);
+CGIA_ENCODE_MODE_0(_multi, _4bpp, _doubled, _mapped);
 
 #define CGIA_ENCODE_MODE_1(pixels, doubled, shared)                             \
     uint32_t *__not_in_flash_func(cgia_encode_mode_1##pixels##doubled##shared)( \

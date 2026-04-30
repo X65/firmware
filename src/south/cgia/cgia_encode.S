@@ -139,10 +139,11 @@ cell_colors:
 // r0 is output RGB buffer
 // r4 is bitmap
 // r5 is flag to use second half of the color table
-// r7 is shared_colors array pointer
-// r8 is palette pointer
-// changes r0,r6-r7
-.macro write_text_pixel_indexed_multi sh_amt doubled mapped
+// r7 is half-bright bit (for 4bpp multi only)
+// r8 is shared_colors array pointer
+// r9 is palette pointer
+// changes r0,r6
+.macro write_text_pixel_indexed_multi sh_amt pixels doubled mapped
   mov r6, r4
   lsrs r6, #\sh_amt
   ands r6, #3   // extract pixel bits
@@ -151,9 +152,14 @@ cell_colors:
   beq 1f
 .endif
   // load shared color index
-  ldrb r6, [r7, r6]
+  ldrb r6, [r8, r6]
+.if \pixels == 4
+  cbz r7, 2f
+  eor r6, r6, #4  // toggle half-bright - XOR 0b0100
+2:
+.endif
   // load palette entry
-  ldr r6, [r8, r6, LSL #2]
+  ldr r6, [r9, r6, LSL #2]
   stmia r0!, {r6}
 .if \doubled
   stmia r0!, {r6}
@@ -174,10 +180,10 @@ cell_colors:
 // r3 - character length in shift amount
 // First stack argument is shared_colors[8] array
 .macro cgia_encode_mode_0_multi pixels doubled mapped
-  push {r4-r8, lr}
+  push {r4-r9, lr}
+  ldr r8, [sp, #28] // 7 words saved, so 28-byte offset to first stack argument
 
-  ldr r8, =cgia_rgb_palette
-  ldr r7, [sp, #24] // 6 words saved, so 24-byte offset to first stack argument
+  ldr r9, =cgia_rgb_palette
 
   ldr ip, =(SIO_BASE + SIO_INTERP0_ACCUM0_OFFSET)
 
@@ -187,24 +193,31 @@ cell_colors:
 
 .if \pixels == 2
   mov r5, #0
-.else
+.endif
+.if \pixels == 3
   and r5, r4, #0x80
   lsrs r5, r5, #5     // move third bit to position
   ands r4, #0x7F      // clamp character code to 7 bits
+.endif
+.if \pixels == 4
+  ands r7, r4, #0x80  // half-bright bit (from bit 7)
+  and r5, r4, #0x40
+  lsrs r5, r5, #4     // bit 6 → palette bit 2
+  ands r4, #0x3F      // clamp character code to 6 bits (64 glyphs)
 .endif
 
   lsls r4, r3         // multiply by character height
   ldrb r4, [r2, r4]   // load character line bitmap data
 
-  write_text_pixel_indexed_multi 6 \doubled \mapped
-  write_text_pixel_indexed_multi 4 \doubled \mapped
-  write_text_pixel_indexed_multi 2 \doubled \mapped
-  write_text_pixel_indexed_multi 0 \doubled \mapped
+  write_text_pixel_indexed_multi 6 \pixels \doubled \mapped
+  write_text_pixel_indexed_multi 4 \pixels \doubled \mapped
+  write_text_pixel_indexed_multi 2 \pixels \doubled \mapped
+  write_text_pixel_indexed_multi 0 \pixels \doubled \mapped
 
   subs r1, #1
   bne 3b
 
-  pop {r4-r8, pc}
+  pop {r4-r9, pc}
 .endm
 
 decl_func cgia_encode_mode_0_1bpp_doubled_mapped
@@ -278,6 +291,18 @@ decl_func cgia_encode_mode_0_multi_3bpp_mapped
 
 decl_func cgia_encode_mode_0_multi_3bpp_shared
   cgia_encode_mode_0_multi 3 0 0
+
+decl_func cgia_encode_mode_0_multi_4bpp_doubled_mapped
+  cgia_encode_mode_0_multi 4 1 1
+
+decl_func cgia_encode_mode_0_multi_4bpp_doubled_shared
+  cgia_encode_mode_0_multi 4 1 0
+
+decl_func cgia_encode_mode_0_multi_4bpp_mapped
+  cgia_encode_mode_0_multi 4 0 1
+
+decl_func cgia_encode_mode_0_multi_4bpp_shared
+  cgia_encode_mode_0_multi 4 0 0
 
 
 //////////////////// MODE 1 ////////////////////
