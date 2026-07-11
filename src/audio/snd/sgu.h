@@ -162,6 +162,10 @@ Additional WAVE form related parameter (per-operator, 4 bits)
 #include <stddef.h>
 #include <stdint.h>
 
+#if !defined(__GNUC__) && !defined(__clang__)
+#define __attribute__(x)
+#endif
+
 // -----------------------------------------------------------------------------
 // Operator register offsets (0-7 within each operator's 8-byte block)
 // -----------------------------------------------------------------------------
@@ -312,8 +316,11 @@ Additional WAVE form related parameter (per-operator, 4 bits)
 #define SGU1_CHN_SWCUT_BND    (0x1B)
 #define SGU1_CHN_RESTIMER_L   (0x1C)
 #define SGU1_CHN_RESTIMER_H   (0x1D)
-#define SGU1_CHN_SPECIAL1     (0x1E)
-#define SGU1_CHN_SPECIAL2     (0x1F)
+#define SGU1_CHN_LFOW         (0x1E)
+#define SGU1_CHN_SPECIAL      (0x1F)
+
+// index of channel register `reg` within a per-channel patch image (operators come first)
+#define SGU_PATCH_CHN(reg)    (SGU_OP_PER_CH * SGU_OP_REGS + (reg))
 
 // channel control bits
 #define SGU1_FLAGS0_CTL_GATE      (1 << 0)
@@ -375,7 +382,7 @@ typedef enum
 } sgu_lfsr_t;
 
 // Envelope states
-enum envelope_state : uint8_t
+enum envelope_state
 {
     SGU_EG_ATTACK = 0,
     SGU_EG_DECAY = 1,
@@ -447,6 +454,7 @@ struct SGU_CH
 
     // flags1:
     //  - bit 0: one-shot phase reset request (handled at end of channel processing)
+    //  - bit 1: one-shot filter phase reset request
     //  - bit 2: PCM loop enable
     //  - bit 3: timer sync enable (enables restimer-based periodic phase reset)
     //  - bit 4: freq sweep enable
@@ -468,22 +476,53 @@ struct SGU_CH
     uint16_t pcmbnd; // boundary/end position
     uint16_t pcmrst; // loop restart position
 
-    // Sweep parameter blocks:
-    // speed: period in "ticks" (same domain as Pm) between sweep steps
-    // amt:   step amount + direction/mode bits (interpretation differs by sweep type)
-    // bound: limit value (coarse, often compared against high byte of freq/cutoff)
+    // Sweep parameter blocks -- per-sample automation of freq / vol / cutoff.
+    // A sweep runs only while the channel GATE is live AND its flags1 enable bit is set
+    // (FREQ_SWEEP / VOL_SWEEP / CUT_SWEEP) AND speed != 0.
+    //
+    //   speed: samples between sweep steps -- a per-sample countdown reloads with `speed`
+    //          each time it fires (larger = slower; 0 disables the sweep).
+    //   amt:   step magnitude + direction, plus (VOL only) the run-mode bits. The bit
+    //          LAYOUT DIFFERS per sweep -- see each struct below.
+    //   bound: target/limit. For VOL it is a signed clamp (honored only when not looping). For
+    //          freq/cut it is a COARSE high-byte limit (compared vs value>>8): the sweep SATURATES
+    //          to `bound<<8` EXACTLY -- in BOTH directions -- the moment value>>8 reaches bound
+    //          (`>=`, see SGU_NextSample_Channels). Direction-independent: bound 0x1C always pins
+    //          to 0x1C00, never 0x1CFF. (An earlier asymmetric variant clamped up at the window TOP
+    //          (bound<<8)|0xff; rejected -- bound's meaning must not depend on sweep direction.) So
+    //          a caller sweeping UP to a fine target must set bound to the target's high byte PLUS
+    //          ONE when its low byte is nonzero, so `bound<<8` lands just ABOVE the target (the
+    //          tracker engine's sgu_sweep_freq_to does this, then snaps to the exact 16-bit target).
+    //
+    // Run modes (one-time / repeat / ping-pong) exist ONLY on the VOLUME sweep, via amt
+    // bit6 (loop) and bit7 (bounce):
+    //   * one-time  (loop=0)          : step until `bound` (or the 0x00 / 0x7F rail), then hold.
+    //   * repeat    (loop=1, bounce=0): on passing the rail, wrap around and keep going (sawtooth).
+    //   * ping-pong (loop=1, bounce=1): on hitting the rail, reflect and flip the direction
+    //                                   bit (amt bit5 is toggled in place), oscillating.
+    // The FREQ and CUT sweeps are always ONE-SHOT toward `bound`: they have no loop/bounce (those
+    // bits are spent on a 7-bit step + a direction bit), and saturate to `bound<<8` (and the hard
+    // rails 0 / 0xFFFF) once value>>8 reaches bound -- see sgu.c SGU_NextSample_Channels().
+
+    // FREQ sweep: amt = [7]dir(1=up) [6:0]step; bound = coarse target (freq>>8). MULTIPLICATIVE
+    //   (exponential / portamento-like): up freq*=(128+step)/128, down freq*=(255-step)/256.
     struct
     {
         uint16_t speed;
         uint8_t amt;
         uint8_t bound;
     } swfreq;
+    // VOL sweep (the one with run modes): amt = [7]bounce [6]loop [5]dir(1=up) [4:0]step;
+    //   bound = signed clamp limit (honored only when loop=0). LINEAR add/sub of `step` to the
+    //   signed 8-bit vol per fire; rails at 0x00 / 0x7F.
     struct
     {
         uint16_t speed;
         uint8_t amt;
         uint8_t bound;
     } swvol;
+    // CUT sweep: amt = [7]dir(1=up) [6:0]step; bound = coarse target (cutoff>>8).
+    //   up cutoff += step (LINEAR), down cutoff*=(1-step/2048) (multiplicative).
     struct
     {
         uint16_t speed;
@@ -494,14 +533,19 @@ struct SGU_CH
     // restimer: period for periodic phase reset when SGU_FLAGS1_TIMER_SYNC is set.
     uint16_t restimer;
 
+    // lfow: LFO waveform shape register
+    //   [1:0] AM shape (0=saw, 1=square, 2=triangle, 3=noise)
+    //   [3:2] PM shape (0=saw, 1=square, 2=triangle, 3=noise)
+    //   [7:4] reserved
+    uint8_t lfow;
+
     // ### Used for implementation specific purposes.
-    // Default function in X65 deployment special2 changes the channel mapped into
+    // Default function in X65 deployment `special` changes the channel mapped into
     // CPU memory space, which consists of 64 registers only
     // and would not fit all channels at once.
     // Channel FFh is special, as it maps service registers into memory space.
     // Chip identifier, UniqueID and mixer/DSP controls.
-    uint8_t special1;
-    uint8_t special2;
+    uint8_t special;
 };
 
 // Per-operator state, packed for cache locality (20 bytes per operator)
@@ -540,10 +584,11 @@ struct SGU
     uint32_t sample_counter;   // sample clock ticks
     uint32_t envelope_counter; // envelope counter; low 2 bits are sub-counter
 
-    // internal state - global LFO
-    uint16_t lfo_am_counter; // LFO AM counter
-    uint16_t lfo_pm_counter; // LFO PM counter
-    uint8_t lfo_am;          // current LFO AM value
+    // internal state - global LFO (OPM-style shared counter domain)
+    uint16_t lfo_counter;    // shared LFO counter (0..16383, wraps at 16384)
+    uint32_t lfo_lfsr;       // OPM-style LFSR for noise shapes (feedback: bit17^bit14^1)
+    uint8_t lfo_noise_am;    // latched noise value for AM (0..127)
+    int8_t lfo_noise_pm;     // latched noise value for PM (-8..+7)
 
     // channels internal state
     struct sgu_ch_state
@@ -554,7 +599,10 @@ struct SGU
     } m_channel[SGU_CHNS];
 
     // Cached per-sample globals (written by Setup, read by both cores)
-    int32_t cached_lfo_raw_pm;
+    uint8_t cached_lfo_phase_am;    // AM phase index (0..255)
+    uint8_t cached_lfo_phase_pm;    // PM phase index (0..255)
+    uint8_t cached_lfo_noise_am;    // latched AM noise value
+    int8_t cached_lfo_noise_pm;     // latched PM noise value
     bool cached_env_tick;
     uint32_t cached_env_counter_tick;
 
@@ -581,7 +629,7 @@ struct SGU
     // Sweep countdown timers (decrement each sample, trigger when <= 0)
     int32_t vol_sweep_countdown[SGU_CHNS];
     int32_t freq_sweep_countdown[SGU_CHNS];
-    int32_t cut_sweep_countdown[SGU_CHNS];
+    int32_t cutoff_sweep_countdown[SGU_CHNS];
 
     // Phase reset countdown for timer sync
     int32_t phase_reset_countdown[SGU_CHNS];
@@ -624,3 +672,13 @@ void SGU_NextSample_Finalize(struct SGU *sgu, int64_t L, int64_t R,
 // Convenience getter: returns mono downmix of current per-channel post-pan samples (averaged).
 // This is not used in NextSample, but useful for taps/meters/debug.
 int32_t SGU_GetSample(struct SGU *sgu, uint8_t ch);
+
+// Convenience getter for VU meters / LEDs: returns the channel's current envelope
+// loudness as a linear amplitude (Q13, 0 = silent .. ~8192 = full scale). Each
+// operator's envelope amplitude is weighted by its OUT routing (OUT/7) and summed,
+// then clamped. Honors sgu->muted[ch]. Not used in NextSample.
+int32_t SGU_GetEnvelope(struct SGU *sgu, uint8_t ch);
+
+// Chip-wide status flags (e.g. a clipping indicator for the output LED). Returns 0
+// for now; status-flag tracking is implemented later.
+uint32_t SGU_GetFlags(struct SGU *sgu);

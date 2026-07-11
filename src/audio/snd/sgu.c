@@ -135,11 +135,19 @@ static const uint32_t EG_QUIET = 0x380;
 //-------------------------------------------------
 static inline uint32_t opl_key_scale_atten(uint32_t block, uint32_t fnum_4msb)
 {
-    // this table uses the top 4 bits of FNUM and are the maximal values
-    // (for when block == 7). Values for other blocks can be computed by
-    // subtracting 8 for each block below 7.
-    static uint8_t const fnum_to_atten[16] = {0, 24, 32, 37, 40, 43, 45, 47, 48, 50, 51, 52, 53, 54, 55, 56};
-    int32_t result = fnum_to_atten[fnum_4msb] - 8 * (block ^ 7);
+    // OPL3 KSL ROM (Nuked), indexed by the top 4 bits of the 10-bit f-num. SGU's freq16 carries an
+    // IMPLICIT leading 1, so the OPL "fnum>>6" index is 8 + (the top 3 fraction bits). The previous
+    // table was indexed by fnum_4msb alone -- it dropped that leading bit, so notes near the bottom
+    // of an octave got ~0 key scaling and KSL only engaged ~2 octaves too high (verified by A/B vs
+    // AdPlug: KSL=3 stayed flat until oct4 while real OPL rolls off 6dB/oct from oct2). The kslrom
+    // base (56..64) keeps the attenuation substantial across the whole range; the per-octave term
+    // (-8 per block below the top) gives the 6dB/oct rolloff (before the per-operator << ksl).
+    static const uint8_t kslrom[16] = {0, 32, 40, 45, 48, 51, 53, 55, 56, 58, 59, 60, 61, 62, 63, 64};
+    // The "+2" is a two-octave knee offset: freq16's block sits ~2 octaves higher than OPL's block
+    // for the same note, so without it KSL engaged ~2 octaves too low / over-attenuated. With it, the
+    // per-octave rolloff and absolute attenuation track Nuked OPL3 to within ~0.6 dB for every KSL
+    // value across oct1..6 (verified by A/B; see the carrier-only KSL sweep).
+    int32_t result = (int32_t)kslrom[8u + (fnum_4msb >> 1)] - 8 * ((int32_t)(block ^ 7) + 2);
     return (uint32_t)__builtin_arm_usat(result, 31);
 }
 
@@ -312,8 +320,6 @@ static inline uint32_t attenuation_increment(uint32_t rate, uint32_t index)
     return (s_increment_table[rate] >> (4 * index)) & 0xF;
 }
 
-// freq16_to_ksl_params removed -- merged into freq16_decode()
-
 //-------------------------------------------------
 //  compute_eg_rate - compute the envelope rate
 //  for the given envelope state, including KSR
@@ -349,34 +355,87 @@ static inline uint8_t compute_eg_rate(uint8_t op_reg[], uint32_t keycode, enum e
 }
 
 //-------------------------------------------------
-//  clock_lfo - clock the global LFO for AM and PM
-//  Called once per sample (global state)
+//  clock_lfo - clock the global LFO (OPM-style shared counter domain)
+//  Called once per sample (global state).
+//  One shared counter. PM derives 256-step cycle over 8192 samples (~5.86 Hz @ 48kHz).
+//  AM derives 256-step cycle over 16384 samples (~2.93 Hz @ 48kHz).
+//  LFSR uses OPM taps: feedback = bit17 ^ bit14 ^ 1, clocked each sample.
 //-------------------------------------------------
-static inline int32_t clock_lfo(uint16_t *lfo_am_counter, uint16_t *lfo_pm_counter, uint8_t *lfo_am)
+static inline void clock_lfo(struct SGU *sgu)
 {
-    // OPL has two fixed-frequency LFOs, one for AM, one for PM
+    uint16_t counter = sgu->lfo_counter;
+    counter = (counter + 1) & 0x3FFF; // wrap at 16384
+    sgu->lfo_counter = counter;
 
-    // the AM LFO has 210*64 steps; at a nominal 50kHz output,
-    // this equates to a period of 50000/(210*64) = 3.72Hz
-    uint32_t am_counter = (*lfo_am_counter)++;
-    if (am_counter >= 210 * 64 - 1)
-        *lfo_am_counter = 0;
+    // Derive phase indices
+    uint8_t lfoPhasePm = (uint8_t)((counter >> 5) & 0xFF); // 256-step over 8192 samples
+    uint8_t lfoPhaseAm = (uint8_t)((counter >> 6) & 0xFF); // 256-step over 16384 samples
 
-    // low 8 bits are fractional; compute at max depth and scale per-operator later
-    int shift = 7;
+    // Clock LFSR each sample (OPM-style: feedback = bit17 ^ bit14 ^ 1)
+    uint32_t lfsr = sgu->lfo_lfsr;
+    uint32_t bit = ((lfsr >> 17) ^ (lfsr >> 14) ^ 1) & 1;
+    lfsr = (lfsr << 1) | bit;
+    sgu->lfo_lfsr = lfsr;
 
-    // AM value is the upper bits of the value, inverted across the midpoint
-    // to produce a triangle
-    *lfo_am = (uint8_t)(((am_counter < 105 * 64) ? am_counter : (210 * 64 + 63 - am_counter)) >> shift);
+    // Latch noise values at phase boundaries
+    // AM noise latches when AM phase changes (every 64 samples)
+    if ((counter & 0x3F) == 0)
+        sgu->lfo_noise_am = (uint8_t)((lfsr >> 1) & 0x7F); // 0..127
+    // PM noise latches when PM phase changes (every 32 samples)
+    if ((counter & 0x1F) == 0)
+        sgu->lfo_noise_pm = (int8_t)(((lfsr >> 9) & 0x0F) - 8); // -8..+7
 
-    // the PM LFO has 8192 steps, or a nominal period of 6.1Hz
-    uint32_t pm_counter = (*lfo_pm_counter)++;
+    sgu->cached_lfo_phase_am = lfoPhaseAm;
+    sgu->cached_lfo_phase_pm = lfoPhasePm;
+    sgu->cached_lfo_noise_am = sgu->lfo_noise_am;
+    sgu->cached_lfo_noise_pm = sgu->lfo_noise_pm;
+}
 
-    // PM LFO is broken into 8 chunks, each lasting 1024 steps; the PM value
-    // depends on the upper bits of FNUM, so this value is a fraction and
-    // sign to apply to that value, as a 1.3 value
-    static int8_t const pm_scale[8] = {8, 4, 0, -4, -8, -4, 0, 4};
-    return pm_scale[(pm_counter >> 10) & 7];
+//-------------------------------------------------
+//  lfo_compute_am - compute per-channel AM value from phase and shape
+//  Returns uint8_t (0..127), used as envelope attenuation offset
+//-------------------------------------------------
+static inline uint8_t lfo_compute_am(uint8_t phaseAm, uint8_t amShape, uint8_t noiseAm)
+{
+    switch (amShape)
+    {
+    case 0: // Saw: 0 at phase 0, 127 at phase 255
+        return phaseAm >> 1;
+    case 1: // Square: 0 for first half, 126 for second half
+        return (phaseAm < 128) ? 0 : 126;
+    case 2: // Triangle: 0→127→0 over one cycle
+        return (phaseAm < 128) ? phaseAm : (uint8_t)(255 - phaseAm);
+    case 3: // Noise: latched LFSR value
+        return noiseAm;
+    default:
+        return 0;
+    }
+}
+
+//-------------------------------------------------
+//  lfo_compute_pm - compute per-channel PM value from phase and shape
+//  Returns int32_t in range -8..+8, compatible with existing PM plumbing
+//-------------------------------------------------
+static inline int32_t lfo_compute_pm(uint8_t phasePm, uint8_t pmShape, int8_t noisePm)
+{
+    switch (pmShape)
+    {
+    case 0: // Saw: falling sawtooth, +8 at phase 0, -8 at phase 255
+        return ((int32_t)128 - (int32_t)phasePm) >> 4;
+    case 1: // Square: +8 for first half, -8 for second half
+        return (phasePm < 128) ? 8 : -8;
+    case 2: // Triangle: 0→+8→0→-8→0 over one cycle
+    {
+        int32_t halfphase = (int32_t)(phasePm & 0x7F); // 0..127
+        int32_t tri = (halfphase < 64) ? halfphase : (128 - halfphase);
+        tri >>= 3; // scale to 0..8
+        return (phasePm >= 128) ? -tri : tri;
+    }
+    case 3: // Noise: latched LFSR value
+        return (int32_t)noisePm;
+    default:
+        return 0;
+    }
 }
 
 //-------------------------------------------------
@@ -604,10 +663,7 @@ void __attribute__((optimize("Ofast"))) SGU_NextSample_Setup(struct SGU *restric
         sgu->envelope_counter += 4 - EG_CLOCK_DIVIDER;
 
     // clock the global LFO (once per sample)
-    sgu->cached_lfo_raw_pm = clock_lfo(
-        &sgu->lfo_am_counter,
-        &sgu->lfo_pm_counter,
-        &sgu->lfo_am);
+    clock_lfo(sgu);
     sgu->cached_env_tick = ((sgu->envelope_counter & 3u) == 0u);
     sgu->cached_env_counter_tick = sgu->envelope_counter >> 2;
 }
@@ -624,7 +680,10 @@ void __attribute__((optimize("Ofast"))) SGU_NextSample_Channels(
     int32_t L = 0;
     int32_t R = 0;
 
-    const int32_t lfo_raw_pm = sgu->cached_lfo_raw_pm;
+    const uint8_t lfoPhaseAm = sgu->cached_lfo_phase_am;
+    const uint8_t lfoPhasePm = sgu->cached_lfo_phase_pm;
+    const uint8_t lfoNoiseAm = sgu->cached_lfo_noise_am;
+    const int8_t lfoNoisePm = sgu->cached_lfo_noise_pm;
     const bool env_tick = sgu->cached_env_tick;
     const uint32_t env_counter_tick = sgu->cached_env_counter_tick;
 
@@ -640,35 +699,42 @@ void __attribute__((optimize("Ofast"))) SGU_NextSample_Channels(
 
         if (ch_flags0 & SGU1_FLAGS0_PCM_MASK) // PCM mode
         {
-            // Signed 8-bit PCM sample scaled to match FM operator output (~14-bit range).
-            ch_sample = (int16_t)sgu->pcm[ch_reg->pcmpos] << 6;
-
-            // PCM phase accumulator. When it crosses 0x8000, advance sample position by 1.
-            sgu->pcm_phase_accum[ch] += minval(ch_reg->freq, 0x8000);
-
-            if (sgu->pcm_phase_accum[ch] >= 0x8000)
+            // Mirror SU's `vol==0 -> continue` behavior for PCM: when GATE is
+            // clear, freeze the sample read and the phase accumulator advance.
+            // ch_sample stays 0 (initialized above), pcmpos and pcm_phase_accum
+            // are preserved untouched until GATE comes back on.
+            if (key_live)
             {
-                sgu->pcm_phase_accum[ch] -= 0x8000;
+                // Signed 8-bit PCM sample scaled to match FM operator output (~14-bit range).
+                ch_sample = (int16_t)sgu->pcm[ch_reg->pcmpos] << 6;
 
-                // Advance sample pointer with boundary and optional looping.
-                if (ch_reg->pcmpos < ch_reg->pcmbnd)
+                // PCM phase accumulator. When it crosses 0x8000, advance sample position by 1.
+                sgu->pcm_phase_accum[ch] += minval(ch_reg->freq, 0x8000);
+
+                if (sgu->pcm_phase_accum[ch] >= 0x8000)
                 {
-                    ch_reg->pcmpos++;
+                    sgu->pcm_phase_accum[ch] -= 0x8000;
 
-                    // If we hit the boundary exactly, loop if enabled.
-                    if (ch_reg->pcmpos == ch_reg->pcmbnd)
+                    // Advance sample pointer with boundary and optional looping.
+                    if (ch_reg->pcmpos < ch_reg->pcmbnd)
                     {
-                        if (ch_reg->flags1 & SGU1_FLAGS1_PCM_LOOP)
-                            ch_reg->pcmpos = ch_reg->pcmrst;
-                    }
+                        ch_reg->pcmpos++;
 
-                    // Wrap to PCM RAM size (power-of-2 ring buffer).
-                    ch_reg->pcmpos &= (SGU_PCM_RAM_SIZE - 1);
-                }
-                else if (ch_reg->flags1 & SGU1_FLAGS1_PCM_LOOP)
-                {
-                    // If already at/over boundary and looping, force restart.
-                    ch_reg->pcmpos = ch_reg->pcmrst;
+                        // If we hit the boundary exactly, loop if enabled.
+                        if (ch_reg->pcmpos == ch_reg->pcmbnd)
+                        {
+                            if (ch_reg->flags1 & SGU1_FLAGS1_PCM_LOOP)
+                                ch_reg->pcmpos = ch_reg->pcmrst;
+                        }
+
+                        // Wrap to PCM RAM size (power-of-2 ring buffer).
+                        ch_reg->pcmpos &= (SGU_PCM_RAM_SIZE - 1);
+                    }
+                    else if (ch_reg->flags1 & SGU1_FLAGS1_PCM_LOOP)
+                    {
+                        // If already at/over boundary and looping, force restart.
+                        ch_reg->pcmpos = ch_reg->pcmrst;
+                    }
                 }
             }
         }
@@ -677,6 +743,14 @@ void __attribute__((optimize("Ofast"))) SGU_NextSample_Channels(
             uint32_t ch_keycode, block, fnum_4msb;
             freq16_decode(ch_freq, &ch_keycode, &block, &fnum_4msb);
             uint32_t ch_ksl_atten = opl_key_scale_atten(block, fnum_4msb);
+
+            // Per-channel LFO: read shape from lfow register
+            const uint8_t ch_lfow = ch_reg->lfow;
+            const uint8_t amShape = ch_lfow & 3;
+            const uint8_t pmShape = (ch_lfow >> 2) & 3;
+            const uint8_t ch_lfo_am = lfo_compute_am(lfoPhaseAm, amShape, lfoNoiseAm);
+            const int32_t lfo_raw_pm = lfo_compute_pm(lfoPhasePm, pmShape, lfoNoisePm);
+
             const uint32_t phase_step_pm0 = sgu_phase_step_from_freq_clamped((int32_t)ch_freq);
             const int32_t pm_mul = (int32_t)ch_freq * lfo_raw_pm;
             const uint32_t phase_step_pm_half = sgu_phase_step_from_freq_clamped((int32_t)ch_freq + (pm_mul >> 11));
@@ -948,7 +1022,7 @@ void __attribute__((optimize("Ofast"))) SGU_NextSample_Channels(
                     // add in LFO AM modulation (apply per-operator AM depth)
                     if (SGU_OP0_TRM(op_reg[0]))
                     {
-                        uint32_t am_offset = sgu->lfo_am;
+                        uint32_t am_offset = ch_lfo_am;
                         if (!SGU_OP6_TRMD(op_reg[6]))
                             am_offset >>= 2;
                         env_att += am_offset;
@@ -1055,7 +1129,7 @@ void __attribute__((optimize("Ofast"))) SGU_NextSample_Channels(
         //   bits0..4: step size
         //   bit6 (0x40): "wrap/loop" behavior
         //   bit7 (0x80): "bounce/alternate" behavior
-        if ((ch_reg->flags1 & SGU1_FLAGS1_VOL_SWEEP) && ch_reg->swvol.speed)
+        if (key_live && (ch_reg->flags1 & SGU1_FLAGS1_VOL_SWEEP) && ch_reg->swvol.speed)
         {
             if (--sgu->vol_sweep_countdown[ch] <= 0)
             {
@@ -1120,8 +1194,10 @@ void __attribute__((optimize("Ofast"))) SGU_NextSample_Channels(
                 }
             }
         }
+        else
+            sgu->vol_sweep_countdown[ch] = 0; // inactive -> (re)arm fires on the first active sample
 
-        if ((ch_reg->flags1 & SGU1_FLAGS1_FREQ_SWEEP) && ch_reg->swfreq.speed)
+        if (key_live && (ch_reg->flags1 & SGU1_FLAGS1_FREQ_SWEEP) && ch_reg->swfreq.speed)
         {
             if (--sgu->freq_sweep_countdown[ch] <= 0)
             {
@@ -1136,7 +1212,15 @@ void __attribute__((optimize("Ofast"))) SGU_NextSample_Channels(
                         // Multiply by (1.0 + amt/128).
                         ch_reg->freq = (uint16_t)((ch_reg->freq * (0x80 + (ch_reg->swfreq.amt & 127))) >> 7);
 
-                        if ((ch_reg->freq >> 8) > ch_reg->swfreq.bound)
+                        // `bound` is a COARSE (high-byte) limit. An up sweep SATURATES at `bound<<8`
+                        // -- the moment freq enters bound's high-byte window it is pinned to the
+                        // window FLOOR (`>=`, not `>`), so it can never overshoot past `bound<<8`.
+                        // (`>` would let freq climb through the window and reset on the next step =
+                        // a sawtooth that never settles = buzz.) `bound<<8` is a single, direction-
+                        // independent value: a caller wanting to slide UP to a target must set
+                        // bound one high byte ABOVE the target when its low byte != 0 (the tracker
+                        // does this); a down sweep stops at the same `bound<<8` from above.
+                        if ((ch_reg->freq >> 8) >= ch_reg->swfreq.bound)
                             ch_reg->freq = (uint16_t)(ch_reg->swfreq.bound << 8);
                     }
                 }
@@ -1155,12 +1239,14 @@ void __attribute__((optimize("Ofast"))) SGU_NextSample_Channels(
                 }
             }
         }
+        else
+            sgu->freq_sweep_countdown[ch] = 0; // inactive -> (re)arm fires on the first active sample
 
-        if ((ch_reg->flags1 & SGU1_FLAGS1_CUT_SWEEP) && ch_reg->swcut.speed)
+        if (key_live && (ch_reg->flags1 & SGU1_FLAGS1_CUT_SWEEP) && ch_reg->swcut.speed)
         {
-            if (--sgu->cut_sweep_countdown[ch] <= 0)
+            if (--sgu->cutoff_sweep_countdown[ch] <= 0)
             {
-                sgu->cut_sweep_countdown[ch] += ch_reg->swcut.speed;
+                sgu->cutoff_sweep_countdown[ch] += ch_reg->swcut.speed;
 
                 if (ch_reg->swcut.amt & 128) // up
                 {
@@ -1170,8 +1256,8 @@ void __attribute__((optimize("Ofast"))) SGU_NextSample_Channels(
                     {
                         ch_reg->cutoff += (ch_reg->swcut.amt & 127);
 
-                        if ((ch_reg->cutoff >> 8) > ch_reg->swcut.bound)
-                            ch_reg->cutoff = (uint16_t)(ch_reg->swcut.bound << 8);
+                        if ((ch_reg->cutoff >> 8) >= ch_reg->swcut.bound)
+                            ch_reg->cutoff = (uint16_t)(ch_reg->swcut.bound << 8); // saturate at bound<<8 (see swfreq up)
                     }
                 }
                 else // down
@@ -1189,6 +1275,8 @@ void __attribute__((optimize("Ofast"))) SGU_NextSample_Channels(
                 }
             }
         }
+        else
+            sgu->cutoff_sweep_countdown[ch] = 0; // inactive -> (re)arm fires on the first active sample
 
         // Phase reset requests
         if (ch_reg->flags1 & SGU1_FLAGS1_PHASE_RESET)
@@ -1279,6 +1367,13 @@ void __attribute__((optimize("Ofast"))) SGU_NextSample(struct SGU *restrict sgu,
     SGU_NextSample_Finalize(sgu, L, R, l, r);
 }
 
+uint32_t SGU_GetFlags(struct SGU *sgu)
+{
+    (void)sgu;
+    // Chip-wide status flags (e.g. output clipping) are not tracked yet.
+    return 0;
+}
+
 void __attribute__((optimize("Ofast"))) SGU_Init(struct SGU *sgu, size_t sampleMemSize)
 {
     (void)sampleMemSize;
@@ -1351,9 +1446,14 @@ void SGU_Reset(struct SGU *sgu)
 
     sgu->sample_counter = 0;
     sgu->envelope_counter = 0;
-    sgu->lfo_am_counter = 0;
-    sgu->lfo_pm_counter = 0;
-    sgu->lfo_am = 0;
+    sgu->lfo_counter = 0;
+    sgu->lfo_lfsr = 0x1FFFF; // non-zero seed (17 bits set)
+    sgu->lfo_noise_am = 0;
+    sgu->lfo_noise_pm = 0;
+
+    sgu->L = sgu->R = 0;
+    sgu->L_in = sgu->R_in = 0;
+    sgu->L_q16 = sgu->R_q16 = 0;
 
     for (uint8_t ch = 0; ch < SGU_CHNS; ch++)
     {
@@ -1364,10 +1464,9 @@ void SGU_Reset(struct SGU *sgu)
         sgu->svf_high[ch] = 0;
         sgu->svf_band[ch] = 0;
 
-        // Initialize sweep timers so first decrement lands at 0
-        sgu->vol_sweep_countdown[ch] = 1;
-        sgu->freq_sweep_countdown[ch] = 1;
-        sgu->cut_sweep_countdown[ch] = 1;
+        sgu->vol_sweep_countdown[ch] = 0;
+        sgu->freq_sweep_countdown[ch] = 0;
+        sgu->cutoff_sweep_countdown[ch] = 0;
 
         sgu->phase_reset_countdown[ch] = 0;
         sgu->pcm_phase_accum[ch] = 0;
@@ -1389,6 +1488,37 @@ static_assert(SGU_REGS_PER_CH == (SGU_OP_PER_CH * SGU_OP_REGS + SGU_CH_REGS), "S
 
 int32_t SGU_GetSample(struct SGU *sgu, uint8_t ch)
 {
-    // Return the post-processed mono sample (after volume/filter, before pan)
-    return sgu->post[ch];
+    // Return the post-pan stereo pair downmixed to mono, clamped to int16 range,
+    // honoring sgu->muted[ch].
+    int64_t ret = ((int64_t)sgu->outL[ch] + (int64_t)sgu->outR[ch]) >> 1;
+    if (ret < INT16_MIN) ret = INT16_MIN;
+    if (ret > INT16_MAX) ret = INT16_MAX;
+    return (int32_t)ret;
+}
+
+static inline uint32_t sgu_get_operator_envelope_level(const struct SGU *sgu,
+                                                       const struct sgu_ch_state *cs,
+                                                       uint8_t ch,
+                                                       unsigned op)
+{
+    const unsigned out = SGU_OP7_OUT(sgu->chan[ch].op[op].reg7);
+    if (!out)
+        return 0;
+
+    const uint32_t att = minval(cs->op[op].envelope_attenuation, 0x3FFu);
+    return (env_gain_lut[att] * out) / 7u;
+}
+
+int32_t SGU_GetEnvelope(struct SGU *sgu, uint8_t ch)
+{
+    if (sgu->muted[ch])
+        return 0;
+
+    const struct sgu_ch_state *cs = &sgu->m_channel[ch];
+    uint32_t acc = 0;
+    for (unsigned op = 0; op < SGU_OP_PER_CH; op++)
+        acc += sgu_get_operator_envelope_level(sgu, cs, ch, op);
+
+    acc = minval(acc, 0x1FFFu);
+    return (int32_t)acc;
 }
