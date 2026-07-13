@@ -440,12 +440,19 @@ static inline int32_t lfo_compute_pm(uint8_t phasePm, uint8_t pmShape, int8_t no
 
 //-------------------------------------------------
 //  start_attack - start the attack phase; called
-//  when a keyon happens or when an SSG-EG cycle
-//  is complete and restarts
+//  by the level-driven keying when the key is
+//  high and the envelope sits in RELEASE (or when
+//  an SSG-EG cycle completes and restarts).
+//  Attenuation is NOT reset here: attack resumes
+//  from the current level (legato). The hard
+//  reset-to-silence lives in the FLAGS0 TRIG
+//  one-shot consume.
 //-------------------------------------------------
 static inline void start_attack(struct sgu_ch_state *self, uint8_t op, uint8_t op_reg[], uint32_t keycode)
 {
-    // don't change anything if already in attack state
+    // don't change anything if already in attack state (unreachable from the
+    // level-keyed caller, which only calls from RELEASE; kept as a cheap guard
+    // for future callers)
     if (self->op[op].envelope_state == SGU_EG_ATTACK)
         return;
     self->op[op].envelope_state = SGU_EG_ATTACK;
@@ -695,6 +702,38 @@ void __attribute__((optimize("Ofast"))) SGU_NextSample_Channels(
         const uint8_t ch_flags0 = ch_reg->flags0;
         const bool key_live = (ch_flags0 & SGU1_FLAGS0_CTL_GATE) != 0;
 
+        // One-shot TRIG (hard retrigger / note-cut), consumed at the TOP of channel
+        // processing so it takes effect this very sample. (The flags1 one-shots run
+        // after the op loop and so land one sample later -- close enough for a phase
+        // reset, too late for a retrigger.)
+        //
+        // TRIG's whole job is to put every operator's envelope in the fully-attenuated
+        // initial state and arm the key-on DELAY window; the level-driven keying below
+        // turns that into a note event, reading GATE as it stands. With GATE high the
+        // envelope attacks from silence (after DELAY) -- the hard retrigger. With GATE
+        // low it stays silent and released -- the note-cut, which the scrub gives for
+        // free.
+        //
+        // The state must land in RELEASE (rather than ATTACK): that is what re-arms
+        // start_attack, whose AR>=62 snap is the one path by which rates 62/63 leave
+        // 0x3ff at all.
+        //
+        // Same dual-core model as the flags1 one-shot clears: each channel is owned
+        // by the core processing it, so the read-act-clear on flags0 is race-free.
+        if (ch_flags0 & SGU1_FLAGS0_CTL_TRIG)
+        {
+            for (uint8_t op = 0; op < SGU_OP_PER_CH; op++)
+            {
+                ch_state->op[op].envelope_attenuation = 0x3ff;    // silence
+                ch_state->op[op].envelope_state = SGU_EG_RELEASE; // re-arm attack
+                // TRIG owns the key-on DELAY window: a note-on waits it out, while a
+                // bare GATE key-down (a tie) sounds straight away
+                OP_FLAG_SET(ch_state->op_flags, OP_FLAGS_EG_DELAY, op);
+                ch_state->op[op].eg_delay_counter = 0;
+            }
+            ch_reg->flags0 &= (uint8_t)~SGU1_FLAGS0_CTL_TRIG; // self-clear (flags1 idiom)
+        }
+
         int32_t ch_sample = 0;
 
         if (ch_flags0 & SGU1_FLAGS0_PCM_MASK) // PCM mode
@@ -768,46 +807,47 @@ void __attribute__((optimize("Ofast"))) SGU_NextSample_Channels(
 
                 struct sgu_op_state *os = &ch_state->op[op];
 
-                // clock the key state (with optional per-operator delay)
+                // clock the TRIG-armed key-on DELAY window (see OP_FLAGS_EG_DELAY);
+                // the counter saturates so a long-held key keeps it at/above the target
                 if (OP_FLAG_GET(ch_state->op_flags, OP_FLAGS_EG_DELAY, op) && os->eg_delay_counter <= INT16_MAX)
                     os->eg_delay_counter++;
 
-                if (key_live && !OP_FLAG_GET(ch_state->op_flags, OP_FLAGS_KEYON_GATE, op))
-                {
-                    OP_FLAG_SET(ch_state->op_flags, OP_FLAGS_EG_DELAY, op);
-                    os->eg_delay_counter = 0;
-                }
-                else if (!key_live)
+                // a low gate takes the key up, which retires any delay window still
+                // pending on it (the state, as always, follows the level)
+                if (!key_live)
                 {
                     OP_FLAG_CLR(ch_state->op_flags, OP_FLAGS_EG_DELAY, op);
                     os->eg_delay_counter = 0;
                 }
 
+                // The effective key: GATE level, held off through a pending DELAY
+                // window (TRIG arms it; delay_target 0 passes the key straight through).
                 const unsigned delay = SGU_OP5_DELAY(op_reg[5]);
                 const unsigned delay_target = delay ? (256u << delay) : 0;
                 bool keystate = key_live
                                 && (!OP_FLAG_GET(ch_state->op_flags, OP_FLAGS_EG_DELAY, op)
                                     || os->eg_delay_counter >= delay_target);
-                if (key_live)
-                    OP_FLAG_SET(ch_state->op_flags, OP_FLAGS_KEYON_GATE, op);
-                else
-                    OP_FLAG_CLR(ch_state->op_flags, OP_FLAGS_KEYON_GATE, op);
 
-                // has the key changed?
-                if ((keystate ^ OP_FLAG_GET(ch_state->op_flags, OP_FLAGS_KEY_STATE, op)) != 0)
+                // Level-driven keying: the key level and the envelope's own state decide.
+                //   key high + RELEASE              -> enter Attack from the CURRENT
+                //     attenuation. RELEASE is the state that means "key up", so this is
+                //     what makes a gate cycle retrigger, the SID's model to the letter:
+                //     the attack resumes from the level the release reached. It fires
+                //     exactly once per key-down, since start_attack leaves RELEASE at
+                //     once. TRIG reaches here having scrubbed the state to RELEASE/0x3ff
+                //     above, which is how it attacks from silence with the key held --
+                //     the SID "hard restart", in one register write.
+                //   key high + ATTACK/DECAY/SUSTAIN -> the envelope runs on; the note
+                //     plays through (a tie -- a FREQ write under a held key slurs).
+                //   key low                         -> release (start_release holds when
+                //     the envelope is already there).
+                if (keystate)
                 {
-                    if (keystate)
-                        OP_FLAG_SET(ch_state->op_flags, OP_FLAGS_KEY_STATE, op);
-                    else
-                        OP_FLAG_CLR(ch_state->op_flags, OP_FLAGS_KEY_STATE, op);
-
-                    // if the key has turned on, start the attack
-                    if (keystate != 0)
+                    if (os->envelope_state >= SGU_EG_RELEASE)
                         start_attack(ch_state, op, op_reg, ch_keycode);
-                    // otherwise, start the release
-                    else
-                        start_release(ch_state, op);
                 }
+                else
+                    start_release(ch_state, op);
 
                 // save previous phase for noise boundary detection
                 const uint32_t phase_before = os->phase;

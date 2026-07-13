@@ -324,6 +324,7 @@ Additional WAVE form related parameter (per-operator, 4 bits)
 
 // channel control bits
 #define SGU1_FLAGS0_CTL_GATE      (1 << 0)
+#define SGU1_FLAGS0_CTL_TRIG      (1 << 1) // one-shot, self-clearing (see struct SGU_CH flags0)
 #define SGU1_FLAGS0_PCM_SHIFT     (3)
 #define SGU1_FLAGS0_PCM_MASK      (0x1 << SGU1_FLAGS0_PCM_SHIFT)
 #define SGU1_FLAGS0_CONTROL_SHIFT (4)
@@ -344,6 +345,11 @@ Additional WAVE form related parameter (per-operator, 4 bits)
 // -----------------------------------------------------------------------------
 // Notes on behavior (implementation-level, not register-level)
 // - Operator envelope is AR -> DR toward SL, then SR while key held, then RR on key-off.
+// - EG keying is LEVEL-driven: the GATE level and the envelope's own state decide the
+//   transitions, RELEASE being the state that means "key up". A GATE cycle therefore
+//   retriggers SID-fashion, attacking from the envelope's CURRENT level; the one-shot
+//   FLAGS0 TRIG bit is what attacks from silence (the SID "hard restart") and what arms
+//   the key-on DELAY window.
 // - Envelope timing: SGU EG runs at 16kHz (48kHz/3), vs OPN/ESFM at ~17.7kHz.
 //   This results in ~10% slower envelope timing compared to ESFM reference.
 // - MOD is phase modulation gain from previous op; op0 uses MOD as feedback gain.
@@ -445,8 +451,36 @@ struct SGU_CH
     int8_t pan;    // positive Right, negative Left
 
     // flags0:
-    //  - bit 0: (GATE) ADSR envelope is running when set; key-on/key-off,
-    //    rising edge is starting the envelope generator and resetting the signal phase.
+    //  - bit 0: (GATE) envelope key LEVEL. Each sample, GATE and the operator's own
+    //    envelope state drive the envelope generator:
+    //      GATE high, envelope in RELEASE       -> enter Attack, rising from the envelope's
+    //                                              CURRENT attenuation (an idle voice sits
+    //                                              fully attenuated, so it attacks from
+    //                                              silence)
+    //      GATE high, in ATTACK/DECAY/SUSTAIN   -> the envelope runs on; hold the key and
+    //                                              write FREQ and the note slurs
+    //      GATE low                             -> enter Release
+    //    RELEASE is the state that means "key up", so a GATE cycle (low, then high again)
+    //    re-attacks from the level the release had reached -- the SID model. Silence-first
+    //    attacks (the SID "hard restart") are TRIG's job.
+    //  - bit 1: (TRIG) one-shot hard-retrigger request, SELF-CLEARING: the chip consumes it
+    //    at the next processed sample (so readback shows it for under one sample, like the
+    //    flags1 one-shots). It puts every operator's envelope in the fully-attenuated
+    //    initial state (silence, RELEASE) and arms the per-operator key-on DELAY window.
+    //    TRIG's scope is the envelope: signal phase belongs to the flags1 PHASE_RESET
+    //    one-shot, and the key-on DELAY window is armed here.
+    //
+    //    Read with GATE, the two bits spell the four note events:
+    //      GATE=1 TRIG=0  key down       : the GATE rules above -- attack from the current
+    //                                      level (a tie, or the SID-style soft retrigger)
+    //      GATE=1 TRIG=1  note-on        : hard retrigger -- attack from silence, out of any
+    //                                      state (after the operator's DELAY, if programmed)
+    //      GATE=0 TRIG=0  note-off (===) : release ramp
+    //      GATE=0 TRIG=1  note-cut (^^^) : instant silence -- the scrub lands the envelope
+    //                                      fully attenuated and the key is up to hold it there
+    //    TRIG acts on whatever the channel is doing, so it also serves as an RMW on its own
+    //    (leaving GATE as it stands): under a held GATE it restarts the envelope from
+    //    silence; under a released GATE it silences the tail at once.
     //  - bit 3: PCM enable (when set, src = pcm[pcmpos])
     //  - bit 4: ring mod enable (multiply by next channel's raw sample)
     //  - bits 5..7: filter mode selects (LP/HP/BP) (implemented as bitmask picks)
@@ -562,11 +596,12 @@ struct sgu_op_state
     uint32_t lfsr_state;                // per-operator noise LFSR state
 };
 
-// op_flags packed boolean bit groups (4 bits each, one per operator)
-#define OP_FLAGS_PHASE_WRAP 0  // bits 0-3:   phase wrap flag (for SYNC)
-#define OP_FLAGS_KEY_STATE  4  // bits 4-7:   current key state
-#define OP_FLAGS_KEYON_GATE 8  // bits 8-11:  last raw key state (edge detect)
-#define OP_FLAGS_EG_DELAY   12 // bits 12-15: envelope delay active
+// op_flags packed boolean bit groups (4 bits each, one per operator). Keying is
+// level-driven (the envelope state carries the key), so the two groups here are the
+// SYNC wrap flag and the TRIG-armed key-on DELAY window. (These fit a uint8_t; op_flags
+// stays uint16_t to keep the struct layout/diff stable across softcore copies.)
+#define OP_FLAGS_PHASE_WRAP 0 // bits 0-3: phase wrap flag (for SYNC)
+#define OP_FLAGS_EG_DELAY   4 // bits 4-7: envelope key-on delay window active (armed by TRIG)
 
 #define OP_FLAG_GET(flags, group, op) (((flags) >> ((group) + (op))) & 1u)
 #define OP_FLAG_SET(flags, group, op) ((flags) |= (1u << ((group) + (op))))
