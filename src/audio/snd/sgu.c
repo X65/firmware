@@ -41,11 +41,7 @@
 // SGU implemented on RP2350 MCU uses hardware specific shortcuts
 #ifdef SGU_ON_MCU
 #include <pico.h>
-// PCM sample memory (signed 8-bit)
-static int8_t __uninitialized_ram(pcm_mem)[SGU_PCM_RAM_SIZE];
 #else
-#include <stdlib.h>
-
 #define __uninitialized_ram(x) x
 
 static inline int32_t __builtin_arm_ssat(int32_t val, unsigned bits)
@@ -767,7 +763,7 @@ void __attribute__((optimize("Ofast"))) SGU_NextSample_Channels(
                         }
 
                         // Wrap to PCM RAM size (power-of-2 ring buffer).
-                        ch_reg->pcmpos &= (SGU_PCM_RAM_SIZE - 1);
+                        ch_reg->pcmpos &= (SGU_PCM_BANK_SIZE - 1);
                     }
                     else if (ch_reg->flags1 & SGU1_FLAGS1_PCM_LOOP)
                     {
@@ -1025,7 +1021,7 @@ void __attribute__((optimize("Ofast"))) SGU_NextSample_Channels(
                         // Sample-as-waveform mode: read 8-bit PCM sample from memory
                         // Uses channel's pcmrst register as the base address for a 1024-sample waveform
                         // Phase (0-1023) indexes into the sample region, looping naturally via phase wraparound
-                        uint16_t sample_addr = (ch_reg->pcmrst + phase) & (SGU_PCM_RAM_SIZE - 1);
+                        uint16_t sample_addr = (ch_reg->pcmrst + phase) & (SGU_PCM_BANK_SIZE - 1);
                         // Scale 8-bit signed sample to 16-bit to match other waveforms
                         // (attenuation to 14-bit happens later at the envelope processing stage)
                         sample = (int16_t)((int16_t)sgu->pcm[sample_addr] << 8);
@@ -1414,9 +1410,13 @@ uint32_t SGU_GetFlags(struct SGU *sgu)
     return 0;
 }
 
-void __attribute__((optimize("Ofast"))) SGU_Init(struct SGU *sgu, size_t sampleMemSize)
+void __attribute__((optimize("Ofast"))) SGU_Init(struct SGU *sgu, int8_t *pcm, size_t pcm_size)
 {
-    (void)sampleMemSize;
+    assert(sgu);
+    assert(pcm);
+    assert(pcm_size > 0);
+    assert((pcm_size % SGU_PCM_BANK_SIZE) == 0);
+
     memset(sgu, 0, sizeof(struct SGU));
 
     /**
@@ -1471,12 +1471,8 @@ void __attribute__((optimize("Ofast"))) SGU_Init(struct SGU *sgu, size_t sampleM
     }
     pan_gain_lut_r[128] = 0;
 
-#ifdef SGU_ON_MCU
-    // there can be only one…
-    sgu->pcm = pcm_mem;
-#else
-    sgu->pcm = malloc(SGU_PCM_RAM_SIZE);
-#endif
+    sgu->pcm = pcm;
+    sgu->pcm_size = pcm_size;
 
     SGU_Reset(sgu);
 }

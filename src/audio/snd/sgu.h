@@ -65,7 +65,7 @@
 #define SGU_OP_REGS     (8)
 #define SGU_REGS_PER_CH (SGU_OP_PER_CH * SGU_OP_REGS + SGU_CH_REGS)
 
-#define SGU_PCM_RAM_SIZE    (0x10000) // 64KB PCM RAM
+#define SGU_PCM_BANK_SIZE   (0x10000) // 64KB PCM bank
 #define SGU_WAVEFORM_LENGTH (0x400)   // 1024 samples per waveform
 
 /*
@@ -672,8 +672,9 @@ struct SGU
     // PCM phase accumulator for fractional PCM playback
     int32_t pcm_phase_accum[SGU_CHNS];
 
-    // PCM sample memory (signed 8-bit)
+    // Externally owned PCM sample memory (signed 8-bit)
     int8_t *pcm;
+    size_t pcm_size;
 
     // Per-channel mute (software-side, not part of chip spec).
     bool muted[SGU_CHNS];
@@ -687,7 +688,7 @@ struct SGU
 
 // -----------------------------------------------------------------------------
 
-void SGU_Init(struct SGU *sgu, size_t sampleMemSize);
+void SGU_Init(struct SGU *sgu, int8_t *pcm, size_t pcm_size);
 void SGU_Reset(struct SGU *sgu);
 
 void SGU_Write(struct SGU *sgu, uint16_t addr13, uint8_t data);

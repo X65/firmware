@@ -19,6 +19,8 @@
 sgu1_t sgu_instance;
 #define SGU (&sgu_instance)
 
+static int8_t __uninitialized_ram(pcm_mem)[SGU_PCM_BANK_SIZE];
+
 static void sgu_dump_channel_state(int channel)
 {
     printf("-- %02X --\n", channel);
@@ -124,7 +126,7 @@ __attribute__((optimize("O2"))) static void __no_inline_not_in_flash_func(sgu_lo
 void sgu_init()
 {
     memset(SGU, 0, sizeof(*SGU));
-    SGU_Init(&SGU->sgu, SGU_PCM_RAM_SIZE);
+    SGU_Init(&SGU->sgu, pcm_mem, sizeof(pcm_mem));
 
     // Register core 0 FIFO IRQ handler for dual-core audio rendering
     irq_set_exclusive_handler(SIO_IRQ_FIFO, core0_audio_isr);
