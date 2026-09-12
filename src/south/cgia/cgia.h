@@ -1,6 +1,9 @@
 #pragma once
 
+#ifndef __ASSEMBLER__
+#include <string.h>
 #include <sys/types.h>
+#endif
 
 #define CGIA_COLUMN_PX (8)
 
@@ -73,6 +76,7 @@
 
 #define CGIA_PLANE_REGS_NO (16)
 
+#ifndef __ASSEMBLER__
 union cgia_plane_regs_t
 {
     struct cgia_bckgnd_regs
@@ -117,7 +121,8 @@ union cgia_plane_regs_t
         uint8_t border_columns;
         uint8_t start_y;
         uint8_t stop_y;
-        uint8_t reserved[12];
+        uint8_t reserved[4];
+        uint8_t color[8]; // shared by every sprite on the plane (palette entries 4..11)
     } sprite;
 
     uint8_t reg[CGIA_PLANE_REGS_NO];
@@ -204,29 +209,81 @@ struct cgia_sprite_t
     uint16_t lines_y;
     uint8_t flags;
     uint8_t reserved_f;
-    uint8_t color[3];
-    uint8_t reserved_c;
+    uint8_t color[4];
     uint16_t data_offset;
     uint16_t next_dsc_offset; // after passing lines_y, reload sprite descriptor data
                               // this is a built-in sprite multiplexer
 };
+#endif // __ASSEMBLER__
 
 #define CGIA_SPRITES     (8)
 #define SPRITE_MAX_WIDTH (8)
 
 // sprite flags:
-// 0-2 - width in bytes
-// 3 - [RESERVED]
-// 4 - double-width
-// 5 - multicolor
+// 0-2 - width in 8 pixel columns, minus one (1..8 columns, 8..64 px)
+// 3 - double-width
+// 4-5 - pixel bits: 00 - 1bit, 01 - 2bit, 10 - 3bit, 11 - 4bit
+//       (same encoding as the plane's PLANE_MASK_PIXEL_BITS)
 // 6 - mirror X
 // 7 - mirror Y
 #define SPRITE_MASK_WIDTH        0b00000111
-#define SPRITE_MASK_RESERVED     0b00001000
-#define SPRITE_MASK_DOUBLE_WIDTH 0b00010000
-#define SPRITE_MASK_MULTICOLOR   0b00100000
+#define SPRITE_MASK_DOUBLE_WIDTH 0b00001000
+#define SPRITE_MASK_PIXEL_BITS   0b00110000
 #define SPRITE_MASK_MIRROR_X     0b01000000
 #define SPRITE_MASK_MIRROR_Y     0b10000000
+
+#define SPRITE_PIXEL_BITS_SHIFT 4
+#define SPRITE_BITS_1BPP        (0b00 << SPRITE_PIXEL_BITS_SHIFT)
+#define SPRITE_BITS_2BPP        (0b01 << SPRITE_PIXEL_BITS_SHIFT)
+#define SPRITE_BITS_3BPP        (0b10 << SPRITE_PIXEL_BITS_SHIFT)
+#define SPRITE_BITS_4BPP        (0b11 << SPRITE_PIXEL_BITS_SHIFT)
+// the old name for 2bpp sprites
+#define SPRITE_MASK_MULTICOLOR  SPRITE_BITS_2BPP
+
+/*
+    Sprite pixel data uses the MODE1 packing at every depth: a column of
+    8 pixels takes `bpp` bytes, most significant pixel first, so a line is
+    `bpp * columns` bytes long.
+
+    Pixel values index one 16 entry palette per sprite, and a deeper sprite
+    simply reaches further into it:
+
+      bits 3:2 | bits 1:0 | draws
+      ---------+----------+--------------------------------------------
+        00     |   cc     | descriptor color[cc]     (0000 is transparent)
+        01     |   cc     | plane color[cc]
+        10     |   cc     | plane color[4+cc]
+        11     |   cc     | descriptor color[cc], half-bright (index ^ 4)
+
+    1bpp sees entry 1, 2bpp entries 1..3, 3bpp entries 1..7 (bit 3 dropped),
+    4bpp all of them. Entry 0 is always transparent, so descriptor color[0]
+    is only ever drawn through entry 12, half-bright.
+*/
+
+// a palette index is hue * 8 + level; toggling level bit 2 moves four levels
+#define CGIA_COLOR_HALF_BRIGHT 0b00000100
+
+#ifndef __ASSEMBLER__
+// bits per pixel of a sprite, 1..4
+static inline uint sprite_bpp(uint8_t flags)
+{
+    return 1 + ((flags & SPRITE_MASK_PIXEL_BITS) >> SPRITE_PIXEL_BITS_SHIFT);
+}
+
+// The 16 entry palette above, in two parts: the plane part is the same for
+// every sprite on the plane, the descriptor part differs per sprite.
+static inline void sprite_palette_plane(const uint8_t plane_colors[8], uint8_t palette[16])
+{
+    memcpy(palette + 4, plane_colors, 8);
+}
+static inline void sprite_palette_descriptor(const uint8_t colors[4], uint8_t palette[16])
+{
+    memcpy(palette, colors, 4);
+    for (int i = 0; i < 4; ++i)
+        palette[12 + i] = colors[i] ^ CGIA_COLOR_HALF_BRIGHT;
+}
+// the palette of the sprite being encoded; the renderer fills it, the encoders read it
+extern uint8_t sprite_colors[16];
 
 // ---- internals ----
 void cgia_init(void);
@@ -246,3 +303,4 @@ void cgia_ram_write(uint8_t bank, uint16_t addr, uint8_t data);
 extern uint8_t vcache_dma_bank;
 extern uint16_t vcache_dma_blocks_remaining;
 extern uint8_t *vcache_dma_dest;
+#endif // __ASSEMBLER__

@@ -26,6 +26,9 @@
 
 #define CGIA_REGS_NO ((CGIA_PLANE_REGS_NO * CGIA_PLANES) << 1)
 _Static_assert(CGIA_REGS_NO == sizeof(struct cgia_t), "Incorrect CGIA_REGS_NO");
+// cgia_sprites.S reads these descriptor fields at hand-written offsets
+_Static_assert(offsetof(struct cgia_sprite_t, pos_x) == 0, "Incorrect SPRITE_POS_X_OFFS");
+_Static_assert(offsetof(struct cgia_sprite_t, flags) == 6, "Incorrect SPRITE_FLAGS_OFFS");
 
 // --- Globals ---
 // two "banks" to mirror PSRAM content for fast CGIA access
@@ -61,6 +64,12 @@ static uint16_t
     __attribute__((aligned(4)))
     __scratch_x("cgia_data")
         sprite_dsc_offsets[CGIA_PLANES][CGIA_SPRITES]
+    = {0};
+
+uint8_t
+    __attribute__((aligned(4)))
+    __scratch_x("cgia_data")
+        sprite_colors[16]
     = {0};
 
 // store which PSRAM bank is currently mirrored in cache
@@ -518,6 +527,9 @@ void __attribute__((optimize("O2"))) cgia_render(uint16_t y, uint32_t *rgbbuf)
             // wait until back fill is done, as it may overwrite sprites on the right side
             dma_channel_wait_for_finish_blocking(back_chan);
 
+            // the plane part of the sprite palette is the same for every sprite here
+            sprite_palette_plane(plane->sprite.color, sprite_colors);
+
             while (mask)
             {
                 if (plane->sprite.active & mask)
@@ -531,22 +543,24 @@ void __attribute__((optimize("O2"))) cgia_render(uint16_t y, uint32_t *rgbbuf)
                         && sprite_line < sprite->lines_y
                         && (!plane->sprite.stop_y || sprite_line <= plane->sprite.stop_y))
                     {
-                        const uint8_t sprite_width = sprite->flags & SPRITE_MASK_WIDTH;
-                        const uint sprite_offset = sprite_line * (sprite_width + 1);
+                        // a column of 8 pixels takes bpp bytes
+                        const uint bpp = sprite_bpp(sprite->flags);
+                        const uint sprite_width = (sprite->flags & SPRITE_MASK_WIDTH) * bpp;
+                        const uint sprite_offset = sprite_line * (sprite_width + bpp);
+
+                        sprite_palette_descriptor(sprite->color, sprite_colors);
 
                         uint8_t *src = sprite_bank + sprite->data_offset;
                         if (sprite->flags & SPRITE_MASK_MIRROR_X)
                         {
+                            // start at the last column
                             src += sprite_offset + sprite_width;
-                            // TODO: inc/dec inside renderer
-                            cgia_encode_sprite_mirror(rgbbuf, (uint32_t *)sprite,
-                                                      src, sprite_width);
+                            cgia_encode_sprite_mirror(rgbbuf, (uint32_t *)sprite, src);
                         }
                         else
                         {
                             src += sprite_offset;
-                            cgia_encode_sprite(rgbbuf, (uint32_t *)sprite,
-                                               src, sprite_width);
+                            cgia_encode_sprite(rgbbuf, (uint32_t *)sprite, src);
                         }
 
                         // if this was the last line of sprite, load the next offset
