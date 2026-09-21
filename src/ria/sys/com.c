@@ -15,6 +15,7 @@
 #include "sys/cpu.h"
 #include <stdint.h>
 #include <stdio.h>
+#include <string.h>
 
 #define COM_BUF_SIZE          256
 #define COM_CSI_PARAM_MAX_LEN 16
@@ -44,7 +45,7 @@ static stdio_driver_t com_stdio_app;
 static uint32_t com_ctrl_bits;
 
 // Terminal replies waiting to be read as console input
-static char com_in_buf[16];
+static char com_in_buf[32];
 static size_t com_in_len;
 static size_t com_in_pos;
 
@@ -481,11 +482,15 @@ void com_task(void)
 // Reports the cursor position
 void com_in_write_ansi_CPR(int row, int col)
 {
-    if (com_in_pos == com_in_len)
-    {
-        com_in_len = (size_t)snprintf(com_in_buf, sizeof(com_in_buf), "\33[%d;%dR", row, col);
-        com_in_pos = 0;
-    }
+    // Append after whatever is still unread, so every query gets a reply.
+    // A report that would not fit is dropped.
+    size_t unread = com_in_len - com_in_pos;
+    memmove(com_in_buf, &com_in_buf[com_in_pos], unread);
+    int n = snprintf(&com_in_buf[unread], sizeof(com_in_buf) - unread, "\33[%d;%dR", row, col);
+    if (n < 0 || (size_t)n >= sizeof(com_in_buf) - unread)
+        n = 0;
+    com_in_len = unread + (size_t)n;
+    com_in_pos = 0;
 }
 
 static void com_stdio_out_chars(const char *buf, int len)

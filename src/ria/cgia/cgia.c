@@ -258,10 +258,7 @@ void cgia_init(void)
 {
 
 #ifdef PICO_SDK_VERSION_MAJOR
-    // drive NMI pin (used by CGIA only)
-    gpio_init(RIA_NMIB_PIN);
-    gpio_set_dir(RIA_NMIB_PIN, true);
-    gpio_put(RIA_NMIB_PIN, true);
+    // RIA_NMIB_PIN is set up with the other CPU control lines in bus.c
 
     // DMA
     ctrl_chan = dma_claim_unused_channel(true);
@@ -1362,7 +1359,7 @@ static void _cgia_transfer_vcache_bank(uint8_t vcache_bank)
 
         if (vcache_transfer >= 0)
         {
-            vram_cache_bank[vcache_transfer] = vram_wanted_bank[vcache_transfer];
+            vram_cache_bank[vcache_transfer] = vcache_dma_bank;
             vram_cache_ptr[vcache_transfer] = vram_cache[vcache_transfer];
             vcache_transfer = -1;
         }

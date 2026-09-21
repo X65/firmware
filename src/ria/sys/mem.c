@@ -334,93 +334,23 @@ void mem_post_reclock(void)
 // ---------------------------------------------------------------
 // L2 memory cache implementation
 // ---------------------------------------------------------------
-// Cache Size: 64 kB
-// Cache Line Size: 32 Bytes [XIP fast fetch]
-//
-// We split the incoming 65C816 address into three parts to look up data:
-// [AAAA AAAA][BBBB BBBB BBB][CCCCC]
-// Offset (5 bits): Which of the 32 bytes in the line do we want?
-// Index (11 bits): Which of the 2048 cache lines do we check? ($2^{11} = 2048$)
-// Tag (8 bits): The remaining upper bits. We store this to verify if the cache
-//               line actually holds the memory we asked for.
-
-#define CACHE_LINE_SIZE  32
-#define CACHE_LINE_COUNT 2048
-#define CACHE_LINE_MASK  (CACHE_LINE_COUNT - 1) // 0x7FF
-#define OFFSET_MASK      (CACHE_LINE_SIZE - 1)  // 0x1F
-#define TAG_MASK         0xFF
-#define TAG_VALID_BIT    0x100
+// See mem.h for the layout. The bus ISR accessors are inlined there.
 
 // The Data Store: 64kB
 uint8_t __attribute__((aligned(32)))
-__uninitialized_ram(l2_data)[CACHE_LINE_COUNT][CACHE_LINE_SIZE];
+__uninitialized_ram(l2_data)[MEM_L2_LINE_COUNT][MEM_L2_LINE_SIZE];
 
 // The Tag Store: 2048 entries
-// We need to store the 8-bit Tag AND a "Valid" bit.
-// A 16-bit int is faster to align/access than a packed byte struct.
 uint16_t __attribute__((aligned(2)))
-__uninitialized_ram(l2_tags)[CACHE_LINE_COUNT];
+__uninitialized_ram(l2_tags)[MEM_L2_LINE_COUNT];
 
 static void l2_init(void)
 {
     // Invalidate all cache lines.
-    for (size_t i = 0; i < CACHE_LINE_COUNT; i++)
+    for (size_t i = 0; i < MEM_L2_LINE_COUNT; i++)
     {
         l2_tags[i] = 0;
     }
-}
-
-__force_inline static void
-fast_fill_32b(uint32_t *dest, const uint32_t *src_nocache)
-{
-    __asm volatile(
-        "ldmia %1!, {r0-r3}\n\t" // Burst Load 4 words (16B) from PSRAM
-        "stmia %0!, {r0-r3}\n\t" // Burst Store 4 words (16B) to SRAM
-        "ldmia %1!, {r0-r3}\n\t" // Repeat to complete 32B
-        "stmia %0!, {r0-r3}\n\t"
-        : "+r"(dest), "+r"(src_nocache)    // Outputs (pointers define the address)
-        :                                  // No other inputs
-        : "r0", "r1", "r2", "r3", "memory" // Clobbers
-    );
-}
-
-__force_inline uint8_t __attribute__((optimize("O3")))
-__not_in_flash_func(mem_read_ram_isr)(uint32_t addr24)
-{
-    const uint16_t index = (addr24 >> 5) & CACHE_LINE_MASK;
-    const uint8_t tag = (addr24 >> 16) & TAG_MASK;
-    const uint16_t stored_tag = l2_tags[index];
-    if (((stored_tag & TAG_MASK) != tag) || !(stored_tag & TAG_VALID_BIT))
-    {
-        // Cache miss - fetch the cache line from PSRAM
-        mem_select_bank(addr24 & 0x800000);
-        fast_fill_32b((uint32_t *)l2_data[index],
-                      (const uint32_t *)(XIP_PSRAM_NOCACHE | (addr24 & 0x7FFFE0)));
-        // Update the tag store
-        l2_tags[index] = tag | TAG_VALID_BIT;
-    }
-
-    return l2_data[index][addr24 & OFFSET_MASK];
-}
-
-__force_inline void __attribute__((optimize("O3")))
-__not_in_flash_func(mem_write_ram_isr)(uint32_t addr24, uint8_t data)
-{
-    // L2 write-through cache
-    mem_select_bank(addr24 & 0x800000);
-    *(volatile uint8_t *)(XIP_PSRAM_NOCACHE | (addr24 & 0x7FFFFF)) = data;
-
-    // Update L2 cache if present
-    const uint16_t index = (addr24 >> 5) & CACHE_LINE_MASK;
-    const uint8_t tag = (addr24 >> 16) & TAG_MASK;
-    const uint16_t stored_tag = l2_tags[index];
-    if (((stored_tag & TAG_MASK) == tag) && (stored_tag & TAG_VALID_BIT))
-    {
-        l2_data[index][addr24 & OFFSET_MASK] = data;
-    }
-
-    // Sync write to CGIA L1 cache
-    cgia_ram_write((uint8_t)(addr24 >> 16), (uint16_t)addr24, data);
 }
 
 uint8_t mem_read_ram(uint32_t addr24)
@@ -438,11 +368,48 @@ void mem_write_ram(uint32_t addr24, uint8_t data)
     restore_interrupts(irq_status);
 }
 
+void mem_cpy(uint32_t dest_addr24, const void *src, size_t len)
+{
+    const uint8_t *s = (const uint8_t *)src;
+    while (len)
+    {
+        // Copy up to the end of this cache row, so the bus ISR gets
+        // a chance between rows and the bank is selected once per row.
+        const uint32_t offset = dest_addr24 & MEM_L2_OFFSET_MASK;
+        size_t n = MEM_L2_LINE_SIZE - offset;
+        if (n > len)
+            n = len;
+
+        const uint32_t irq_status = save_and_disable_interrupts();
+        mem_select_bank(dest_addr24 & 0x800000);
+        memcpy((void *)(XIP_PSRAM_NOCACHE | (dest_addr24 & 0x7FFFFF)), s, n);
+
+        // Update L2 cache if present
+        const uint16_t index = (dest_addr24 >> 5) & MEM_L2_LINE_MASK;
+        const uint16_t tag = ((dest_addr24 >> 16) & MEM_L2_TAG_MASK) | MEM_L2_TAG_VALID;
+        if (l2_tags[index] == tag)
+        {
+            memcpy(&l2_data[index][offset], s, n);
+        }
+
+        // Sync write to CGIA L1 cache
+        for (size_t i = 0; i < n; i++)
+        {
+            cgia_ram_write((uint8_t)(dest_addr24 >> 16), (uint16_t)(dest_addr24 + i), s[i]);
+        }
+        restore_interrupts(irq_status);
+
+        dest_addr24 += n;
+        s += n;
+        len -= n;
+    }
+}
+
 // Buffer for DMA line fetches.
 // Use separate buffer to protect from bank change
 // and avoid cache pollution.
 uint8_t __attribute__((aligned(32)))
-__uninitialized_ram(fetch_row_data)[CACHE_LINE_SIZE];
+__uninitialized_ram(fetch_row_data)[MEM_L2_LINE_SIZE];
 
 uint8_t *__attribute__((optimize("O3")))
 __not_in_flash_func(mem_fetch_row)(uint8_t bank, uint16_t addr)
@@ -450,8 +417,8 @@ __not_in_flash_func(mem_fetch_row)(uint8_t bank, uint16_t addr)
     const uint32_t addr24 = bank << 16 | addr;
     // Fetch the line from PSRAM
     mem_select_bank(addr24 & 0x800000);
-    fast_fill_32b((uint32_t *)fetch_row_data,
-                  (const uint32_t *)(XIP_PSRAM_NOCACHE | (addr24 & 0x7FFFE0)));
+    mem_l2_fill_line((uint32_t *)fetch_row_data,
+                     (const uint32_t *)(XIP_PSRAM_NOCACHE | (addr24 & 0x7FFFE0)));
     return fetch_row_data;
 }
 
@@ -515,7 +482,6 @@ void mem_print_status(void)
            total_ram_size / (1024 * 1024),
            PSRAM_BANKS_NO,
            (float)sysHz / (qmi_hw->m[1].timing & 0xFF) / 1e6);
-    setup_psram(0);
 
     for (uint8_t bank = 0; bank < PSRAM_BANKS_NO; bank++)
     {
