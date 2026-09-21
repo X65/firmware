@@ -5,7 +5,7 @@
  */
 
 #include "term/font.h"
-#include "font_8.h"
+#include "cgia/font_8.h"
 #include "term/term.h"
 #include <pico.h>
 #include <string.h>

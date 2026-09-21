@@ -43,6 +43,11 @@ static uint8_t com_csi_param_count;
 static stdio_driver_t com_stdio_app;
 static uint32_t com_ctrl_bits;
 
+// Terminal replies waiting to be read as console input
+static char com_in_buf[16];
+static size_t com_in_len;
+static size_t com_in_pos;
+
 volatile size_t com_tx_tail;
 volatile size_t com_tx_head;
 volatile uint8_t com_tx_buf[32];
@@ -473,6 +478,16 @@ void com_task(void)
     }
 }
 
+// Reports the cursor position
+void com_in_write_ansi_CPR(int row, int col)
+{
+    if (com_in_pos == com_in_len)
+    {
+        com_in_len = (size_t)snprintf(com_in_buf, sizeof(com_in_buf), "\33[%d;%dR", row, col);
+        com_in_pos = 0;
+    }
+}
+
 static void com_stdio_out_chars(const char *buf, int len)
 {
     while (len--)
@@ -492,6 +507,14 @@ static int com_stdio_in_chars(char *buf, int length)
     static const int uart_pause_us = 1000;
     static absolute_time_t uart_timer;
     static bool in_keyboard = false;
+
+    if (com_in_pos < com_in_len)
+    {
+        int i = 0;
+        while (i < length && com_in_pos < com_in_len)
+            buf[i++] = com_in_buf[com_in_pos++];
+        return i;
+    }
 
     absolute_time_t now = get_absolute_time();
     if (in_keyboard || absolute_time_diff_us(now, uart_timer) < 0)

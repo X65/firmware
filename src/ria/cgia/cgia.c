@@ -9,7 +9,7 @@
 #include "cgia_encode.h"
 #define CGIA_PALETTE_IMPL
 #include "cgia_palette.h"
-#include "hw.h"
+#include "main.h"
 #include "sys/out.h"
 
 #include <string.h>
@@ -210,7 +210,7 @@ inline __attribute__((always_inline)) __attribute__((optimize("O2"))) void cgia_
 
 static inline __attribute__((always_inline)) void cpu_set_nmi(void)
 {
-    gpio_put(VPU_NMIB_PIN, !INT_STATUS_MASKED);
+    gpio_put(RIA_NMIB_PIN, !INT_STATUS_MASKED);
 }
 
 struct dma_control_block
@@ -259,9 +259,9 @@ void cgia_init(void)
 
 #ifdef PICO_SDK_VERSION_MAJOR
     // drive NMI pin (used by CGIA only)
-    gpio_init(VPU_NMIB_PIN);
-    gpio_set_dir(VPU_NMIB_PIN, true);
-    gpio_put(VPU_NMIB_PIN, true);
+    gpio_init(RIA_NMIB_PIN);
+    gpio_set_dir(RIA_NMIB_PIN, true);
+    gpio_put(RIA_NMIB_PIN, true);
 
     // DMA
     ctrl_chan = dma_claim_unused_channel(true);

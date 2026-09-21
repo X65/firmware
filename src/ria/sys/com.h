@@ -37,6 +37,10 @@ void com_read_binary(uint32_t timeout_ms, com_read_callback_t callback, uint8_t 
 // of input with basic editing on ANSI terminals.
 void com_read_line(uint32_t timeout_ms, com_read_callback_t callback, size_t size, uint32_t ctrl_bits);
 
+// Queue an ANSI cursor position report as console input.
+// The terminal uses this to answer a DSR query.
+void com_in_write_ansi_CPR(int row, int col);
+
 extern volatile size_t com_tx_tail;
 extern volatile size_t com_tx_head;
 extern volatile uint8_t com_tx_buf[32];
