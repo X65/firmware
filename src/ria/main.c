@@ -96,6 +96,7 @@ void main_task(void)
     bus_task();
     term_task();
     cgia_task();
+    mem_task();
     ext_task();
     aud_task();
     mdm_task();

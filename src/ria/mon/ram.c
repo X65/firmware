@@ -353,6 +353,11 @@ void ram_mon_test(const char *args, size_t len)
             }
 
             printf("\nTest Run: %d, Passed: %d, Failed: %d\n", nDataBlocks, nPassed, nDataBlocks - nPassed);
+
+            // Write the cached blocks back to this bank before another
+            // is selected. RAM access outside this test bypasses the XIP cache.
+            xip_cache_clean_all();
+            xip_cache_invalidate_all();
         }
     }
 

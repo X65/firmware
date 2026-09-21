@@ -45,12 +45,8 @@ static volatile bool irq_enabled = false;
 
 static enum state {
     BUS_PENDING_NOTHING,
-    BUS_PENDING_READ,
-    BUS_PENDING_WRITE,
     BUS_PENDING_DELAY,
 } volatile bus_pending_operation;
-static uint32_t bus_pending_addr;
-static uint8_t bus_pending_data;
 static uint32_t bus_pending_delay;
 
 // #define MEM_CPU_ADDRESS_BUS_HISTORY_LENGTH 50
@@ -419,32 +415,16 @@ mem_bus_pio_irq_handler(void)
                     const uint32_t addr = bus_address & 0xFFFFFF;
                     bool cpu_is_reading = bus_address & CPU_RWB_MASK;
 
-                    if (!MEM_CAN_ACCESS_ADDR(addr))
-                    {
-                        // something acquired a PSRAM bank, so we need to
-                        // stop the PIO to halt the CPU
-                        // and configure a pending operation
-                        MEM_BUS_PIO->irq_force = (1u << GATE_IRQ); // raise gating IRQ
-
-                        bus_pending_operation = cpu_is_reading ? BUS_PENDING_READ : BUS_PENDING_WRITE;
-                        bus_pending_addr = addr;
-                        bus_pending_data = bus_data;
-
-                        // Clear the interrupt request and exit
-                        pio_interrupt_clear(MEM_BUS_PIO, MEM_BUS_PIO_IRQ);
-                        return;
-                    }
-
                     // normal memory access
                     if (cpu_is_reading)
                     { // CPU is reading
                         // Push 1 byte from RAM to PIO tx FIFO
-                        MEM_BUS_PIO->txf[MEM_BUS_SM] = mem_read_psram(addr);
+                        MEM_BUS_PIO->txf[MEM_BUS_SM] = mem_read_ram_isr(addr);
                     }
                     else
                     { // CPU is writing
                         // Store bus D0-7 to RAM
-                        mem_write_psram(addr, bus_data);
+                        mem_write_ram_isr(addr, bus_data);
                     }
                 }
             }
@@ -598,22 +578,6 @@ void bus_task(void)
     {
         switch (bus_pending_operation)
         {
-        // PSRAM bank acquire was released,
-        // so we can now do a pending operation
-        case BUS_PENDING_READ:
-            if (MEM_CAN_ACCESS_ADDR(bus_pending_addr))
-            {
-                MEM_BUS_PIO->txf[MEM_BUS_SM] = mem_read_psram(bus_pending_addr);
-                bus_pending_operation = BUS_PENDING_NOTHING;
-            }
-            break;
-        case BUS_PENDING_WRITE:
-            if (MEM_CAN_ACCESS_ADDR(bus_pending_addr))
-            {
-                mem_write_psram(bus_pending_addr, bus_pending_data);
-                bus_pending_operation = BUS_PENDING_NOTHING;
-            }
-            break;
         case BUS_PENDING_DELAY:
             if (--bus_pending_delay == 0)
             {

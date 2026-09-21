@@ -81,7 +81,7 @@ bool oem_api_get_chargen(void)
     if (!api_pop_uint8_end(&bank))
         return api_return_errno(API_EINVAL);
 
-    mem_cpy_psram((bank << 16) | addr, font8, 256 * 8);
+    mem_cpy((bank << 16) | addr, font8, 256 * 8);
 
     return api_return_ax(0);
 }

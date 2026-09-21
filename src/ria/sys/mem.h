@@ -8,6 +8,8 @@
 #ifndef _MEM_H_
 #define _MEM_H_
 
+#include "hardware/gpio.h"
+#include "main.h"
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -47,24 +49,42 @@ uint32_t mbuf_crc32(void);
  */
 
 void mem_init(void);
+void mem_task(void);
 void mem_post_reclock(void);
 void mem_print_status(void);
 
-// Select PSRAM bank
-void mem_select_bank(uint8_t bank);
-
-// If set, someone is using the PSRAM bank
-// and you are not allowed to select another
-// NOTE: This is used by Main CPU Core only, thus does not require mutex
-extern volatile int8_t acquired_bank;
-
-#define MEM_ADDR_TO_BANK(addr)    ((uint8_t)(addr >> 23))
-#define MEM_CAN_ACCESS_ADDR(addr) (acquired_bank < 0 || acquired_bank == MEM_ADDR_TO_BANK(addr))
-
 // 16MB of XIP QPI PSRAM interface
-uint8_t mem_read_psram(uint32_t addr);
-void mem_write_psram(uint32_t addr, uint8_t data);
-void mem_cpy_psram(uint32_t dest_addr, const void *src, size_t n);
+// accessed through fast L2 cache implemented in internal SRAM
+
+// in 2 banks of 8MB each
+__force_inline static void mem_select_bank(bool bank)
+{
+    gpio_put(QMI_PSRAM_BS_PIN, bank);
+}
+
+// The bus ISR and the kernel loop both access PSRAM on core 0.
+// These are for the kernel loop: they keep the bus ISR out while they
+// select a bank and use the L2 cache.
+uint8_t mem_read_ram(uint32_t addr24);
+void mem_write_ram(uint32_t addr24, uint8_t data);
+
+// These are for the bus ISR only.
+uint8_t mem_read_ram_isr(uint32_t addr24);
+void mem_write_ram_isr(uint32_t addr24, uint8_t data);
+
+// Fetch a PSRAM cache row (32 bytes) and return a pointer to it.
+// Call with interrupts disabled.
+uint8_t *mem_fetch_row(uint8_t bank, uint16_t addr);
+
+// helper function to copy memory to PSRAM
+__force_inline static void mem_cpy(uint32_t dest_addr24, const void *src, size_t len)
+{
+    const uint8_t *s = (const uint8_t *)src;
+    while (len--)
+    {
+        mem_write_ram(dest_addr24++, *s++);
+    }
+}
 
 // Read/Write memory or overlaying memory mapped device.
 // Similar function as the CPU BUS mapper, but for firmware code.
