@@ -1,6 +1,6 @@
 #include "cgia.h"
 
-#include "pico.h"
+#include <pico.h>
 #ifdef PICO_SDK_VERSION_MAJOR
 #include "hardware/dma.h"
 #include "hardware/gpio.h"
@@ -9,8 +9,7 @@
 #include "cgia_encode.h"
 #define CGIA_PALETTE_IMPL
 #include "cgia_palette.h"
-#include "main.h"
-#include "sys/mem.h"
+#include "hw.h"
 #include "sys/out.h"
 
 #include <string.h>
@@ -27,6 +26,9 @@
 
 #define CGIA_REGS_NO ((CGIA_PLANE_REGS_NO * CGIA_PLANES) << 1)
 _Static_assert(CGIA_REGS_NO == sizeof(struct cgia_t), "Incorrect CGIA_REGS_NO");
+// cgia_sprites.S reads these descriptor fields at hand-written offsets
+_Static_assert(offsetof(struct cgia_sprite_t, pos_x) == 0, "Incorrect SPRITE_POS_X_OFFS");
+_Static_assert(offsetof(struct cgia_sprite_t, flags) == 6, "Incorrect SPRITE_FLAGS_OFFS");
 
 // --- Globals ---
 // two "banks" to mirror PSRAM content for fast CGIA access
@@ -36,7 +38,7 @@ uint8_t
 
 uint8_t
     __attribute__((aligned(4)))
-    __scratch_x("")
+    __scratch_x("cgia_data")
         regs_int[CGIA_REGS_NO]
     = {0};
 #define CGIA (*((struct cgia_t *)regs_int))
@@ -54,77 +56,79 @@ struct cgia_plane_internal
 };
 struct cgia_plane_internal
     __attribute__((aligned(4)))
-    __scratch_x("")
+    __scratch_x("cgia_data")
         plane_int[CGIA_PLANES]
     = {0};
 
 static uint16_t
     __attribute__((aligned(4)))
-    __scratch_x("")
+    __scratch_x("cgia_data")
         sprite_dsc_offsets[CGIA_PLANES][CGIA_SPRITES]
     = {0};
-static uint8_t
+
+uint8_t
     __attribute__((aligned(4)))
-    __scratch_x("")
-        sprite_line_data[SPRITE_MAX_WIDTH];
+    __scratch_x("cgia_data")
+        sprite_colors[16]
+    = {0};
 
 // store which PSRAM bank is currently mirrored in cache
-// stored as bitmask for easy use during ram write call
-uint32_t
+uint8_t
     __attribute__((aligned(4)))
-    __scratch_x("")
-        vram_cache_bank_mask[CGIA_VRAM_BANKS]
+    __scratch_x("cgia_data")
+        vram_cache_bank[CGIA_VRAM_BANKS]
     = {0, 0};
+
+// store which memory bank is wanted in vram cache bank
+// used to trigger DMA transfer during cgia_run() workloop
+uint8_t
+    __attribute__((aligned(4)))
+    __scratch_x("cgia_data")
+        vram_wanted_bank[CGIA_VRAM_BANKS]
+    = {0, 0};
+
+inline void __attribute__((always_inline)) __attribute__((optimize("O3")))
+cgia_ram_write(uint8_t bank, uint16_t addr, uint8_t data)
+{
+    // We use wanted_bank, not cache_bank because the switch may already be in progress
+    // and we want to update the bank we are switching to, not the one we are switching from
+    if (bank == vram_wanted_bank[0])
+    {
+        vram_cache[0][addr] = data;
+    }
+    if (bank == vram_wanted_bank[1])
+    {
+        vram_cache[1][addr] = data;
+    }
+}
 
 // store in which vram cache bank a cgia bank (backgnd/sprite) is stored
 // these may be shared - backgnd and sprites in same bank
 uint8_t *
-    __scratch_x("")
+    __scratch_x("cgia_data")
         vram_cache_ptr[CGIA_VRAM_BANKS]
     = {vram_cache[0], vram_cache[0]};
-
-inline __attribute__((always_inline)) __attribute__((optimize("O3"))) void cgia_ram_write(uint32_t addr, uint8_t data)
-{
-    const uint32_t bank_mask = addr & 0xFFFF0000;
-    if (bank_mask == vram_cache_bank_mask[0])
-    {
-        vram_cache_ptr[0][addr & 0xFFFF] = data;
-    }
-    if (bank_mask == vram_cache_bank_mask[1])
-    {
-        vram_cache_ptr[1][addr & 0xFFFF] = data;
-    }
-}
-
-// store which memory bank is wanted in vram cache bank
-// used to trigger DMA transfer during cgia_run() workloop
-uint32_t
-    __attribute__((aligned(4)))
-    __scratch_x("")
-        vram_wanted_bank_mask[CGIA_VRAM_BANKS]
-    = {0, 0};
 
 void cgia_set_bank(uint8_t cgia_bank_id, uint8_t mem_bank_no)
 {
     assert(cgia_bank_id < 2);
-    const uint32_t bank_mask = mem_bank_no << 16;
-    vram_wanted_bank_mask[cgia_bank_id] = bank_mask;
+    vram_wanted_bank[cgia_bank_id] = mem_bank_no;
 
-    if (bank_mask == vram_cache_bank_mask[cgia_bank_id])
+    if (mem_bank_no == vram_cache_bank[cgia_bank_id])
     {
         // if the bank matches - nothing to do
         return;
     }
     // if the new bank_no matches the one in other bank, re-use it
     const uint8_t other_bank_id = cgia_bank_id ^ 1;
-    if (bank_mask == vram_cache_bank_mask[other_bank_id])
+    if (mem_bank_no == vram_cache_bank[other_bank_id])
     {
-        vram_cache_bank_mask[cgia_bank_id] = bank_mask;
+        vram_cache_bank[cgia_bank_id] = mem_bank_no;
         vram_cache_ptr[cgia_bank_id] = vram_cache_ptr[other_bank_id];
         return;
     }
 
-    // if we got here, the vram_wanted_bank_mask differs from vram_cache_bank_mask
+    // if we got here, the vram_wanted_bank differs from vram_cache_bank
     // which will trigger memory bank switch in work loop
     // our job here is done
 }
@@ -139,7 +143,7 @@ uint8_t int_mask = 0;
 
 #define INT_STATUS_MASKED (regs_int[CGIA_REG_INT_STATUS] & regs_int[CGIA_REG_INT_ENABLE] & int_mask)
 
-inline __attribute__((always_inline)) __attribute__((optimize("O3"))) void cgia_vbi(void)
+inline __attribute__((always_inline)) __attribute__((optimize("O2"))) void cgia_vbi(void)
 {
     int_mask |= CGIA_REG_INT_FLAG_VBI;
 
@@ -149,7 +153,7 @@ inline __attribute__((always_inline)) __attribute__((optimize("O3"))) void cgia_
     }
 }
 
-inline __attribute__((always_inline)) __attribute__((optimize("O3"))) uint8_t cgia_reg_read(uint8_t reg_no)
+inline __attribute__((always_inline)) __attribute__((optimize("O2"))) uint8_t cgia_reg_read(uint8_t reg_no)
 {
     const uint8_t reg = reg_no & 0x7F;
     switch (reg)
@@ -161,11 +165,13 @@ inline __attribute__((always_inline)) __attribute__((optimize("O3"))) uint8_t cg
     return regs_int[reg];
 }
 
-inline __attribute__((always_inline)) __attribute__((optimize("O3"))) void cgia_reg_write(uint8_t reg_no, uint8_t value)
+inline __attribute__((always_inline)) __attribute__((optimize("O2"))) void cgia_reg_write(uint8_t reg_no, uint8_t value)
 {
+    // update the reg value
     const uint8_t reg = reg_no & 0x7F;
     regs_int[reg] = value;
 
+    // some regs have side effects
     switch (reg)
     {
     case CGIA_REG_BCKGND_BANK:
@@ -204,7 +210,7 @@ inline __attribute__((always_inline)) __attribute__((optimize("O3"))) void cgia_
 
 static inline __attribute__((always_inline)) void cpu_set_nmi(void)
 {
-    gpio_put(RIA_NMIB_PIN, !INT_STATUS_MASKED);
+    gpio_put(VPU_NMIB_PIN, !INT_STATUS_MASKED);
 }
 
 struct dma_control_block
@@ -222,11 +228,13 @@ static int data_chan;
 // DMA channel to fill raster line with background color
 static int back_chan;
 
-// DMA channel to sync CGIA VRAM CACHE bank
-static int vcache_chan;
+// CGIA VRAM CACHE bank sync
 static int vcache_transfer; // records which bank is being transferred
+uint8_t vcache_dma_bank = 0;
+uint16_t vcache_dma_blocks_remaining = 0;
+uint8_t *vcache_dma_dest = 0;
 
-void cgia_init(void)
+void cgia_reset(void)
 {
     memset(&CGIA, 0, CGIA_REGS_NO);
     memset(plane_int, 0, sizeof(plane_int));
@@ -239,8 +247,22 @@ void cgia_init(void)
         // And update sprite descriptors
         plane_int[i].sprites_need_update = true;
     }
+    vcache_transfer = -1;
+    vram_wanted_bank[0] = CGIA.bckgnd_bank = 0;
+    vram_wanted_bank[1] = CGIA.sprite_bank = 0;
+    vram_cache_bank[0] = 0xFF; // Force initial transfer of bank
+    vram_cache_bank[1] = 0;
+}
+
+void cgia_init(void)
+{
 
 #ifdef PICO_SDK_VERSION_MAJOR
+    // drive NMI pin (used by CGIA only)
+    gpio_init(VPU_NMIB_PIN);
+    gpio_set_dir(VPU_NMIB_PIN, true);
+    gpio_put(VPU_NMIB_PIN, true);
+
     // DMA
     ctrl_chan = dma_claim_unused_channel(true);
     data_chan = dma_claim_unused_channel(true);
@@ -284,33 +306,15 @@ void cgia_init(void)
         NULL,
         DISPLAY_WIDTH_PIXELS,
         false);
-
-    vcache_chan = dma_claim_unused_channel(true);
-    c = dma_channel_get_default_config(vcache_chan);
-    channel_config_set_transfer_data_size(&c, DMA_SIZE_32);
-    channel_config_set_read_increment(&c, true);
-    channel_config_set_write_increment(&c, true);
-
-    dma_channel_configure(
-        vcache_chan,
-        &c,
-        NULL,
-        NULL,
-        0x10000 / 4,
-        false);
-
-    vcache_transfer = -1;
 #endif
-    vram_wanted_bank_mask[0] = CGIA.bckgnd_bank = 0;
-    vram_wanted_bank_mask[1] = CGIA.sprite_bank = 0;
-    vram_cache_bank_mask[0] = 0xFF; // Force initial transfer of bank
-    vram_cache_bank_mask[1] = 0;
+
+    cgia_reset();
 }
 
 // clang-format off
 static uint8_t
     __attribute__((aligned(4)))
-    __scratch_x("")
+    __scratch_x("cgia_data")
         log2_tab[256]
     = {
         0x00, 0x01, 0x02, 0x02, 0x03, 0x03, 0x03, 0x03, //
@@ -349,7 +353,7 @@ static uint8_t
 
 static uint16_t
     __attribute__((aligned(4)))
-    __scratch_x("")
+    __scratch_x("cgia_data")
         plane_order_tab[24] // SJT order
     = {
         0x3210, 0x2310, 0x2130, 0x2103, 0x1203, 0x1230, //
@@ -403,11 +407,13 @@ static inline __attribute__((always_inline)) void set_mode7_interp_config(union 
 
     // interp0 will scan texture row
     // interp1 will scan row begin address
-    const uint texture_width_bits = plane->affine.texture_bits & 0b0111;
+    // MODE7 stores texture dimensions as encoded bit counts: 0..7 means 1..8 bits,
+    // yielding texture dimensions from 2 to 256 pixels.
+    const uint texture_width_bits = (plane->affine.texture_bits & 0b0111) + 1;
     interp_config_set_shift(&cfg, CGIA_AFFINE_FRACTIONAL_BITS);
     interp_config_set_mask(&cfg, 0, texture_width_bits - 1);
     interp_set_config(interp0, 0, &cfg);
-    const uint texture_height_bits = (plane->affine.texture_bits >> 4) & 0b0111;
+    const uint texture_height_bits = ((plane->affine.texture_bits >> 4) & 0b0111) + 1;
     interp_config_set_shift(&cfg, CGIA_AFFINE_FRACTIONAL_BITS - texture_width_bits);
     interp_config_set_mask(&cfg, texture_width_bits, texture_width_bits + texture_height_bits - 1);
     interp_set_config(interp0, 1, &cfg);
@@ -436,7 +442,7 @@ static inline __attribute__((always_inline)) void set_mode7_scans(union cgia_pla
 }
 #endif
 
-void __attribute__((optimize("O3"))) cgia_render(uint16_t y, uint32_t *rgbbuf)
+void __attribute__((optimize("O2"))) cgia_render(uint16_t y, uint32_t *rgbbuf)
 {
     static union cgia_plane_regs_t *plane;
     static uint16_t *plane_offset;
@@ -485,7 +491,7 @@ void __attribute__((optimize("O3"))) cgia_render(uint16_t y, uint32_t *rgbbuf)
             sprite_dscs = &sprite_dsc_offsets[p];
             uint8_t *sprite_bank = vram_cache_ptr[1];
 
-            if (vram_cache_bank_mask[1] != vram_wanted_bank_mask[1])
+            if (vram_cache_bank[1] != vram_wanted_bank[1])
             {
                 continue; // skip if the sprite bank is not synced yet
             }
@@ -518,8 +524,11 @@ void __attribute__((optimize("O3"))) cgia_render(uint16_t y, uint32_t *rgbbuf)
             uint8_t sprite_index = 7;
             uint8_t mask = 0b10000000;
 
-            // wait until back fill and store is done, as it may overwrite sprites on the right side
+            // wait until back fill is done, as it may overwrite sprites on the right side
             dma_channel_wait_for_finish_blocking(back_chan);
+
+            // the plane part of the sprite palette is the same for every sprite here
+            sprite_palette_plane(plane->sprite.color, sprite_colors);
 
             while (mask)
             {
@@ -534,30 +543,25 @@ void __attribute__((optimize("O3"))) cgia_render(uint16_t y, uint32_t *rgbbuf)
                         && sprite_line < sprite->lines_y
                         && (!plane->sprite.stop_y || sprite_line <= plane->sprite.stop_y))
                     {
-                        const uint8_t sprite_width = sprite->flags & SPRITE_MASK_WIDTH;
-                        uint8_t line_bytes = sprite_width + 1;
-                        const uint sprite_offset = sprite_line * line_bytes;
+                        // a column of 8 pixels takes bpp bytes
+                        const uint bpp = sprite_bpp(sprite->flags);
+                        const uint sprite_width = (sprite->flags & SPRITE_MASK_WIDTH) * bpp;
+                        const uint sprite_offset = sprite_line * (sprite_width + bpp);
 
-                        uint8_t *dst = sprite_line_data;
+                        sprite_palette_descriptor(sprite->color, sprite_colors);
+
                         uint8_t *src = sprite_bank + sprite->data_offset;
-                        if (sprite->flags & SPRITE_MASK_MIRROR_X) // TODO: inc/dec inside renderer
+                        if (sprite->flags & SPRITE_MASK_MIRROR_X)
                         {
+                            // start at the last column
                             src += sprite_offset + sprite_width;
-                            do
-                            {
-                                *dst++ = *src--;
-                            } while (--line_bytes);
+                            cgia_encode_sprite_mirror(rgbbuf, (uint32_t *)sprite, src);
                         }
                         else
                         {
                             src += sprite_offset;
-                            do
-                            {
-                                *dst++ = *src++;
-                            } while (--line_bytes);
+                            cgia_encode_sprite(rgbbuf, (uint32_t *)sprite, src);
                         }
-
-                        cgia_encode_sprite(rgbbuf, (uint32_t *)sprite, sprite_line_data, sprite_width);
 
                         // if this was the last line of sprite, load the next offset
                         if (sprite->pos_y + sprite->lines_y == (int)y + 1)
@@ -619,7 +623,7 @@ void __attribute__((optimize("O3"))) cgia_render(uint16_t y, uint32_t *rgbbuf)
             const uint8_t instr_code = dl_instr & 0b00001111;
             int_mask |= CGIA_REG_INT_FLAG_DLI;
 
-            if (vram_cache_bank_mask[0] != vram_wanted_bank_mask[0])
+            if (vram_cache_bank[0] != vram_wanted_bank[0])
             {
                 continue; // skip if the bg bank is not synced yet
             }
@@ -722,9 +726,9 @@ void __attribute__((optimize("O3"))) cgia_render(uint16_t y, uint32_t *rgbbuf)
 
                 case 0x5: // Set 16-bit register
                 {
-                    uint8_t idx = (dl_instr & 0b01110000) >> 3;
-                    plane->reg[idx++] = bckgnd_bank[++*plane_offset];
-                    plane->reg[idx] = bckgnd_bank[++*plane_offset];
+                    uint8_t rg = (dl_instr & 0b01110000) >> 3;
+                    plane->reg[rg++] = bckgnd_bank[++*plane_offset];
+                    plane->reg[rg] = bckgnd_bank[++*plane_offset];
                 }
                     ++*plane_offset; // Move to next DL instruction
                     goto process_instruction;
@@ -837,12 +841,14 @@ void __attribute__((optimize("O3"))) cgia_render(uint16_t y, uint32_t *rgbbuf)
                                         switch (plane->bckgnd.flags & PLANE_MASK_PIXEL_BITS)
                                         {
                                         case PLANE_BITS_1BPP:
-                                        case PLANE_BITS_3BPP:
+                                        case PLANE_BITS_2BPP:
                                             cgia_encode_mode_0(_multi, _2bpp, _doubled, _shared);
                                             break;
-                                        case PLANE_BITS_2BPP:
-                                        case PLANE_BITS_4BPP:
+                                        case PLANE_BITS_3BPP:
                                             cgia_encode_mode_0(_multi, _3bpp, _doubled, _shared);
+                                            break;
+                                        case PLANE_BITS_4BPP:
+                                            cgia_encode_mode_0(_multi, _4bpp, _doubled, _shared);
                                             break;
                                         }
                                     }
@@ -861,12 +867,14 @@ void __attribute__((optimize("O3"))) cgia_render(uint16_t y, uint32_t *rgbbuf)
                                         switch (plane->bckgnd.flags & PLANE_MASK_PIXEL_BITS)
                                         {
                                         case PLANE_BITS_1BPP:
-                                        case PLANE_BITS_3BPP:
+                                        case PLANE_BITS_2BPP:
                                             cgia_encode_mode_0(_multi, _2bpp, , _shared);
                                             break;
-                                        case PLANE_BITS_2BPP:
-                                        case PLANE_BITS_4BPP:
+                                        case PLANE_BITS_3BPP:
                                             cgia_encode_mode_0(_multi, _3bpp, , _shared);
+                                            break;
+                                        case PLANE_BITS_4BPP:
+                                            cgia_encode_mode_0(_multi, _4bpp, , _shared);
                                             break;
                                         }
                                     }
@@ -986,12 +994,14 @@ void __attribute__((optimize("O3"))) cgia_render(uint16_t y, uint32_t *rgbbuf)
                                         switch (plane->bckgnd.flags & PLANE_MASK_PIXEL_BITS)
                                         {
                                         case PLANE_BITS_1BPP:
-                                        case PLANE_BITS_3BPP:
+                                        case PLANE_BITS_2BPP:
                                             cgia_encode_mode_0(_multi, _2bpp, _doubled, _mapped);
                                             break;
-                                        case PLANE_BITS_2BPP:
-                                        case PLANE_BITS_4BPP:
+                                        case PLANE_BITS_3BPP:
                                             cgia_encode_mode_0(_multi, _3bpp, _doubled, _mapped);
+                                            break;
+                                        case PLANE_BITS_4BPP:
+                                            cgia_encode_mode_0(_multi, _4bpp, _doubled, _mapped);
                                             break;
                                         }
                                     }
@@ -1010,12 +1020,14 @@ void __attribute__((optimize("O3"))) cgia_render(uint16_t y, uint32_t *rgbbuf)
                                         switch (plane->bckgnd.flags & PLANE_MASK_PIXEL_BITS)
                                         {
                                         case PLANE_BITS_1BPP:
-                                        case PLANE_BITS_3BPP:
+                                        case PLANE_BITS_2BPP:
                                             cgia_encode_mode_0(_multi, _2bpp, , _mapped);
                                             break;
-                                        case PLANE_BITS_2BPP:
-                                        case PLANE_BITS_4BPP:
+                                        case PLANE_BITS_3BPP:
                                             cgia_encode_mode_0(_multi, _3bpp, , _mapped);
+                                            break;
+                                        case PLANE_BITS_4BPP:
+                                            cgia_encode_mode_0(_multi, _4bpp, , _mapped);
                                             break;
                                         }
                                     }
@@ -1336,38 +1348,32 @@ void cgia_task(void)
     _cgia_transfer_vcache_bank(1);
 }
 
-#ifdef PICO_SDK_VERSION_MAJOR
 static void _cgia_transfer_vcache_bank(uint8_t vcache_bank)
 {
-    if (!dma_channel_is_busy(vcache_chan))
+    if (vcache_dma_blocks_remaining == 0)
     {
         // Start DMA transfer from PSRAM to VRAM CACHE:
         // - do not start if transfer already in progress
         // - store vcache id of destination being trasferred
         // - allocate PSRAM chip, so CPU gets blocked until transfer is done
-        // - update vram_cache_bank_mask when transfer is done with stored value
-        //   - vram_wanted_bank_mask might already have changed and next transfer
+        // - update vram_cache_bank when transfer is done with stored value
+        //   - vram_wanted_bank might already have changed and next transfer
         //     will be started next tick
 
         if (vcache_transfer >= 0)
         {
-            // ongoing transfer finished
-            acquired_bank = -1;
-
-            vram_cache_bank_mask[vcache_transfer] = vram_wanted_bank_mask[vcache_transfer];
+            vram_cache_bank[vcache_transfer] = vram_wanted_bank[vcache_transfer];
             vram_cache_ptr[vcache_transfer] = vram_cache[vcache_transfer];
             vcache_transfer = -1;
         }
 
-        if (vram_wanted_bank_mask[vcache_bank] != vram_cache_bank_mask[vcache_bank]
-            && MEM_CAN_ACCESS_ADDR(vram_wanted_bank_mask[vcache_bank]))
+        if (vram_wanted_bank[vcache_bank] != vram_cache_bank[vcache_bank])
         {
             // start memory transfer
             vcache_transfer = vcache_bank;
-            acquired_bank = MEM_ADDR_TO_BANK(vram_wanted_bank_mask[vcache_bank]);
-            dma_channel_set_read_addr(vcache_chan, (void *)(XIP_PSRAM_CACHED | vram_wanted_bank_mask[vcache_bank]), false);
-            dma_channel_set_write_addr(vcache_chan, vram_cache[vcache_bank], true);
+            vcache_dma_bank = vram_wanted_bank[vcache_bank];
+            vcache_dma_dest = vram_cache[vcache_bank];
+            vcache_dma_blocks_remaining = 0x10000 / 32; // 64kB in 32-byte blocks
         }
     }
 }
-#endif

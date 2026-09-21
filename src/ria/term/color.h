@@ -4,9 +4,11 @@
  * SPDX-License-Identifier: BSD-3-Clause
  */
 
-#ifndef _COLOR_H_
-#define _COLOR_H_
+#ifndef _SB_TERM_COLOR_H_
+#define _SB_TERM_COLOR_H_
 
+#include <stdbool.h>
+#include <stddef.h>
 #include <stdint.h>
 
 #define PICO_SCANVIDEO_ALPHA_MASK               0xff000000u
@@ -17,4 +19,4 @@
 
 extern const uint32_t color_256[256];
 
-#endif /* _COLOR_H_ */
+#endif /* _SB_TERM_COLOR_H_ */

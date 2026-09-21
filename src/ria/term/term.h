@@ -1,17 +1,25 @@
 /*
- * Copyright (c) 2023 Rumbledethumps
- * Copyright (c) 2024 Tomasz Sterna
+ * Copyright (c) 2025 Rumbledethumps
  *
  * SPDX-License-Identifier: BSD-3-Clause
  */
 
-#ifndef _TERM_H_
-#define _TERM_H_
+#ifndef _SB_TERM_TERM_H_
+#define _SB_TERM_TERM_H_
 
-#include <sys/types.h>
+#include <stdbool.h>
+#include <stddef.h>
+#include <stdint.h>
+
+/* Main events
+ */
 
 void term_init(void);
 void term_task(void);
-void term_render(uint y, uint32_t *rgbbuf);
 
-#endif /* _TERM_H_ */
+void term_render(int16_t y, uint32_t *rgbbuf);
+
+void term_RIS();
+bool term_prog(uint16_t *xregs);
+
+#endif /* _SB_TERM_TERM_H_ */
