@@ -109,6 +109,11 @@ uint8_t *
         vram_cache_ptr[CGIA_VRAM_BANKS]
     = {vram_cache[0], vram_cache[0]};
 
+static int vcache_transfer; // records which bank is being transferred
+// set when the wanted bank moved away from the one being transferred,
+// so writes to it were not mirrored into the cache
+static volatile bool vcache_transfer_stale;
+
 void cgia_set_bank(uint8_t cgia_bank_id, uint8_t mem_bank_no)
 {
     assert(cgia_bank_id < 2);
@@ -119,9 +124,15 @@ void cgia_set_bank(uint8_t cgia_bank_id, uint8_t mem_bank_no)
         // if the bank matches - nothing to do
         return;
     }
+    if (vcache_transfer == cgia_bank_id && mem_bank_no != vcache_dma_bank)
+    {
+        // the transfer in flight is no longer what we want
+        vcache_transfer_stale = true;
+    }
     // if the new bank_no matches the one in other bank, re-use it
+    // (unless the other bank's buffer is being overwritten right now)
     const uint8_t other_bank_id = cgia_bank_id ^ 1;
-    if (mem_bank_no == vram_cache_bank[other_bank_id])
+    if (mem_bank_no == vram_cache_bank[other_bank_id] && vcache_transfer != other_bank_id)
     {
         vram_cache_bank[cgia_bank_id] = mem_bank_no;
         vram_cache_ptr[cgia_bank_id] = vram_cache_ptr[other_bank_id];
@@ -229,7 +240,6 @@ static int data_chan;
 static int back_chan;
 
 // CGIA VRAM CACHE bank sync
-static int vcache_transfer; // records which bank is being transferred
 uint8_t vcache_dma_bank = 0;
 uint16_t vcache_dma_blocks_remaining = 0;
 uint8_t *vcache_dma_dest = 0;
@@ -250,8 +260,8 @@ void cgia_reset(void)
     vcache_transfer = -1;
     vram_wanted_bank[0] = CGIA.bckgnd_bank = 0;
     vram_wanted_bank[1] = CGIA.sprite_bank = 0;
-    vram_cache_bank[0] = 0xFF; // Force initial transfer of bank
-    vram_cache_bank[1] = 0;
+    vram_cache_bank[0] = 0xFF; // Force initial transfer of banks
+    vram_cache_bank[1] = 0xFF;
 }
 
 void cgia_init(void)
@@ -1358,16 +1368,32 @@ static void _cgia_transfer_vcache_bank(uint8_t vcache_bank)
 
         if (vcache_transfer >= 0)
         {
-            vram_cache_bank[vcache_transfer] = vcache_dma_bank;
+            // pointer first: cgia_set_bank may share it as soon as the bank is tagged
             vram_cache_ptr[vcache_transfer] = vram_cache[vcache_transfer];
+            // a stale transfer missed writes to its bank - tag invalid to fetch again
+            vram_cache_bank[vcache_transfer] = vcache_transfer_stale ? 0xFF : vcache_dma_bank;
             vcache_transfer = -1;
         }
 
         if (vram_wanted_bank[vcache_bank] != vram_cache_bank[vcache_bank])
         {
+            const uint8_t other_bank = vcache_bank ^ 1;
+            // the other bank may already hold what we want - share it
+            if (vram_wanted_bank[vcache_bank] == vram_cache_bank[other_bank])
+            {
+                vram_cache_ptr[vcache_bank] = vram_cache_ptr[other_bank];
+                vram_cache_bank[vcache_bank] = vram_cache_bank[other_bank];
+                return;
+            }
+            // the other bank may be sharing our buffer - it has to fetch its own copy
+            if (vram_cache_ptr[other_bank] == vram_cache[vcache_bank])
+            {
+                vram_cache_bank[other_bank] = 0xFF;
+            }
             // start memory transfer
-            vcache_transfer = vcache_bank;
+            vcache_transfer_stale = false;
             vcache_dma_bank = vram_wanted_bank[vcache_bank];
+            vcache_transfer = vcache_bank;
             vcache_dma_dest = vram_cache[vcache_bank];
             vcache_dma_blocks_remaining = 0x10000 / 32; // 64kB in 32-byte blocks
         }
