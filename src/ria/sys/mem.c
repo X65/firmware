@@ -16,6 +16,7 @@
 #include "hardware/sync.h"
 #include "littlefs/lfs_util.h"
 #include "main.h"
+#include "mem_l2.h"
 
 #include <stdbool.h>
 #include <stdint.h>
@@ -334,22 +335,22 @@ void mem_post_reclock(void)
 // ---------------------------------------------------------------
 // L2 memory cache implementation
 // ---------------------------------------------------------------
-// See mem.h for the layout. The bus ISR accessors are inlined there.
+// See mem_l2.h for the layout and the bus ISR accessors.
 
 // The Data Store: 64kB
 uint8_t __attribute__((aligned(32)))
-__uninitialized_ram(l2_data)[MEM_L2_LINE_COUNT][MEM_L2_LINE_SIZE];
+__uninitialized_ram(mem_l2_data)[MEM_L2_LINE_COUNT][MEM_L2_LINE_SIZE];
 
 // The Tag Store: 2048 entries
 uint16_t __attribute__((aligned(2)))
-__uninitialized_ram(l2_tags)[MEM_L2_LINE_COUNT];
+__uninitialized_ram(mem_l2_tags)[MEM_L2_LINE_COUNT];
 
 static void l2_init(void)
 {
     // Invalidate all cache lines.
     for (size_t i = 0; i < MEM_L2_LINE_COUNT; i++)
     {
-        l2_tags[i] = 0;
+        mem_l2_tags[i] = 0;
     }
 }
 
@@ -385,18 +386,14 @@ void mem_cpy(uint32_t dest_addr24, const void *src, size_t len)
         memcpy((void *)(XIP_PSRAM_NOCACHE | (dest_addr24 & 0x7FFFFF)), s, n);
 
         // Update L2 cache if present
-        const uint16_t index = (dest_addr24 >> 5) & MEM_L2_LINE_MASK;
-        const uint16_t tag = ((dest_addr24 >> 16) & MEM_L2_TAG_MASK) | MEM_L2_TAG_VALID;
-        if (l2_tags[index] == tag)
+        const uint16_t index = mem_l2_index(dest_addr24);
+        if (mem_l2_tags[index] == mem_l2_tag(dest_addr24))
         {
-            memcpy(&l2_data[index][offset], s, n);
+            memcpy(&mem_l2_data[index][offset], s, n);
         }
 
         // Sync write to CGIA L1 cache
-        for (size_t i = 0; i < n; i++)
-        {
-            cgia_ram_write((uint8_t)(dest_addr24 >> 16), (uint16_t)(dest_addr24 + i), s[i]);
-        }
+        cgia_ram_write_buf((uint8_t)(dest_addr24 >> 16), (uint16_t)dest_addr24, s, n);
         restore_interrupts(irq_status);
 
         dest_addr24 += n;

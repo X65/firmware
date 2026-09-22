@@ -487,7 +487,7 @@ void com_in_write_ansi_CPR(int row, int col)
     size_t unread = com_in_len - com_in_pos;
     memmove(com_in_buf, &com_in_buf[com_in_pos], unread);
     int n = snprintf(&com_in_buf[unread], sizeof(com_in_buf) - unread, "\33[%d;%dR", row, col);
-    if (n < 0 || (size_t)n >= sizeof(com_in_buf) - unread)
+    if ((size_t)n >= sizeof(com_in_buf) - unread)
         n = 0;
     com_in_len = unread + (size_t)n;
     com_in_pos = 0;

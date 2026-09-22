@@ -297,8 +297,18 @@ void cgia_task(void);
 
 #define CGIA_VRAM_BANKS (2)
 extern uint8_t vram_cache[CGIA_VRAM_BANKS][0x10000];
+extern int vcache_buf_bank[CGIA_VRAM_BANKS];
 // pass EVERY RAM write through CGIA for updating VRAM cache banks
-void cgia_ram_write(uint8_t bank, uint16_t addr, uint8_t data);
+// (inline: called from the bus ISR on every 65816 write cycle)
+static inline __attribute__((always_inline)) void
+cgia_ram_write(uint8_t bank, uint16_t addr, uint8_t data)
+{
+    if (bank == vcache_buf_bank[0])
+        vram_cache[0][addr] = data;
+    if (bank == vcache_buf_bank[1])
+        vram_cache[1][addr] = data;
+}
+void cgia_ram_write_buf(uint8_t bank, uint16_t addr, const void *src, size_t len);
 // VCACHE DMA transfer control
 extern uint8_t vcache_dma_bank;
 extern uint16_t vcache_dma_blocks_remaining;

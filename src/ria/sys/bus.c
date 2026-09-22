@@ -20,6 +20,7 @@
 #include "sys/cpu.h"
 #include "sys/ext.h"
 #include "sys/mem.h"
+#include "sys/mem_l2.h"
 
 #include <stdbool.h>
 #include <stdio.h>
