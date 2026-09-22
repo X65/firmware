@@ -1351,8 +1351,7 @@ static void _cgia_transfer_vcache_bank(uint8_t vcache_bank)
     {
         // Start DMA transfer from PSRAM to VRAM CACHE:
         // - do not start if transfer already in progress
-        // - store vcache id of destination being trasferred
-        // - allocate PSRAM chip, so CPU gets blocked until transfer is done
+        // - store vcache id of destination being transferred
         // - update vram_cache_bank when transfer is done with stored value
         //   - vram_wanted_bank might already have changed and next transfer
         //     will be started next tick
