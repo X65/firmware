@@ -68,7 +68,8 @@ void bus_set_cia_irq(bool asserted)
 #define RIA_HID_DEV_GAMEPAD  0x02
 static uint8_t hid_dev = 0;
 
-// No RGB LEDs nor buzzer on gen1 boards: the registers only hold values
+// gen1 RGB LEDs hang off the ESP32 and the RIA drives no buzzer:
+// these registers only hold values
 static uint8_t rgb_regs[8];
 static uint8_t buz_regs[4];
 
