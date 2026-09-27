@@ -10,7 +10,8 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-#define PAD_MAX_PLAYERS 4
+// The HID selector ($FFB0) addresses pads 1..15
+#define PAD_MAX_PLAYERS 15
 
 /* Kernel events
  */
