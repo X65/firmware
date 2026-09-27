@@ -107,6 +107,47 @@ static uint8_t trans_data[ESP_SPI_DMA_MAX_LEN];
 static uint8_t current_send_seq = 0;
 static uint8_t current_recv_seq = 0;
 
+// ESP-AT ships with the WiFi SoftAP enabled. Its beacon every 102.4 ms
+// couples into the audio path as an audible knock, so switch it off
+// after every ESP32 boot. Station mode is kept.
+static const char *AT_CWMODE_QUERY = "AT+CWMODE?\r\n";
+static const char *AT_CWMODE_SET[] = {
+    [2] = "AT+CWMODE=0\r\n", // SoftAP -> off
+    [3] = "AT+CWMODE=1\r\n", // SoftAP+Station -> Station
+};
+static enum {
+    CWMODE_IDLE,
+    CWMODE_QUERY,
+    CWMODE_SET,
+} cwmode_state;
+static int cwmode;
+
+// Consume responses to our own CWMODE commands, so they don't reach the console.
+static bool mdm_cwmode_response(const char *data)
+{
+    if (cwmode_state == CWMODE_IDLE)
+        return false;
+
+    const char *mode = strstr(data, "+CWMODE:");
+    if (mode)
+        cwmode = atoi(mode + 8);
+
+    if (strstr(data, "OK") || strstr(data, "ERROR"))
+    {
+        if (cwmode_state == CWMODE_QUERY && (cwmode == 2 || cwmode == 3))
+        {
+            const char *cmd = AT_CWMODE_SET[cwmode];
+            mdm_write_data_to_slave((const uint8_t *)cmd, strlen(cmd));
+            cwmode_state = CWMODE_SET;
+        }
+        else
+        {
+            cwmode_state = CWMODE_IDLE;
+        }
+    }
+    return true;
+}
+
 void gpio_handshake_isr_handler(void)
 {
     if (gpio_get_irq_event_mask(ESP_AT_HS_PIN) & GPIO_IRQ_EDGE_RISE)
@@ -406,11 +447,14 @@ void mdm_task(void)
             at_spi_master_recv_data(trans_data, recv_opt.transmit_len);
             at_spi_rddma_done();
             trans_data[recv_opt.transmit_len] = '\0';
-            if (!strncmp(trans_data, MSG_READY, recv_opt.transmit_len))
+            if (!strncmp((const char *)trans_data, MSG_READY, recv_opt.transmit_len))
             {
                 is_ready = true;
+                cwmode = -1;
+                cwmode_state = CWMODE_QUERY;
+                mdm_write_data_to_slave((const uint8_t *)AT_CWMODE_QUERY, strlen(AT_CWMODE_QUERY));
             }
-            else
+            else if (!mdm_cwmode_response((const char *)trans_data))
             {
                 bool has_data = false;
                 for (size_t i = 0; i < recv_opt.transmit_len; ++i)
