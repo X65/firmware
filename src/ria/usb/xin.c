@@ -67,16 +67,18 @@ static int xin_idx_to_hid_slot(int idx)
 
 bool xin_is_xbox_one(int slot)
 {
+    // USB HID slots lie below HID_XIN_START: slot goes negative for them
     slot -= HID_XIN_START;
-    return slot < PAD_MAX_PLAYERS
+    return slot >= 0 && slot < PAD_MAX_PLAYERS
            && xbox_devices[slot].valid
            && xbox_devices[slot].is_xbox_one;
 }
 
 bool xin_is_xbox_360(int slot)
 {
+    // USB HID slots lie below HID_XIN_START: slot goes negative for them
     slot -= HID_XIN_START;
-    return slot < PAD_MAX_PLAYERS
+    return slot >= 0 && slot < PAD_MAX_PLAYERS
            && xbox_devices[slot].valid
            && !xbox_devices[slot].is_xbox_one;
 }
