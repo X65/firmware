@@ -164,9 +164,14 @@ start:
     in  pins, 8         side 0b0010     ; read A0-A7, switch to BUFF1
     in  pins, 8         side 0b0100     ; read A8-A15, switch to BUFF2
     in  pins, 16        side 0b0101     ; read BA0-BA7,VAB,RWB,... set clock HIGH
+    ; No autopush: a stalled autopush IN re-samples the pins until the RX FIFO
+    ; has room, by then BA0-BA7 are gone from the data bus. Push the sampled
+    ; address instead, and if the bus ISR is behind, stall with clock HIGH,
+    ; which holds the CPU in the middle of its cycle.
+    push block          side 0b0101
 
-    ; At this point RX fifo is autopushed, and CPU core1 will process the access
-    ; While Pico is processing the data, we can make decision what to do next
+    ; The bus ISR processes the access now.
+    ; While it does, we can make decision what to do next
     mov osr, ~pins      side 0b0101     ; load _negated_ pins
     out null, 8         side 0b0101     ; throw away data bus
     out y, 1            side 0b0101     ; load VAB to Y
@@ -182,7 +187,9 @@ write:
 loop:
     nop                 side 0b0101 [1]
     jmp x-- loop        side 0b0101 [1]
-    in  pins, 32        side 0b0100     ; read BA0-BA7, set clock LOW
+    in  pins, 32        side 0b0101     ; read D0-D7, clock still HIGH
+    push block          side 0b0100     ; set clock LOW, data is captured already,
+                                        ; so a stall here can't lose it
     jmp start           side 0b0000     ; continue to next cycle
 
 read:

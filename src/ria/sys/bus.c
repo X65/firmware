@@ -461,7 +461,8 @@ static void mem_bus_pio_init(void)
     uint offset = pio_add_program(MEM_BUS_PIO, &mem_bus_program);
     pio_sm_config config = mem_bus_program_get_default_config(offset);
     sm_config_set_clkdiv_int_frac(&config, MEM_BUS_PIO_CLKDIV_INT, MEM_BUS_PIO_CLKDIV_FRAC8);
-    sm_config_set_in_shift(&config, true, true, 32);
+    // no autopush: bus.pio pushes explicitly where a stall is harmless
+    sm_config_set_in_shift(&config, true, false, 32);
     sm_config_set_out_shift(&config, true, false, 0);
     sm_config_set_sideset_pins(&config, BUS_CTL_PIN_BASE);
     sm_config_set_in_pins(&config, BUS_PIN_BASE);
