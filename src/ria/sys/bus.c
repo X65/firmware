@@ -6,6 +6,7 @@
 
 #include "bus.h"
 #include "api/api.h"
+#include "api/oem.h"
 #include "bus.pio.h"
 #include "cgia/cgia.h"
 #include "hardware/clocks.h"
@@ -259,6 +260,13 @@ mem_bus_pio_irq_handler(void)
                         {
                             gpio_put(CPU_RESB_PIN, false);
                             main_stop();
+                        }
+                        else if (bus_data == API_OP_OEM_GET_CHARGEN)
+                        {
+                            // The X65 emulator finishes this inside the op
+                            // write and programs rely on it: the 65816 waits
+                            // for the 2 KB blit, it can't overwrite later.
+                            oem_api_get_chargen();
                         }
                         else
                         {
