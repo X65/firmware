@@ -75,6 +75,7 @@ target_sources(rp816 PRIVATE
     ria/sys/aud.c
     ria/sys/bus.c
     ria/sys/cfg.c
+    ria/sys/cia.c
     ria/sys/com.c
     ria/sys/cpu.c
     ria/sys/ext.c

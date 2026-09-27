@@ -27,7 +27,8 @@ bool kbd_umount(int slot);
 void kbd_report(int slot, uint8_t const *data, size_t size);
 
 // Set the extended register value.
-bool kbd_xreg(uint16_t word);
+// HID register read, idx indexes the key bitmap
+uint8_t kbd_get_reg(uint8_t idx);
 
 // Handler for stdio_driver_t
 int kbd_stdio_in_chars(char *buf, int length);

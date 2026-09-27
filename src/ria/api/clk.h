@@ -34,6 +34,5 @@ const char *clk_set_time_zone(const char *tz);
 bool clk_api_get_res(void);
 bool clk_api_get_time(void);
 bool clk_api_set_time(void);
-bool clk_api_get_time_zone(void);
 
 #endif /* _RIA_API_CLK_H_ */

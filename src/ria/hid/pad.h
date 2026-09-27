@@ -19,7 +19,8 @@ void pad_init(void);
 void pad_stop(void);
 
 // Set the extended register value.
-bool pad_xreg(uint16_t word);
+// HID register read of player pad (1..), or all players merged (0)
+uint8_t pad_get_reg(uint8_t pad, uint8_t idx);
 
 // Parse HID report descriptor for gamepad.
 bool pad_mount(int slot, uint8_t const *desc_data, uint16_t desc_len,

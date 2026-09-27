@@ -74,16 +74,27 @@ bool oem_api_codepage(void)
 
 bool oem_api_get_chargen(void)
 {
+    // xstack, top first: code page, address, bank
+    uint16_t cp;
     uint16_t addr;
-    if (!api_pop_uint16(&addr))
-        return api_return_errno(API_EINVAL);
     uint8_t bank;
-    if (!api_pop_uint8_end(&bank))
+    if (!api_pop_uint16(&cp)
+        || !api_pop_uint16(&addr)
+        || !api_pop_uint8(&bank))
         return api_return_errno(API_EINVAL);
 
-    mem_cpy((bank << 16) | addr, font8, 256 * 8);
+    // cp 0: the X65 font, 0xFFFF: the font in use, else that code page
+    uint8_t buf[64];
+    const uint32_t dest = (uint32_t)bank << 16 | addr;
+    for (uint16_t i = 0; i < 256 * 8; i += sizeof(buf))
+    {
+        for (uint16_t j = 0; j < sizeof(buf); j++)
+            buf[j] = font_get_byte(i + j, cp);
+        mem_cpy(dest + i, buf, sizeof(buf));
+    }
 
-    return api_return_ax(0);
+    // report which code page was loaded, 0 if cp is not built in
+    return api_return_ax((cp == 0xFFFF || font_has_code_page(cp)) ? cp : 0);
 }
 
 void oem_stop(void)

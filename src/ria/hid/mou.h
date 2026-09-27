@@ -18,7 +18,8 @@ void mou_init(void);
 void mou_stop(void);
 
 // Set the extended register value.
-bool mou_xreg(uint16_t word);
+// HID register read: buttons, x, y, wheel, pan, then 16-bit x, y at 8
+uint8_t mou_get_reg(uint8_t idx);
 
 // Parse HID report descriptor for gamepad.
 bool mou_mount(int slot, uint8_t const *desc_data, uint16_t desc_len);

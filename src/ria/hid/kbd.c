@@ -106,7 +106,6 @@ static char kbd_key_queue[16];
 static uint8_t kbd_key_queue_head;
 static uint8_t kbd_key_queue_tail;
 static uint8_t kdb_hid_leds;
-static uint16_t kbd_xram;
 static uint32_t kbd_keys[8];
 
 typedef struct
@@ -423,17 +422,13 @@ void kbd_task(void)
 
 void kbd_stop(void)
 {
-    kbd_xram = 0xFFFF;
 }
 
-bool kbd_xreg(uint16_t word)
+uint8_t kbd_get_reg(uint8_t idx)
 {
-    if (word != 0xFFFF && word > 0x10000 - sizeof(kbd_keys))
-        return false;
-    kbd_xram = word;
-    if (kbd_xram != 0xFFFF)
-        mem_cpy(kbd_xram, kbd_keys, sizeof(kbd_keys));
-    return true;
+    if (idx >= sizeof(kbd_keys))
+        return 0xFF;
+    return ((uint8_t *)kbd_keys)[idx];
 }
 
 bool __in_flash("kbd_mount") kbd_mount(int slot, uint8_t const *desc_data, uint16_t desc_len)
@@ -577,8 +572,4 @@ void kbd_report(int slot, uint8_t const *data, size_t size)
 
     // NUMLOCK CAPSLOCK SCROLLLOCK
     kbd_keys[0] |= (kdb_hid_leds & 7) << 1;
-
-    // Send it to psram
-    if (kbd_xram != 0xFFFF)
-        mem_cpy(kbd_xram, kbd_keys, sizeof(kbd_keys));
 }

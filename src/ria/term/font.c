@@ -1267,6 +1267,11 @@ void font_set_code_page(uint16_t cp)
         }
 }
 
+bool font_has_code_page(uint16_t cp)
+{
+    return font_8hi(cp) != NULL;
+}
+
 uint8_t font_get_byte(uint16_t byte_index, uint16_t cp)
 {
     byte_index &= (256 * 8 - 1);

@@ -19,6 +19,7 @@
 #include "sys/aud.h"
 #include "sys/bus.h"
 #include "sys/cfg.h"
+#include "sys/cia.h"
 #include "sys/com.h"
 #include "sys/cpu.h"
 #include "sys/ext.h"
@@ -49,6 +50,7 @@ static void init(void)
     mem_init();
     cpu_init();
     bus_init();
+    cia_init(); // after bus_init (drives the RIA IRQ line)
     font_init(); // before out_init (copies data from flash before overclocking)
     term_init();
     cgia_init();
@@ -132,6 +134,7 @@ static void stop(void)
     cpu_stop(); // Must be first
     api_stop();
     bus_stop();
+    cia_stop();
     aud_stop();
     oem_stop();
     kbd_stop();
@@ -175,9 +178,8 @@ bool main_api(uint8_t operation)
     // case 0x01:
     //     return pix_api_xreg();
     //     break;
-    // case 0x02:
-    //     return cpu_api_phi2();
-    //     break;
+    case API_OP_PHI2:
+        return api_return_ax(bus_get_phi2_khz());
     case API_OP_OEM_CODEPAGE:
         return oem_api_codepage();
         break;
@@ -201,9 +203,6 @@ bool main_api(uint8_t operation)
         break;
     case API_OP_CLK_SET_TIME:
         return clk_api_set_time();
-        break;
-    case API_OP_CLK_GET_TIME_ZONE:
-        return clk_api_get_time_zone();
         break;
         // case 0x14:
         //     return std_api_open();

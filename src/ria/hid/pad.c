@@ -97,7 +97,7 @@ typedef struct
 } pad_connection_t;
 
 // Where in XRAM to place reports, 0xFFFF when disabled.
-static uint16_t pad_xram;
+static pad_xram_t pad_state[PAD_MAX_PLAYERS];
 
 // Parsed descriptor structure for fast report parsing.
 static pad_connection_t pad_connections[PAD_MAX_PLAYERS];
@@ -722,28 +722,34 @@ void pad_init(void)
 
 void pad_stop(void)
 {
-    pad_xram = 0xFFFF;
 }
 
-// Provides first and final updates in psram
+// Provides first and final report of a player
 static void pad_reset_xram(int player)
 {
-    if (pad_xram == 0xFFFF)
-        return;
-    pad_xram_t gamepad_report;
-    pad_parse_report(player, 0, 0, &gamepad_report); // get blank
-    mem_cpy(pad_xram + player * (sizeof(pad_xram_t)),
-            &gamepad_report, sizeof(pad_xram_t));
+    pad_parse_report(player, 0, 0, &pad_state[player]); // get blank
 }
 
-bool pad_xreg(uint16_t word)
+uint8_t pad_get_reg(uint8_t pad, uint8_t idx)
 {
-    if (word != 0xFFFF && word > 0x10000 - (sizeof(pad_xram_t)) * PAD_MAX_PLAYERS)
-        return false;
-    pad_xram = word;
-    for (int i = 0; i < PAD_MAX_PLAYERS; i++)
-        pad_reset_xram(i);
-    return true;
+    if (pad > PAD_MAX_PLAYERS)
+        return 0xFF;
+    if (idx >= sizeof(pad_xram_t))
+        return 0xFF;
+
+    if (pad == 0)
+    {
+        // merge all pads' dpad and feature bits
+        uint8_t merged = 0;
+        for (int i = 0; i < PAD_MAX_PLAYERS; i++)
+        {
+            if ((pad_state[i].dpad & 0b10000000))
+                merged |= ((uint8_t *)(&pad_state[i]))[idx];
+        }
+        return merged;
+    }
+
+    return ((uint8_t *)(&pad_state[pad - 1]))[idx];
 }
 
 bool __in_flash("pad_mount") pad_mount(int slot, uint8_t const *desc_data, uint16_t desc_len,
@@ -808,14 +814,8 @@ void pad_report(int slot, uint8_t const *data, uint16_t len)
         report_data_len = len - 1;
     }
 
-    // Parse report and send it to psram
-    if (pad_xram != 0xFFFF)
-    {
-        pad_xram_t gamepad_report;
-        pad_parse_report(player, report_data, report_data_len, &gamepad_report);
-        mem_cpy(pad_xram + player * (sizeof(pad_xram_t)),
-                &gamepad_report, sizeof(pad_xram_t));
-    }
+    // Parse report into the player's registers
+    pad_parse_report(player, report_data, report_data_len, &pad_state[player]);
 }
 
 // This is for XBox One/Series gamepads which send
@@ -830,16 +830,12 @@ void pad_home_button(int slot, bool pressed)
     // Inject out of band home button into reports
     conn->home_pressed = pressed;
 
-    // Update the home button bit in psram
-    if (pad_xram != 0xFFFF)
-    {
-        uint32_t addr = pad_xram + player * (sizeof(pad_xram_t)) + 3;
-        uint8_t button1 = mem_read_ram(addr);
-        if (pressed)
-            mem_write_ram(addr, button1 | (1 << (PAD_HOME_BUTTON - 8)));
-        else
-            mem_write_ram(addr, button1 & ~(1 << (PAD_HOME_BUTTON - 8)));
-    }
+    // Update the home button bit in the player's registers
+    uint8_t *button1 = &pad_state[player].button1;
+    if (pressed)
+        *button1 |= (1 << (PAD_HOME_BUTTON - 8));
+    else
+        *button1 &= ~(1 << (PAD_HOME_BUTTON - 8));
 }
 
 // Useful for gamepads that indicate player number.

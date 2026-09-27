@@ -38,7 +38,6 @@ static struct
 uint16_t mou_x;
 uint16_t mou_y;
 
-static uint16_t mou_xram;
 
 // Mouse descriptors are normalized to this structure.
 typedef struct
@@ -77,17 +76,26 @@ void mou_init(void)
 
 void mou_stop(void)
 {
-    mou_xram = 0xFFFF;
 }
 
-bool mou_xreg(uint16_t word)
+uint8_t mou_get_reg(uint8_t idx)
 {
-    if (word != 0xFFFF && word > 0x10000 - sizeof(mou_state))
-        return false;
-    mou_xram = word;
-    if (mou_xram != 0xFFFF)
-        mem_cpy(mou_xram, &mou_state, sizeof(mou_state));
-    return true;
+    if (idx < sizeof(mou_state))
+        return ((uint8_t *)(&mou_state))[idx];
+
+    switch (idx)
+    {
+    case 0x08:
+        return mou_x & 0xFF;
+    case 0x09:
+        return mou_x >> 8;
+    case 0x0A:
+        return mou_y & 0xFF;
+    case 0x0B:
+        return mou_y >> 8;
+    default:
+        return 0xFF;
+    }
 }
 
 bool __in_flash("mou_mount") mou_mount(int slot, uint8_t const *desc_data, uint16_t desc_len)
@@ -222,7 +230,4 @@ void mou_report(int slot, void const *data, size_t size)
         mou_state.pan += des_extract_signed(report_data, report_data_len,
                                             conn->pan_offset, conn->pan_size);
 
-    // Update XRAM with new state
-    if (mou_xram != 0xFFFF)
-        mem_cpy(mou_xram, &mou_state, sizeof(mou_state));
 }

@@ -12,12 +12,16 @@
 #include "hardware/gpio.h"
 #include "hardware/pio.h"
 #include "hardware/structs/bus_ctrl.h"
+#include "hid/kbd.h"
+#include "hid/mou.h"
+#include "hid/pad.h"
 #include "main.h"
 #include "pico/rand.h"
 #include "pico/time.h"
 #include "sys/aud.h"
 #include "sys/com.h"
 #include "sys/cpu.h"
+#include "sys/cia.h"
 #include "sys/ext.h"
 #include "sys/mem.h"
 #include "sys/mem_l2.h"
@@ -42,7 +46,31 @@ volatile uint8_t
     __scratch_y("")
         __regs[0x40];
 
-static volatile bool irq_enabled = false;
+// RIA interrupt: IRQ_ENABLE ($FFEC) bit 0 gates the CIA timers IRQ
+static volatile uint8_t irq_enable = 0;
+static volatile bool cia_irq_line = false;
+
+static inline void bus_update_irq(void)
+{
+    gpio_put(RIA_IRQB_PIN, !(cia_irq_line && (irq_enable & 0x01)));
+}
+
+void bus_set_cia_irq(bool asserted)
+{
+    cia_irq_line = asserted;
+    bus_update_irq();
+}
+
+// HID device selected by a write to $FFB0: [AAAA DDDD]
+// D - device type, A - device index
+#define RIA_HID_DEV_KEYBOARD 0x00
+#define RIA_HID_DEV_MOUSE    0x01
+#define RIA_HID_DEV_GAMEPAD  0x02
+static uint8_t hid_dev = 0;
+
+// No RGB LEDs nor buzzer on gen1 boards: the registers only hold values
+static uint8_t rgb_regs[8];
+static uint8_t buz_regs[4];
 
 static enum state {
     BUS_PENDING_NOTHING,
@@ -117,246 +145,202 @@ mem_bus_pio_irq_handler(void)
                 // I/O area access
                 if ((bus_address & 0xFFFFC0) == 0x00FFC0) // RP816 RIA registers
                 {
-                    // ------ FFF0 - FFFF ------ (API, EXT CTL)
-                    if ((bus_address & 0xFFF0) == 0xFFF0)
-                        switch (bus_address & (CPU_IODEV_MASK | CPU_RWB_MASK))
-                        {
-                        case CASE_WRIT(0xFFF0): // xstack
-                            if (xstack_ptr)
-                                xstack[--xstack_ptr] = bus_data;
-                            break;
-                        case CASE_READ(0xFFF0): // xstack
-                            MEM_BUS_PIO->txf[MEM_BUS_SM] = xstack[xstack_ptr];
-                            if (xstack_ptr < XSTACK_SIZE)
-                                ++xstack_ptr;
-                            break;
-                        case CASE_READ(0xFFF1): // API return value
-                            MEM_BUS_PIO->txf[MEM_BUS_SM] = API_OP;
-                            break;
-                        case CASE_WRIT(0xFFF1): // API call
-                            API_OP = bus_data;
-                            api_set_regs_blocked();
-                            if (bus_data == API_OP_ZXSTACK)
-                            {
-                                API_STACK = 0;
-                                xstack_ptr = XSTACK_SIZE;
-                                api_return_ax(0);
-                            }
-                            else if (bus_data == API_OP_HALT)
-                            {
-                                gpio_put(CPU_RESB_PIN, false);
-                                main_stop();
-                            }
-                            break;
-                        case CASE_READ(0xFFF2): // API ERRNO
-                            MEM_BUS_PIO->txf[MEM_BUS_SM] = API_ERRNO;
-                            break;
-                        case CASE_WRIT(0xFFF2): // ignore write
-                            break;
-                        case CASE_READ(0xFFF3): // API BUSY
-                            MEM_BUS_PIO->txf[MEM_BUS_SM] = API_BUSY;
-                            break;
-                        case CASE_WRIT(0xFFF3): // ignore write
-                            break;
-
-                        case CASE_READ(0xFFF6): // EXTIO
-                            MEM_BUS_PIO->txf[MEM_BUS_SM] = 0x00;
-                            break;
-                        case CASE_WRIT(0xFFF6): // EXTIO
-                            REGS(bus_address) = bus_data;
-                            break;
-                        case CASE_READ(0xFFF7): // EXTMEM
-                            MEM_BUS_PIO->txf[MEM_BUS_SM] = 0x00;
-                            break;
-                        case CASE_WRIT(0xFFF7): // EXTMEM
-                            REGS(bus_address) = bus_data;
-                            break;
-
-                        // COP ABORTB NMIB RESETB IRQB/BRK
-                        default:
-                            if (bus_address & CPU_RWB_MASK)
-                            {
-                                MEM_BUS_PIO->txf[MEM_BUS_SM] = REGS(bus_address);
-                            }
-                            else
-                            {
-                                REGS(bus_address) = bus_data;
-                            }
-                        }
-                    // ------ FFE0 - FFEF ------ (UART, RNG, IRQ CTL)
-                    else if ((bus_address & 0xFFF0) == 0xFFE0)
-                        switch (bus_address & (CPU_IODEV_MASK | CPU_RWB_MASK))
-                        {
-                        case CASE_READ(0xFFE1): // UART Rx
-                        {
-                            int ch = cpu_rx_char;
-                            if (ch >= 0)
-                            {
-                                REGS(0xFFE1) = (uint8_t)ch;
-                                cpu_rx_char = -1;
-                            }
-                            else
-                            {
-                                REGS(0xFFE1) = 0;
-                            }
-                            MEM_BUS_PIO->txf[MEM_BUS_SM] = REGS(0xFFE1);
-                            break;
-                        }
-                        case CASE_WRIT(0xFFE1): // UART Tx
-                            if (com_tx_writable())
-                                com_tx_write(bus_data);
-                            break;
-                        case CASE_READ(0xFFE0): // UART Tx/Rx flow control
-                        {
-                            int ch = cpu_rx_char;
-                            if (ch >= 0)
-                                REGS(0xFFE0) |= 0b01000000;
-                            else
-                                REGS(0xFFE0) &= ~0b01000000;
-                            if (com_tx_writable())
-                                REGS(0xFFE0) |= 0b10000000;
-                            else
-                                REGS(0xFFE0) &= ~0b10000000;
-                            MEM_BUS_PIO->txf[MEM_BUS_SM] = REGS(0xFFE0);
-                            break;
-                        }
-                        case CASE_WRIT(0xFFE0): // UART Tx/Rx flow control
-                            REGS(0xFFE0) = bus_data;
-                            break;
-
-                        case CASE_READ(0xFFE3): // Random Number Generator
-                        case CASE_READ(0xFFE2): // Two bytes to allow 16 bit values
-                        {
-                            MEM_BUS_PIO->txf[MEM_BUS_SM] = get_rand_32();
-                            break;
-                        }
-
-                        case CASE_READ(0xFFED): // IRQ_STATUS
-                        {
-                            // 1. stop BUS PIO
-                            MEM_BUS_PIO->irq_force = (1u << GATE_IRQ); // raise gating IRQ
-                            // 2. turn off all BUS buffers
-                            gpio_set_outover(BUS_BE0_PIN, GPIO_OVERRIDE_HIGH);
-                            gpio_set_outover(BUS_BE1_PIN, GPIO_OVERRIDE_HIGH);
-                            // 3. turn on INT CTL buffer
-                            gpio_put(INT_CTL_EN_PIN, false);
-                            // 4. push fake data to trigger PIO run
-                            MEM_BUS_PIO->txf[MEM_BUS_SM] = 0x5a;
-                            // 5. wait until PIO stops reading
-                            while (gpio_get(BUS_DIR_PIN))
-                                tight_loop_contents();
-                            // 6. turn off INT CTL buffer
-                            gpio_put(INT_CTL_EN_PIN, true);
-                            // 7. give back BE0 and BE1 to PIO
-                            gpio_set_outover(BUS_BE0_PIN, GPIO_OVERRIDE_NORMAL);
-                            gpio_set_outover(BUS_BE1_PIN, GPIO_OVERRIDE_NORMAL);
-                            // 8. schedule BUS PIO restart after some delay
-                            bus_pending_operation = BUS_PENDING_DELAY;
-                            bus_pending_delay = IRQ_CTL_DELAY;
-                            // 9. Clear the interrupt request and exit
-                            pio_interrupt_clear(MEM_BUS_PIO, MEM_BUS_PIO_IRQ);
-                            return;
-                        }
-                        break;
-                        case CASE_WRIT(0xFFED): // IRQ_STATUS
-                            // do nothing
-                            break;
-
-                        // COP BRK ABORTB NMIB IRQB, IRQ_ENABLE
-                        default:
-                            if (bus_address & CPU_RWB_MASK)
-                            {
-                                MEM_BUS_PIO->txf[MEM_BUS_SM] = REGS(bus_address);
-                            }
-                            else
-                            {
-                                REGS(bus_address) = bus_data;
-                            }
-                        }
-                    // ------ FFD0 - FFDF ------ (DMA, FS)
-                    else if ((bus_address & 0xFFF0) == 0xFFD0)
-                        switch (bus_address & (CPU_IODEV_MASK | CPU_RWB_MASK))
-                        {
-                            // DMA - FFD0 - FFD9
-                            // FS  - FFDA - FFDD
-
-                        default:
-                            if (bus_address & CPU_RWB_MASK)
-                            {
-                                // CPU is waiting for some data - push NOP
-                                MEM_BUS_PIO->txf[MEM_BUS_SM] = 0xEA;
-                            }
-                        }
+                    uint8_t data = 0xFF;
+                    switch (bus_address & (CPU_IODEV_MASK | CPU_RWB_MASK))
+                    {
                     // ------ FFC0 - FFCF ------ (MUL/DIV, TOD)
-                    else if ((bus_address & 0xFFF0) == 0xFFC0)
-                        switch (bus_address & (CPU_IODEV_MASK | CPU_RWB_MASK))
+                    // OPERA * OPERB - multiplication accelerator
+                    case CASE_READ(0xFFC4):
+                    case CASE_READ(0xFFC5):
+                    case CASE_READ(0xFFC6):
+                    case CASE_READ(0xFFC7):
+                    {
+                        const uint32_t mul = (uint32_t)REGSW(0xFFC0) * REGSW(0xFFC2);
+                        data = ((uint8_t *)&mul)[bus_address & 0x03];
+                        break;
+                    }
+                    // Signed OPERA / unsigned OPERB - division accelerator
+                    case CASE_READ(0xFFC8):
+                    case CASE_READ(0xFFC9):
+                    {
+                        const int16_t oper_a = (int16_t)REGSW(0xFFC0);
+                        const uint16_t oper_b = (uint16_t)REGSW(0xFFC2);
+                        const uint16_t div = oper_b ? (uint16_t)(oper_a / oper_b) : 0xFFFF;
+                        data = ((uint8_t *)&div)[bus_address & 0x01];
+                        break;
+                    }
+                    // monotonic clock, microseconds, 48 bits
+                    case CASE_READ(0xFFCA):
+                    case CASE_READ(0xFFCB):
+                    case CASE_READ(0xFFCC):
+                    case CASE_READ(0xFFCD):
+                    case CASE_READ(0xFFCE):
+                    case CASE_READ(0xFFCF):
+                    {
+                        const uint64_t us = to_us_since_boot(get_absolute_time());
+                        data = ((uint8_t *)&us)[(bus_address - 2) & 0x07];
+                        break;
+                    }
+
+                    // ------ FFD0 - FFDF ------ (DMA, FS) plain registers
+
+                    // ------ FFE0 - FFEF ------ (UART, RNG, IRQ CTL)
+                    case CASE_READ(0xFFE0): // UART Tx/Rx flow control
+                        data = 0;
+                        if (cpu_rx_char >= 0)
+                            data |= 0b01000000;
+                        if (com_tx_writable())
+                            data |= 0b10000000;
+                        break;
+                    case CASE_READ(0xFFE1): // UART Rx
+                    {
+                        const int ch = cpu_rx_char;
+                        if (ch >= 0)
                         {
-                        // math accelerator - OPERA, OPERB
-                        case CASE_WRIT(0xFFC0):
-                        case CASE_WRIT(0xFFC1):
-                        case CASE_WRIT(0xFFC2):
-                        case CASE_WRIT(0xFFC3):
+                            data = (uint8_t)ch;
+                            cpu_rx_char = -1;
+                        }
+                        break;
+                    }
+                    case CASE_WRIT(0xFFE1): // UART Tx
+                        if (com_tx_writable())
+                            com_tx_write(bus_data);
+                        break;
+                    case CASE_READ(0xFFE2): // Random Number Generator
+                    case CASE_READ(0xFFE3): // Two bytes to allow 16 bit values
+                        data = (uint8_t)get_rand_32();
+                        break;
+                    case CASE_READ(0xFFEC): // IRQ_ENABLE
+                        data = irq_enable;
+                        break;
+                    case CASE_WRIT(0xFFEC): // IRQ_ENABLE
+                        irq_enable = bus_data & 0x01;
+                        bus_update_irq();
+                        break;
+                    case CASE_READ(0xFFED): // IRQ_STATUS
+                    {
+                        // 1. stop BUS PIO
+                        MEM_BUS_PIO->irq_force = (1u << GATE_IRQ); // raise gating IRQ
+                        // 2. turn off all BUS buffers
+                        gpio_set_outover(BUS_BE0_PIN, GPIO_OVERRIDE_HIGH);
+                        gpio_set_outover(BUS_BE1_PIN, GPIO_OVERRIDE_HIGH);
+                        // 3. turn on INT CTL buffer
+                        gpio_put(INT_CTL_EN_PIN, false);
+                        // 4. push fake data to trigger PIO run
+                        MEM_BUS_PIO->txf[MEM_BUS_SM] = 0x5a;
+                        // 5. wait until PIO stops reading
+                        while (gpio_get(BUS_DIR_PIN))
+                            tight_loop_contents();
+                        // 6. turn off INT CTL buffer
+                        gpio_put(INT_CTL_EN_PIN, true);
+                        // 7. give back BE0 and BE1 to PIO
+                        gpio_set_outover(BUS_BE0_PIN, GPIO_OVERRIDE_NORMAL);
+                        gpio_set_outover(BUS_BE1_PIN, GPIO_OVERRIDE_NORMAL);
+                        // 8. schedule BUS PIO restart after some delay
+                        bus_pending_operation = BUS_PENDING_DELAY;
+                        bus_pending_delay = IRQ_CTL_DELAY;
+                        // 9. Clear the interrupt request and exit
+                        pio_interrupt_clear(MEM_BUS_PIO, MEM_BUS_PIO_IRQ);
+                        return;
+                    }
+                    case CASE_WRIT(0xFFED): // IRQ_STATUS is read only
+                        break;
+
+                    // ------ FFF0 - FFFF ------ (API, EXT CTL)
+                    case CASE_WRIT(0xFFF0): // API call
+                        api_set_regs_blocked();
+                        if (bus_data == API_OP_ZXSTACK)
+                        {
+                            xstack_ptr = XSTACK_SIZE;
+                            api_return_ax(0);
+                        }
+                        else if (bus_data == API_OP_HALT)
+                        {
+                            gpio_put(CPU_RESB_PIN, false);
+                            main_stop();
+                        }
+                        else
+                        {
+                            API_OP = bus_data;
+                        }
+                        break;
+                    case CASE_READ(0xFFF2): // xstack
+                        data = xstack[xstack_ptr];
+                        if (xstack_ptr < XSTACK_SIZE)
+                            ++xstack_ptr;
+                        break;
+                    case CASE_WRIT(0xFFF2): // xstack
+                        if (xstack_ptr)
+                            xstack[--xstack_ptr] = bus_data;
+                        break;
+
+                    // API return value, status, CPU vectors, EXTIO, EXTMEM
+                    default:
+                        if (bus_address & CPU_RWB_MASK)
+                            data = REGS(bus_address);
+                        else
                             REGS(bus_address) = bus_data;
-                            break;
-                        case CASE_READ(0xFFC0):
-                        case CASE_READ(0xFFC1):
-                        case CASE_READ(0xFFC2):
-                        case CASE_READ(0xFFC3):
-                            MEM_BUS_PIO->txf[MEM_BUS_SM] = REGS(bus_address);
-                            break;
-                        // OPERA * OPERB - multiplication accelerator
-                        case CASE_READ(0xFFC4):
-                        case CASE_READ(0xFFC5):
-                        {
-                            uint16_t mul = REGSW(0xFFC0) * REGSW(0xFFC2);
-                            MEM_BUS_PIO->txf[MEM_BUS_SM] = (bus_address & 1) ? (mul >> 8) : (mul & 0xFF);
-                        }
-                        break;
-                        // Signed OPERA / unsigned OPERB - division accelerator
-                        case CASE_READ(0xFFC6):
-                        case CASE_READ(0xFFC7):
-                        {
-                            const int16_t oper_a = (int16_t)REGSW(0xFFC0);
-                            const uint16_t oper_b = (uint16_t)REGSW(0xFFC2);
-                            uint16_t div = oper_b ? (oper_a / oper_b) : 0xFFFF;
-                            MEM_BUS_PIO->txf[MEM_BUS_SM] = (bus_address & 1) ? (div >> 8) : (div & 0xFF);
-                        }
-                        break;
-
-                        // monotonic clock
-                        case CASE_READ(0xFFC8):
-                        case CASE_READ(0xFFC9):
-                        case CASE_READ(0xFFCA):
-                        case CASE_READ(0xFFCB):
-                        case CASE_READ(0xFFCC):
-                        case CASE_READ(0xFFCD):
-                        {
-                            uint64_t us = to_us_since_boot(get_absolute_time());
-                            MEM_BUS_PIO->txf[MEM_BUS_SM] = ((uint8_t *)&us)[bus_address & 0x07];
-                            break;
-                        }
-
-                        default:
-                            if (bus_address & CPU_RWB_MASK)
-                            {
-                                // CPU is waiting for some data - push NOP
-                                MEM_BUS_PIO->txf[MEM_BUS_SM] = 0xEA;
-                            }
-                        }
-                }
-                // ------ FF80 - FF87 ------ (GPIO)
-                else if ((bus_address & 0xFFF8) == 0xFF80)
-                {
-                    uint8_t reg = (uint8_t)(bus_address & 0x7);
+                    }
                     if (bus_address & CPU_RWB_MASK)
-                    { // CPU is reading
-                        uint8_t val = ext_reg_read(IOE_I2C_ADDRESS, reg);
-                        MEM_BUS_PIO->txf[MEM_BUS_SM] = val;
+                        MEM_BUS_PIO->txf[MEM_BUS_SM] = data;
+                }
+                // ------ FF80 - FFBF ------ (devices mapped by RIA)
+                else if ((bus_address & 0xFFFFC0) == 0x00FF80)
+                {
+                    const uint8_t reg = (uint8_t)bus_address;
+                    const bool is_read = bus_address & CPU_RWB_MASK;
+                    uint8_t data = 0xFF;
+                    if (reg >= 0xB0) // ------ FFB0 - FFBF ------ (HID)
+                    {
+                        if (is_read)
+                            switch (hid_dev & 0x0F)
+                            {
+                            case RIA_HID_DEV_KEYBOARD:
+                                data = kbd_get_reg((hid_dev & 0xF0) | (reg & 0x0F));
+                                break;
+                            case RIA_HID_DEV_MOUSE:
+                                data = mou_get_reg(reg & 0x0F);
+                                break;
+                            case RIA_HID_DEV_GAMEPAD:
+                                data = pad_get_reg(hid_dev >> 4, reg & 0x0F);
+                                break;
+                            }
+                        else if ((reg & 0x0F) == 0x00) // HID SELECT
+                            hid_dev = bus_data;
                     }
-                    else
-                    { // CPU is writing
-                        ext_reg_write(IOE_I2C_ADDRESS, reg, bus_data);
+                    else if (reg >= 0xAC) // ------ FFAC - FFAF ------ (unused)
+                    {
                     }
+                    else if (reg >= 0xA8) // ------ FFA8 - FFAB ------ (buzzer)
+                    {
+                        if (is_read)
+                            data = buz_regs[reg & 0x03];
+                        else
+                            buz_regs[reg & 0x03] = bus_data;
+                    }
+                    else if (reg >= 0xA0) // ------ FFA0 - FFA7 ------ (RGB LEDs)
+                    {
+                        if (is_read)
+                            data = rgb_regs[reg & 0x07];
+                        else
+                            rgb_regs[reg & 0x07] = bus_data;
+                    }
+                    else if (reg >= 0x98) // ------ FF98 - FF9F ------ (CIA timers)
+                    {
+                        if (is_read)
+                            data = cia_reg_read(reg & 0x07);
+                        else
+                            cia_reg_write(reg & 0x07, bus_data);
+                    }
+                    else // ------ FF80 - FF97 ------ (GPIO extender)
+                    {
+                        if (is_read)
+                            data = ext_reg_read(IOE_I2C_ADDRESS, reg & 0x07);
+                        else
+                            ext_reg_write(IOE_I2C_ADDRESS, reg & 0x07, bus_data);
+                    }
+                    if (is_read)
+                        MEM_BUS_PIO->txf[MEM_BUS_SM] = data;
                 }
                 // ------ FF00 - FF7F ------ (CGIA registers)
                 else if ((bus_address & 0xFFFF80) == 0x00FF00)
@@ -383,9 +367,10 @@ mem_bus_pio_irq_handler(void)
                     }
                 }
                 // ------ FC00 - FDFF ------ (EXT I/O registers)
+                // The window belongs to the expansion bus out of reset.
+                // A set EXTIO ($FFF6) bit hands its 64-byte chunk back to RAM.
                 else if ((bus_address & 0xFFFE00) == 0x00FC00 &&
-                         // check whether chunk is enabled for EXT I/O
-                         (REGS(0x00FFF6) & BIT8_MASK[(bus_address >> 6) & 0x07]))
+                         !(REGS(0x00FFF6) & BIT8_MASK[(bus_address >> 6) & 0x07]))
                 {
                     // same as IRQ_STATUS above
                     MEM_BUS_PIO->irq_force = (1u << GATE_IRQ); // raise gating IRQ
@@ -437,12 +422,6 @@ mem_bus_pio_irq_handler(void)
             return;
         }
     }
-}
-
-void ria_trigger_irq(void)
-{
-    if (irq_enabled & 0x01)
-        gpio_put(RIA_IRQB_PIN, false);
 }
 
 static void mem_bus_int_init(void)
@@ -545,14 +524,18 @@ void bus_init(void)
 
 void bus_run(void)
 {
+    // expansion window routed to the bus, no MMU
+    REGS(0xFFF6) = 0;
+    REGS(0xFFF7) = 0;
+    hid_dev = 0;
     MEM_BUS_PIO->irq = (1u << GATE_IRQ); // clear gating IRQ
 }
 
 void bus_stop(void)
 {
     MEM_BUS_PIO->irq_force = (1u << GATE_IRQ); // raise gating IRQ
-    irq_enabled = false;
-    gpio_put(RIA_IRQB_PIN, true);
+    irq_enable = 0;
+    bus_update_irq();
 #ifdef MEM_CPU_ADDRESS_BUS_HISTORY_LENGTH
     mem_cpu_address_bus_history_index = 0;
 #ifdef ABORT_ON_IRQ_BRK_READ
@@ -607,7 +590,15 @@ void bus_task(void)
 #endif
 }
 
+// PIO cycles per PHI2 cycle, measured for bus.pio (see WRITE_DELAY)
+#define BUS_PIO_CYCLES_PER_PHI2 (WRITE_DELAY * 2.1644)
+
 void bus_print_status(void)
 {
-    printf("CPU : ~%.2fMHz\n", (float)SYS_CLK_HZ / MEM_BUS_PIO_CLKDIV_INT / (WRITE_DELAY * 2.1644) / MHZ);
+    printf("CPU : ~%.2fMHz\n", (float)SYS_CLK_HZ / MEM_BUS_PIO_CLKDIV_INT / BUS_PIO_CYCLES_PER_PHI2 / MHZ);
+}
+
+uint16_t bus_get_phi2_khz(void)
+{
+    return (uint16_t)((float)SYS_CLK_HZ / MEM_BUS_PIO_CLKDIV_INT / BUS_PIO_CYCLES_PER_PHI2 / 1000);
 }
