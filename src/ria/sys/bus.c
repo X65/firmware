@@ -12,6 +12,7 @@
 #include "hardware/clocks.h"
 #include "hardware/gpio.h"
 #include "hardware/pio.h"
+#include "hardware/sync.h"
 #include "hardware/structs/bus_ctrl.h"
 #include "hid/kbd.h"
 #include "hid/mou.h"
@@ -73,6 +74,80 @@ static uint8_t hid_dev = 0;
 // these registers only hold values
 static uint8_t rgb_regs[8];
 static uint8_t buz_regs[4];
+
+// Devices mapped by RIA at $FF80-$FFBF, reg is the address low byte.
+// Returns the value read, 0xFF where nothing answers.
+static inline __attribute__((always_inline)) uint8_t
+bus_dev_access(uint8_t reg, bool is_read, uint8_t data_in)
+{
+    uint8_t data = 0xFF;
+    if (reg >= 0xB0) // ------ FFB0 - FFBF ------ (HID)
+    {
+        if (is_read)
+            switch (hid_dev & 0x0F)
+            {
+            case RIA_HID_DEV_KEYBOARD:
+                data = kbd_get_reg((hid_dev & 0xF0) | (reg & 0x0F));
+                break;
+            case RIA_HID_DEV_MOUSE:
+                data = mou_get_reg(reg & 0x0F);
+                break;
+            case RIA_HID_DEV_GAMEPAD:
+                data = pad_get_reg(hid_dev >> 4, reg & 0x0F);
+                break;
+            }
+        else if ((reg & 0x0F) == 0x00) // HID SELECT
+            hid_dev = data_in;
+    }
+    else if (reg >= 0xAC) // ------ FFAC - FFAF ------ (unused)
+    {
+    }
+    else if (reg >= 0xA8) // ------ FFA8 - FFAB ------ (buzzer)
+    {
+        if (is_read)
+            data = buz_regs[reg & 0x03];
+        else
+            buz_regs[reg & 0x03] = data_in;
+    }
+    else if (reg >= 0xA0) // ------ FFA0 - FFA7 ------ (RGB LEDs)
+    {
+        if (is_read)
+            data = rgb_regs[reg & 0x07];
+        else
+            rgb_regs[reg & 0x07] = data_in;
+    }
+    else if (reg >= 0x98) // ------ FF98 - FF9F ------ (CIA timers)
+    {
+        if (is_read)
+            data = cia_reg_read(reg & 0x07);
+        else
+            cia_reg_write(reg & 0x07, data_in);
+    }
+    else // ------ FF80 - FF97 ------ (GPIO extender)
+    {
+        if (is_read)
+            data = ext_reg_read(IOE_I2C_ADDRESS, reg & 0x07);
+        else
+            ext_reg_write(IOE_I2C_ADDRESS, reg & 0x07, data_in);
+    }
+    return data;
+}
+
+// The same devices for the kernel loop (monitor, ROM loader)
+uint8_t bus_dev_read(uint8_t reg)
+{
+    const uint32_t irq_status = save_and_disable_interrupts();
+    const uint8_t data = bus_dev_access(reg, true, 0);
+    restore_interrupts(irq_status);
+    return data;
+}
+
+void bus_dev_write(uint8_t reg, uint8_t data)
+{
+    const uint32_t irq_status = save_and_disable_interrupts();
+    (void)bus_dev_access(reg, false, data);
+    restore_interrupts(irq_status);
+}
 
 static enum state {
     BUS_PENDING_NOTHING,
@@ -296,58 +371,8 @@ mem_bus_pio_irq_handler(void)
                 // ------ FF80 - FFBF ------ (devices mapped by RIA)
                 else if ((bus_address & 0xFFFFC0) == 0x00FF80)
                 {
-                    const uint8_t reg = (uint8_t)bus_address;
                     const bool is_read = bus_address & CPU_RWB_MASK;
-                    uint8_t data = 0xFF;
-                    if (reg >= 0xB0) // ------ FFB0 - FFBF ------ (HID)
-                    {
-                        if (is_read)
-                            switch (hid_dev & 0x0F)
-                            {
-                            case RIA_HID_DEV_KEYBOARD:
-                                data = kbd_get_reg((hid_dev & 0xF0) | (reg & 0x0F));
-                                break;
-                            case RIA_HID_DEV_MOUSE:
-                                data = mou_get_reg(reg & 0x0F);
-                                break;
-                            case RIA_HID_DEV_GAMEPAD:
-                                data = pad_get_reg(hid_dev >> 4, reg & 0x0F);
-                                break;
-                            }
-                        else if ((reg & 0x0F) == 0x00) // HID SELECT
-                            hid_dev = bus_data;
-                    }
-                    else if (reg >= 0xAC) // ------ FFAC - FFAF ------ (unused)
-                    {
-                    }
-                    else if (reg >= 0xA8) // ------ FFA8 - FFAB ------ (buzzer)
-                    {
-                        if (is_read)
-                            data = buz_regs[reg & 0x03];
-                        else
-                            buz_regs[reg & 0x03] = bus_data;
-                    }
-                    else if (reg >= 0xA0) // ------ FFA0 - FFA7 ------ (RGB LEDs)
-                    {
-                        if (is_read)
-                            data = rgb_regs[reg & 0x07];
-                        else
-                            rgb_regs[reg & 0x07] = bus_data;
-                    }
-                    else if (reg >= 0x98) // ------ FF98 - FF9F ------ (CIA timers)
-                    {
-                        if (is_read)
-                            data = cia_reg_read(reg & 0x07);
-                        else
-                            cia_reg_write(reg & 0x07, bus_data);
-                    }
-                    else // ------ FF80 - FF97 ------ (GPIO extender)
-                    {
-                        if (is_read)
-                            data = ext_reg_read(IOE_I2C_ADDRESS, reg & 0x07);
-                        else
-                            ext_reg_write(IOE_I2C_ADDRESS, reg & 0x07, bus_data);
-                    }
+                    const uint8_t data = bus_dev_access((uint8_t)bus_address, is_read, bus_data);
                     if (is_read)
                         MEM_BUS_PIO->txf[MEM_BUS_SM] = data;
                 }

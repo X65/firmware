@@ -7,6 +7,7 @@
 
 #include "mem.h"
 #include "cgia/cgia.h"
+#include "sys/bus.h"
 #include "hardware/clocks.h"
 #include "hardware/gpio.h"
 #include "hardware/regs/qmi.h"
@@ -425,6 +426,10 @@ uint8_t mem_read_byte(uint32_t addr)
     {
         return cgia_reg_read((uint8_t)addr);
     }
+    else if (addr >= 0xFF80 && addr < 0xFFC0) // devices mapped by RIA
+    {
+        return bus_dev_read((uint8_t)addr);
+    }
     else if (addr >= 0xFFC0 && addr < 0x10000) // RIA registers
     {
         return REGS(addr);
@@ -440,6 +445,10 @@ void mem_write_byte(uint32_t addr, uint8_t data)
     if (addr >= 0xFF00 && addr < 0xFF80) // CGIA registers
     {
         cgia_reg_write((uint8_t)addr, data);
+    }
+    else if (addr >= 0xFF80 && addr < 0xFFC0) // devices mapped by RIA
+    {
+        bus_dev_write((uint8_t)addr, data);
     }
     else if (addr >= 0xFFC0 && addr < 0x10000) // RIA registers
     {
