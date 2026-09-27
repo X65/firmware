@@ -31,6 +31,14 @@ static lfs_file_t lfs_file;
 LFS_FILE_CONFIG(lfs_file_config, static);
 static FIL fat_fil;
 
+// Arm "a block header is due next". $FFFF-$0000 is not a valid block - a real one
+// always has rom_start <= rom_end - so it can never collide with a block in flight.
+static void rom_chunk_done(void)
+{
+    rom_start = 0xFFFF;
+    rom_end = 0x0000;
+}
+
 static bool rom_eof(void)
 {
     if (is_reading_fat)
@@ -99,14 +107,14 @@ static bool rom_open(const char *name, bool is_fat)
     }
     rom_FFFC = false;
     rom_FFFD = false;
-    rom_start = 0xFFFF;
+    rom_chunk_done();
     rom_bank = 0;
     return true;
 }
 
 static bool rom_next_chunk(void)
 {
-    if (rom_start == 0xFFFF || rom_start >= rom_end)
+    if (rom_start == 0xFFFF && rom_end == 0x0000)
     {
         // read header
         if (!rom_read(2))
@@ -140,8 +148,10 @@ static bool rom_next_chunk(void)
         //        skip_chunk ? "Skippng" : "Loading", rom_bank, rom_start, rom_end);
     }
 
-    uint16_t rom_len = rom_end - rom_start + 1;
-    return rom_read(MIN(rom_len, MBUF_SIZE));
+    // clamp the delta, never the length: a $0000-$FFFF block is 0x10000 bytes long,
+    // which does not fit a 16-bit count, but rom_end - rom_start always does
+    uint16_t rom_delta = rom_end - rom_start;
+    return rom_read(MIN(rom_delta, MBUF_SIZE - 1) + 1);
 }
 
 static void rom_wait_load(void)
@@ -175,33 +185,38 @@ static void rom_loading(void)
     }
 }
 
-static bool rom_ram_writing(bool test)
+static void rom_ram_writing(bool test)
 {
     if (rom_start == rom_end && rom_start == 0xFFFE)
     {
         rom_bank = mbuf[0];
-        return false;
+        rom_chunk_done();
+        return;
     }
 
-    uint16_t i = 0;
-    while (mbuf_len--)
+    size_t i = 0;
+    do
     {
-        uint32_t addr = (rom_bank << 16) | rom_start++;
+        uint32_t addr = (rom_bank << 16) | rom_start;
         if (addr == 0xFFFC)
             rom_FFFC = true;
         if (addr == 0xFFFD)
             rom_FFFD = true;
 
-        // do not allow wrap-around
-        if (rom_start == 0)
-            rom_start = 0xFFFF;
-
         if (!test)
         {
-            mem_write_byte(addr, mbuf[i++]);
+            mem_write_byte(addr, mbuf[i]);
         }
-    }
-    return (int)mbuf_len > 0;
+        i++;
+
+        if (rom_start == rom_end)
+        {
+            // last byte of the block - do not step past it and wrap around
+            rom_chunk_done();
+            break;
+        }
+        rom_start++;
+    } while (i < mbuf_len);
 }
 
 void rom_mon_install(const char *args, size_t len)
@@ -360,11 +375,19 @@ void rom_mon_info(const char *args, size_t len)
             found = true;
         if (found)
             printf("%.*s", mbuf_len, mbuf);
-        rom_start += mbuf_len;
-        if (found && rom_start >= rom_end)
+        if ((size_t)(rom_end - rom_start) < mbuf_len)
         {
-            putc('\n', stdout);
-            break;
+            // this slice completes the block
+            rom_chunk_done();
+            if (found)
+            {
+                putc('\n', stdout);
+                break;
+            }
+        }
+        else
+        {
+            rom_start += mbuf_len;
         }
     }
     if (!found)
@@ -390,11 +413,19 @@ bool rom_help(const char *args, size_t len)
                     found = true;
                 if (found)
                     printf("%.*s", mbuf_len, mbuf);
-                rom_start += mbuf_len;
-                if (found && rom_start >= rom_end)
+                if ((size_t)(rom_end - rom_start) < mbuf_len)
                 {
-                    putc('\n', stdout);
-                    break;
+                    // this slice completes the block
+                    rom_chunk_done();
+                    if (found)
+                    {
+                        putc('\n', stdout);
+                        break;
+                    }
+                }
+                else
+                {
+                    rom_start += mbuf_len;
                 }
             }
         if (!found)
@@ -426,8 +457,8 @@ void rom_task(void)
         rom_loading();
         break;
     case ROM_WRITING:
-        if (!rom_ram_writing(skip_chunk))
-            rom_state = ROM_LOADING;
+        rom_ram_writing(skip_chunk);
+        rom_state = ROM_LOADING;
         break;
     }
 
