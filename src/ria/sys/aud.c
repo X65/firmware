@@ -505,7 +505,7 @@ static inline void aud_i2s_reg_init(void)
 
     if (ana_pwr & SGTL5000_VAG_POWERUP)
     {
-        ana_pwr &= SGTL5000_VAG_POWERUP;
+        ana_pwr &= ~SGTL5000_VAG_POWERUP;
         aud_write_i2s_register(SGTL_CHIP_ANA_POWER, ana_pwr);
 
         sleep_ms(SGTL5000_VAG_POWERDOWN_DELAY);
