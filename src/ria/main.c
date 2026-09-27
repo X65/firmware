@@ -135,6 +135,7 @@ static void stop(void)
     api_stop();
     bus_stop();
     cia_stop();
+    cgia_stop();
     aud_stop();
     oem_stop();
     kbd_stop();
