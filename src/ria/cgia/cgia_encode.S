@@ -317,13 +317,14 @@ decl_func cgia_encode_mode_0_multi_4bpp_shared
   mov r6, r5
   lsrs r6, #\sh_amt
 .if \mask == 15
-  ands r6, #7
-  ands r7, #8 // half-bright bit
-.else
-  ands r6, #\mask
+  and r7, r6, #8 // half-bright bit
 .endif
+  ands r6, #\mask // zero is transparent
 .if !\mapped
   beq 1f
+.endif
+.if \mask == 15
+  and r6, r6, #7 // shared color index
 .endif
   // load shared color index
   ldrb r6, [r2, r6]
@@ -366,17 +367,20 @@ decl_func cgia_encode_mode_0_multi_4bpp_shared
   ldrb r5, [r5]
 .if \pixels > 1
   lsls r5, #8
-  ldrb r6, [ip, #POP0_OFFS]
+  ldr r6, [ip, #POP0_OFFS]    // load next bitmap byte offset
+  ldrb r6, [r6]
   orrs r5, r6
 .endif
 .if \pixels > 2
   lsls r5, #8
-  ldrb r6, [ip, #POP0_OFFS]
+  ldr r6, [ip, #POP0_OFFS]    // load next bitmap byte offset
+  ldrb r6, [r6]
   orrs r5, r6
 .endif
 .if \pixels > 3
   lsls r5, #8
-  ldrb r6, [ip, #POP0_OFFS]
+  ldr r6, [ip, #POP0_OFFS]    // load next bitmap byte offset
+  ldrb r6, [r6]
   orrs r5, r6
 .endif
 
