@@ -51,6 +51,19 @@ pico_generate_pio_header(rp816
     ${CMAKE_CURRENT_LIST_DIR}/ria/sys/bus.pio
 )
 
+# Replace TinyUSB's RP2040/RP2350 host controller driver with the one from
+# the upstream RP6502 project (vendored in tinyusb_rp6502/). Marking the
+# library files header-only keeps them out of the build.
+set_source_files_properties(
+    ${CMAKE_CURRENT_LIST_DIR}/tinyusb/src/portable/raspberrypi/rp2040/hcd_rp2040.c
+    ${CMAKE_CURRENT_LIST_DIR}/tinyusb/src/portable/raspberrypi/rp2040/rp2040_usb.c
+    PROPERTIES HEADER_FILE_ONLY TRUE
+)
+target_sources(rp816 PRIVATE
+    ${CMAKE_CURRENT_LIST_DIR}/tinyusb_rp6502/hcd_rp2040.c
+    ${CMAKE_CURRENT_LIST_DIR}/tinyusb_rp6502/rp2040_usb.c
+)
+
 pico_generate_pio_header(rp816
     ${CMAKE_CURRENT_LIST_DIR}/ria/sys/aud.pio
 )

@@ -22,7 +22,8 @@ static inline void DBG(const char *fmt, ...)
 
 void usb_init(void)
 {
-    tuh_init(TUH_OPT_RHPORT);
+    tusb_rhport_init_t rh_init = {.role = TUSB_ROLE_HOST, .speed = TUSB_SPEED_AUTO};
+    tusb_init(TUH_OPT_RHPORT, &rh_init);
     tuh_hid_set_default_protocol(HID_PROTOCOL_REPORT);
 }
 

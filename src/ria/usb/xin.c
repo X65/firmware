@@ -87,13 +87,13 @@ static bool xin_class_driver_init(void)
     return true;
 }
 
-static bool xin_class_driver_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t const *desc_itf, uint16_t max_len)
+static uint16_t xin_class_driver_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t const *desc_itf, uint16_t max_len)
 {
     (void)rhport;
 
     // Must be vendor specific to proceed
     if (desc_itf->bInterfaceClass != 0xFF)
-        return false;
+        return 0;
 
     bool is_x360 = false;
     bool is_xbox_one = false;
@@ -110,7 +110,7 @@ static bool xin_class_driver_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_in
     }
 
     if (!is_xbox_one && !is_x360)
-        return false;
+        return 0;
 
     // All Xinput controllers have in and out endpoints
     uint8_t const *p_desc = (uint8_t const *)desc_itf;
@@ -118,7 +118,8 @@ static bool xin_class_driver_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_in
     uint8_t ep_in = 0, ep_out = 0;
     tusb_desc_endpoint_t ep_in_desc = {0}, ep_out_desc = {0};
     p_desc = tu_desc_next(p_desc); // Skip interface descriptor
-    while (p_desc < desc_end)
+    // this interface's descriptors end where the next interface begins
+    while (p_desc < desc_end && tu_desc_type(p_desc) != TUSB_DESC_INTERFACE)
     {
         if (tu_desc_type(p_desc) == TUSB_DESC_ENDPOINT)
         {
@@ -140,11 +141,13 @@ static bool xin_class_driver_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_in
         p_desc = tu_desc_next(p_desc);
     }
     if (ep_in == 0 || ep_out == 0)
-        return false;
+        return 0;
+    // TinyUSB wants the length of the descriptors this driver consumed
+    const uint16_t drv_len = (uint16_t)(p_desc - (uint8_t const *)desc_itf);
 
     int idx = xin_find_free_index();
     if (idx < 0)
-        return false;
+        return 0;
 
     xbox_devices[idx].dev_addr = dev_addr;
     xbox_devices[idx].valid = true;
@@ -161,13 +164,13 @@ static bool xin_class_driver_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_in
         {
             DBG("XInput: Failed to mount in pad system\n");
             memset(&xbox_devices[idx], 0, sizeof(xbox_device_t));
-            return false;
+            return 0;
         }
     }
     else
     {
         memset(&xbox_devices[idx], 0, sizeof(xbox_device_t));
-        return false;
+        return 0;
     }
 
     // Open the endpoints immediately (like HID does)
@@ -175,7 +178,7 @@ static bool xin_class_driver_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_in
     {
         DBG("XInput: Failed to open IN endpoint during open\n");
         memset(&xbox_devices[idx], 0, sizeof(xbox_device_t));
-        return false;
+        return 0;
     }
     if (!tuh_edpt_open(dev_addr, &ep_out_desc))
     {
@@ -183,11 +186,11 @@ static bool xin_class_driver_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_in
         tuh_edpt_abort_xfer(dev_addr, ep_in);
         // tuh_edpt_close(dev_addr, ep_in);
         memset(&xbox_devices[idx], 0, sizeof(xbox_device_t));
-        return false;
+        return 0;
     }
 
     DBG("XInput: Successfully opened Xbox controller in index %d\n", idx);
-    return true;
+    return drv_len;
 }
 
 static bool xin_class_driver_set_config(uint8_t dev_addr, uint8_t itf_num)
