@@ -29,11 +29,11 @@
 
 #define CFG_TUH_ENUMERATION_BUFSIZE (1024) // HID report descriptors, e.g. DualShock 4
 
-#define CFG_TUH_HUB    (8)
-#define CFG_TUH_HID    (24) // 15 gamepads, keyboards and mice
+#define CFG_TUH_HUB    (5)
+#define CFG_TUH_HID    (16) // HID interfaces, each needs 1 of the 15 interrupt endpoint slots
 #define CFG_TUH_MSC    (1)
 #define CFG_TUH_VENDOR (0)
 
-#define CFG_TUH_DEVICE_MAX (24)
+#define CFG_TUH_DEVICE_MAX (16)
 
 #endif
