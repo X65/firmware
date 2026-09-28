@@ -28,6 +28,7 @@
 #include "sys/mdm.h"
 #include "sys/mem.h"
 #include "sys/out.h"
+#include "sys/pcm.h"
 #include "sys/sys.h"
 #include "term/font.h"
 #include "term/term.h"
@@ -72,6 +73,7 @@ static void init(void)
     led_init();
     ext_init(); // before aud_init (shared I2C init)
     aud_init();
+    pcm_init(); // after aud_init (feeds its I2S state machine)
     kbd_init();
     mou_init();
     pad_init();
@@ -137,6 +139,7 @@ static void stop(void)
     cia_stop();
     cgia_stop();
     aud_stop();
+    pcm_stop();
     oem_stop();
     kbd_stop();
     mou_stop();

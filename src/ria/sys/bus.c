@@ -26,6 +26,7 @@
 #include "sys/ext.h"
 #include "sys/mem.h"
 #include "sys/mem_l2.h"
+#include "sys/pcm.h"
 
 #include <stdbool.h>
 #include <stdio.h>
@@ -364,15 +365,23 @@ mem_bus_pio_irq_handler(void)
                     }
                 }
                 // ------ FEC0 - FEFF ------ (SD-1 registers)
+                // $FEE3-$FEFE, the SD-1's read-only EQ readback, is the PCM player
                 else if ((bus_address & 0xFFFFC0) == 0x00FEC0)
                 {
+                    const uint8_t reg = bus_address & 0x3F;
+                    const bool is_pcm = reg >= PCM_REG_FIRST && reg <= PCM_REG_LAST;
                     if (bus_address & CPU_RWB_MASK)
                     { // CPU is reading
-                        MEM_BUS_PIO->txf[MEM_BUS_SM] = aud_read_fm_register(bus_address & 0x3F);
+                        MEM_BUS_PIO->txf[MEM_BUS_SM] = is_pcm ? pcm_reg_read(reg)
+                                                              : aud_read_fm_register(reg);
+                    }
+                    else if (is_pcm)
+                    { // CPU is writing
+                        pcm_reg_write(reg, bus_data);
                     }
                     else
-                    { // CPU is writing
-                        aud_write_fm_register(bus_address & 0x3F, bus_data);
+                    {
+                        aud_write_fm_register(reg, bus_data);
                     }
                 }
                 // ------ FC00 - FDFF ------ (EXT I/O registers)

@@ -561,6 +561,8 @@ static inline void aud_i2s_reg_init(void)
     //     // Route PLL to system clock
     //     aud_write_i2s_register(SGTL_CHIP_CLK_CTRL, SGTL5000_CHIP_CLK_CTRL_DEFAULT | SGTL5000_MCLK_FREQ_PLL);
     // SYS_FS is rate, Fs=48kHz, 256*Fs :: (256*48kHz(Fs) => 12.288Mhz(MCLK))
+    // RATE_MODE_DIV_6 runs the frames at 48kHz / 6 = 8kHz: the PCM player
+    // mixes at this rate, keep PCM_OUTPUT_RATE (sys/pcm.h) in step.
     aud_write_i2s_register(SGTL_CHIP_CLK_CTRL,
                            SGTL5000_CHIP_CLK_CTRL_DEFAULT
                                | (SGTL5000_RATE_MODE_DIV_6 << SGTL5000_RATE_MODE_SHIFT));
@@ -672,11 +674,6 @@ void aud_i2s_dump_registers(void)
     printf("CHIP_ANA_TEST1\t%04x\n", aud_read_i2s_register(0x0038));
     printf("CHIP_ANA_TEST2\t%04x\n", aud_read_i2s_register(0x003A));
     printf("CHIP_SHORT_CTRL\t%04x\n", aud_read_i2s_register(0x003C));
-}
-
-static void dma_i2s_int_handler(void)
-{
-    // dma_hw->ints0 = 1u << i2s.dma_ch_in_data;  // clear the IRQ
 }
 
 static inline void aud_i2s_init(void)
