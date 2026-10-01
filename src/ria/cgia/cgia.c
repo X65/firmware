@@ -541,12 +541,12 @@ void __attribute__((optimize("O2"))) cgia_render(uint16_t y, uint32_t *rgbbuf)
             plane_offset = &CGIA.offset[p];
             plane_data = &plane_int[p];
             sprite_dscs = &sprite_dsc_offsets[p];
-            uint8_t *sprite_bank = vram_cache_ptr[1];
 
             if (vram_cache_bank[1] != vram_wanted_bank[1])
             {
                 continue; // skip if the sprite bank is not synced yet
             }
+            uint8_t *sprite_bank = vram_cache_ptr[1];
 
             if (y == 0 // start of frame - reload descriptors
                 || plane_data->sprites_need_update)
@@ -670,15 +670,15 @@ void __attribute__((optimize("O2"))) cgia_render(uint16_t y, uint32_t *rgbbuf)
                 continue; // and we're done
             }
 
-            const uint8_t *bckgnd_bank = vram_cache_ptr[0];
-            const uint8_t dl_instr = bckgnd_bank[*plane_offset];
-            const uint8_t instr_code = dl_instr & 0b00001111;
             cgia_int_arm(CGIA_REG_INT_FLAG_DLI);
 
             if (vram_cache_bank[0] != vram_wanted_bank[0])
             {
                 continue; // skip if the bg bank is not synced yet
             }
+            const uint8_t *bckgnd_bank = vram_cache_ptr[0];
+            const uint8_t dl_instr = bckgnd_bank[*plane_offset];
+            const uint8_t instr_code = dl_instr & 0b00001111;
 
             // Display list row takes a plane-regs defined raster lines,
             // or may be encoded in instruction itself (gets modified later)
@@ -1389,6 +1389,23 @@ void __attribute__((optimize("O2"))) cgia_render(uint16_t y, uint32_t *rgbbuf)
     cpu_set_nmi();
 }
 
+// Point a cgia bank at a buffer. The bank goes invalid first, so the
+// renderer on the other core never pairs a valid bank with a stale pointer.
+// The barrier is a no-op in the single-threaded emulator.
+#ifdef PICO_SDK_VERSION_MAJOR
+#define CGIA_DMB() __dmb()
+#else
+#define CGIA_DMB()
+#endif
+static void vcache_point_bank(uint8_t cgia_bank_id, uint b, int bank)
+{
+    vram_cache_bank[cgia_bank_id] = -1;
+    CGIA_DMB();
+    vram_cache_ptr[cgia_bank_id] = vram_cache[b];
+    CGIA_DMB();
+    vram_cache_bank[cgia_bank_id] = bank;
+}
+
 // The vcache DMA transfer finished - buffer contents are valid now
 static void vcache_finish_transfer(void)
 {
@@ -1415,8 +1432,7 @@ static void vcache_sync_bank(uint8_t cgia_bank_id)
     {
         if (vcache_buf_bank[b] == wanted)
         {
-            vram_cache_ptr[cgia_bank_id] = vram_cache[b];
-            vram_cache_bank[cgia_bank_id] = (int)b == vcache_transfer_buf ? -1 : wanted;
+            vcache_point_bank(cgia_bank_id, b, (int)b == vcache_transfer_buf ? -1 : wanted);
             return;
         }
     }
@@ -1429,8 +1445,7 @@ static void vcache_sync_bank(uint8_t cgia_bank_id)
     const uint b = vram_cache_ptr[cgia_bank_id ^ 1] == vram_cache[0] ? 1 : 0;
     vcache_buf_bank[b] = wanted;
     vcache_transfer_buf = b;
-    vram_cache_ptr[cgia_bank_id] = vram_cache[b];
-    vram_cache_bank[cgia_bank_id] = -1;
+    vcache_point_bank(cgia_bank_id, b, -1);
     // start memory transfer
     vcache_dma_bank = wanted;
     vcache_dma_dest = vram_cache[b];
