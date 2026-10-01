@@ -20,8 +20,6 @@
 #include <pico/stdlib.h>
 #include <stdio.h>
 
-volatile const uint8_t xram[0x10000] __attribute__((aligned(0x10000)));
-
 static uint8_t __attribute__((aligned(4))) pix_buffer[32];
 
 static int pix_req_dma_chan;
