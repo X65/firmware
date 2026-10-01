@@ -67,6 +67,9 @@ void ria_clear_irq(uint8_t source)
 }
 
 #define MEM_LOG_ENABLED (0)
+// API_REJECTED or 0, owned by the bus loop so op results can't clear it
+static uint8_t api_rejected = 0;
+
 static bool mem_dump = false;
 static int mem_log_idx = 0;
 #if MEM_LOG_ENABLED
@@ -97,6 +100,7 @@ void ria_run(void)
 {
     mem_log_idx = 0;
     mem_dump = false;
+    api_rejected = 0;
     ria_update_irq_pin();
 }
 
@@ -153,7 +157,7 @@ __attribute__((optimize("O1"))) static void __no_inline_not_in_flash_func(act_lo
                         switch (rw_addr_bus & (CPU_RWB_MASK | (CPU_IODEV_MASK << 8)))
                         {
                         case CASE_READ(0xFFF3): // API STATUS
-                            data = API_STATUS;
+                            data = API_STATUS | api_rejected;
                             break;
                         case CASE_WRIT(0xFFF2): // xstack
                             if (xstack_ptr)
@@ -165,6 +169,14 @@ __attribute__((optimize("O1"))) static void __no_inline_not_in_flash_func(act_lo
                                 ++xstack_ptr;
                             break;
                         case CASE_WRIT(0xFFF0): // RIA API function call
+                            if (API_BUSY && data != API_OP_HALT)
+                            {
+                                // Another op is running: refuse this one
+                                // and leave the running op alone.
+                                api_rejected = API_REJECTED;
+                                break;
+                            }
+                            api_rejected = 0;
                             api_set_regs_blocked();
                             if (data == API_OP_ZXSTACK)
                             {
