@@ -7,3 +7,6 @@
 [submodule "src/pico_hdmi"]
 	path = src/pico_hdmi
 	url = https://github.com/fliperama86/pico_hdmi.git
+[submodule "src/sgu-1"]
+	path = src/sgu-1
+	url = https://github.com/X65/SGU-1.git

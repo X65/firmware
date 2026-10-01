@@ -48,7 +48,7 @@
     (1-sample jitter is inaudible).
 #*/
 
-#include "snd/sgu.h"
+#include "sgu-1/sgu.h"
 #include <stdbool.h>
 #include <stdint.h>
 
