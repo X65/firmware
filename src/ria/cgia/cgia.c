@@ -91,14 +91,14 @@ uint8_t *
         vram_cache_ptr[CGIA_VRAM_BANKS]
     = {vram_cache[0], vram_cache[1]};
 
-// per cgia bank - memory bank valid at vram_cache_ptr, or 0xFF while
+// per cgia bank - memory bank valid at vram_cache_ptr, or -1 while
 // the buffer is still being filled. Renderer skips the bank until it
-// matches vram_wanted_bank.
-uint8_t
+// matches vram_wanted_bank. Bank $FF is a real bank, so not 0xFF.
+int
     __attribute__((aligned(4)))
     __scratch_x("cgia_data")
         vram_cache_bank[CGIA_VRAM_BANKS]
-    = {0xFF, 0xFF};
+    = {-1, -1};
 
 // per cgia bank - memory bank the CPU asked for
 // written by cgia_set_bank() from the bus ISR, everything else above is
@@ -289,7 +289,7 @@ void cgia_reset(void)
     for (uint i = 0; i < CGIA_VRAM_BANKS; ++i)
     {
         vcache_buf_bank[i] = -1;
-        vram_cache_bank[i] = 0xFF;
+        vram_cache_bank[i] = -1;
         vram_cache_ptr[i] = vram_cache[i];
     }
     vcache_transfer_buf = -1;
@@ -1397,7 +1397,7 @@ static void vcache_finish_transfer(void)
     for (uint i = 0; i < CGIA_VRAM_BANKS; ++i)
     {
         if (vram_cache_ptr[i] == vram_cache[vcache_transfer_buf])
-            vram_cache_bank[i] = (uint8_t)vcache_buf_bank[vcache_transfer_buf];
+            vram_cache_bank[i] = vcache_buf_bank[vcache_transfer_buf];
     }
     vcache_transfer_buf = -1;
 }
@@ -1416,7 +1416,7 @@ static void vcache_sync_bank(uint8_t cgia_bank_id)
         if (vcache_buf_bank[b] == wanted)
         {
             vram_cache_ptr[cgia_bank_id] = vram_cache[b];
-            vram_cache_bank[cgia_bank_id] = (int)b == vcache_transfer_buf ? 0xFF : wanted;
+            vram_cache_bank[cgia_bank_id] = (int)b == vcache_transfer_buf ? -1 : wanted;
             return;
         }
     }
@@ -1430,7 +1430,7 @@ static void vcache_sync_bank(uint8_t cgia_bank_id)
     vcache_buf_bank[b] = wanted;
     vcache_transfer_buf = b;
     vram_cache_ptr[cgia_bank_id] = vram_cache[b];
-    vram_cache_bank[cgia_bank_id] = 0xFF;
+    vram_cache_bank[cgia_bank_id] = -1;
     // start memory transfer
     vcache_dma_bank = wanted;
     vcache_dma_dest = vram_cache[b];
