@@ -27,12 +27,15 @@
 
 #define CGIA_REGS_NO ((CGIA_PLANE_REGS_NO * CGIA_PLANES) << 1)
 _Static_assert(CGIA_REGS_NO == sizeof(struct cgia_t), "Incorrect CGIA_REGS_NO");
+_Static_assert(offsetof(struct cgia_t, back_color) == 0x32, "Incorrect CGIA back_color offset");
+_Static_assert(offsetof(struct cgia_t, bank) == 0x34, "Incorrect CGIA bank offset");
+_Static_assert(offsetof(struct cgia_t, offset) == 0x38, "Incorrect CGIA offset offset");
 // cgia_sprites.S reads these descriptor fields at hand-written offsets
 _Static_assert(offsetof(struct cgia_sprite_t, pos_x) == 0, "Incorrect SPRITE_POS_X_OFFS");
 _Static_assert(offsetof(struct cgia_sprite_t, flags) == 6, "Incorrect SPRITE_FLAGS_OFFS");
 
 // --- Globals ---
-// two "banks" to mirror PSRAM content for fast CGIA access
+// buffers mirroring PSRAM banks for fast CGIA access
 uint8_t
     __attribute__((aligned(4)))
     vram_cache[CGIA_VRAM_BANKS][0x10000];
@@ -80,53 +83,46 @@ int
     __attribute__((aligned(4)))
     __scratch_x("cgia_data")
         vcache_buf_bank[CGIA_VRAM_BANKS]
-    = {-1, -1};
+    = {-1, -1, -1, -1};
 
 // buffer being filled by the vcache DMA transfer (-1: none)
 static int vcache_transfer_buf = -1;
 
-// per cgia bank (0: background, 1: sprites) - where the renderer reads from
+// per plane - the buffer the renderer reads from
 uint8_t *
     __scratch_x("cgia_data")
-        vram_cache_ptr[CGIA_VRAM_BANKS]
-    = {vram_cache[0], vram_cache[1]};
+        vram_cache_ptr[CGIA_PLANES]
+    = {vram_cache[0], vram_cache[0], vram_cache[0], vram_cache[0]};
 
-// per cgia bank - memory bank valid at vram_cache_ptr, or 0xFF while
-// the buffer is still being filled. Renderer skips the bank until it
-// matches vram_wanted_bank.
-uint8_t
+// per plane - memory bank valid at vram_cache_ptr, or -1 while the buffer
+// is still being filled. The renderer skips the plane until it matches
+// CGIA.bank, which the CPU writes. Everything above is owned by cgia_task().
+int
     __attribute__((aligned(4)))
     __scratch_x("cgia_data")
-        vram_cache_bank[CGIA_VRAM_BANKS]
-    = {0xFF, 0xFF};
-
-// per cgia bank - memory bank the CPU asked for
-// written by cgia_set_bank() from the PIX ISR, everything else above is
-// owned by cgia_task()
-uint8_t
-    __attribute__((aligned(4)))
-    __scratch_x("cgia_data")
-        vram_wanted_bank[CGIA_VRAM_BANKS]
-    = {0, 0};
+        vram_cache_bank[CGIA_PLANES]
+    = {-1, -1, -1, -1};
 
 inline void __attribute__((always_inline)) __attribute__((optimize("O3")))
 cgia_ram_write(uint8_t bank, uint16_t addr, uint8_t data)
 {
+    // a memory bank is held by one buffer at most
     if (bank == vcache_buf_bank[0])
     {
         vram_cache[0][addr] = data;
     }
-    if (bank == vcache_buf_bank[1])
+    else if (bank == vcache_buf_bank[1])
     {
         vram_cache[1][addr] = data;
     }
-}
-
-void cgia_set_bank(uint8_t cgia_bank_id, uint8_t mem_bank_no)
-{
-    assert(cgia_bank_id < 2);
-    // cgia_task() picks it up
-    vram_wanted_bank[cgia_bank_id] = mem_bank_no;
+    else if (bank == vcache_buf_bank[2])
+    {
+        vram_cache[2][addr] = data;
+    }
+    else if (bank == vcache_buf_bank[3])
+    {
+        vram_cache[3][addr] = data;
+    }
 }
 
 // This mask is used to enable interruptable render points in time.
@@ -227,12 +223,6 @@ inline __attribute__((always_inline)) __attribute__((optimize("O2"))) void cgia_
     // some regs have side effects
     switch (reg)
     {
-    case CGIA_REG_BCKGND_BANK:
-        cgia_set_bank(0, value);
-        break;
-    case CGIA_REG_SPRITE_BANK:
-        cgia_set_bank(1, value);
-        break;
     case offsetof(struct cgia_t, plane[0].sprite.active):
         if (CGIA.planes & (0x10 << 0))
             plane_int[0].sprites_need_update = true;
@@ -285,14 +275,13 @@ void cgia_reset(void)
         // And update sprite descriptors
         plane_int[i].sprites_need_update = true;
     }
-    vram_wanted_bank[0] = CGIA.bckgnd_bank = 0;
-    vram_wanted_bank[1] = CGIA.sprite_bank = 0;
     // Forget what the buffers hold - forces a fresh fetch
     for (uint i = 0; i < CGIA_VRAM_BANKS; ++i)
-    {
         vcache_buf_bank[i] = -1;
-        vram_cache_bank[i] = 0xFF;
-        vram_cache_ptr[i] = vram_cache[i];
+    for (uint p = 0; p < CGIA_PLANES; ++p)
+    {
+        vram_cache_bank[p] = -1;
+        vram_cache_ptr[p] = vram_cache[0];
     }
     vcache_transfer_buf = -1;
 }
@@ -546,12 +535,12 @@ void __attribute__((optimize("O2"))) cgia_render(uint16_t y, uint32_t *rgbbuf)
             plane_offset = &CGIA.offset[p];
             plane_data = &plane_int[p];
             sprite_dscs = &sprite_dsc_offsets[p];
-            uint8_t *sprite_bank = vram_cache_ptr[1];
 
-            if (vram_cache_bank[1] != vram_wanted_bank[1])
+            if (vram_cache_bank[p] != CGIA.bank[p])
             {
-                continue; // skip if the sprite bank is not synced yet
+                continue; // skip if the plane bank is not synced yet
             }
+            uint8_t *sprite_bank = vram_cache_ptr[p];
 
             if (y == 0 // start of frame - reload descriptors
                 || plane_data->sprites_need_update)
@@ -675,15 +664,15 @@ void __attribute__((optimize("O2"))) cgia_render(uint16_t y, uint32_t *rgbbuf)
                 continue; // and we're done
             }
 
-            const uint8_t *bckgnd_bank = vram_cache_ptr[0];
-            const uint8_t dl_instr = bckgnd_bank[*plane_offset];
-            const uint8_t instr_code = dl_instr & 0b00001111;
             cgia_int_arm(CGIA_REG_INT_FLAG_DLI);
 
-            if (vram_cache_bank[0] != vram_wanted_bank[0])
+            if (vram_cache_bank[p] != CGIA.bank[p])
             {
-                continue; // skip if the bg bank is not synced yet
+                continue; // skip if the plane bank is not synced yet
             }
+            const uint8_t *bckgnd_bank = vram_cache_ptr[p];
+            const uint8_t dl_instr = bckgnd_bank[*plane_offset];
+            const uint8_t instr_code = dl_instr & 0b00001111;
 
             // Display list row takes a plane-regs defined raster lines,
             // or may be encoded in instruction itself (gets modified later)
@@ -1394,25 +1383,53 @@ void __attribute__((optimize("O2"))) cgia_render(uint16_t y, uint32_t *rgbbuf)
     cpu_set_nmi();
 }
 
+// Point a plane at a buffer. The bank goes invalid first, so the renderer
+// on the other core never pairs a valid bank with a stale pointer.
+// The barrier is a no-op in the single-threaded emulator.
+#ifdef PICO_SDK_VERSION_MAJOR
+#define CGIA_DMB() __dmb()
+#else
+#define CGIA_DMB()
+#endif
+static void vcache_point_plane(uint p, uint b, int bank)
+{
+    vram_cache_bank[p] = -1;
+    CGIA_DMB();
+    vram_cache_ptr[p] = vram_cache[b];
+    CGIA_DMB();
+    vram_cache_bank[p] = bank;
+}
+
 // The vcache DMA transfer finished - buffer contents are valid now
 static void vcache_finish_transfer(void)
 {
     if (vcache_transfer_buf < 0 || vcache_dma_blocks_remaining)
         return;
-    for (uint i = 0; i < CGIA_VRAM_BANKS; ++i)
+    for (uint p = 0; p < CGIA_PLANES; ++p)
     {
-        if (vram_cache_ptr[i] == vram_cache[vcache_transfer_buf])
-            vram_cache_bank[i] = (uint8_t)vcache_buf_bank[vcache_transfer_buf];
+        if (vram_cache_ptr[p] == vram_cache[vcache_transfer_buf])
+            vram_cache_bank[p] = vcache_buf_bank[vcache_transfer_buf];
     }
     vcache_transfer_buf = -1;
 }
 
-// Point cgia bank at a buffer holding the wanted memory bank,
-// fetching it from PSRAM when no buffer has it
-static void vcache_sync_bank(uint8_t cgia_bank_id)
+// Is buffer b read by any plane other than skip_p?
+static bool vcache_buf_in_use(uint b, uint skip_p)
 {
-    const uint8_t wanted = vram_wanted_bank[cgia_bank_id];
-    if (vram_cache_bank[cgia_bank_id] == wanted)
+    for (uint p = 0; p < CGIA_PLANES; ++p)
+    {
+        if (p != skip_p && vram_cache_ptr[p] == vram_cache[b])
+            return true;
+    }
+    return false;
+}
+
+// Point the plane at a buffer holding its memory bank,
+// fetching the bank from PSRAM when no buffer has it
+static void vcache_sync_plane(uint p)
+{
+    const uint8_t wanted = CGIA.bank[p];
+    if (vram_cache_bank[p] == wanted)
         return;
 
     // a buffer already holds it (maybe still filling) - share
@@ -1420,8 +1437,7 @@ static void vcache_sync_bank(uint8_t cgia_bank_id)
     {
         if (vcache_buf_bank[b] == wanted)
         {
-            vram_cache_ptr[cgia_bank_id] = vram_cache[b];
-            vram_cache_bank[cgia_bank_id] = (int)b == vcache_transfer_buf ? 0xFF : wanted;
+            vcache_point_plane(p, b, (int)b == vcache_transfer_buf ? -1 : wanted);
             return;
         }
     }
@@ -1430,15 +1446,30 @@ static void vcache_sync_bank(uint8_t cgia_bank_id)
     if (vcache_dma_blocks_remaining)
         return;
 
-    // fill the buffer the other cgia bank is not reading from
-    const uint b = vram_cache_ptr[cgia_bank_id ^ 1] == vram_cache[0] ? 1 : 0;
-    vcache_buf_bank[b] = wanted;
-    vcache_transfer_buf = b;
-    vram_cache_ptr[cgia_bank_id] = vram_cache[b];
-    vram_cache_bank[cgia_bank_id] = 0xFF;
+    // Fill a buffer no other plane reads from. With a buffer per plane
+    // there always is one. Prefer an empty buffer, then one this plane
+    // doesn't read either, so its old bank stays cached for a flip back.
+    int victim = -1;
+    for (uint b = 0; b < CGIA_VRAM_BANKS; ++b)
+    {
+        if (vcache_buf_in_use(b, p))
+            continue;
+        if (vcache_buf_bank[b] < 0)
+        {
+            victim = b;
+            break;
+        }
+        if (victim < 0 || vram_cache_ptr[p] == vram_cache[victim])
+            victim = b;
+    }
+    assert(victim >= 0);
+
+    vcache_buf_bank[victim] = wanted;
+    vcache_transfer_buf = victim;
+    vcache_point_plane(p, victim, -1);
     // start memory transfer
     vcache_dma_bank = wanted;
-    vcache_dma_dest = vram_cache[b];
+    vcache_dma_dest = vram_cache[victim];
     vcache_dma_blocks_remaining = 0x10000 / 32; // 64kB in 32-byte blocks
 }
 
@@ -1447,6 +1478,6 @@ void cgia_task(void)
     cpu_set_nmi();
 
     vcache_finish_transfer();
-    vcache_sync_bank(0);
-    vcache_sync_bank(1);
+    for (uint p = 0; p < CGIA_PLANES; ++p)
+        vcache_sync_plane(p);
 }

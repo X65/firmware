@@ -156,10 +156,7 @@ union cgia_plane_regs_t
 struct cgia_t
 {
     uint8_t mode;
-
-    uint8_t bckgnd_bank;
-    uint8_t sprite_bank;
-    uint8_t _ctl_reserved[16 - 3];
+    uint8_t _ctl_reserved[16 - 1];
     // -------------------------------------------------------------------
     uint16_t raster;
     uint8_t _rst_reserved1[8 - 2];
@@ -173,11 +170,10 @@ struct cgia_t
     // -------------------------------------------------------------------
     uint8_t planes; // [TTTTEEEE] EEEE - enable bits, TTTT - type (0 bckgnd, 1 sprite)
     uint8_t order;  // plane order permutation - SJT ordering
-    uint8_t _pln_reserved1[4 - 2];
-
     uint8_t back_color;
-    uint8_t _pln_reserved[4 - 1];
+    uint8_t _pln_reserved;
 
+    uint8_t bank[CGIA_PLANES];    // bits 16-23 of the plane's memory addresses
     uint16_t offset[CGIA_PLANES]; // DisplayList or SpriteDescriptor table start
     // -------------------------------------------------------------------
     union cgia_plane_regs_t plane[CGIA_PLANES];
@@ -188,14 +184,13 @@ struct cgia_t
 
 // register indices
 #define CGIA_REG_MODE        (offsetof(struct cgia_t, mode))
-#define CGIA_REG_BCKGND_BANK (offsetof(struct cgia_t, bckgnd_bank))
-#define CGIA_REG_SPRITE_BANK (offsetof(struct cgia_t, sprite_bank))
 #define CGIA_REG_RASTER      (offsetof(struct cgia_t, raster))
 #define CGIA_REG_INT_RASTER  (offsetof(struct cgia_t, int_raster))
 #define CGIA_REG_INT_ENABLE  (offsetof(struct cgia_t, int_enable))
 #define CGIA_REG_INT_STATUS  (offsetof(struct cgia_t, int_status))
 #define CGIA_REG_PLANES      (offsetof(struct cgia_t, planes))
 #define CGIA_REG_BACK_COLOR  (offsetof(struct cgia_t, back_color))
+#define CGIA_REG_BANK        (offsetof(struct cgia_t, bank))
 
 #define CGIA_REG_INT_FLAG_VBI 0b10000000
 #define CGIA_REG_INT_FLAG_DLI 0b01000000
@@ -296,7 +291,9 @@ void cgia_reg_write(uint8_t reg_no, uint8_t value);
 
 void cgia_task(void);
 
-#define CGIA_VRAM_BANKS (2)
+// One buffer per plane: whatever banks the other planes hold, a plane
+// switching banks always finds a buffer no other plane reads from.
+#define CGIA_VRAM_BANKS (CGIA_PLANES)
 extern uint8_t vram_cache[CGIA_VRAM_BANKS][0x10000];
 // pass EVERY RAM write through CGIA for updating VRAM cache banks
 void cgia_ram_write(uint8_t bank, uint16_t addr, uint8_t data);
