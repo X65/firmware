@@ -679,10 +679,12 @@ static void pad_reset_xram(int player)
 
 uint8_t pad_get_reg(uint8_t pad, uint8_t idx)
 {
-    if (pad > PAD_MAX_PLAYERS)
-        return 0xFF;
     if (idx >= sizeof(pad_xram_t))
         return 0xFF;
+    // The selector addresses 15 pads. A slot with no pad behind it reads
+    // as disconnected, all zero, like in the X65 emulator.
+    if (pad > PAD_MAX_PLAYERS)
+        return 0x00;
 
     if (pad == 0)
     {
