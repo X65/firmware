@@ -233,19 +233,19 @@ inline __attribute__((always_inline)) __attribute__((optimize("O2"))) void cgia_
     case CGIA_REG_SPRITE_BANK:
         cgia_set_bank(1, value);
         break;
-    case CGIA_REG_PLANES + CGIA_PLANE_REGS_NO * 0: // .plane[0].sprite.active ?
+    case offsetof(struct cgia_t, plane[0].sprite.active):
         if (CGIA.planes & (0x10 << 0))
             plane_int[0].sprites_need_update = true;
         break;
-    case CGIA_REG_PLANES + CGIA_PLANE_REGS_NO * 1: // .plane[1].sprite.active ?
+    case offsetof(struct cgia_t, plane[1].sprite.active):
         if (CGIA.planes & (0x10 << 1))
             plane_int[1].sprites_need_update = true;
         break;
-    case CGIA_REG_PLANES + CGIA_PLANE_REGS_NO * 2: // .plane[2].sprite.active ?
+    case offsetof(struct cgia_t, plane[2].sprite.active):
         if (CGIA.planes & (0x10 << 2))
             plane_int[2].sprites_need_update = true;
         break;
-    case CGIA_REG_PLANES + CGIA_PLANE_REGS_NO * 3: // .plane[3].sprite.active ?
+    case offsetof(struct cgia_t, plane[3].sprite.active):
         if (CGIA.planes & (0x10 << 3))
             plane_int[3].sprites_need_update = true;
         break;
