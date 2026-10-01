@@ -72,6 +72,19 @@ target_link_libraries(x65_north PRIVATE
     pico_btstack_ble
 )
 
+# Replace TinyUSB's RP2040/RP2350 host controller driver with the one from
+# the upstream RP6502 project (vendored in tinyusb_rp6502/). Marking the
+# library file header-only keeps it out of the build. Only north builds the
+# host stack; south and audio keep TinyUSB's shared rp2040_usb.c, which the
+# upstream copy changes only in device mode.
+set_source_files_properties(
+    ${CMAKE_CURRENT_LIST_DIR}/tinyusb/src/portable/raspberrypi/rp2040/hcd_rp2040.c
+    PROPERTIES HEADER_FILE_ONLY TRUE
+)
+target_sources(x65_north PRIVATE
+    ${CMAKE_CURRENT_LIST_DIR}/tinyusb_rp6502/hcd_rp2040.c
+)
+
 pico_generate_pio_header(x65_north
     ${CMAKE_CURRENT_LIST_DIR}/north/cpu.pio
 )
