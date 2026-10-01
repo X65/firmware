@@ -155,7 +155,11 @@ bool oem_api_get_chargen(void)
 
         mem_write_ram(chargen_addr++, (uint8_t)PIX_REPLY_PAYLOAD(resp.reply));
         --pending_chargen_bytes;
+
+        // Report which code page was loaded, 0 if it is not built in.
+        if (!pending_chargen_bytes)
+            return api_return_ax((PIX_REPLY_PAYLOAD(resp.reply) & PIX_CHARGEN_HAS_CP) ? chargen_cp : 0);
     }
 
-    return pending_chargen_bytes ? api_working() : api_return();
+    return api_working();
 }

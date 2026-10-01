@@ -72,6 +72,10 @@ typedef enum pix_vpu_cmd
 
 #define VPU_VERSION_MESSAGE_SIZE 20
 
+// PIX_VPU_CMD_GET_CHARGEN reply: font byte in bits 7:0, this flag set
+// when the requested code page is built in (or 0xFFFF, the font in use)
+#define PIX_CHARGEN_HAS_CP 0x100
+
 typedef enum pix_misc_cmd
 {
     PIX_LED_CMD_SET_RGB888 = 0,

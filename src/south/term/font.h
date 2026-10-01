@@ -21,5 +21,7 @@ void font_init(void);
 
 void font_set_code_page(uint16_t cp);
 uint8_t font_get_byte(uint16_t byte_index, uint16_t cp);
+// true when the upper half of code page cp is built in
+bool font_has_code_page(uint16_t cp);
 
 #endif /* _SB_TERM_FONT_H_ */
