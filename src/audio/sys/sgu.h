@@ -52,10 +52,55 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+// The register window is $FEC0..$FEFF, $FEFF selects what occupies the rest:
+// $00..$08 a channel, $FF the service bank, anything else is reserved.
+// The X65 emulator (doc/sgu-service-bank.md, src/chips/sgu1.c) is the spec.
+#define SGU1_PCM_BANKS (4)
+
+#define SGU1_SERVICE_BANK (0xFF)
+
+#define SGU1_SVC_MAGIC         (0x00) // $00..$03, "SGU1"
+#define SGU1_SVC_MAGIC_END     (0x03)
+#define SGU1_SVC_VER_MAJOR     (0x04)
+#define SGU1_SVC_VER_MINOR     (0x05)
+#define SGU1_SVC_UNIQUE_ID     (0x06) // $06..$0D, 8 bytes
+#define SGU1_SVC_UNIQUE_ID_END (0x0D)
+#define SGU1_SVC_UNIQUE_ID_LEN (8)
+#define SGU1_SVC_PCM_BANKS     (0x0E)
+#define SGU1_SVC_SVC_BANKS     (0x0F)
+#define SGU1_SVC_STATUS        (0x10)
+#define SGU1_SVC_CHIP_RESET    (0x18)
+#define SGU1_SVC_SAMPLE_OFF_LO (0x1C)
+#define SGU1_SVC_SAMPLE_OFF_HI (0x1D)
+#define SGU1_SVC_SAMPLE_BANK   (0x1E)
+#define SGU1_SVC_SAMPLE_DATA   (0x1F)
+#define SGU1_SVC_MASTER_VOL    (0x20)
+
+#define SGU1_VERSION_MAJOR (0x01)
+#define SGU1_VERSION_MINOR (0x00)
+
+// STATUS ($10) bits. Read-to-clear.
+#define SGU1_STATUS_CLIP (1 << 0) // the output stage saturated at least once
+
+// CHIP_RESET ($18): the high nybble must be $A or the write is ignored.
+// The low nybble names what to reset.
+#define SGU1_RESET_MAGIC      (0xA0)
+#define SGU1_RESET_MAGIC_MASK (0xF0)
+#define SGU1_RESET_VOICES     (1 << 0) // -> SGU_RESET_VOICES
+#define SGU1_RESET_TIMEBASE   (1 << 1) // -> SGU_RESET_TIMEBASE
+#define SGU1_RESET_MIX        (1 << 2) // -> SGU_RESET_MIX
+#define SGU1_RESET_SVC        (1 << 3) // the service registers
+
 typedef struct
 {
     struct SGU sgu;
     uint8_t selected_channel;
+    // service bank, touched only from the host SPI ISR,
+    // except master volume which the render core reads every sample
+    uint16_t svc_sample_offset;
+    uint8_t svc_sample_bank;
+    volatile uint8_t svc_master_vol;
+    uint32_t svc_status;      // STATUS latch, read-to-clear
     volatile uint32_t sample; // two signed PCM samples packed: [31:16] Left, [15:0] Right
 } sgu1_t;
 
@@ -63,7 +108,7 @@ extern sgu1_t sgu_instance;
 
 // initialize a new sgu1_t instance
 void sgu_init(void);
-// reset a sgu1_t instance
+// reset a sgu1_t instance, PCM memory is kept
 void sgu_reset(void);
 
 uint8_t sgu_reg_read(uint8_t reg);

@@ -274,6 +274,7 @@ target_link_libraries(x65_audio PRIVATE
     pico_stdlib
     pico_multicore
     pico_rand
+    pico_unique_id
     hardware_pio
     hardware_dma
     hardware_interp
