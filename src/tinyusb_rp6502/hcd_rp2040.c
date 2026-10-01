@@ -751,15 +751,20 @@ bool hcd_edpt_open(uint8_t rhport, uint8_t dev_addr, const tusb_desc_endpoint_t 
         break;
       }
     }
-    assert(int_idx < USB_HOST_INTERRUPT_ENDPOINTS);
-    assert(ep_desc->bInterval > 0);
+    if (int_idx >= USB_HOST_INTERRUPT_ENDPOINTS) {
+      // X65: every hardware interrupt slot is taken. Refuse the endpoint, so
+      // its driver declines the device, instead of asserting.
+      ep->max_packet_size = 0; // back to the pool
+      ep->interrupt_num   = 0;
+      return false;
+    }
 
     //------------- dpram buf -------------//
     // 15x64 last bytes of DPRAM for interrupt endpoint buffers
     ep->dpram_buf    = (uint8_t *)(USBCTRL_DPRAM_BASE + USB_DPRAM_MAX - (int_idx + 1u) * 64u);
     uint32_t ep_ctrl = EP_CTRL_ENABLE_BITS | EP_CTRL_INTERRUPT_PER_BUFFER |
                        (TUSB_XFER_INTERRUPT << EP_CTRL_BUFFER_TYPE_LSB) | hw_data_offset(ep->dpram_buf) |
-                       ((uint32_t)(ep_desc->bInterval - 1) << EP_CTRL_HOST_INTERRUPT_INTERVAL_LSB);
+                       ((uint32_t)(ep_desc->bInterval ? ep_desc->bInterval - 1 : 0) << EP_CTRL_HOST_INTERRUPT_INTERVAL_LSB);
     usbh_dpram->int_ep_ctrl[int_idx].ctrl = ep_ctrl;
 
     //------------- address control -------------//
