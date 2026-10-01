@@ -288,6 +288,7 @@ extern uint8_t sprite_colors[16];
 // ---- internals ----
 void cgia_init(void);
 void cgia_reset(void);
+void cgia_stop(void);
 void cgia_render(uint16_t y, uint32_t *rgbbuf);
 void cgia_vbi(void);
 uint8_t cgia_reg_read(uint8_t reg_no);

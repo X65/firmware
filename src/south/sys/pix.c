@@ -144,7 +144,9 @@ static void __isr pix_irq_handler(void)
                 pix_rsp(PIX_DEV_DATA, font_get_byte(*((uint16_t *)&pix_buffer[1]), *((uint16_t *)&pix_buffer[3])));
                 break;
             case PIX_VPU_CMD_SET_MODE_VT:
+                // north sends this when the CPU stops
                 out_set_mode(OUT_MODE_VT);
+                cgia_stop();
                 pix_ack();
                 break;
             case PIX_VPU_CMD_SET_MODE_CGIA:

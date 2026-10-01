@@ -5,6 +5,7 @@
 #include "hardware/dma.h"
 #include "hardware/gpio.h"
 #include "hardware/interp.h"
+#include "hardware/sync.h"
 
 #include "cgia_encode.h"
 #define CGIA_PALETTE_IMPL
@@ -138,14 +139,51 @@ uint8_t int_mask = 0;
 
 #define INT_STATUS_MASKED (regs_int[CGIA_REG_INT_STATUS] & regs_int[CGIA_REG_INT_ENABLE] & int_mask)
 
+// The renderer (core 1) raises and re-arms interrupt sources while the PIX
+// ISR (core 0) acknowledges them. Unserialized, an acknowledge can be lost:
+// the NMI line then stays low and the 65816, which triggers NMI on an edge,
+// never takes another interrupt. Every read-modify-write of int_status and
+// int_mask goes under this lock. It is a no-op in the single-threaded emulator.
+#ifdef PICO_SDK_VERSION_MAJOR
+static spin_lock_t *int_lock;
+#define CGIA_INT_LOCK()   const uint32_t int_lock_save = spin_lock_blocking(int_lock)
+#define CGIA_INT_UNLOCK() spin_unlock(int_lock, int_lock_save)
+#else
+#define CGIA_INT_LOCK()
+#define CGIA_INT_UNLOCK()
+#endif
+
+static inline __attribute__((always_inline)) void cpu_set_nmi(void)
+{
+    gpio_put(VPU_NMIB_PIN, !INT_STATUS_MASKED);
+}
+
+// re-arm interrupt sources whose condition occurred
+static inline __attribute__((always_inline)) void cgia_int_arm(uint8_t flags)
+{
+    CGIA_INT_LOCK();
+    int_mask |= flags;
+    CGIA_INT_UNLOCK();
+}
+
+// raise interrupt sources
+static inline __attribute__((always_inline)) void cgia_int_raise(uint8_t flags)
+{
+    CGIA_INT_LOCK();
+    CGIA.int_status |= flags;
+    CGIA_INT_UNLOCK();
+}
+
 inline __attribute__((always_inline)) __attribute__((optimize("O2"))) void cgia_vbi(void)
 {
+    CGIA_INT_LOCK();
     int_mask |= CGIA_REG_INT_FLAG_VBI;
-
     if (CGIA.int_enable & CGIA_REG_INT_FLAG_VBI)
-    {
         CGIA.int_status |= CGIA_REG_INT_FLAG_VBI;
-    }
+    CGIA_INT_UNLOCK();
+
+    // signal the CPU right away, not a kernel loop or a scanline later
+    cpu_set_nmi();
 }
 
 inline __attribute__((always_inline)) __attribute__((optimize("O2"))) uint8_t cgia_reg_read(uint8_t reg_no)
@@ -162,8 +200,28 @@ inline __attribute__((always_inline)) __attribute__((optimize("O2"))) uint8_t cg
 
 inline __attribute__((always_inline)) __attribute__((optimize("O2"))) void cgia_reg_write(uint8_t reg_no, uint8_t value)
 {
-    // update the reg value
     const uint8_t reg = reg_no & 0x7F;
+
+    // interrupt state is shared with the renderer
+    if (reg == CGIA_REG_INT_ENABLE)
+    {
+        CGIA_INT_LOCK();
+        regs_int[reg] = value & 0b11100000;
+        int_mask &= ~(value & 0b11100000);
+        CGIA_INT_UNLOCK();
+        return;
+    }
+    if (reg == CGIA_REG_INT_STATUS)
+    {
+        // any write acknowledges every source
+        CGIA_INT_LOCK();
+        CGIA.int_status = 0x00;
+        int_mask = 0x00;
+        CGIA_INT_UNLOCK();
+        return;
+    }
+
+    // update the reg value
     regs_int[reg] = value;
 
     // some regs have side effects
@@ -175,15 +233,6 @@ inline __attribute__((always_inline)) __attribute__((optimize("O2"))) void cgia_
     case CGIA_REG_SPRITE_BANK:
         cgia_set_bank(1, value);
         break;
-    case CGIA_REG_INT_ENABLE:
-        regs_int[reg] = value & 0b11100000;
-        int_mask &= ~(value & 0b11100000);
-        break;
-    case CGIA_REG_INT_STATUS:
-        CGIA.int_status = 0x00;
-        int_mask = 0x00;
-        break;
-
     case CGIA_REG_PLANES + CGIA_PLANE_REGS_NO * 0: // .plane[0].sprite.active ?
         if (CGIA.planes & (0x10 << 0))
             plane_int[0].sprites_need_update = true;
@@ -201,11 +250,6 @@ inline __attribute__((always_inline)) __attribute__((optimize("O2"))) void cgia_
             plane_int[3].sprites_need_update = true;
         break;
     }
-}
-
-static inline __attribute__((always_inline)) void cpu_set_nmi(void)
-{
-    gpio_put(VPU_NMIB_PIN, !INT_STATUS_MASKED);
 }
 
 struct dma_control_block
@@ -253,8 +297,23 @@ void cgia_reset(void)
     vcache_transfer_buf = -1;
 }
 
+// CPU stops: no interrupt source may stay armed or hold the NMI line,
+// or the next program never sees an NMI edge
+void cgia_stop(void)
+{
+    CGIA_INT_LOCK();
+    CGIA.int_enable = 0x00;
+    CGIA.int_status = 0x00;
+    int_mask = 0x00;
+    CGIA_INT_UNLOCK();
+    cpu_set_nmi();
+}
+
 void cgia_init(void)
 {
+#ifdef PICO_SDK_VERSION_MAJOR
+    int_lock = spin_lock_instance(spin_lock_claim_unused(true));
+#endif
 
 #ifdef PICO_SDK_VERSION_MAJOR
     // drive NMI pin (used by CGIA only)
@@ -452,9 +511,8 @@ void __attribute__((optimize("O2"))) cgia_render(uint16_t y, uint32_t *rgbbuf)
     static uint p;
 
     CGIA.raster = y;
-    int_mask |= CGIA_REG_INT_FLAG_RSI;
-    if (y == 0)
-        int_mask |= CGIA_REG_INT_FLAG_VBI;
+    cgia_int_arm(y == 0 ? CGIA_REG_INT_FLAG_RSI | CGIA_REG_INT_FLAG_VBI
+                        : CGIA_REG_INT_FLAG_RSI);
 
     // track whether we need to fill line with background color
     // for transparent or sprite planes
@@ -620,7 +678,7 @@ void __attribute__((optimize("O2"))) cgia_render(uint16_t y, uint32_t *rgbbuf)
             const uint8_t *bckgnd_bank = vram_cache_ptr[0];
             const uint8_t dl_instr = bckgnd_bank[*plane_offset];
             const uint8_t instr_code = dl_instr & 0b00001111;
-            int_mask |= CGIA_REG_INT_FLAG_DLI;
+            cgia_int_arm(CGIA_REG_INT_FLAG_DLI);
 
             if (vram_cache_bank[0] != vram_wanted_bank[0])
             {
@@ -1325,14 +1383,13 @@ void __attribute__((optimize("O2"))) cgia_render(uint16_t y, uint32_t *rgbbuf)
         CGIA.raster = 0;
 
     // trigger raster-line interrupt
+    uint8_t raise = 0;
     if ((CGIA.int_enable & CGIA_REG_INT_FLAG_RSI) && (CGIA.raster == CGIA.int_raster))
-    {
-        CGIA.int_status |= CGIA_REG_INT_FLAG_RSI;
-    }
+        raise |= CGIA_REG_INT_FLAG_RSI;
     if ((CGIA.int_enable & CGIA_REG_INT_FLAG_DLI) && trigger_dli)
-    {
-        CGIA.int_status |= CGIA_REG_INT_FLAG_DLI;
-    }
+        raise |= CGIA_REG_INT_FLAG_DLI;
+    if (raise)
+        cgia_int_raise(raise);
 
     cpu_set_nmi();
 }
