@@ -60,6 +60,10 @@ typedef enum : uint16_t
 #define API_BUSY   (REGS(0xFFF3) & 0x80)
 #define API_ERR    (REGS(0xFFF3) & 0x01)
 #define API_STATUS (REGS(0xFFF3) & 0x81)
+// $FFF3 bit 6: an op was written while another one was running and was
+// refused (EBUSY). The running op is not affected. Cleared by the next
+// accepted op. Kept by the bus ISR, not in REGS.
+#define API_REJECTED 0x40
 #define API_A      REGS(0xFFF0)
 #define API_X      REGS(0xFFF1)
 #define API_SREG   REGSW(0xFFF0)

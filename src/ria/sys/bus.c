@@ -74,6 +74,8 @@ static uint8_t hid_dev = 0;
 // these registers only hold values
 static uint8_t rgb_regs[8];
 static uint8_t buz_regs[4];
+// API_REJECTED or 0, owned by the bus ISR so op results can't clear it
+static uint8_t api_rejected = 0;
 
 static enum state {
     BUS_PENDING_NOTHING,
@@ -251,6 +253,14 @@ mem_bus_pio_irq_handler(void)
 
                     // ------ FFF0 - FFFF ------ (API, EXT CTL)
                     case CASE_WRIT(0xFFF0): // API call
+                        if (API_BUSY && bus_data != API_OP_HALT)
+                        {
+                            // Another op is running: refuse this one
+                            // and leave the running op alone.
+                            api_rejected = API_REJECTED;
+                            break;
+                        }
+                        api_rejected = 0;
                         api_set_regs_blocked();
                         if (bus_data == API_OP_ZXSTACK)
                         {
@@ -273,6 +283,9 @@ mem_bus_pio_irq_handler(void)
                         {
                             API_OP = bus_data;
                         }
+                        break;
+                    case CASE_READ(0xFFF3): // API status
+                        data = API_STATUS | api_rejected;
                         break;
                     case CASE_READ(0xFFF2): // xstack
                         data = xstack[xstack_ptr];
@@ -547,6 +560,7 @@ void bus_run(void)
     REGS(0xFFF6) = 0;
     REGS(0xFFF7) = 0;
     hid_dev = 0;
+    api_rejected = 0;
     MEM_BUS_PIO->irq = (1u << GATE_IRQ); // clear gating IRQ
 }
 
