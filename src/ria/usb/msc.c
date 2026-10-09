@@ -5,6 +5,7 @@
  */
 
 #include <math.h>
+#include <stdio.h>
 
 #include "fatfs/diskio.h"
 #include "fatfs/ff.h"
