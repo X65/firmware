@@ -493,14 +493,19 @@ static void __tusb_irq_path_func(hcd_rp2040_irq)(void) {
   // Errors take precedence over both completion sources in this snapshot.
   const uint32_t errors = status & (USB_INTS_STALL_BITS | USB_INTS_ERROR_RX_TIMEOUT_BITS |
                                     USB_INTS_ERROR_DATA_SEQ_BITS);
-  if (errors) {
+  if (errors & (USB_INTS_ERROR_RX_TIMEOUT_BITS | USB_INTS_ERROR_DATA_SEQ_BITS)) {
     usb_hw_clear->sie_status = SIE_STATUS_ERROR_CLEAR | USB_SIE_STATUS_STALL_REC_BITS |
                                USB_SIE_STATUS_DATA_SEQ_ERROR_BITS;
     sie_stop_xfer();
-    const xfer_result_t result = (errors & (USB_INTS_ERROR_RX_TIMEOUT_BITS | USB_INTS_ERROR_DATA_SEQ_BITS))
-                                   ? XFER_RESULT_FAILED : XFER_RESULT_STALLED;
-    epx_abort_active(result, false);
+    epx_abort_active(XFER_RESULT_FAILED, false);
     arm_deferred_dispatch();
+  } else if (errors) {
+    // Device STALLed: the handshake ended the transaction, so the SIE is idle.
+    // No STOP_TRANS here: the stack's next SETUP (e.g. after a STALLed SET_IDLE,
+    // common on HID gamepads) starts directly and would be lost by an unsettled SIE.
+    // No data ACKed, so roll back so a post-CLEAR_FEATURE retry can't drift.
+    usb_hw_clear->sie_status = USB_SIE_STATUS_STALL_REC_BITS;
+    epx_abort_active(XFER_RESULT_STALLED, true);
   }
 
   if (status & USB_INTS_TRANS_COMPLETE_BITS) {
