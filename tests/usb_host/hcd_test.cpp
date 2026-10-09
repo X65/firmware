@@ -168,9 +168,12 @@ static void test_error_precedes_completion(uint32_t error, bool setup_phase) {
   assert(completions.size() == 1);
   assert_completion(0, 1, setup_phase ? 0 : 0x80, 0,
                     error == USB_INTS_STALL_BITS ? XFER_RESULT_STALLED : XFER_RESULT_FAILED);
-  assert(epx->state == EPSTATE_IDLE);
   assert(usb_hw->int_ep_ctrl == interrupt_mask());
-  irq(USB_INTS_HOST_SOF_BITS);
+  if (error != USB_INTS_STALL_BITS) {
+    // STOP_TRANS needs a frame to settle before the queued transfer starts.
+    assert(epx->state == EPSTATE_IDLE);
+    irq(USB_INTS_HOST_SOF_BITS);
+  }
   assert(epx == edpt_find(3, 0x83) && epx->state == EPSTATE_ACTIVE);
   assert(completions.size() == 1);
 }
