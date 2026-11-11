@@ -27,7 +27,11 @@ It will take an extremely long time to recurse the project, so do this instead:
 git submodule update --init
 ```
 
-To debug Pico RIA or Pico VPU code, you need a Debug Probe or a Pi Pico as a Picoprobe.
+The firmware builds `x65_north` (CPU bus, API and monitor) and `x65_south`
+(CGIA, terminal and audio transport). The SGU-1 sound core is maintained in
+its own repository.
+
+To debug NORTH or SOUTH code, you need a Debug Probe or a Pi Pico as a Picoprobe.
 
 The Pi Pico VSCode Extension will need this additional software:
 
@@ -45,7 +49,7 @@ SUBSYSTEM=="usb", ATTRS{idVendor}=="2e8a", MODE="0666"
 Debug terminal:
 
 ```
-openocd -f interface/cmsis-dap.cfg -c "adapter speed 5000" -f target/rp2350.cfg -c "program build/src/rp816.elf verify reset exit"
+openocd -f interface/cmsis-dap.cfg -c "adapter speed 5000" -f target/rp2350.cfg -c "program build/src/x65_north.elf verify reset exit"
 ```
 
 Console terminal:
